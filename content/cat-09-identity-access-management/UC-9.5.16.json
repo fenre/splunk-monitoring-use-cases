@@ -1,0 +1,79 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "9.5.16",
+  "title": "Duo Trust Monitor Priority Security Events",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "exclusions": "Only accounts created before 29 September 2025 on Duo Premier or Advantage have Trust Monitor, and the API ends on 31 January 2027. It does not replace Identity Intelligence, the successor product, and it only sees risk that Trust Monitor itself detects.",
+  "evidence": "Saved alert results with the Trust Monitor explanation, the triage link, and the analyst's disposition for each event, plus the bypass ticket for every `bypass_status` row.",
+  "controlTest": {
+    "positiveScenario": "In a Duo account that still has Trust Monitor, set bypass status on a test user in the Admin Panel. Within one input interval a Trust Monitor event with `type=bypass_status` and the test user in `enabled_for` is indexed, and the search returns a row for that user with your administrator name in `enabled_by`.",
+    "negativeScenario": "Sign in as a different test user from their usual device and location. No Trust Monitor event is surfaced, so the search returns no row for that user."
+  },
+  "dataSources": "`index=duo sourcetype=cisco:duo:trust_monitor` from the Cisco Security Cloud (7404) Duo input, Trust Monitor log type, which polls `GET /admin/v1/trust_monitor/events`. One event per security event Trust Monitor surfaced, with `type` (auth, bypass_status, device_registration), `explanations{}.type`, `priority_event`, `state`, `surfaced_auth`, and `triage_event_uri`.",
+  "app": "Cisco Security Cloud (`CiscoSecurityCloud`, [Splunkbase 7404](https://splunkbase.splunk.com/app/7404)), Cisco Duo input. Replaces the deprecated Duo Splunk Connector (Splunkbase 3504, end of life 31 May 2026).",
+  "spl": "index=duo sourcetype=\"cisco:duo:trust_monitor\"\n| rename explanations{}.type as explanation, priority_reasons{}.label as priority_reason\n| eval user=coalesce('surfaced_auth.user.name', enabled_for), src='surfaced_auth.access_device.ip', country='surfaced_auth.access_device.location.country', app_name='surfaced_auth.application.name'\n| where priority_event=\"true\" OR type=\"bypass_status\" OR explanation=\"USER_MARKED_FRAUD\" OR explanation=\"UNREALISTIC_GEOVELOCITY\"\n| stats count min(_time) as firstTime max(_time) as lastTime values(type) as event_types values(explanation) as explanations values(priority_reason) as priority_reasons values(src) as src values(country) as countries values(app_name) as applications values(enabled_by) as enabled_by latest(state) as state latest(triage_event_uri) as triage_uri by user\n| convert ctime(firstTime) ctime(lastTime)\n| sort - count",
+  "description": "Lists the Duo Trust Monitor security events that matter most: events Duo marked as priority under the Risk Profile, bypass status being enabled for a user or group, fraud reports, and unrealistic travel between sign-ins. Each row shows the user, why Trust Monitor surfaced the event, the source IPs and countries, and the link to triage it in Duo.",
+  "value": "Trust Monitor already scores Duo authentications for risk, but its findings are only useful if someone triages them. Pulling them into Splunk puts them in the SOC queue with the user's other activity. Duo removed Trust Monitor from the Admin Panel in July 2026 and ends API support on 31 January 2027, so this search is also the inventory of what to rebuild on its successor, Identity Intelligence.",
+  "implementation": "Enable the Trust Monitor log type in the Cisco Security Cloud (7404) Duo input, writing to `index=duo`. Schedule every 15 minutes and alert on every row. Plan the move to Identity Intelligence before the API reaches end of support on 31 January 2027.",
+  "visualization": "Alert table: user, event_types, explanations, priority_reasons, src, countries, applications, enabled_by, state, triage_uri. Supporting panel: Trust Monitor events per day by explanation over 90 days (stacked column).",
+  "cimModels": [],
+  "schema": "OCSF: detection_finding",
+  "references": [
+    {
+      "title": "Cisco Security Cloud (Splunkbase 7404)",
+      "url": "https://splunkbase.splunk.com/app/7404",
+      "retrieved": "2026-11-02"
+    },
+    {
+      "title": "Cisco Security Cloud App for Splunk User Guide",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/cisco-secure-cloud-app/user-guide/cisco-security-cloud-user-guide.pdf",
+      "retrieved": "2026-11-02"
+    },
+    {
+      "title": "Duo Admin API: Trust Monitor events",
+      "url": "https://duo.com/docs/adminapi#trust-monitor",
+      "retrieved": "2026-11-02"
+    }
+  ],
+  "knownFalsePositives": "1. **Travel** — `NEW_COUNTRY_CODE` and `UNREALISTIC_GEOVELOCITY` fire for staff who really travel, or whose traffic exits through a VPN or mobile carrier in another country. Check the HR travel calendar before escalating.\n\n2. **Planned bypass** — help desk staff set bypass status during device replacement. These rows show `type=bypass_status` with a help desk administrator in `enabled_by`; match them against the ticket.\n\n3. **Common netblocks** — events with `from_common_netblock=true` come from address space many users share and are lower risk.\n\n**Suppression:** throttle per user for 4 hours, and keep a lookup of approved bypass tickets with an expiry date.",
+  "mitreAttack": [
+    "T1078",
+    "T1621"
+  ],
+  "detectionType": "TTP",
+  "securityDomain": "identity",
+  "requiredFields": [
+    "type",
+    "explanations{}.type",
+    "priority_event",
+    "priority_reasons{}.label",
+    "state",
+    "enabled_by",
+    "enabled_for",
+    "surfaced_auth.user.name",
+    "surfaced_auth.access_device.ip",
+    "triage_event_uri"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_duo"
+  ],
+  "capabilities": [
+    "duo.trust_monitor"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Cisco Security Cloud (`CiscoSecurityCloud`, Splunkbase 7404) on the search heads and on the heavy forwarder or Splunk Cloud Inputs Data Manager that runs its modular inputs. It replaces the Duo Splunk Connector (Splunkbase 3504, end of life 31 May 2026); disable the old connector's inputs after cutover so events are not indexed twice.\n• A Duo Admin API application created by an Owner-role administrator in the Duo Admin Panel under Applications > Protect an Application > Admin API. Record the integration key, secret key, and API hostname (`api-XXXXXXXX.duosecurity.com`), and grant it **Grant read log**.\n• Outbound HTTPS (TCP 443) from the input host to the API hostname, and an accurate system clock on that host, because the Admin API signs every request with the current date.\n• An index for Duo data (this page uses `index=duo`) and a role with `srchIndexesAllowed` on it for the identity and SOC teams.\n• Duo Premier or Duo Advantage on an account created before 29 September 2025; Trust Monitor is not available on newer accounts. The API returns HTTP 403 with code 40301 when the account does not have it.\n\nStep 1 — Configure data collection\n• In Cisco Security Cloud open Application Setup, choose the Cisco Duo card, and create (or edit) the Duo input with the integration key, secret key, and API hostname. Enable the **Trust Monitor** log type and set the index to `duo`. Each log type runs as its own modular input, so its interval can be set separately.\n• The input calls `GET /admin/v1/trust_monitor/events` and writes `sourcetype=cisco:duo:trust_monitor`.\n• The endpoint returns events from the last 180 days. Duo asks for no more than one request per minute, so keep the input interval at 5 minutes or longer.\n• Each event has `type` set to `auth`, `bypass_status`, or `device_registration`. `auth` events carry the full authentication record in `surfaced_auth`, which has the same shape as the v2 authentication log.\n• Check the fields this search needs: run `index=duo sourcetype=cisco:duo:trust_monitor | stats count by type priority_event state` over 30 days.\n\nStep 2 — Create the search and alert\n```spl\nindex=duo sourcetype=\"cisco:duo:trust_monitor\"\n| rename explanations{}.type as explanation, priority_reasons{}.label as priority_reason\n| eval user=coalesce('surfaced_auth.user.name', enabled_for), src='surfaced_auth.access_device.ip', country='surfaced_auth.access_device.location.country', app_name='surfaced_auth.application.name'\n| where priority_event=\"true\" OR type=\"bypass_status\" OR explanation=\"USER_MARKED_FRAUD\" OR explanation=\"UNREALISTIC_GEOVELOCITY\"\n| stats count min(_time) as firstTime max(_time) as lastTime values(type) as event_types values(explanation) as explanations values(priority_reason) as priority_reasons values(src) as src values(country) as countries values(app_name) as applications values(enabled_by) as enabled_by latest(state) as state latest(triage_event_uri) as triage_uri by user\n| convert ctime(firstTime) ctime(lastTime)\n| sort - count\n```\n\nUnderstanding this SPL\n• `rename` turns the multivalue arrays `explanations{}.type` and `priority_reasons{}.label` into simple field names.\n• The user comes from `surfaced_auth.user.name` for authentication events and from `enabled_for` for bypass events.\n• `priority_event=true` means the event matches the Risk Profile set up in Duo; bypass status, fraud reports, and impossible travel are kept even when they are not priority events, because each one needs a human decision.\n• `state` is `new` until someone processes the event in Duo. The `triage_uri` column links straight to it.\n\nStep 3 — Validate\n• Compare with the Duo admin console (Admin Panel) Trust Monitor page, where it is still available, for the same 24 hours: each surfaced event should appear here with the same type and explanation.\n• Open the `triage_uri` of one row and confirm it opens the same event in the Admin Panel.\n• Run `index=duo sourcetype=cisco:duo:trust_monitor | timechart span=1d count` over 30 days; days with no events are normal in small accounts, but a sudden stop after steady volume points to the input.\n\nStep 4 — Operationalize\n• Schedule every 15 minutes over the last 20 minutes and throttle on `user` for 4 hours.\n• Route priority and fraud rows to the SOC; route bypass rows to the identity team to check against a ticket.\n• Record the explanation types seen over 90 days; they are the detections to rebuild in Identity Intelligence before 31 January 2027.\n\nStep 5 — Troubleshooting\n• No Duo events and HTTP 401 in the input log under `$SPLUNK_HOME/var/log/splunk/duo_splunkapp/`: wrong secret key, an API hostname from a different Duo account, or clock skew on the input host.\n• HTTP 403: the Admin API application is missing **Grant read log**.\n• HTTP 429: Duo rate-limits the log endpoints. Make sure the deprecated 3504 connector and the 7404 input are not both polling the same Admin API application.\n• Duplicate rows after migration: the 3504 connector and the 7404 input are both enabled for the same log type.\n• No trust_monitor events and HTTP 403 with code 40301: the account has no Trust Monitor, because it is on a plan without it or was created after 29 September 2025.\n• Empty fields `surfaced_auth.*` on bypass and device registration events are expected; only `type=auth` events carry an authentication.\n",
+  "grandmaExplanation": "Duo has its own alarm that spots risky logins and accounts where the extra login check was switched off. We copy those alarms into our main security screen so someone looks at every one.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}
