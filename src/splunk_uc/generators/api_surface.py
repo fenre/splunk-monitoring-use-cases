@@ -259,6 +259,26 @@ def _load_ucs() -> list[dict[str, Any]]:
 _ID_RX = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
 
 
+def _vendor_capability_coverage() -> dict[str, dict[str, Any]]:
+    """Map equipment model id -> capability coverage from data/cisco-portfolio.json."""
+    from splunk_uc.generators import cisco_coverage
+
+    if not cisco_coverage.PORTFOLIO.exists():
+        return {}
+    matrix = cisco_coverage.build_matrix(cisco_coverage.load_portfolio(), cisco_coverage.collect_ucs())
+    out: dict[str, dict[str, Any]] = {}
+    for prod in matrix["products"]:
+        out[prod["equipmentModel"]] = {
+            "product": prod["slug"],
+            "capabilityMap": prod["capabilityMap"],
+            "requestCoverageUrl": matrix.get("requestCoverageUrl"),
+            "capabilities": [
+                {k: c[k] for k in ("ref", "name", "status", "useCases", "cimModels")} for c in prod["capabilities"]
+            ],
+        }
+    return out
+
+
 def _uc_sort_key(uc: Mapping[str, Any]) -> tuple[int, int, int]:
     m = _ID_RX.match(uc.get("id", ""))
     if not m:
@@ -1711,6 +1731,8 @@ def _equipment_payloads(
     generated = _deterministic_timestamp()
     version = _read_version()
 
+    capability_coverage = _vendor_capability_coverage()
+
     index_entries: list[dict[str, Any]] = []
     details: dict[str, dict[str, Any]] = {}
     all_referenced_ids = sorted(set(equipment_ucs.keys()) | set(by_id.keys()))
@@ -1736,15 +1758,16 @@ def _equipment_payloads(
                 set(model_ucs.get(compound, [])),
                 key=lambda x: _uc_sort_key({"id": x}),
             )
-            model_summary.append(
-                {
-                    "id": compound,
-                    "modelId": model["id"],
-                    "label": model.get("label", model["id"]),
-                    "useCaseCount": len(m_uc_ids),
-                    "useCaseIds": m_uc_ids,
-                }
-            )
+            summary_entry: dict[str, Any] = {
+                "id": compound,
+                "modelId": model["id"],
+                "label": model.get("label", model["id"]),
+                "useCaseCount": len(m_uc_ids),
+                "useCaseIds": m_uc_ids,
+            }
+            if compound in capability_coverage:
+                summary_entry["capabilityCoverage"] = capability_coverage[compound]
+            model_summary.append(summary_entry)
         model_summary.sort(key=lambda m: m["id"])
 
         index_entry: dict[str, Any] = {

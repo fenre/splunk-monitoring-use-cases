@@ -148,6 +148,7 @@ All audits are in `.github/workflows/validate.yml`. Key steps:
 - Stewardship digest schema (PR smoke-test of `python -m splunk_uc generate-stewardship-digest` against `schemas/v2/stewardship-digest.schema.json`)
 - Build reproducibility (nightly + build-pipeline PRs: `python -m splunk_uc audit-reproducibility --keep` runs two consecutive `--reproducible` builds and asserts `dist/integrity.json` byte-identical; see `.github/workflows/build-reproducibility.yml`)
 - Equipment app map (`python3 -m splunk_uc audit-equipment-app-map --check` — Splunkbase ids, DSA ids, UC corroboration for every `kind=equipment` slug; see [`docs/equipment-app-map.md`](docs/equipment-app-map.md))
+- Cisco portfolio coverage (`python3 -m splunk_uc generate-cisco-coverage --check` keeps `reports/cisco-coverage/` current; `audit-cisco-coverage --check` fails on unknown `capabilities[]` refs, new uncovered capabilities or CIM gaps, and products without tagged UCs, against the waivers and shrinking backlog in `data/cisco-coverage-baseline.json`)
 - Splunkbase catalog freshness (`python3 scripts/sync_splunkbase_catalog.py --check` — validates cached `data/splunkbase-catalog.json` shape)
 - `splunk_uc` dispatcher smoke (per-PR: `python -m splunk_uc --help` and `--version` succeed; pinned by `tests/splunk_uc/test_dispatcher.py`)
 
