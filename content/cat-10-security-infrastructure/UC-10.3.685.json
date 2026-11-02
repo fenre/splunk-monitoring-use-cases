@@ -1,0 +1,81 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "10.3.685",
+  "title": "Cisco Secure Endpoint Exploit Prevention Blocks",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "exclusions": "Covers Windows connectors with Exploit Prevention enabled. macOS and Linux connectors do not report this event type.",
+  "evidence": "Saved alert results with host, process, and detection, plus the patch or exclusion decision for each recurring process.",
+  "controlTest": {
+    "positiveScenario": "Pick an Exploit Prevention event from the Secure Endpoint console Events page in the last 30 days and run the search over the same window. It returns a row for that host with the same targeted process. In a lab, an exploit simulation approved by your security team against a protected process produces the same event.",
+    "negativeScenario": "Use the same application normally on the test host. No Exploit Prevention event is created and the search returns no row."
+  },
+  "dataSources": "`index=secure_endpoint sourcetype=cisco:se` from the Cisco Security Cloud (7404) Secure Endpoint input, which polls `GET /v1/events`. This search uses event type 1090519103 (Exploit Prevention). Each event carries `event_type`, `event_type_id`, `detection`, `severity`, `connector_guid`, `group_guids{}`, `computer.hostname`, `computer.user`, `computer.external_ip`, `computer.links.trajectory`, and for file events `file.file_name`, `file.file_path`, `file.disposition`, and `file.identity.sha256`.",
+  "app": "Cisco Security Cloud (`CiscoSecurityCloud`, [Splunkbase 7404](https://splunkbase.splunk.com/app/7404)), Cisco Secure Endpoint input.",
+  "spl": "index=secure_endpoint sourcetype=\"cisco:se\" event_type_id=1090519103\n| eval host_name='computer.hostname', user='computer.user', sha256='file.identity.sha256', file_name='file.file_name', file_path='file.file_path', trajectory='computer.links.trajectory'\n| stats count min(_time) as firstTime max(_time) as lastTime values(detection) as detections values(file_name) as processes values(file_path) as paths values(user) as users latest(trajectory) as trajectory by host_name\n| convert ctime(firstTime) ctime(lastTime)\n| sort - count",
+  "description": "Lists hosts where the Secure Endpoint Exploit Prevention engine blocked a memory-based exploit attempt against a protected process. Each row shows the detection, the targeted process and path, the users, and the trajectory link.",
+  "value": "Exploit Prevention blocks attacks that work by injecting code into a legitimate process, which file scanning does not catch. A block means someone tried to exploit an application on that host; repeated blocks against one application point to a targeted attack or a vulnerable version that needs patching.",
+  "implementation": "Enable Exploit Prevention in the Secure Endpoint policy for Windows connectors and collect events with the Cisco Security Cloud (7404) input into `index=secure_endpoint`. Schedule every 15 minutes and alert on every row.",
+  "visualization": "Alert table: host_name, count, detections, processes, paths, users, firstTime, lastTime, trajectory. Supporting panel: exploit prevention events by targeted process over 30 days (bar chart).",
+  "cimModels": [],
+  "schema": "OCSF: detection_finding",
+  "references": [
+    {
+      "title": "Cisco Security Cloud (Splunkbase 7404)",
+      "url": "https://splunkbase.splunk.com/app/7404",
+      "retrieved": "2026-11-02"
+    },
+    {
+      "title": "Cisco Security Cloud App for Splunk User Guide",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/cisco-secure-cloud-app/user-guide/cisco-security-cloud-user-guide.pdf",
+      "retrieved": "2026-11-02"
+    },
+    {
+      "title": "Cisco Secure Endpoint API v1: Events",
+      "url": "https://developer.cisco.com/docs/secure-endpoint/v1-api-reference-event/",
+      "retrieved": "2026-11-02"
+    },
+    {
+      "title": "Cisco Secure Endpoint API v1: Event Types",
+      "url": "https://developer.cisco.com/docs/secure-endpoint/v1-api-reference-event-type/",
+      "retrieved": "2026-11-02"
+    }
+  ],
+  "knownFalsePositives": "1. **Application compatibility** — some legitimate software (older plugins, debuggers, DRM) behaves like an exploit and is blocked. These repeat on every launch of the same process on many hosts.\n\n2. **Security tools** — other endpoint or monitoring agents that inject into processes can trigger blocks.\n\n**Suppression:** add a process exclusion in the Secure Endpoint policy after review, and throttle per host and process for 4 hours.",
+  "mitreAttack": [
+    "T1203",
+    "T1055"
+  ],
+  "detectionType": "TTP",
+  "securityDomain": "endpoint",
+  "requiredFields": [
+    "event_type_id",
+    "detection",
+    "computer.hostname",
+    "computer.user",
+    "computer.links.trajectory",
+    "file.file_name",
+    "file.file_path"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_secure_endpoint"
+  ],
+  "capabilities": [
+    "secure_endpoint.exploit_prevention"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Cisco Security Cloud (`CiscoSecurityCloud`, Splunkbase 7404) on the search heads and on the heavy forwarder or Splunk Cloud Inputs Data Manager that runs its modular inputs.\n• A Secure Endpoint API credential: in the Secure Endpoint console under Administration > API Credentials, create a read-only credential and record the client ID and API key, plus the API host for your region (for example `api.amp.cisco.com` for North America, `api.eu.amp.cisco.com` for Europe).\n• Outbound HTTPS (TCP 443) from the input host to the API host.\n• An index for Secure Endpoint data (this page uses `index=secure_endpoint`) and a role with `srchIndexesAllowed` on it for the SOC and endpoint teams.\n• Exploit Prevention enabled in the Secure Endpoint policy (Policies > Modes and Engines > Exploit Prevention) for Windows connectors.\n\nStep 1 — Configure data collection\n• In Cisco Security Cloud open Application Setup, choose the Cisco Secure Endpoint card, and create an input with the API host, client ID, and API key. Set the index to `secure_endpoint`. The modular input polls `GET /v1/events` with a default interval of 300 seconds and writes `sourcetype=cisco:se`.\n• Select the event types the input should collect. Collecting all types is simplest; if you limit them, include the event type IDs this search uses.\n• In a distributed deployment run the input on one node only; the guide notes that the computers, compromises, and top-malware endpoints can produce duplicates otherwise.\n• Check the events this search needs: run `index=secure_endpoint sourcetype=cisco:se event_type_id=1090519103 | stats count by detection` over 30 days.\n\nStep 2 — Create the search and alert\n```spl\nindex=secure_endpoint sourcetype=\"cisco:se\" event_type_id=1090519103\n| eval host_name='computer.hostname', user='computer.user', sha256='file.identity.sha256', file_name='file.file_name', file_path='file.file_path', trajectory='computer.links.trajectory'\n| stats count min(_time) as firstTime max(_time) as lastTime values(detection) as detections values(file_name) as processes values(file_path) as paths values(user) as users latest(trajectory) as trajectory by host_name\n| convert ctime(firstTime) ctime(lastTime)\n| sort - count\n```\n\nUnderstanding this SPL\n• 1090519103 is Exploit Prevention; the event's `file` object describes the protected process that was targeted.\n• `stats` by host keeps each targeted process and path, so a single host with several targeted applications stands out.\n\nStep 3 — Validate\n• Compare with the Secure Endpoint console Events page filtered to Exploit Prevention for the same time range: counts per host should match.\n• Open the trajectory for one row and confirm the blocked process.\n• Run `index=secure_endpoint sourcetype=cisco:se | timechart span=1h count by event_type` over 7 days; flat zero for all types for more than two intervals means the input stopped, not that the estate is clean.\n\nStep 4 — Operationalize\n• Schedule every 15 minutes over the last 20 minutes and throttle on `host_name` plus `processes` for 4 hours.\n• Route to the SOC. If the same process is targeted on many hosts, check its version against current vendor advisories and patch.\n• Review exclusions quarterly; remove any that are no longer needed.\n\nStep 5 — Troubleshooting\n• No cisco:se events and HTTP 401 in the input log: wrong client ID or API key, or the API host is for a different region from the organisation.\n• Events arrive but `event_type_id` is missing: the events were indexed before JSON extraction applied; check `| fieldsummary` on one hour of data.\n• Duplicate events with the same `id`: the input runs on more than one node, or the legacy AMP for Endpoints input (Splunkbase 3686) is still enabled. Keep one collector.\n• No events for Windows hosts that should have them: Exploit Prevention is in audit mode or off in the policy for that group.\n",
+  "grandmaExplanation": "Some attacks try to trick a normal program, like a web browser, into running bad code. The protection on the computer stopped one, and we tell the team which computer and program it was.",
+  "prerequisiteUseCases": [],
+  "wave": "walk"
+}
