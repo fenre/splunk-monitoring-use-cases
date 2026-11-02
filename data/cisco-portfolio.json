@@ -1,0 +1,969 @@
+{
+  "$schema": "../schemas/cisco-portfolio.schema.json",
+  "$comment": "Cisco portfolio coverage map. Sourcetypes come from Splunk's 'Integrated Enterprise Value for Cisco data' table and the Cisco Security Cloud App user guide; capability lists come from vendor feature and telemetry documentation. A capability is observable only when a documented event stream shows it. cimModels lists a model only when the vendor or add-on documents the mapping; cimNote explains every empty list. Edit this file, then run `python -m splunk_uc generate-cisco-coverage` and `audit-cisco-coverage --check`.",
+  "version": 1,
+  "retrieved": "2026-11-02",
+  "requestCoverageUrl": "https://github.com/fenre/splunk-monitoring-use-cases/issues/new?template=feature-request.yml&labels=coverage-request",
+  "products": [
+    {
+      "slug": "duo",
+      "name": "Cisco Duo",
+      "family": "identity",
+      "equipmentModel": "cisco_duo",
+      "tier": 1,
+      "splunkbase": [
+        {"id": "7404", "role": "collector", "note": "Cisco Security Cloud; the supported Duo input."},
+        {"id": "3504", "role": "deprecated", "note": "Duo Splunk Connector, end of life 31 May 2026; replaced by 7404."},
+        {"id": "6544", "role": "community", "note": "CyberCX Duo connector."}
+      ],
+      "collection": [
+        {
+          "method": "api",
+          "sourcetypes": ["cisco:duo:authentication", "cisco:duo:authentication_v2", "cisco:duo:administrator", "cisco:duo:activity", "cisco:duo:trust_monitor", "cisco:duo:telephony", "cisco:duo:telephony_v2", "cisco:duo:endpoint", "cisco:duo:user", "cisco:duo:account", "cisco:duo"],
+          "note": "Duo Admin API integration key, secret key, and API hostname (api-XXXXXXXX.duosecurity.com) created under Applications > Protect an Application > Admin API. The authentication_v2 result values are lowercase; v1 values are uppercase."
+        }
+      ],
+      "docs": [
+        {"title": "Cisco Security Cloud App for Splunk User Guide", "url": "https://www.cisco.com/c/en/us/td/docs/security/cisco-secure-cloud-app/user-guide/cisco-security-cloud-user-guide.pdf"},
+        {"title": "Duo Admin API", "url": "https://duo.com/docs/adminapi"},
+        {"title": "Splunk Security Content data source: Cisco Duo Activity", "url": "https://github.com/splunk/security_content/blob/develop/data_sources/cisco_duo_activity.yml"},
+        {"title": "Splunk Security Content data source: Cisco Duo Administrator", "url": "https://github.com/splunk/security_content/blob/develop/data_sources/cisco_duo_administrator.yml"}
+      ],
+      "capabilityMap": "mapped",
+      "capabilities": [
+        {
+          "id": "authentication",
+          "name": "MFA authentication outcomes",
+          "observable": true,
+          "telemetry": "Authentication log: one event per sign-in with result, reason, factor, user, application, access device IP and location.",
+          "sourcetypes": ["cisco:duo:authentication", "cisco:duo:authentication_v2"],
+          "cimNote": "Cisco Security Cloud lists CIM mappings as beta and publishes no per-sourcetype model; Splunk Security Content detections search the raw Duo fields.",
+          "ocsfClass": "OCSF: authentication",
+          "outcome": "Shows who failed or was denied the second factor, push fatigue, and fraud reports, so account takeover is caught at the sign-in step."
+        },
+        {
+          "id": "administrator_actions",
+          "name": "Administrator and policy changes",
+          "observable": true,
+          "telemetry": "Administrator log: action, actionlabel, object, username, description for policy, user, bypass-code, and integration changes.",
+          "sourcetypes": ["cisco:duo:administrator"],
+          "cimNote": "No documented CIM Change mapping for the Duo administrator log.",
+          "ocsfClass": "OCSF: account_change",
+          "outcome": "Catches policies that bypass or weaken MFA and bypass codes issued outside change control, before an attacker uses them."
+        },
+        {
+          "id": "activity_log",
+          "name": "Unified activity log",
+          "observable": true,
+          "telemetry": "Activity log v2: action.name, actor.name, actor.type, outcome.result, access_device.ip.address, access_device.location.country, target.name.",
+          "sourcetypes": ["cisco:duo:activity"],
+          "cimNote": "Nested Duo fields; no documented CIM mapping.",
+          "ocsfClass": "OCSF: api_activity",
+          "outcome": "Gives one stream of admin and user actions with actor location, so unusual admin sign-ins are visible across the whole Duo tenant."
+        },
+        {
+          "id": "trust_monitor",
+          "name": "Trust Monitor security events",
+          "observable": true,
+          "telemetry": "Trust Monitor events surfaced through the Admin API: Duo's own risk detections on authentications and devices.",
+          "sourcetypes": ["cisco:duo:trust_monitor"],
+          "cimNote": "No documented CIM Alerts mapping for Trust Monitor events.",
+          "ocsfClass": "OCSF: detection_finding",
+          "outcome": "Brings Duo's own risk findings into the SOC queue so they are triaged with the rest of the alerts instead of only inside the Duo console."
+        },
+        {
+          "id": "telephony",
+          "name": "Telephony credit usage",
+          "observable": true,
+          "telemetry": "Telephony log: SMS and phone-call factor deliveries and the credits they consume.",
+          "sourcetypes": ["cisco:duo:telephony", "cisco:duo:telephony_v2"],
+          "cimNote": "Telephony credit use is a billing signal; no CIM model applies.",
+          "outcome": "Warns before telephony credits run out, which would stop SMS and phone-call MFA, and exposes toll-fraud style bursts."
+        },
+        {
+          "id": "endpoint_posture",
+          "name": "Endpoint inventory and posture",
+          "observable": true,
+          "telemetry": "Endpoint objects from the Admin API: operating system and browser versions, and device health attributes for devices that authenticate.",
+          "sourcetypes": ["cisco:duo:endpoint"],
+          "cimNote": "No documented CIM Inventory mapping for Duo endpoints.",
+          "ocsfClass": "OCSF: device_inventory_info",
+          "outcome": "Shows which out-of-date operating systems and browsers still reach protected apps, so device-health policy can be tightened with evidence."
+        },
+        {
+          "id": "user_lifecycle",
+          "name": "User and account state",
+          "observable": true,
+          "telemetry": "User and account objects from the Admin API: enrollment, status (active, bypass, disabled, locked out), and attached phones and tokens.",
+          "sourcetypes": ["cisco:duo:user", "cisco:duo:account"],
+          "cimNote": "Object snapshots, not events; no CIM model applies.",
+          "ocsfClass": "OCSF: entity_management",
+          "outcome": "Finds users left in bypass status or never enrolled, which are the accounts where MFA silently does not apply."
+        }
+      ]
+    },
+    {
+      "slug": "secure_access",
+      "name": "Cisco Secure Access and Umbrella",
+      "family": "security",
+      "equipmentModel": "cisco_secure_access",
+      "tier": 1,
+      "splunkbase": [
+        {"id": "7569", "role": "collector", "note": "Cisco Secure Access Add-on for Splunk; collects Secure Access and Umbrella logs. Declares CIM 6.x and 8.x compatibility."},
+        {"id": "5558", "role": "app", "note": "Cisco Secure Access App for Splunk; dashboards over the Cloud Security APIs."}
+      ],
+      "collection": [
+        {
+          "method": "s3",
+          "sourcetypes": ["cisco:cloud_security:dns", "cisco:cloud_security:proxy", "cisco:cloud_security:firewall", "cisco:cloud_security:intrusion", "cisco:cloud_security:dlp", "cisco:cloud_security:ravpn", "cisco:cloud_security:ztna", "cisco:cloud_security:ztnaflow", "cisco:cloud_security:ztnaenrollment", "cisco:cloud_security:appdiscovery", "cisco:cloud_security:audit", "cisco:cloud_security:cloudlock", "cisco:cloud_security:fileevent", "cisco:cloud_security:privateapps", "cisco:umbrella:dns"],
+          "note": "Log export from the Secure Access or Umbrella managed or customer S3 bucket, read by the add-on."
+        },
+        {
+          "method": "api",
+          "sourcetypes": ["cisco:secure_access:security_events_dns", "cisco:secure_access:security_events_web", "cisco:secure_access:security_events_intrusion", "cisco:secure_access:security_events_dlp", "cisco:secure_access:security_events_ravpn", "cisco:secure_access:security_events_ztna", "cisco:cloud_security:investigated"],
+          "note": "Reporting and Investigate API inputs in the add-on."
+        }
+      ],
+      "docs": [
+        {"title": "Splunk: Integrated Enterprise Value for Cisco data (supported source types)", "url": "https://help.splunk.com/en/splunk-cloud-platform/get-started/get-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data"},
+        {"title": "Splunk Security Content data source: Cisco Secure Access DNS", "url": "https://github.com/splunk/security_content/blob/develop/data_sources/cisco_secure_access_dns.yml"},
+        {"title": "Splunk Security Content data source: Cisco Secure Access Proxy", "url": "https://github.com/splunk/security_content/blob/develop/data_sources/cisco_secure_access_proxy.yml"},
+        {"title": "Splunk Security Content data source: Cisco Secure Access Firewall", "url": "https://github.com/splunk/security_content/blob/develop/data_sources/cisco_secure_access_firewall.yml"}
+      ],
+      "capabilityMap": "mapped",
+      "capabilities": [
+        {
+          "id": "dns_security",
+          "name": "DNS-layer security",
+          "observable": true,
+          "telemetry": "DNS log: action, domain/query, category, blocked_category, identities, identity_type, reply_code, src_ip, user.",
+          "sourcetypes": ["cisco:cloud_security:dns", "cisco:umbrella:dns"],
+          "cimModels": ["Network_Resolution"],
+          "cimNote": "Add-on declares CIM compatibility and extracts the Network_Resolution field names query, reply_code, and src. Confirm the dns tag on your add-on version before accelerating.",
+          "ocsfClass": "OCSF: dns_activity",
+          "outcome": "Shows blocked malware, phishing, and command-and-control lookups per identity, so infected devices are found from the first DNS request."
+        },
+        {
+          "id": "secure_web_gateway",
+          "name": "Secure web gateway",
+          "observable": true,
+          "telemetry": "Proxy log: action, dest, http_method, http_user_agent, category, amp_disposition, amp_malwarename, sha256, dlp_status, isolateAction.",
+          "sourcetypes": ["cisco:cloud_security:proxy"],
+          "cimModels": ["Web"],
+          "cimNote": "Add-on extracts the Web field names action, dest, http_method, http_user_agent, and category. Confirm the web and proxy tags on your add-on version.",
+          "ocsfClass": "OCSF: http_activity",
+          "outcome": "Shows malicious downloads and risky web categories per user, so web-borne threats are contained before they spread."
+        },
+        {
+          "id": "cloud_firewall",
+          "name": "Cloud-delivered firewall",
+          "observable": true,
+          "telemetry": "Firewall log: action, dest_ip, dest_port, identity, rule_id, bytes_in, bytes_out, datacenter, tunnel_id.",
+          "sourcetypes": ["cisco:cloud_security:firewall"],
+          "cimModels": ["Network_Traffic"],
+          "cimNote": "Add-on extracts the Network_Traffic field names action, dest_ip, dest_port, bytes_in, and bytes_out. Confirm the network and communicate tags.",
+          "ocsfClass": "OCSF: network_activity",
+          "outcome": "Shows which tunnels and identities hit block rules, so policy gaps and blocked exfiltration attempts are visible per site."
+        },
+        {
+          "id": "intrusion_prevention",
+          "name": "Cloud IPS",
+          "observable": true,
+          "telemetry": "Intrusion events from the Secure Access IPS: signature, classification, severity, source and destination.",
+          "sourcetypes": ["cisco:cloud_security:intrusion", "cisco:secure_access:security_events_intrusion"],
+          "cimNote": "No documented Intrusion_Detection tag for the Secure Access intrusion feed.",
+          "ocsfClass": "OCSF: detection_finding",
+          "outcome": "Shows exploit attempts the cloud IPS saw, so remote users and branches get the same intrusion visibility as the data center."
+        },
+        {
+          "id": "data_loss_prevention",
+          "name": "Data loss prevention",
+          "observable": true,
+          "telemetry": "DLP events: rule matched, destination application, file, identity, and action.",
+          "sourcetypes": ["cisco:cloud_security:dlp", "cisco:secure_access:security_events_dlp"],
+          "cimNote": "No documented CIM DLP mapping for the Secure Access DLP feed.",
+          "ocsfClass": "OCSF: data_security_finding",
+          "outcome": "Shows sensitive data leaving through web and SaaS uploads per user, so data-protection incidents are handled with evidence."
+        },
+        {
+          "id": "zero_trust_access",
+          "name": "Zero trust network access",
+          "observable": true,
+          "telemetry": "ZTNA access, flow, and enrollment logs for private application access.",
+          "sourcetypes": ["cisco:cloud_security:ztna", "cisco:cloud_security:ztnaflow", "cisco:cloud_security:ztnaenrollment", "cisco:secure_access:security_events_ztna"],
+          "cimNote": "No documented CIM mapping for ZTNA logs.",
+          "ocsfClass": "OCSF: network_activity",
+          "outcome": "Shows who reached which private application and which attempts were denied, which is the audit trail zero-trust access promises."
+        },
+        {
+          "id": "remote_access_vpn",
+          "name": "Remote access VPN",
+          "observable": true,
+          "telemetry": "RAVPN session logs from Secure Access.",
+          "sourcetypes": ["cisco:cloud_security:ravpn", "cisco:secure_access:security_events_ravpn"],
+          "cimNote": "No documented CIM mapping for the RAVPN feed.",
+          "ocsfClass": "OCSF: authentication",
+          "outcome": "Shows VPN connections by user, country, and posture result, so impossible travel and failed-posture logins are caught."
+        },
+        {
+          "id": "app_discovery",
+          "name": "Cloud application discovery",
+          "observable": true,
+          "telemetry": "App discovery records: SaaS applications seen, risk, and usage.",
+          "sourcetypes": ["cisco:cloud_security:appdiscovery"],
+          "cimNote": "No CIM model applies to SaaS discovery inventory.",
+          "outcome": "Shows unsanctioned SaaS applications in use, so shadow IT is reviewed before it holds company data."
+        },
+        {
+          "id": "admin_audit",
+          "name": "Admin audit trail",
+          "observable": true,
+          "telemetry": "Admin audit log: dashboard changes to policies, identities, and settings.",
+          "sourcetypes": ["cisco:cloud_security:audit"],
+          "cimNote": "No documented CIM Change mapping for the audit feed.",
+          "ocsfClass": "OCSF: api_activity",
+          "outcome": "Shows who changed security policy and when, so an unsafe allow-list entry can be traced to an owner and a ticket."
+        }
+      ]
+    },
+    {
+      "slug": "secure_endpoint",
+      "name": "Cisco Secure Endpoint",
+      "family": "security",
+      "equipmentModel": "cisco_secure_endpoint",
+      "tier": 1,
+      "splunkbase": [
+        {"id": "7404", "role": "collector", "note": "Cisco Security Cloud Secure Endpoint input (api_host, api_key, client_id; default interval 300 s)."},
+        {"id": "3686", "role": "cim", "note": "CIM add-on for the legacy AMP for Endpoints event input; does not cover the 7404 cisco:se sourcetype."},
+        {"id": "6481", "role": "community", "note": "CyberCX Secure Endpoint add-on."}
+      ],
+      "collection": [
+        {
+          "method": "api",
+          "sourcetypes": ["cisco:se"],
+          "note": "Event types are selected per input. In a distributed deployment the /compromises, /computers, and /metrics/top_malware_threats endpoints can produce duplicates."
+        }
+      ],
+      "docs": [
+        {"title": "Cisco Security Cloud App for Splunk User Guide", "url": "https://www.cisco.com/c/en/us/td/docs/security/cisco-secure-cloud-app/user-guide/cisco-security-cloud-user-guide.pdf"},
+        {"title": "Cisco Secure Endpoint API", "url": "https://developer.cisco.com/docs/secure-endpoint/"}
+      ],
+      "capabilityMap": "mapped",
+      "capabilities": [
+        {
+          "id": "threat_detection",
+          "name": "Malware detection",
+          "observable": true,
+          "telemetry": "Events with event_type_id 1090519054 (Threat Detected) and 1090519084 (DFC Threat Detected).",
+          "sourcetypes": ["cisco:se"],
+          "cimNote": "The 3686 CIM add-on maps the legacy AMP input, not cisco:se.",
+          "ocsfClass": "OCSF: detection_finding",
+          "outcome": "Shows which hosts had malware or a malicious network connection detected, so incident response starts from the right machine."
+        },
+        {
+          "id": "quarantine",
+          "name": "Quarantine success and failure",
+          "observable": true,
+          "telemetry": "Events with event_type_id 553648143 (Threat Quarantined) and 2164260880 (Quarantine Failure).",
+          "sourcetypes": ["cisco:se"],
+          "cimNote": "No CIM mapping for cisco:se.",
+          "ocsfClass": "OCSF: detection_finding",
+          "outcome": "Shows detections the agent could not quarantine, which are the infections still live on a host and need a human."
+        },
+        {
+          "id": "retrospective_detection",
+          "name": "Retrospective detection",
+          "observable": true,
+          "telemetry": "Events with event_type_id 553648147 (Retrospective Detection): a file seen earlier is now known malicious.",
+          "sourcetypes": ["cisco:se"],
+          "cimNote": "No CIM mapping for cisco:se.",
+          "ocsfClass": "OCSF: detection_finding",
+          "outcome": "Finds every host that ran a file before it was known to be bad, so a late verdict still leads to cleanup."
+        },
+        {
+          "id": "exploit_prevention",
+          "name": "Exploit prevention",
+          "observable": true,
+          "telemetry": "Events with event_type_id 1090519103 (Exploit Prevention).",
+          "sourcetypes": ["cisco:se"],
+          "cimNote": "No CIM mapping for cisco:se.",
+          "ocsfClass": "OCSF: detection_finding",
+          "outcome": "Shows memory-exploit attempts the agent blocked, which point to targeted attacks against unpatched applications."
+        }
+      ]
+    },
+    {
+      "slug": "xdr",
+      "name": "Cisco XDR",
+      "family": "security",
+      "equipmentModel": "cisco_xdr",
+      "tier": 1,
+      "splunkbase": [
+        {"id": "7404", "role": "collector", "note": "Cisco Security Cloud XDR input: client_id and client_secret, region, import time range; optional promotion of incidents to Enterprise Security findings."}
+      ],
+      "collection": [
+        {
+          "method": "api",
+          "sourcetypes": ["cisco:xdr:incidents", "cisco:xdr:incidents-summary", "cisco:xdr:incidents-summary:notable"],
+          "note": "OAuth client credentials against the XDR IROH API; tokens live 600 seconds."
+        }
+      ],
+      "docs": [
+        {"title": "Cisco Security Cloud App for Splunk User Guide", "url": "https://www.cisco.com/c/en/us/td/docs/security/cisco-secure-cloud-app/user-guide/cisco-security-cloud-user-guide.pdf"},
+        {"title": "Splunk: Integrated Enterprise Value for Cisco data (supported source types)", "url": "https://help.splunk.com/en/splunk-cloud-platform/get-started/get-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data"}
+      ],
+      "capabilityMap": "mapped",
+      "capabilities": [
+        {
+          "id": "incident_import",
+          "name": "Incident import",
+          "observable": true,
+          "telemetry": "XDR incidents and incident summaries imported on the configured schedule.",
+          "sourcetypes": ["cisco:xdr:incidents", "cisco:xdr:incidents-summary"],
+          "cimNote": "No documented CIM Alerts mapping for XDR incidents.",
+          "ocsfClass": "OCSF: incident_finding",
+          "outcome": "Puts XDR's correlated incidents next to the rest of the security data, so analysts see age and status of every open incident in one place."
+        },
+        {
+          "id": "es_promotion",
+          "name": "Promotion to Enterprise Security findings",
+          "observable": true,
+          "telemetry": "Incident summaries written as notable-ready events when promotion is enabled.",
+          "sourcetypes": ["cisco:xdr:incidents-summary:notable"],
+          "cimNote": "Consumed by Enterprise Security, not a CIM data model.",
+          "ocsfClass": "OCSF: incident_finding",
+          "outcome": "Confirms that XDR incidents actually arrive as Enterprise Security findings, so the SOC queue is not silently missing them."
+        }
+      ]
+    },
+    {
+      "slug": "secure_network_analytics",
+      "name": "Cisco Secure Network Analytics",
+      "family": "security",
+      "equipmentModel": "cisco_secure_network_analytics",
+      "tier": 2,
+      "splunkbase": [
+        {"id": "7404", "role": "collector", "note": "Cisco Security Cloud SNA input: smc_host, tenant_id, username, password; default index cisco_sna, interval 300 s; optional alarm promotion to notables."},
+        {"id": "6398", "role": "app", "note": "Cisco Secure Network Analytics (Stealthwatch) App for Splunk Enterprise."}
+      ],
+      "collection": [
+        {"method": "api", "sourcetypes": ["cisco:sna", "cisco:sna:risk", "cisco:sna:notable"]},
+        {"method": "syslog", "sourcetypes": ["stealthwatch:fc:flow", "stealthwatch:csv"], "note": "Flow Collector exports."}
+      ],
+      "docs": [
+        {"title": "Cisco Security Cloud App for Splunk User Guide", "url": "https://www.cisco.com/c/en/us/td/docs/security/cisco-secure-cloud-app/user-guide/cisco-security-cloud-user-guide.pdf"},
+        {"title": "Splunk: Integrated Enterprise Value for Cisco data (supported source types)", "url": "https://help.splunk.com/en/splunk-cloud-platform/get-started/get-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data"}
+      ],
+      "capabilityMap": "mapped",
+      "capabilities": [
+        {
+          "id": "alarms",
+          "name": "Behavioral alarms",
+          "observable": true,
+          "telemetry": "SNA alarms pulled from the Manager API, with severity Critical, Major, Minor, Trivial, or Info.",
+          "sourcetypes": ["cisco:sna"],
+          "cimNote": "No documented CIM mapping for SNA alarms.",
+          "ocsfClass": "OCSF: detection_finding",
+          "outcome": "Shows hosts behaving like scanners, data hoarders, or beaconing bots from network flow analysis, including devices that run no agent."
+        },
+        {
+          "id": "risk",
+          "name": "Host risk scoring",
+          "observable": true,
+          "telemetry": "SNA risk records per host.",
+          "sourcetypes": ["cisco:sna:risk"],
+          "cimNote": "No documented CIM mapping.",
+          "outcome": "Ranks internal hosts by accumulated network risk, so investigation time goes to the riskiest devices first."
+        },
+        {
+          "id": "es_promotion",
+          "name": "Alarm promotion to notables",
+          "observable": true,
+          "telemetry": "Alarms written as notable-ready events at the selected severities.",
+          "sourcetypes": ["cisco:sna:notable"],
+          "cimNote": "Consumed by Enterprise Security, not a CIM data model.",
+          "outcome": "Confirms that the SNA alarms the SOC agreed to handle reach the Enterprise Security queue."
+        },
+        {
+          "id": "flow_records",
+          "name": "Enterprise flow records",
+          "observable": true,
+          "telemetry": "Flow Collector flow exports.",
+          "sourcetypes": ["stealthwatch:fc:flow"],
+          "cimNote": "No documented Network_Traffic tag for the Flow Collector export.",
+          "ocsfClass": "OCSF: network_activity",
+          "outcome": "Gives raw east-west traffic records for investigations that need the conversation, not just the alarm."
+        }
+      ]
+    },
+    {
+      "slug": "ai_defense",
+      "name": "Cisco AI Defense",
+      "family": "security",
+      "equipmentModel": "cisco_ai_defense",
+      "tier": 2,
+      "splunkbase": [
+        {"id": "7404", "role": "collector", "note": "Cisco Security Cloud AI Defense input; AI Defense sends over HEC (Administration > Integrations > Splunk card); optional ES finding promotion."}
+      ],
+      "collection": [
+        {"method": "hec", "sourcetypes": ["cisco:ai:defense", "cisco:ai:defense:notable"]}
+      ],
+      "docs": [
+        {"title": "Cisco Security Cloud App for Splunk User Guide", "url": "https://www.cisco.com/c/en/us/td/docs/security/cisco-secure-cloud-app/user-guide/cisco-security-cloud-user-guide.pdf"},
+        {"title": "Splunk Security Content data source: Cisco AI Defense Alerts", "url": "https://github.com/splunk/security_content/blob/develop/data_sources/cisco_ai_defense_alerts.yml"}
+      ],
+      "capabilityMap": "mapped",
+      "capabilities": [
+        {
+          "id": "guardrail_events",
+          "name": "Runtime guardrail events",
+          "observable": true,
+          "telemetry": "AI Defense events: event_action, event_message_type, policy.policy_name, model.model_name, genai_application.application_name, guardrail rule fields, user_id.",
+          "sourcetypes": ["cisco:ai:defense"],
+          "cimNote": "No CIM model covers LLM prompt and response inspection.",
+          "ocsfClass": "OCSF: detection_finding",
+          "outcome": "Shows prompt injection, jailbreak, and sensitive-data leaks in generative AI applications, per application and user."
+        },
+        {
+          "id": "es_promotion",
+          "name": "Promotion to Enterprise Security findings",
+          "observable": true,
+          "telemetry": "AI Defense events promoted as notable-ready events.",
+          "sourcetypes": ["cisco:ai:defense:notable"],
+          "cimNote": "Consumed by Enterprise Security, not a CIM data model.",
+          "outcome": "Confirms that AI security findings reach the SOC queue rather than staying inside the AI Defense console."
+        }
+      ]
+    },
+    {
+      "slug": "secure_workload",
+      "name": "Cisco Secure Workload",
+      "family": "security",
+      "equipmentModel": "cisco_secure_workload",
+      "tier": 2,
+      "splunkbase": [
+        {"id": "7404", "role": "collector", "note": "Cisco Security Cloud Secure Workload input: syslog over TCP or UDP on a dedicated port."}
+      ],
+      "collection": [
+        {"method": "syslog", "sourcetypes": ["cisco:secure:workload"], "note": "A syslog connector is configured on the Secure Workload side to point at the input port."}
+      ],
+      "docs": [
+        {"title": "Cisco Security Cloud App for Splunk User Guide", "url": "https://www.cisco.com/c/en/us/td/docs/security/cisco-secure-cloud-app/user-guide/cisco-security-cloud-user-guide.pdf"}
+      ],
+      "capabilityMap": "mapped",
+      "capabilities": [
+        {
+          "id": "workload_alerts",
+          "name": "Workload alerts over syslog",
+          "observable": true,
+          "telemetry": "Secure Workload alerts forwarded by its syslog connector.",
+          "sourcetypes": ["cisco:secure:workload"],
+          "cimNote": "No documented CIM mapping for Secure Workload syslog.",
+          "ocsfClass": "OCSF: detection_finding",
+          "outcome": "Brings microsegmentation and workload alerts into Splunk, so a policy violation on a server is seen with the rest of the incident."
+        }
+      ]
+    },
+    {
+      "slug": "multicloud_defense",
+      "name": "Cisco Multicloud Defense",
+      "family": "security",
+      "equipmentModel": "cisco_multicloud_defense",
+      "tier": 2,
+      "splunkbase": [
+        {"id": "7404", "role": "collector", "note": "Cisco Security Cloud Multicloud Defense input; MCD sends over HEC, configured from Security Cloud Control."}
+      ],
+      "collection": [
+        {
+          "method": "hec",
+          "sourcetypes": ["cisco:multicloud:defense", "cisco:multicloud:defense:l4_fw", "cisco:multicloud:defense:urlfilter", "cisco:multicloud:defense:fqdnfilter", "cisco:multicloud:defense:fqdn_resolve", "cisco:multicloud:defense:av", "cisco:multicloud:defense:malicious_src", "cisco:multicloud:defense:dpi", "cisco:multicloud:defense:waf", "cisco:multicloud:defense:l7dos", "cisco:multicloud:defense:dlp", "cisco:multicloud:defense:tls_log", "cisco:multicloud:defense:tls_error", "cisco:multicloud:defense:sni", "cisco:multicloud:defense:appid", "cisco:multicloud:defense:session_summary", "cisco:multicloud:defense:auditlogs", "cisco:multicloud:defense:systemlogs"]
+        }
+      ],
+      "docs": [
+        {"title": "Cisco Security Cloud App for Splunk User Guide", "url": "https://www.cisco.com/c/en/us/td/docs/security/cisco-secure-cloud-app/user-guide/cisco-security-cloud-user-guide.pdf"},
+        {"title": "Splunk: Integrated Enterprise Value for Cisco data (supported source types)", "url": "https://help.splunk.com/en/splunk-cloud-platform/get-started/get-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data"}
+      ],
+      "capabilityMap": "mapped",
+      "capabilities": [
+        {
+          "id": "l4_firewall",
+          "name": "Layer 4 firewall",
+          "observable": true,
+          "telemetry": "L4 firewall and session summary logs from MCD gateways.",
+          "sourcetypes": ["cisco:multicloud:defense:l4_fw", "cisco:multicloud:defense:session_summary"],
+          "cimNote": "No documented Network_Traffic tag for MCD logs.",
+          "ocsfClass": "OCSF: network_activity",
+          "outcome": "Shows denied and allowed cloud traffic per gateway, so exposed cloud workloads and blocked lateral movement are visible."
+        },
+        {
+          "id": "egress_filtering",
+          "name": "URL and FQDN egress filtering",
+          "observable": true,
+          "telemetry": "URL filter, FQDN filter, FQDN resolution, and SNI logs.",
+          "sourcetypes": ["cisco:multicloud:defense:urlfilter", "cisco:multicloud:defense:fqdnfilter", "cisco:multicloud:defense:fqdn_resolve", "cisco:multicloud:defense:sni"],
+          "cimNote": "No documented Web mapping for MCD filter logs.",
+          "ocsfClass": "OCSF: http_activity",
+          "outcome": "Shows cloud workloads trying to reach blocked destinations, which is how compromised instances call home."
+        },
+        {
+          "id": "threat_prevention",
+          "name": "Antivirus, IPS, and malicious source blocking",
+          "observable": true,
+          "telemetry": "Antivirus, DPI (intrusion), and malicious-source logs.",
+          "sourcetypes": ["cisco:multicloud:defense:av", "cisco:multicloud:defense:dpi", "cisco:multicloud:defense:malicious_src"],
+          "cimNote": "No documented Intrusion_Detection or Malware tag for MCD logs.",
+          "ocsfClass": "OCSF: detection_finding",
+          "outcome": "Shows exploit attempts, malware transfers, and known-bad sources stopped at the cloud edge, per application."
+        },
+        {
+          "id": "web_application_protection",
+          "name": "WAF and layer 7 DoS protection",
+          "observable": true,
+          "telemetry": "WAF and L7 DoS logs.",
+          "sourcetypes": ["cisco:multicloud:defense:waf", "cisco:multicloud:defense:l7dos"],
+          "cimNote": "No documented CIM mapping.",
+          "ocsfClass": "OCSF: http_activity",
+          "outcome": "Shows attacks against public cloud applications and whether the WAF blocked them."
+        },
+        {
+          "id": "data_loss_prevention",
+          "name": "Data loss prevention",
+          "observable": true,
+          "telemetry": "DLP logs from MCD gateways.",
+          "sourcetypes": ["cisco:multicloud:defense:dlp"],
+          "cimNote": "No documented CIM DLP mapping.",
+          "ocsfClass": "OCSF: data_security_finding",
+          "outcome": "Shows sensitive data patterns leaving cloud workloads, so cloud data exposure is caught at the network layer."
+        },
+        {
+          "id": "tls_inspection",
+          "name": "TLS decryption health",
+          "observable": true,
+          "telemetry": "TLS log and TLS error records.",
+          "sourcetypes": ["cisco:multicloud:defense:tls_log", "cisco:multicloud:defense:tls_error"],
+          "cimNote": "No CIM model covers decryption errors.",
+          "outcome": "Shows where TLS inspection fails, which is traffic the other controls cannot see into."
+        },
+        {
+          "id": "admin_audit",
+          "name": "Audit and system logs",
+          "observable": true,
+          "telemetry": "MCD audit logs and gateway system logs.",
+          "sourcetypes": ["cisco:multicloud:defense:auditlogs", "cisco:multicloud:defense:systemlogs"],
+          "cimNote": "No documented CIM Change mapping.",
+          "ocsfClass": "OCSF: api_activity",
+          "outcome": "Shows who changed cloud security policy and gateway health events, so outages and risky changes have an owner."
+        }
+      ]
+    },
+    {
+      "slug": "email_threat_defense",
+      "name": "Cisco Secure Email Threat Defense",
+      "family": "security",
+      "equipmentModel": "cisco_email_threat_defense",
+      "tier": 3,
+      "splunkbase": [
+        {"id": "7404", "role": "collector", "note": "Cisco Security Cloud ETD input: API key, client ID and secret, region; log types Connection, Audit, and Message."}
+      ],
+      "collection": [
+        {"method": "api", "sourcetypes": ["cisco:etd"], "note": "Messages are read from https://api.{region}.etd.cisco.com/v1/messages/search or /v1/downloadLinks."}
+      ],
+      "docs": [
+        {"title": "Cisco Security Cloud App for Splunk User Guide", "url": "https://www.cisco.com/c/en/us/td/docs/security/cisco-secure-cloud-app/user-guide/cisco-security-cloud-user-guide.pdf"}
+      ],
+      "capabilityMap": "mapped",
+      "capabilities": [
+        {
+          "id": "message_verdicts",
+          "name": "Message threat verdicts",
+          "observable": true,
+          "telemetry": "Message log type: messages ETD analysed, with verdicts for phishing, malicious, spam, and business email compromise.",
+          "sourcetypes": ["cisco:etd"],
+          "cimNote": "No documented CIM Email mapping for cisco:etd.",
+          "ocsfClass": "OCSF: email_activity",
+          "outcome": "Shows which mailboxes receive phishing and business email compromise, so targeted users are warned and messages pulled."
+        },
+        {
+          "id": "audit",
+          "name": "Audit log",
+          "observable": true,
+          "telemetry": "Audit log type: administrator actions in ETD, including message remediation.",
+          "sourcetypes": ["cisco:etd"],
+          "cimNote": "No documented CIM Change mapping.",
+          "ocsfClass": "OCSF: api_activity",
+          "outcome": "Shows who remediated or released messages, so manual overrides of email security are accountable."
+        }
+      ]
+    },
+    {
+      "slug": "secure_malware_analytics",
+      "name": "Cisco Secure Malware Analytics",
+      "family": "security",
+      "equipmentModel": "cisco_secure_malware_analytics",
+      "tier": 3,
+      "splunkbase": [
+        {"id": "7404", "role": "collector", "note": "Cisco Security Cloud SMA input: bearer API key and host."}
+      ],
+      "collection": [
+        {"method": "api", "sourcetypes": ["cisco:sma:submissions"]}
+      ],
+      "docs": [
+        {"title": "Cisco Security Cloud App for Splunk User Guide", "url": "https://www.cisco.com/c/en/us/td/docs/security/cisco-secure-cloud-app/user-guide/cisco-security-cloud-user-guide.pdf"}
+      ],
+      "capabilityMap": "mapped",
+      "capabilities": [
+        {
+          "id": "sandbox_submissions",
+          "name": "Sandbox submissions and threat scores",
+          "observable": true,
+          "telemetry": "Sample submissions with threat score and behavioral indicators.",
+          "sourcetypes": ["cisco:sma:submissions"],
+          "cimNote": "No documented CIM Malware mapping for submissions.",
+          "ocsfClass": "OCSF: detection_finding",
+          "outcome": "Shows which submitted files the sandbox judged malicious, so their hashes can be hunted across email, web, and endpoint data."
+        }
+      ]
+    },
+    {
+      "slug": "isovalent",
+      "name": "Cisco Isovalent Runtime Security",
+      "family": "security",
+      "equipmentModel": "cisco_isovalent",
+      "tier": 3,
+      "splunkbase": [
+        {"id": "7404", "role": "collector", "note": "Cisco Security Cloud Isovalent input over HEC; Edge Processor variant is alpha."},
+        {"id": "7349", "role": "community", "note": "Add On for Cilium; parses Hubble exporter JSON."}
+      ],
+      "collection": [
+        {"method": "hec", "sourcetypes": ["cisco:isovalent:processexec", "cisco:isovalent:processconnect", "cisco:isovalent", "cisco:isovalent:alert", "cisco:isovalent:telemetry:process", "cisco:isovalent:telemetry:network"]}
+      ],
+      "docs": [
+        {"title": "Cisco Security Cloud App for Splunk User Guide", "url": "https://www.cisco.com/c/en/us/td/docs/security/cisco-secure-cloud-app/user-guide/cisco-security-cloud-user-guide.pdf"},
+        {"title": "Splunk Security Content data source: Cisco Isovalent Process Exec", "url": "https://github.com/splunk/security_content/blob/develop/data_sources/cisco_isovalent_process_exec.yml"},
+        {"title": "Splunk Security Content data source: Cisco Isovalent Process Connect", "url": "https://github.com/splunk/security_content/blob/develop/data_sources/cisco_isovalent_process_connect.yml"},
+        {"title": "Splunk Security Content data source: Cisco Isovalent Process Kprobe", "url": "https://github.com/splunk/security_content/blob/develop/data_sources/cisco_isovalent_process_kprobe.yml"}
+      ],
+      "capabilityMap": "mapped",
+      "capabilities": [
+        {
+          "id": "process_execution",
+          "name": "Container process execution",
+          "observable": true,
+          "telemetry": "process_exec events: process_exec.process.binary, arguments, pod_name, pod_namespace, cluster_name, node_name.",
+          "sourcetypes": ["cisco:isovalent:processexec"],
+          "cimNote": "Nested Tetragon fields; Security Content searches them raw rather than through the Endpoint model.",
+          "ocsfClass": "OCSF: process_activity",
+          "outcome": "Shows shells, package managers, and recon tools started inside running containers, which should never happen in production pods."
+        },
+        {
+          "id": "network_connections",
+          "name": "Process network connections",
+          "observable": true,
+          "telemetry": "process_connect events: process_connect.destination_ip, destination_port, process binary, pod and namespace.",
+          "sourcetypes": ["cisco:isovalent:processconnect"],
+          "cimNote": "No documented Network_Traffic mapping.",
+          "ocsfClass": "OCSF: network_activity",
+          "outcome": "Ties each outbound connection to the exact container process, so a pod calling an unknown address is traced in one step."
+        },
+        {
+          "id": "kernel_probes",
+          "name": "Kernel probe policy hits",
+          "observable": true,
+          "telemetry": "process_kprobe events: process_kprobe.function_name, process_kprobe.policy_name, process binary, pod.",
+          "sourcetypes": ["cisco:isovalent"],
+          "cimNote": "No CIM model covers kernel function tracing.",
+          "ocsfClass": "OCSF: kernel_activity",
+          "outcome": "Shows hits on TracingPolicies for sensitive kernel calls, such as privilege changes and module loads, inside the cluster."
+        }
+      ]
+    },
+    {
+      "slug": "hypershield",
+      "name": "Cisco Hypershield",
+      "family": "security",
+      "equipmentModel": "cisco_hypershield",
+      "tier": 3,
+      "splunkbase": [],
+      "collection": [
+        {"method": "syslog", "sourcetypes": [], "note": "Enforcement points export per-flow permit and deny records to telemetry destinations assigned through Operations > Logging Groups. Hypershield documents no Splunk sourcetype or field list; set the sourcetype on the syslog input."},
+        {"method": "ipfix", "sourcetypes": [], "note": "Connection-oriented IPFIX flow records to an IPFIX collector."}
+      ],
+      "docs": [
+        {"title": "Cisco Hypershield user documentation", "url": "https://www.cisco.com/c/dam/en/us/td/docs/security/hypershield/user-documentation/hypershield.pdf"},
+        {"title": "Cisco Hypershield release notes", "url": "https://www.cisco.com/c/en/us/td/docs/security/hypershield/release-notes/Cisco-Hypershield-Release-notes.html"}
+      ],
+      "capabilityMap": "mapped",
+      "capabilities": [
+        {
+          "id": "enforcement_flows",
+          "name": "Per-flow permit and deny decisions",
+          "observable": true,
+          "telemetry": "Syslog from enforcement points (Smart Switch DPUs via the Agent Gateway): one record per permit or deny verdict.",
+          "sourcetypes": [],
+          "cimNote": "No documented field list, so no CIM mapping can be confirmed.",
+          "ocsfClass": "OCSF: network_activity",
+          "outcome": "Confirms that switch-embedded enforcement is sending its decisions, and gives the deny trail for segmentation audits."
+        },
+        {
+          "id": "flow_telemetry",
+          "name": "IPFIX flow telemetry",
+          "observable": true,
+          "telemetry": "IPFIX connection records exported from enforcement points.",
+          "sourcetypes": [],
+          "cimNote": "Depends on the IPFIX collector used; no Hypershield-specific mapping is documented.",
+          "ocsfClass": "OCSF: network_activity",
+          "outcome": "Gives traffic trends through segmented zones, which is needed before tightening a policy from monitor to enforce."
+        },
+        {
+          "id": "management_history",
+          "name": "Timescape management history",
+          "observable": false,
+          "notObservableReason": "Cisco documents Timescape event history as reviewed in the Timescape UI and not exported; CSV export covers only the current page.",
+          "outcome": "Would show who changed or deployed Hypershield policy; today this audit trail stays in the Hypershield console."
+        }
+      ]
+    },
+    {
+      "slug": "hyperfabric",
+      "name": "Cisco Nexus Hyperfabric",
+      "family": "data_center",
+      "equipmentModel": "cisco_hyperfabric",
+      "tier": 4,
+      "splunkbase": [],
+      "collection": [
+        {"method": "webhook", "sourcetypes": [], "note": "Notifications > Notification endpoints > Webhooks (type Splunk) posts latched-assertion changes to a Splunk HEC URL and token, at most 30 seconds after the change. Set the sourcetype on the HEC token."},
+        {"method": "api", "sourcetypes": [], "note": "REST API at https://hyperfabric.cisco.com/api/v1/ with a bearer token: assertions, devices, fabrics, nodes, VNIs, VRFs."},
+        {"method": "s3", "sourcetypes": [], "note": "Cloud-to-cloud log delivery to an Amazon S3 bucket in syslog format."}
+      ],
+      "docs": [
+        {"title": "Cisco Nexus Hyperfabric: Notifications", "url": "https://www.cisco.com/c/en/us/td/docs/dcn/hyperfabric/software/cisco-nexus-hyperfabric-notifications.html"},
+        {"title": "Cisco Nexus Hyperfabric: Assertions", "url": "https://www.cisco.com/c/en/us/td/docs/dcn/hyperfabric/software/cisco-nexus-hyperfabric-assertions.html"},
+        {"title": "Cisco Nexus Hyperfabric API: Getting Started", "url": "https://developer.cisco.com/docs/hyperfabric/getting-started/"},
+        {"title": "Cisco Nexus Hyperfabric FAQ", "url": "https://www.cisco.com/c/en/us/products/collateral/data-center-networking/nexus-hyperfabric/nexus-hyperfabric-faq.html"}
+      ],
+      "capabilityMap": "mapped",
+      "capabilities": [
+        {
+          "id": "assertion_notifications",
+          "name": "Fabric assertion notifications",
+          "observable": true,
+          "telemetry": "Splunk webhook notifications for latched assertions: timestamp, criticality, breadcrumb link to the fabric blueprint. Assertion conditions are True, False, Warning, or Unknown.",
+          "sourcetypes": [],
+          "cimNote": "Fabric health checks have no CIM model.",
+          "ocsfClass": "OCSF: detection_finding",
+          "outcome": "Pages the network team when a fabric health check fails at the device, port, or fabric level, before users notice."
+        },
+        {
+          "id": "configuration_commits",
+          "name": "Configuration change commits",
+          "observable": true,
+          "telemetry": "Summaries of configuration change commits included in each Splunk webhook notification.",
+          "sourcetypes": [],
+          "cimNote": "No documented CIM Change mapping.",
+          "outcome": "Lines up fabric failures with the configuration commit just before them, which shortens root cause for change-induced outages."
+        },
+        {
+          "id": "inventory_api",
+          "name": "Fabric, node, and device inventory",
+          "observable": true,
+          "telemetry": "GET on the fabrics, nodes, and devices resources of the Hyperfabric REST API.",
+          "sourcetypes": [],
+          "cimNote": "Inventory snapshots; no CIM model applies.",
+          "outcome": "Keeps an independent record of which switches are bound to which fabric nodes, for audits and capacity planning."
+        }
+      ]
+    },
+    {
+      "slug": "industrial_ethernet",
+      "name": "Cisco Industrial Ethernet switching",
+      "family": "industrial",
+      "equipmentModel": "cisco_industrial_ethernet",
+      "tier": 4,
+      "splunkbase": [
+        {"id": "7538", "role": "collector", "note": "Cisco Catalyst Add-on for Splunk parses IOS XE syslog, which Catalyst IE switches send."}
+      ],
+      "collection": [
+        {"method": "syslog", "sourcetypes": ["cisco:ios"], "note": "Catalyst IE3x00, IE3400 Heavy Duty, and ESS3300 switches running IOS XE. HSR and PTP alarms must be sent to syslog with `alarm facility hsr syslog` and `alarm facility ptp syslog`."}
+      ],
+      "docs": [
+        {"title": "Redundancy Protocol Configuration Guide, Cisco Catalyst IE3x00, IE3400 Heavy Duty, and ESS3300 Series Switches", "url": "https://www.cisco.com/c/en/us/td/docs/switches/lan/cisco_ie3X00/software/17_4/b_redundancy_17-4_iot_switch_cg.pdf"},
+        {"title": "High-Availability Seamless Redundancy (HSR), Catalyst IE3x00", "url": "https://www.cisco.com/c/en/us/td/docs/switches/lan/cisco_ie3X00/software/17_4/b_redundancy_17-4_iot_switch_cg/m_hsr_iosxe_iotswitch.html"},
+        {"title": "Configuring Precision Time Protocol, Catalyst IE3x00", "url": "https://www.cisco.com/c/en/us/td/docs/switches/lan/cisco_ie3X00/software/17_4/b_system-management-ie3x00/m_ptp_17-4.html"}
+      ],
+      "capabilityMap": "mapped",
+      "capabilities": [
+        {
+          "id": "hsr_ring_faults",
+          "name": "HSR ring faults",
+          "observable": true,
+          "telemetry": "%HSR_ALARM-3-HSR_PARTIALFAULT (one ring port down) and %HSR_ALARM-2-HSR_RINGFAULT (both ring ports down), each with a '- event cleared' variant.",
+          "sourcetypes": ["cisco:ios"],
+          "cimNote": "Ring state is an operational fault; no CIM model applies.",
+          "outcome": "Warns when a seamless-redundancy ring has lost its spare path, so it is repaired before a second failure stops the process network."
+        },
+        {
+          "id": "ptp_timing",
+          "name": "PTP clock changes",
+          "observable": true,
+          "telemetry": "%PTP-6-PARENT_CLOCK_CHANGE, %PTP-6-GRANDMASTER_CLOCK_CHANGE, and %PTP-6-GRANDMASTER_CLOCK_CHANGE_TO_LOCAL system messages.",
+          "sourcetypes": ["cisco:ios"],
+          "cimNote": "Clock topology changes have no CIM model.",
+          "outcome": "Shows grandmaster and parent clock changes that break timing for motion control and protection relays."
+        },
+        {
+          "id": "prp_tagging",
+          "name": "PRP VLAN tagging faults",
+          "observable": true,
+          "telemetry": "%PRP_MSG-4-PRP_VLANTAG system messages.",
+          "sourcetypes": ["cisco:ios"],
+          "cimNote": "No CIM model applies.",
+          "outcome": "Flags PRP configuration faults that silently remove the duplicate-path protection a parallel redundancy network is built for."
+        },
+        {
+          "id": "alarm_relay_state",
+          "name": "Hardware alarm relay state",
+          "observable": false,
+          "notObservableReason": "Relay contact state is shown by 'show facility-alarm status' and SNMP; only alarms configured with 'alarm facility <type> syslog' reach syslog, and those are covered by the HSR and PTP capabilities.",
+          "outcome": "Would confirm the physical alarm relay wired to the plant control system tripped; check it through SNMP or the CLI."
+        }
+      ]
+    },
+    {
+      "slug": "identity_intelligence",
+      "name": "Cisco Identity Intelligence",
+      "family": "identity",
+      "equipmentModel": "cisco_identity_intelligence",
+      "tier": 3,
+      "splunkbase": [
+        {"id": "7404", "role": "collector", "note": "Cisco Security Cloud; CII forwards by webhook or AWS S3 (S3 requires the Splunk Add-on for AWS)."}
+      ],
+      "collection": [
+        {"method": "webhook", "sourcetypes": ["cisco:cii"]},
+        {"method": "s3", "sourcetypes": ["cisco:cii"]}
+      ],
+      "docs": [
+        {"title": "Cisco Security Cloud App for Splunk User Guide", "url": "https://www.cisco.com/c/en/us/td/docs/security/cisco-secure-cloud-app/user-guide/cisco-security-cloud-user-guide.pdf"}
+      ],
+      "capabilityMap": "mapped",
+      "capabilities": [
+        {
+          "id": "identity_findings",
+          "name": "Identity posture and threat findings",
+          "observable": true,
+          "telemetry": "CII findings forwarded to Splunk about identity hygiene and risky identity activity.",
+          "sourcetypes": ["cisco:cii"],
+          "cimNote": "No documented CIM mapping for CII findings.",
+          "ocsfClass": "OCSF: detection_finding",
+          "outcome": "Brings identity-hygiene findings such as dormant admins and MFA gaps across directories into the same queue as sign-in alerts."
+        }
+      ]
+    },
+    {
+      "slug": "vulnerability_intelligence",
+      "name": "Cisco Vulnerability Intelligence",
+      "family": "security",
+      "equipmentModel": "cisco_vulnerability_intelligence",
+      "tier": 3,
+      "splunkbase": [
+        {"id": "7404", "role": "collector", "note": "Cisco Security Cloud CVI input; default index cisco_cvi, 24-hour interval."}
+      ],
+      "collection": [
+        {"method": "api", "sourcetypes": ["cisco:cvi"]}
+      ],
+      "docs": [
+        {"title": "Cisco Security Cloud App for Splunk User Guide", "url": "https://www.cisco.com/c/en/us/td/docs/security/cisco-secure-cloud-app/user-guide/cisco-security-cloud-user-guide.pdf"}
+      ],
+      "capabilityMap": "mapped",
+      "capabilities": [
+        {
+          "id": "cve_risk",
+          "name": "CVE exploitability and risk scoring",
+          "observable": true,
+          "telemetry": "CVI records with cve_id, cvss_v3_score, risk_meter_score, active_internet_breach, easily_exploitable.",
+          "sourcetypes": ["cisco:cvi"],
+          "cimModels": ["Vulnerabilities"],
+          "cimNote": "Cisco's user guide documents the field mapping from the CVI dataset to the CIM Vulnerability model.",
+          "ocsfClass": "OCSF: vulnerability_finding",
+          "outcome": "Ranks CVEs by real-world exploitation rather than CVSS alone, so patching starts with what attackers are using now."
+        }
+      ]
+    },
+    {
+      "slug": "secure_client_nvm",
+      "name": "Cisco Secure Client Network Visibility Module",
+      "family": "security",
+      "equipmentModel": "cisco_secure_client_nvm",
+      "tier": 3,
+      "splunkbase": [
+        {"id": "7404", "role": "collector", "note": "Cisco Security Cloud NVM input over HEC, fed by a Fluent Bit configuration."},
+        {"id": "4221", "role": "deprecated", "note": "Cisco Endpoint Security Analytics (CESA) add-on; superseded by the 7404 NVM input."}
+      ],
+      "collection": [
+        {"method": "hec", "sourcetypes": ["cisco:nvm:flowdata:v2", "cisco:nvm:processinfodata:v2", "cisco:nvm:sysdata:v2", "cisco:nvm:ifdata:v2", "cisco:nvm:osquery:v2", "cisco:nvm:eve:v2"]}
+      ],
+      "docs": [
+        {"title": "Cisco Security Cloud App for Splunk User Guide", "url": "https://www.cisco.com/c/en/us/td/docs/security/cisco-secure-cloud-app/user-guide/cisco-security-cloud-user-guide.pdf"},
+        {"title": "Splunk Security Content data source: Cisco NVM Flow Data", "url": "https://github.com/splunk/security_content/blob/develop/data_sources/cisco_network_visibility_module_flow_data.yml"}
+      ],
+      "capabilityMap": "mapped",
+      "capabilities": [
+        {
+          "id": "process_flows",
+          "name": "Process-attributed network flows",
+          "observable": true,
+          "telemetry": "Flow records with process_name, parent_process_name, process_hash, logged_in_user, dest, dest_port, bytes_in, bytes_out.",
+          "sourcetypes": ["cisco:nvm:flowdata:v2"],
+          "cimNote": "Security Content searches NVM flow fields raw; no documented Network_Traffic tag.",
+          "ocsfClass": "OCSF: network_activity",
+          "outcome": "Shows which program on which laptop made each connection, on or off the corporate network, so living-off-the-land traffic is attributable."
+        }
+      ]
+    },
+    {
+      "slug": "endpoint_visibility_module",
+      "name": "Cisco Endpoint Visibility Module",
+      "family": "security",
+      "equipmentModel": "cisco_endpoint_visibility_module",
+      "tier": 3,
+      "splunkbase": [
+        {"id": "7404", "role": "collector", "note": "Cisco Security Cloud EVM input."}
+      ],
+      "collection": [
+        {"method": "hec", "sourcetypes": ["cisco:evm:process_activity", "cisco:evm:file_activity", "cisco:evm:registry_key_activity", "cisco:evm:registry_value_activity", "cisco:evm:windows_service_activity"]}
+      ],
+      "docs": [
+        {"title": "Splunk: Integrated Enterprise Value for Cisco data (supported source types)", "url": "https://help.splunk.com/en/splunk-cloud-platform/get-started/get-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data"}
+      ],
+      "capabilityMap": "mapped",
+      "capabilities": [
+        {
+          "id": "endpoint_activity",
+          "name": "Process, file, registry, and service activity",
+          "observable": true,
+          "telemetry": "EVM process, file, registry key, registry value, and Windows service activity records.",
+          "sourcetypes": ["cisco:evm:process_activity", "cisco:evm:file_activity", "cisco:evm:registry_key_activity", "cisco:evm:registry_value_activity", "cisco:evm:windows_service_activity"],
+          "cimNote": "Cisco Security Cloud lists EVM CIM mappings as beta without a published model list.",
+          "ocsfClass": "OCSF: process_activity",
+          "outcome": "Gives endpoint process and persistence telemetry from the Secure Client already on the device, without a second agent."
+        }
+      ]
+    },
+    {"slug": "firepower", "name": "Cisco Secure Firewall (FTD / Firepower)", "family": "security", "equipmentModel": "cisco_firepower", "splunkbase": [{"id": "7404", "role": "collector"}], "collection": [{"method": "syslog", "sourcetypes": ["cisco:ftd:connection", "cisco:ftd:intrusion", "cisco:ftd:file", "cisco:ftd:malware", "cisco:ftd:syslog"]}, {"method": "estreamer", "sourcetypes": ["cisco:sfw:estreamer"]}], "docs": [{"title": "Cisco Security Cloud App for Splunk User Guide", "url": "https://www.cisco.com/c/en/us/td/docs/security/cisco-secure-cloud-app/user-guide/cisco-security-cloud-user-guide.pdf"}], "capabilityMap": "pending", "capabilities": []},
+    {"slug": "asa", "name": "Cisco ASA", "family": "security", "equipmentModel": "cisco_asa", "splunkbase": [{"id": "1620", "role": "collector"}, {"id": "7404", "role": "collector"}], "collection": [{"method": "syslog", "sourcetypes": ["cisco:asa"]}], "docs": [{"title": "Splunk Add-on for Cisco ASA", "url": "https://splunkbase.splunk.com/app/1620"}], "capabilityMap": "pending", "capabilities": []},
+    {"slug": "ios", "name": "Cisco IOS / Catalyst / ISR / ASR", "family": "networking", "equipmentModel": "cisco_ios", "splunkbase": [{"id": "7538", "role": "collector"}], "collection": [{"method": "syslog", "sourcetypes": ["cisco:ios"]}], "docs": [{"title": "Cisco Catalyst Add-on for Splunk", "url": "https://splunkbase.splunk.com/app/7538"}], "capabilityMap": "pending", "capabilities": []},
+    {"slug": "ise", "name": "Cisco Identity Services Engine", "family": "identity", "equipmentModel": "cisco_ise", "splunkbase": [{"id": "1915", "role": "collector"}, {"id": "7538", "role": "collector"}], "collection": [{"method": "syslog", "sourcetypes": ["cisco:ise:syslog"]}, {"method": "api", "sourcetypes": ["cisco:ise"]}], "docs": [{"title": "Splunk Add-on for Cisco Identity Services", "url": "https://splunkbase.splunk.com/app/1915"}], "capabilityMap": "pending", "capabilities": []},
+    {"slug": "meraki", "name": "Cisco Meraki", "family": "networking", "equipmentModel": "cisco_meraki", "splunkbase": [{"id": "5580", "role": "collector"}], "collection": [{"method": "api", "sourcetypes": ["meraki:devices", "meraki:audit", "meraki:assurancealerts"]}, {"method": "syslog", "sourcetypes": ["cisco:meraki"]}], "docs": [{"title": "Cisco Meraki Add-on for Splunk", "url": "https://splunkbase.splunk.com/app/5580"}], "capabilityMap": "pending", "capabilities": []},
+    {"slug": "ucs", "name": "Cisco UCS", "family": "data_center", "equipmentModel": "cisco_ucs", "splunkbase": [{"id": "2731", "role": "collector"}], "collection": [{"method": "api", "sourcetypes": ["cisco:ucs"]}], "docs": [{"title": "Splunk Add-on for Cisco UCS", "url": "https://splunkbase.splunk.com/app/2731"}], "capabilityMap": "pending", "capabilities": []},
+    {"slug": "intersight", "name": "Cisco Intersight", "family": "data_center", "equipmentModel": "cisco_intersight", "splunkbase": [{"id": "7828", "role": "collector"}], "collection": [{"method": "api", "sourcetypes": ["cisco:intersight:alarms", "cisco:intersight:auditrecords"]}], "docs": [{"title": "Cisco Intersight Add-on for Splunk", "url": "https://splunkbase.splunk.com/app/7828"}], "capabilityMap": "pending", "capabilities": []},
+    {"slug": "aci", "name": "Cisco ACI", "family": "data_center", "equipmentModel": "cisco_aci", "splunkbase": [{"id": "7777", "role": "collector"}], "collection": [{"method": "api", "sourcetypes": ["cisco:dc:aci:health", "cisco:dc:aci:syslog"]}], "docs": [{"title": "Cisco DC Networking", "url": "https://splunkbase.splunk.com/app/7777"}], "capabilityMap": "pending", "capabilities": []},
+    {"slug": "nexus", "name": "Cisco Nexus / NDFC / MDS", "family": "data_center", "equipmentModel": "cisco_nexus", "splunkbase": [{"id": "7777", "role": "collector"}], "collection": [{"method": "api", "sourcetypes": ["cisco:dc:nexus9k", "cisco:dc:nd:anomalies"]}], "docs": [{"title": "Cisco DC Networking", "url": "https://splunkbase.splunk.com/app/7777"}], "capabilityMap": "pending", "capabilities": []},
+    {"slug": "sdwan", "name": "Cisco Catalyst SD-WAN", "family": "networking", "equipmentModel": "cisco_sdwan", "splunkbase": [{"id": "7538", "role": "collector"}], "collection": [{"method": "api", "sourcetypes": ["cisco:sdwan:tunnelhealth", "cisco:sdwan:audit:logs"]}], "docs": [{"title": "Cisco Catalyst Add-on for Splunk", "url": "https://splunkbase.splunk.com/app/7538"}], "capabilityMap": "pending", "capabilities": []},
+    {"slug": "catalyst_center", "name": "Cisco Catalyst Center", "family": "networking", "equipmentModel": "cisco_catalyst_center", "splunkbase": [{"id": "7538", "role": "collector"}], "collection": [{"method": "api", "sourcetypes": ["cisco:dnac:devicehealth", "cisco:dnac:issue"]}], "docs": [{"title": "Cisco Catalyst Add-on for Splunk", "url": "https://splunkbase.splunk.com/app/7538"}], "capabilityMap": "pending", "capabilities": []},
+    {"slug": "wlc", "name": "Cisco WLC / Catalyst 9800", "family": "networking", "equipmentModel": "cisco_wlc", "splunkbase": [{"id": "7538", "role": "collector"}], "collection": [{"method": "syslog", "sourcetypes": ["cisco:wlc"]}], "docs": [{"title": "Cisco Catalyst Add-on for Splunk", "url": "https://splunkbase.splunk.com/app/7538"}], "capabilityMap": "pending", "capabilities": []},
+    {"slug": "ucm", "name": "Cisco Unified Communications Manager", "family": "collaboration", "equipmentModel": "cisco_ucm", "splunkbase": [{"id": "669", "role": "app"}, {"id": "4434", "role": "collector"}], "collection": [{"method": "api", "sourcetypes": ["cisco_cdr"]}], "docs": [{"title": "Cisco CDR Reporting and Analytics", "url": "https://splunkbase.splunk.com/app/669"}], "capabilityMap": "pending", "capabilities": []},
+    {"slug": "webex", "name": "Cisco Webex", "family": "collaboration", "equipmentModel": "cisco_webex", "splunkbase": [{"id": "8365", "role": "collector"}, {"id": "4992", "role": "app"}], "collection": [{"method": "api", "sourcetypes": ["cisco:webex:meetings", "cisco:webex:admin:audit:events"]}], "docs": [{"title": "Webex Add-on for Splunk", "url": "https://splunkbase.splunk.com/app/8365"}], "capabilityMap": "pending", "capabilities": []},
+    {"slug": "spaces", "name": "Cisco Spaces", "family": "networking", "equipmentModel": "cisco_spaces", "splunkbase": [], "collection": [{"method": "api", "sourcetypes": ["cisco:spaces", "cisco:spaces:firehose"]}], "docs": [{"title": "Splunk: Integrated Enterprise Value for Cisco data (supported source types)", "url": "https://help.splunk.com/en/splunk-cloud-platform/get-started/get-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data"}], "capabilityMap": "pending", "capabilities": []},
+    {"slug": "thousandeyes", "name": "Cisco ThousandEyes", "family": "observability", "equipmentModel": "cisco_thousandeyes", "splunkbase": [{"id": "7719", "role": "collector"}], "collection": [{"method": "api", "sourcetypes": ["cisco:thousandeyes:alerts", "cisco:thousandeyes:metric"]}], "docs": [{"title": "Cisco ThousandEyes App for Splunk", "url": "https://splunkbase.splunk.com/app/7719"}], "capabilityMap": "pending", "capabilities": []},
+    {"slug": "cyber_vision", "name": "Cisco Cyber Vision", "family": "industrial", "equipmentModel": "cisco_cyber_vision", "splunkbase": [{"id": "5748", "role": "collector"}, {"id": "7538", "role": "collector"}], "collection": [{"method": "api", "sourcetypes": ["cisco:cybervision:events", "cisco:cybervision:vulnerabilities"]}], "docs": [{"title": "Cisco Cyber Vision Splunk Add On", "url": "https://splunkbase.splunk.com/app/5748"}], "capabilityMap": "pending", "capabilities": []}
+  ]
+}

@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fenre.github.io/splunk-monitoring-use-cases/schemas/cisco-portfolio.schema.json",
+  "title": "Cisco portfolio coverage map",
+  "description": "Source of truth for which Cisco products the catalogue covers, how each one is collected into Splunk, and which vendor-documented capabilities a use case should cover. Consumed by the equipment registry, the capability matrix generator, audit-cisco-coverage, and Project FOCUS.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "version", "retrieved", "requestCoverageUrl", "products"],
+  "properties": {
+    "$schema": {"type": "string"},
+    "$comment": {"type": "string"},
+    "version": {"type": "integer", "minimum": 1},
+    "retrieved": {"type": "string", "format": "date", "description": "Date the vendor sources behind this file were last checked."},
+    "requestCoverageUrl": {
+      "type": "string",
+      "format": "uri",
+      "description": "Base URL for a 'Request coverage' issue. Consumers append &title=<product name>."
+    },
+    "products": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/product"}
+    }
+  },
+  "$defs": {
+    "product": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["slug", "name", "family", "equipmentModel", "splunkbase", "collection", "docs", "capabilityMap", "capabilities"],
+      "properties": {
+        "slug": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+        "name": {"type": "string", "minLength": 3},
+        "family": {
+          "type": "string",
+          "enum": ["security", "identity", "networking", "data_center", "collaboration", "observability", "industrial"]
+        },
+        "equipmentModel": {
+          "type": "string",
+          "pattern": "^cisco_[a-z0-9_]+$",
+          "description": "The equipmentModels value the tagger stamps for this product (cisco_<model id> in tools/build/enrichment.py)."
+        },
+        "tier": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4,
+          "description": "Authoring priority from the coverage plan. Omitted for products already covered before the portfolio file existed."
+        },
+        "splunkbase": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "role"],
+            "properties": {
+              "id": {"type": "string", "pattern": "^[0-9]+$"},
+              "role": {"type": "string", "enum": ["collector", "app", "cim", "deprecated", "community"]},
+              "note": {"type": "string"}
+            }
+          }
+        },
+        "collection": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["method", "sourcetypes"],
+            "properties": {
+              "method": {"type": "string", "enum": ["api", "hec", "syslog", "s3", "ipfix", "webhook", "estreamer"]},
+              "sourcetypes": {"type": "array", "items": {"type": "string"}},
+              "note": {"type": "string"}
+            }
+          }
+        },
+        "docs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["title", "url"],
+            "properties": {
+              "title": {"type": "string"},
+              "url": {"type": "string", "format": "uri"}
+            }
+          }
+        },
+        "capabilityMap": {
+          "type": "string",
+          "enum": ["mapped", "pending"],
+          "description": "'mapped' when capabilities[] lists the vendor-documented telemetry surface; 'pending' when only the product-level use-case count is tracked."
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/capability"}
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"capabilityMap": {"const": "mapped"}}},
+          "then": {"properties": {"capabilities": {"minItems": 1}}}
+        }
+      ]
+    },
+    "capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "observable", "outcome"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+        "name": {"type": "string"},
+        "observable": {"type": "boolean"},
+        "telemetry": {"type": "string", "description": "The events, sourcetypes, or API objects that show this capability."},
+        "sourcetypes": {"type": "array", "items": {"type": "string"}},
+        "notObservableReason": {"type": "string", "minLength": 20},
+        "cimModels": {"type": "array", "items": {"type": "string"}},
+        "cimNote": {"type": "string", "description": "Why cimModels is empty, or how the mapping was confirmed."},
+        "ocsfClass": {"type": "string"},
+        "outcome": {"type": "string", "minLength": 40, "description": "The business outcome a reader gets once this capability is covered."}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"observable": {"const": true}}},
+          "then": {"required": ["telemetry", "sourcetypes"]},
+          "else": {"required": ["notObservableReason"]}
+        }
+      ]
+    }
+  }
+}
