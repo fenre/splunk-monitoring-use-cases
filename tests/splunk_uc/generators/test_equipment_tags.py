@@ -676,3 +676,65 @@ def test_sidecar_field_order_matches_schema_anchors() -> None:
     eq_idx = et._SIDECAR_FIELD_ORDER.index("equipment")
     eqm_idx = et._SIDECAR_FIELD_ORDER.index("equipmentModels")
     assert eq_idx < eqm_idx
+
+
+class TestCiscoPortfolioModels:
+    """Real-registry checks for the Cisco portfolio models under the evidence rule."""
+
+    @staticmethod
+    def _models(**fields: str) -> list[str]:
+        sidecar = {"app": "", "spl": "", "dataSources": "", "implementation": "", "description": ""}
+        sidecar.update(fields)
+        gated = et._ev.gated_entries(et.load_equipment())
+        return sorted(et._compute_gated_tags(sidecar, gated)[1])
+
+    @pytest.mark.parametrize(
+        ("spl", "model"),
+        [
+            ("index=duo sourcetype=cisco:duo:authentication", "cisco_duo"),
+            ("index=sse sourcetype=cisco:cloud_security:dns", "cisco_umbrella"),
+            ("index=sse sourcetype=cisco:umbrella:dns", "cisco_umbrella"),
+            ("index=cisco sourcetype=cisco:se", "cisco_secure_endpoint"),
+            ("index=cisco sourcetype=cisco:xdr:incidents", "cisco_xdr"),
+            ("index=cisco_sna sourcetype=cisco:sna", "cisco_secure_network_analytics"),
+            ("index=cisco sourcetype=cisco:ai:defense", "cisco_ai_defense"),
+            ("index=cisco sourcetype=cisco:secure:workload", "cisco_secure_workload"),
+            ("index=cisco sourcetype=cisco:multicloud:defense:waf", "cisco_multicloud_defense"),
+            ("index=cisco sourcetype=cisco:etd", "cisco_email_threat_defense"),
+            ("index=cisco sourcetype=cisco:sma:submissions", "cisco_secure_malware_analytics"),
+            ("index=cisco sourcetype=cisco:isovalent:processexec", "cisco_isovalent"),
+            ("index=cisco sourcetype=cisco:cii", "cisco_identity_intelligence"),
+            ("index=cisco_cvi sourcetype=cisco:cvi", "cisco_vulnerability_intelligence"),
+            ("index=cisco sourcetype=cisco:nvm:flowdata:v2", "cisco_secure_client"),
+            ("index=cisco sourcetype=cisco:evm:process_activity", "cisco_endpoint_visibility_module"),
+        ],
+    )
+    def test_documented_sourcetype_tags_its_model(self, spl: str, model: str) -> None:
+        assert model in self._models(spl=spl)
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "Cisco Secure Access Add-on for Splunk",
+            "Cisco Secure Endpoint events",
+            "Cisco Hypershield enforcement syslog",
+            "Cisco Nexus Hyperfabric assertions",
+        ],
+    )
+    def test_product_name_without_spl_evidence_does_not_tag(self, text: str) -> None:
+        models = self._models(app=text, dataSources=text, description=text)
+        assert not [m for m in models if m.startswith("cisco_")]
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "Duolingo streak notifications",
+            "Dual-homed uplink via duo-port bonding",
+            "VPN secure access for contractors through Palo Alto GlobalProtect",
+            "An umbrella policy for every business unit",
+            "Third-party vulnerability intelligence feed",
+        ],
+    )
+    def test_generic_phrases_do_not_tag_cisco_products(self, text: str) -> None:
+        models = self._models(dataSources=text, description=text)
+        assert not [m for m in models if m.startswith("cisco_")]

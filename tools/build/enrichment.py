@@ -1204,6 +1204,200 @@ EQUIPMENT = [
                         "https://help.splunk.com/en/splunk-cloud-platform/get-started/get-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data"
                     ]
                 }
+            },
+            {
+                "id": "secure_endpoint",
+                "label": "Cisco Secure Endpoint",
+                "tas": [
+                    "Cisco Secure Endpoint",
+                    "AMP for Endpoints",
+                    "TA-cisco-amp4e"
+                ],
+                "evidence": {
+                    "sourcetypes": [
+                        "cisco:se",
+                        "cisco:se:*"
+                    ],
+                    "references": [
+                        "https://www.cisco.com/c/en/us/td/docs/security/cisco-secure-cloud-app/user-guide/cisco-security-cloud-user-guide.pdf",
+                        "https://developer.cisco.com/docs/secure-endpoint/"
+                    ]
+                }
+            },
+            {
+                "id": "xdr",
+                "label": "Cisco XDR",
+                "tas": [
+                    "Cisco XDR"
+                ],
+                "evidence": {
+                    "sourcetypes": [
+                        "cisco:xdr:*"
+                    ],
+                    "references": [
+                        "https://www.cisco.com/c/en/us/td/docs/security/cisco-secure-cloud-app/user-guide/cisco-security-cloud-user-guide.pdf",
+                        "https://help.splunk.com/en/splunk-cloud-platform/get-started/get-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data"
+                    ]
+                }
+            },
+            {
+                "id": "secure_network_analytics",
+                "label": "Cisco Secure Network Analytics",
+                "tas": [
+                    "Secure Network Analytics",
+                    "Stealthwatch",
+                    "cisco_sna_app"
+                ],
+                "evidence": {
+                    "sourcetypes": [
+                        "cisco:sna",
+                        "cisco:sna:*",
+                        "stealthwatch:*"
+                    ],
+                    "indexes": [
+                        "cisco_sna"
+                    ],
+                    "references": [
+                        "https://www.cisco.com/c/en/us/td/docs/security/cisco-secure-cloud-app/user-guide/cisco-security-cloud-user-guide.pdf",
+                        "https://help.splunk.com/en/splunk-cloud-platform/get-started/get-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data"
+                    ]
+                }
+            },
+            {
+                "id": "secure_workload",
+                "label": "Cisco Secure Workload",
+                "tas": [
+                    "Cisco Secure Workload",
+                    "Tetration"
+                ],
+                "evidence": {
+                    "sourcetypes": [
+                        "cisco:secure:workload*"
+                    ],
+                    "references": [
+                        "https://www.cisco.com/c/en/us/td/docs/security/cisco-secure-cloud-app/user-guide/cisco-security-cloud-user-guide.pdf"
+                    ]
+                }
+            },
+            {
+                "id": "multicloud_defense",
+                "label": "Cisco Multicloud Defense",
+                "tas": [
+                    "Cisco Multicloud Defense"
+                ],
+                "evidence": {
+                    "sourcetypes": [
+                        "cisco:multicloud:defense*"
+                    ],
+                    "references": [
+                        "https://www.cisco.com/c/en/us/td/docs/security/cisco-secure-cloud-app/user-guide/cisco-security-cloud-user-guide.pdf",
+                        "https://help.splunk.com/en/splunk-cloud-platform/get-started/get-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data"
+                    ]
+                }
+            },
+            {
+                "id": "email_threat_defense",
+                "label": "Cisco Secure Email Threat Defense",
+                "tas": [
+                    "Email Threat Defense"
+                ],
+                "evidence": {
+                    "sourcetypes": [
+                        "cisco:etd",
+                        "cisco:etd:*"
+                    ],
+                    "references": [
+                        "https://www.cisco.com/c/en/us/td/docs/security/cisco-secure-cloud-app/user-guide/cisco-security-cloud-user-guide.pdf"
+                    ]
+                }
+            },
+            {
+                "id": "secure_malware_analytics",
+                "label": "Cisco Secure Malware Analytics",
+                "tas": [
+                    "Secure Malware Analytics",
+                    "Threat Grid"
+                ],
+                "evidence": {
+                    "sourcetypes": [
+                        "cisco:sma:*"
+                    ],
+                    "references": [
+                        "https://www.cisco.com/c/en/us/td/docs/security/cisco-secure-cloud-app/user-guide/cisco-security-cloud-user-guide.pdf"
+                    ]
+                }
+            },
+            {
+                "id": "identity_intelligence",
+                "label": "Cisco Identity Intelligence",
+                "tas": [
+                    "Cisco Identity Intelligence"
+                ],
+                "evidence": {
+                    "sourcetypes": [
+                        "cisco:cii",
+                        "cisco:cii:*"
+                    ],
+                    "references": [
+                        "https://www.cisco.com/c/en/us/td/docs/security/cisco-secure-cloud-app/user-guide/cisco-security-cloud-user-guide.pdf"
+                    ]
+                }
+            },
+            {
+                "id": "vulnerability_intelligence",
+                "label": "Cisco Vulnerability Intelligence",
+                "tas": [
+                    "Cisco Vulnerability Intelligence"
+                ],
+                "evidence": {
+                    "sourcetypes": [
+                        "cisco:cvi",
+                        "cisco:cvi:*"
+                    ],
+                    "indexes": [
+                        "cisco_cvi"
+                    ],
+                    "references": [
+                        "https://www.cisco.com/c/en/us/td/docs/security/cisco-secure-cloud-app/user-guide/cisco-security-cloud-user-guide.pdf"
+                    ]
+                }
+            },
+            {
+                "id": "endpoint_visibility_module",
+                "label": "Cisco Endpoint Visibility Module",
+                "tas": [
+                    "Endpoint Visibility Module"
+                ],
+                "evidence": {
+                    "sourcetypes": [
+                        "cisco:evm:*"
+                    ],
+                    "references": [
+                        "https://help.splunk.com/en/splunk-cloud-platform/get-started/get-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data"
+                    ]
+                }
+            },
+            {
+                "id": "hypershield",
+                "label": "Cisco Hypershield",
+                "tas": [
+                    "Hypershield"
+                ]
+            },
+            {
+                "id": "hyperfabric",
+                "label": "Cisco Nexus Hyperfabric",
+                "tas": [
+                    "Hyperfabric"
+                ]
+            },
+            {
+                "id": "industrial_ethernet",
+                "label": "Cisco Industrial Ethernet (Catalyst IE)",
+                "tas": [
+                    "Cisco Industrial Ethernet",
+                    "Catalyst IE"
+                ]
             }
         ],
         "kind": "equipment",
