@@ -1,0 +1,71 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "9.5.17",
+  "title": "Duo Telephony Credit Consumption Spikes",
+  "criticality": "medium",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Capacity",
+    "Fraud"
+  ],
+  "splunkPillar": "Security",
+  "exclusions": "Tracks credit use, not the remaining balance; the Duo Admin API exposes the balance through `GET /admin/v1/info/summary`, collected by the Account log type. Does not cover Duo Push or passcodes from Duo Mobile, which use no credits.",
+  "evidence": "Saved alert results per spike with the contexts and phone count, plus the monthly credit-use report reconciled to the Admin Panel balance.",
+  "controlTest": {
+    "positiveScenario": "In a test Duo account with a quiet baseline, request SMS passcodes for test users until at least 20 credits are used in one hour. On the next run the search returns a row for `type=sms` with `credits` at 20 or more.",
+    "negativeScenario": "Request a single SMS passcode in an hour. The event is indexed with its `credits` value, but the hour stays under the 20-credit floor and the search returns no row."
+  },
+  "dataSources": "`index=duo sourcetype=cisco:duo:telephony_v2` from the Cisco Security Cloud (7404) Duo input, Telephony log type, which polls `GET /admin/v2/logs/telephony`. One event per SMS or phone call Duo sent, with `type` (sms or phone), `context` (for example authentication, enrollment, administrator login), `credits`, `phone`, and `txid`.",
+  "app": "Cisco Security Cloud (`CiscoSecurityCloud`, [Splunkbase 7404](https://splunkbase.splunk.com/app/7404)), Cisco Duo input. Replaces the deprecated Duo Splunk Connector (Splunkbase 3504, end of life 31 May 2026).",
+  "spl": "index=duo sourcetype=\"cisco:duo:telephony_v2\" earliest=-30d@d latest=@h\n| bin _time span=1h\n| stats sum(credits) as credits count as messages dc(phone) as phones values(context) as contexts by _time type\n| eventstats avg(credits) as avg_credits stdev(credits) as sd_credits by type\n| where _time >= relative_time(now(), \"-1h@h\") AND credits >= 20 AND credits > avg_credits + 3 * sd_credits\n| eval avg_credits=round(avg_credits, 1)",
+  "description": "Sums the Duo telephony credits used per hour for SMS and phone calls and flags the last hour when it is at least 20 credits and more than three standard deviations above the 30-day hourly average. The row shows the message count, distinct phone numbers, and the contexts that used the credits.",
+  "value": "SMS and phone-call MFA stop working when the telephony credit balance hits zero, and users who depend on them are locked out. A sudden spike is also how SMS toll fraud shows up: an attacker triggers codes to premium-rate numbers. Seeing the spike in the same hour gives the identity team time to block it and top up credits.",
+  "implementation": "Enable the Telephony log type (v2, not Telephony Legacy v1) in the Cisco Security Cloud (7404) Duo input, writing to `index=duo`. Schedule hourly at ten minutes past the hour. Review credit spend monthly against the balance shown in the Admin Panel.",
+  "visualization": "Alert table: _time, type, credits, avg_credits, messages, phones, contexts. Supporting panels: credits per day by type over 90 days (stacked column), top phone-number country prefixes by credits (bar chart).",
+  "cimModels": [],
+  "schema": "OCSF: api_activity",
+  "references": [
+    {
+      "title": "Cisco Security Cloud (Splunkbase 7404)",
+      "url": "https://splunkbase.splunk.com/app/7404",
+      "retrieved": "2026-11-02"
+    },
+    {
+      "title": "Cisco Security Cloud App for Splunk User Guide",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/cisco-secure-cloud-app/user-guide/cisco-security-cloud-user-guide.pdf",
+      "retrieved": "2026-11-02"
+    },
+    {
+      "title": "Duo Admin API: Telephony Logs (v2)",
+      "url": "https://duo.com/docs/adminapi#telephony-logs",
+      "retrieved": "2026-11-02"
+    }
+  ],
+  "knownFalsePositives": "1. **Enrollment drives** — onboarding many users at once sends a burst of enrollment SMS. The `contexts` column shows `enrollment`.\n\n2. **Push outages** — when Duo Push cannot reach phones (a carrier or Apple/Google outage), users fall back to SMS and calls.\n\n3. **International users** — calls and SMS to some countries use more credits per message, so a few users abroad can raise the total.\n\n**Suppression:** a change-window lookup for planned enrollments.",
+  "detectionType": "Anomaly",
+  "securityDomain": "identity",
+  "requiredFields": [
+    "type",
+    "context",
+    "credits",
+    "phone",
+    "txid"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_duo"
+  ],
+  "capabilities": [
+    "duo.telephony"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Cisco Security Cloud (`CiscoSecurityCloud`, Splunkbase 7404) on the search heads and on the heavy forwarder or Splunk Cloud Inputs Data Manager that runs its modular inputs. It replaces the Duo Splunk Connector (Splunkbase 3504, end of life 31 May 2026); disable the old connector's inputs after cutover so events are not indexed twice.\n• A Duo Admin API application created by an Owner-role administrator in the Duo Admin Panel under Applications > Protect an Application > Admin API. Record the integration key, secret key, and API hostname (`api-XXXXXXXX.duosecurity.com`), and grant it **Grant read log**.\n• Outbound HTTPS (TCP 443) from the input host to the API hostname, and an accurate system clock on that host, because the Admin API signs every request with the current date.\n• An index for Duo data (this page uses `index=duo`) and a role with `srchIndexesAllowed` on it for the identity and SOC teams.\n\nStep 1 — Configure data collection\n• In Cisco Security Cloud open Application Setup, choose the Cisco Duo card, and create (or edit) the Duo input with the integration key, secret key, and API hostname. Enable the **Telephony** log type and set the index to `duo`. Each log type runs as its own modular input, so its interval can be set separately.\n• The input calls `GET /admin/v2/logs/telephony` and writes `sourcetype=cisco:duo:telephony_v2`.\n• Duo holds back the newest two minutes of telephony events and asks for no more than one request per minute, so events arrive a few minutes after the SMS or call.\n• The legacy Telephony v1 log type writes `sourcetype=cisco:duo:telephony` with different fields; do not enable both for the same account.\n• Check the fields this search needs: run `index=duo sourcetype=cisco:duo:telephony_v2 | stats sum(credits) count by type context` over 30 days.\n\nStep 2 — Create the search and alert\n```spl\nindex=duo sourcetype=\"cisco:duo:telephony_v2\" earliest=-30d@d latest=@h\n| bin _time span=1h\n| stats sum(credits) as credits count as messages dc(phone) as phones values(context) as contexts by _time type\n| eventstats avg(credits) as avg_credits stdev(credits) as sd_credits by type\n| where _time >= relative_time(now(), \"-1h@h\") AND credits >= 20 AND credits > avg_credits + 3 * sd_credits\n| eval avg_credits=round(avg_credits, 1)\n```\n\nUnderstanding this SPL\n• The search reads 30 days of hourly totals so `eventstats` can compute a separate average and standard deviation for SMS and for phone calls.\n• `where` keeps only the last complete hour, and only when it is both at least 20 credits and more than three standard deviations above normal.\n• `dc(phone)` separates many users each getting one code (enrollment, push outage) from a few numbers getting many codes (toll fraud).\n\nStep 3 — Validate\n• Compare with the Duo admin console (Admin Panel) Telephony report (Reports > Telephony Credits Used) for the same day: total credits should match within the two-minute delay.\n• Check the credit balance on the Admin Panel Billing page against the spend trend to see how many days of credits are left.\n• Run `index=duo sourcetype=cisco:duo:telephony_v2 | timechart span=1d sum(credits)` over 30 days and confirm there are no unexplained days with zero events.\n\nStep 4 — Operationalize\n• Schedule hourly at ten minutes past the hour so the two-minute API delay and the input interval have passed.\n• Route to the identity team. If `phones` is small relative to `messages`, check the numbers' country codes and consider restricting SMS in the Duo policy for those countries.\n• Add a monthly report of credits used per context, and buy credits before the balance falls below one month of normal use.\n\nStep 5 — Troubleshooting\n• No Duo events and HTTP 401 in the input log under `$SPLUNK_HOME/var/log/splunk/duo_splunkapp/`: wrong secret key, an API hostname from a different Duo account, or clock skew on the input host.\n• HTTP 403: the Admin API application is missing **Grant read log**.\n• HTTP 429: Duo rate-limits the log endpoints. Make sure the deprecated 3504 connector and the 7404 input are not both polling the same Admin API application.\n• Duplicate rows after migration: the 3504 connector and the 7404 input are both enabled for the same log type.\n• No telephony_v2 events while the Admin Panel shows SMS sent: the input has Telephony Legacy v1 enabled instead, so events are under `cisco:duo:telephony`.\n• Empty values in `credits`: the events were indexed before JSON extraction applied; check `| fieldsummary` on one day of data.\n",
+  "grandmaExplanation": "Each text message or phone call Duo sends for a login costs credits. We warn when far more are used than usual, because running out stops those logins and a sudden jump can mean fraud.",
+  "prerequisiteUseCases": [],
+  "wave": "walk"
+}

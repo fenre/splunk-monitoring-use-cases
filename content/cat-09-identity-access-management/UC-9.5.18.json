@@ -1,0 +1,77 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "9.5.18",
+  "title": "Duo Endpoints Running Out-of-Date or End-of-Life Operating Systems",
+  "criticality": "medium",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "exclusions": "Only devices that authenticated through Duo in the last 30 days, because Duo purges endpoint records after 30 days of inactivity. Encryption, firewall, and password status need Duo Desktop. Not a full asset inventory.",
+  "evidence": "Daily report export of out-of-date and end-of-life endpoints with owners, plus the endpoint team's remediation ticket per device.",
+  "controlTest": {
+    "positiveScenario": "Sign in to a Duo-protected application from a test device running an OS version Duo lists as out of date. After the next daily Endpoint input run, the device appears in `index=duo` with `os_software_status=out-of-date` and the report lists it.",
+    "negativeScenario": "Update the test device to the current OS release and sign in again. After the next input run its latest record shows `up-to-date` or `supported-latest`, and the report no longer lists it."
+  },
+  "dataSources": "`index=duo sourcetype=cisco:duo:endpoint` from the Cisco Security Cloud (7404) Duo input, Endpoint log type, which polls `GET /admin/v1/endpoints`. One record per endpoint that authenticated through Duo in the last 30 days, with `epkey`, `device_name`, `username`, `os_family`, `os_version`, `os_software_status`, `disk_encryption_status`, `firewall_status`, `password_status`, `trusted_endpoint`, and `last_updated`.",
+  "app": "Cisco Security Cloud (`CiscoSecurityCloud`, [Splunkbase 7404](https://splunkbase.splunk.com/app/7404)), Cisco Duo input. Replaces the deprecated Duo Splunk Connector (Splunkbase 3504, end of life 31 May 2026).",
+  "spl": "index=duo sourcetype=\"cisco:duo:endpoint\" earliest=-2d\n| dedup epkey\n| where in(os_software_status, \"out-of-date\", \"end-of-life\") OR disk_encryption_status=\"Off\" OR firewall_status=\"Off\"\n| eval last_seen=strftime(last_updated, \"%Y-%m-%d %H:%M\")\n| table username device_name os_family os_version os_software_status disk_encryption_status firewall_status password_status trusted_endpoint health_app_client_version last_seen\n| sort os_software_status os_family username",
+  "description": "Lists Duo endpoints whose operating system Duo reports as out of date or end of life, or whose disk encryption or firewall Duo Desktop reports as off. Each row shows the user, device name, OS, posture values, whether the endpoint is managed, and when it last accessed Duo.",
+  "value": "These are devices that can still reach protected applications today even though they no longer get security fixes or are missing basic protections. The list gives the endpoint team named devices and owners to fix, and gives the identity team the evidence to turn the Duo device-health policy from warn to block.",
+  "implementation": "Enable the Endpoint log type in the Cisco Security Cloud (7404) Duo input, writing to `index=duo`, with a daily interval because the endpoint list is a snapshot. Run the report daily and send it to the endpoint team.",
+  "visualization": "Table: username, device_name, os_family, os_version, os_software_status, disk_encryption_status, firewall_status, password_status, trusted_endpoint, last_seen. Supporting panels: endpoints by os_software_status (pie chart), end-of-life endpoints over 90 days (line chart).",
+  "cimModels": [],
+  "schema": "OCSF: device_inventory_info",
+  "references": [
+    {
+      "title": "Cisco Security Cloud (Splunkbase 7404)",
+      "url": "https://splunkbase.splunk.com/app/7404",
+      "retrieved": "2026-11-02"
+    },
+    {
+      "title": "Cisco Security Cloud App for Splunk User Guide",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/cisco-secure-cloud-app/user-guide/cisco-security-cloud-user-guide.pdf",
+      "retrieved": "2026-11-02"
+    },
+    {
+      "title": "Duo Admin API: Endpoints",
+      "url": "https://duo.com/docs/adminapi#endpoints",
+      "retrieved": "2026-11-02"
+    }
+  ],
+  "knownFalsePositives": "1. **Devices without Duo Desktop** — encryption, firewall, and password status are \"Unknown\" without Duo Desktop. This search only flags \"Off\", so these devices appear only through `os_software_status`.\n\n2. **Patch lag** — a device becomes `out-of-date` as soon as a new OS release ships. Give users the patch window your policy allows before chasing.\n\n3. **Aggregated records** — without Duo Desktop, one `epkey` stands for all access from the same user, OS version, and browser version, so one physical device can show as several rows after an upgrade.\n\n**Suppression:** a lookup of exempt devices (lab, kiosk) with an owner and review date.",
+  "detectionType": "Hunting",
+  "securityDomain": "identity",
+  "requiredFields": [
+    "epkey",
+    "username",
+    "device_name",
+    "os_family",
+    "os_version",
+    "os_software_status",
+    "disk_encryption_status",
+    "firewall_status",
+    "password_status",
+    "trusted_endpoint",
+    "last_updated"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_duo"
+  ],
+  "capabilities": [
+    "duo.endpoint_posture"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Cisco Security Cloud (`CiscoSecurityCloud`, Splunkbase 7404) on the search heads and on the heavy forwarder or Splunk Cloud Inputs Data Manager that runs its modular inputs. It replaces the Duo Splunk Connector (Splunkbase 3504, end of life 31 May 2026); disable the old connector's inputs after cutover so events are not indexed twice.\n• A Duo Admin API application created by an Owner-role administrator in the Duo Admin Panel under Applications > Protect an Application > Admin API. Record the integration key, secret key, and API hostname (`api-XXXXXXXX.duosecurity.com`), and grant it **Grant read log**.\n• Outbound HTTPS (TCP 443) from the input host to the API hostname, and an accurate system clock on that host, because the Admin API signs every request with the current date.\n• An index for Duo data (this page uses `index=duo`) and a role with `srchIndexesAllowed` on it for the identity and SOC teams.\n• Duo Premier or Duo Advantage, because the Endpoints API is only available on those plans; some fields are Premier only.\n\nStep 1 — Configure data collection\n• In Cisco Security Cloud open Application Setup, choose the Cisco Duo card, and create (or edit) the Duo input with the integration key, secret key, and API hostname. Enable the **Endpoint** log type and set the index to `duo`. Each log type runs as its own modular input, so its interval can be set separately.\n• The input calls `GET /admin/v1/endpoints` and writes `sourcetype=cisco:duo:endpoint`.\n• The endpoint list is a snapshot of every device seen in the last 30 days, not a stream of events. Set the interval to 24 hours; shorter intervals only index the same records again.\n• `os_software_status` is one of `unknown`, `up-to-date`, `out-of-date`, `end-of-life`, `supported-up-to-date`, or `supported-latest`. `disk_encryption_status`, `firewall_status`, and `password_status` are \"On\"/\"Off\" or \"Set\"/\"Unset\", or \"Unknown\" without Duo Desktop.\n• Check the fields this search needs: run `index=duo sourcetype=cisco:duo:endpoint earliest=-2d | dedup epkey | stats count by os_software_status`.\n\nStep 2 — Create the search and alert\n```spl\nindex=duo sourcetype=\"cisco:duo:endpoint\" earliest=-2d\n| dedup epkey\n| where in(os_software_status, \"out-of-date\", \"end-of-life\") OR disk_encryption_status=\"Off\" OR firewall_status=\"Off\"\n| eval last_seen=strftime(last_updated, \"%Y-%m-%d %H:%M\")\n| table username device_name os_family os_version os_software_status disk_encryption_status firewall_status password_status trusted_endpoint health_app_client_version last_seen\n| sort os_software_status os_family username\n```\n\nUnderstanding this SPL\n• The search reads two days so it always includes the latest daily snapshot, and `dedup epkey` keeps the newest record per endpoint.\n• `out-of-date` and `end-of-life` are Duo's own verdicts on the OS version, so no local version list has to be maintained.\n• `last_updated` is a Unix timestamp of the endpoint's last access to Duo; `strftime` makes it readable.\n\nStep 3 — Validate\n• Compare with the Duo admin console (Admin Panel) Endpoints page filtered to out-of-date operating systems: the device count should match this report.\n• Open one listed device in the Admin Panel and confirm its OS version and encryption state match the row.\n• Run `index=duo sourcetype=cisco:duo:endpoint | timechart span=1d dc(epkey)` over 14 days; a day with zero endpoints means the input did not run.\n\nStep 4 — Operationalize\n• Run daily after the input completes and email the report to the endpoint team.\n• Track the end-of-life count weekly; when it is near zero, switch the Duo device-health policy for that OS to block.\n• Alert separately when an end-of-life device belongs to a user in a privileged-group lookup.\n\nStep 5 — Troubleshooting\n• No Duo events and HTTP 401 in the input log under `$SPLUNK_HOME/var/log/splunk/duo_splunkapp/`: wrong secret key, an API hostname from a different Duo account, or clock skew on the input host.\n• HTTP 403: the Admin API application is missing **Grant read log**.\n• HTTP 429: Duo rate-limits the log endpoints. Make sure the deprecated 3504 connector and the 7404 input are not both polling the same Admin API application.\n• Duplicate rows after migration: the 3504 connector and the 7404 input are both enabled for the same log type.\n• No endpoint events and HTTP 403: the account is not on Duo Premier or Advantage, or the Admin API application lacks read permission for endpoints.\n• Empty values in `disk_encryption_status` or always \"Unknown\": Duo Desktop is not installed on those devices.\n",
+  "grandmaExplanation": "We list the computers and phones that still log in to work systems even though their software is too old to be safe, so they get updated.",
+  "prerequisiteUseCases": [],
+  "wave": "walk"
+}

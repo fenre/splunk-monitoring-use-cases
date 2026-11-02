@@ -1,0 +1,76 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "9.5.19",
+  "title": "Duo Users in Bypass Status or Not Enrolled",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "exclusions": "Reads the user's own status only; group status that overrides it is not in the API response. Does not show what applications a bypass user reached; use the authentication log for that.",
+  "evidence": "Daily report export of bypass and unenrolled users, with the ticket or approval for each bypass account and the date it was set back to active.",
+  "controlTest": {
+    "positiveScenario": "Set a test user's status to Bypass in the Duo Admin Panel. After the next daily Users list input run, the user appears in `index=duo` with `status=bypass` and the report lists them with the finding \"bypass status: second factor skipped\".",
+    "negativeScenario": "Set the test user back to Active with an enrolled phone. After the next input run the record shows `status=active` and `is_enrolled=true`, and the user is no longer listed."
+  },
+  "dataSources": "`index=duo sourcetype=cisco:duo:user` from the Cisco Security Cloud (7404) Duo input, Users list log type, which polls `GET /admin/v1/users`. One record per Duo user with `user_id`, `username`, `email`, `status` (active, bypass, disabled, locked out, pending deletion), `lockout_reason`, `is_enrolled`, `last_login`, and attached `phones` and `groups`.",
+  "app": "Cisco Security Cloud (`CiscoSecurityCloud`, [Splunkbase 7404](https://splunkbase.splunk.com/app/7404)), Cisco Duo input. Replaces the deprecated Duo Splunk Connector (Splunkbase 3504, end of life 31 May 2026).",
+  "spl": "index=duo sourcetype=\"cisco:duo:user\" earliest=-2d\n| dedup user_id\n| eval status=lower(status), last_login_days=if(isnull(last_login), null(), round((now() - last_login) / 86400, 0))\n| where status=\"bypass\" OR (status=\"active\" AND is_enrolled=\"false\")\n| eval finding=if(status=\"bypass\", \"bypass status: second factor skipped\", \"active but not enrolled\")\n| table username email finding status is_enrolled last_login_days groups{}.name\n| sort finding username",
+  "description": "Lists Duo users whose status is bypass, so they sign in without a second factor, and active users who have no phone, token, or security key enrolled. Each row shows the user, the finding, how many days since their last login, and their Duo groups.",
+  "value": "Bypass status and missing enrollment are the two ways MFA silently does not apply to an account. Bypass is often set during a phone replacement and never removed, and unenrolled users can be enrolled by whoever first has their password. A daily list makes both visible before an attacker finds them.",
+  "implementation": "Enable the Users list log type in the Cisco Security Cloud (7404) Duo input, writing to `index=duo`, with a daily interval. Run the report daily and alert when a user has been in bypass status on two consecutive days.",
+  "visualization": "Table: username, email, finding, status, is_enrolled, last_login_days, groups. Supporting panels: count of bypass users over 90 days (line chart), unenrolled users by group (bar chart).",
+  "cimModels": [],
+  "schema": "OCSF: entity_management",
+  "references": [
+    {
+      "title": "Cisco Security Cloud (Splunkbase 7404)",
+      "url": "https://splunkbase.splunk.com/app/7404",
+      "retrieved": "2026-11-02"
+    },
+    {
+      "title": "Cisco Security Cloud App for Splunk User Guide",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/cisco-secure-cloud-app/user-guide/cisco-security-cloud-user-guide.pdf",
+      "retrieved": "2026-11-02"
+    },
+    {
+      "title": "Duo Admin API: Retrieve Users",
+      "url": "https://duo.com/docs/adminapi#retrieve-users",
+      "retrieved": "2026-11-02"
+    }
+  ],
+  "knownFalsePositives": "1. **New users** — accounts created by directory sync are active and unenrolled until the user enrolls. Duo can lock them out after a set period (`lockout_reason` \"Not enrolled\").\n\n2. **Service accounts** — some integrations need a bypass user by design. Keep them in a lookup with an owner and justification.\n\n3. **Group status** — a user's group status can override the individual status, and group status is not in the user record. A user shown here may be governed by a group policy.\n\n**Suppression:** a lookup of approved bypass and service accounts with an expiry date.",
+  "mitreAttack": [
+    "T1556.006"
+  ],
+  "detectionType": "Hunting",
+  "securityDomain": "identity",
+  "requiredFields": [
+    "user_id",
+    "username",
+    "email",
+    "status",
+    "is_enrolled",
+    "last_login",
+    "groups{}.name"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_duo"
+  ],
+  "capabilities": [
+    "duo.user_lifecycle"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Cisco Security Cloud (`CiscoSecurityCloud`, Splunkbase 7404) on the search heads and on the heavy forwarder or Splunk Cloud Inputs Data Manager that runs its modular inputs. It replaces the Duo Splunk Connector (Splunkbase 3504, end of life 31 May 2026); disable the old connector's inputs after cutover so events are not indexed twice.\n• A Duo Admin API application created by an Owner-role administrator in the Duo Admin Panel under Applications > Protect an Application > Admin API. Record the integration key, secret key, and API hostname (`api-XXXXXXXX.duosecurity.com`), and grant it **Grant read log**.\n• Outbound HTTPS (TCP 443) from the input host to the API hostname, and an accurate system clock on that host, because the Admin API signs every request with the current date.\n• An index for Duo data (this page uses `index=duo`) and a role with `srchIndexesAllowed` on it for the identity and SOC teams.\n• The Admin API application also needs **Grant resource - Read** so it can read users.\n\nStep 1 — Configure data collection\n• In Cisco Security Cloud open Application Setup, choose the Cisco Duo card, and create (or edit) the Duo input with the integration key, secret key, and API hostname. Enable the **Users list** log type and set the index to `duo`. Each log type runs as its own modular input, so its interval can be set separately.\n• The input calls `GET /admin/v1/users` and writes `sourcetype=cisco:duo:user`.\n• The users list is a snapshot of every user, so set the interval to 24 hours.\n• `status` is one of `active`, `bypass`, `disabled`, `locked out`, or `pending deletion`. `is_enrolled` is true when the user has any phone, hardware token, U2F token, or WebAuthn method. `last_login` is a Unix timestamp or null.\n• Check the fields this search needs: run `index=duo sourcetype=cisco:duo:user earliest=-2d | dedup user_id | stats count by status is_enrolled`.\n\nStep 2 — Create the search and alert\n```spl\nindex=duo sourcetype=\"cisco:duo:user\" earliest=-2d\n| dedup user_id\n| eval status=lower(status), last_login_days=if(isnull(last_login), null(), round((now() - last_login) / 86400, 0))\n| where status=\"bypass\" OR (status=\"active\" AND is_enrolled=\"false\")\n| eval finding=if(status=\"bypass\", \"bypass status: second factor skipped\", \"active but not enrolled\")\n| table username email finding status is_enrolled last_login_days groups{}.name\n| sort finding username\n```\n\nUnderstanding this SPL\n• The search reads two days so it includes the latest snapshot, and `dedup user_id` keeps the newest record per user.\n• `lower(status)` handles the capitalised values some records use (for example `Active` on nested objects).\n• `last_login_days` shows how long since the user last logged in; a bypass user who logs in daily is a bigger risk than one who never does.\n\nStep 3 — Validate\n• Compare with the Duo admin console (Admin Panel) Users page filtered to Bypass status: the same users should appear here.\n• Pick one unenrolled user and confirm in the Admin Panel that they have no phones or tokens attached.\n• Run `index=duo sourcetype=cisco:duo:user | timechart span=1d dc(user_id)` over 14 days; the count should be close to the user count on the Admin Panel dashboard.\n\nStep 4 — Operationalize\n• Run daily and send to the identity team. Alert when the same user is in bypass status on two consecutive daily snapshots.\n• For each bypass user, require a ticket number and an end date; set them back to active when the date passes.\n• Send enrollment reminders to unenrolled users, and confirm the Duo setting that locks out users not enrolled within a set period.\n\nStep 5 — Troubleshooting\n• No Duo events and HTTP 401 in the input log under `$SPLUNK_HOME/var/log/splunk/duo_splunkapp/`: wrong secret key, an API hostname from a different Duo account, or clock skew on the input host.\n• HTTP 403: the Admin API application is missing **Grant read log**.\n• HTTP 429: Duo rate-limits the log endpoints. Make sure the deprecated 3504 connector and the 7404 input are not both polling the same Admin API application.\n• Duplicate rows after migration: the 3504 connector and the 7404 input are both enabled for the same log type.\n• No user events and HTTP 403: the Admin API application lacks **Grant resource - Read**.\n• Empty values in `groups{}.name`: the user is in no Duo groups, which is normal when groups are not synced from the directory.\n",
+  "grandmaExplanation": "We list the people whose extra login check is switched off or was never set up, because those accounts can be opened with just a password.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}
