@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import sys
 from collections import Counter
 from dataclasses import dataclass
@@ -148,8 +149,27 @@ def classify(uc: dict[str, Any], entry: dict[str, Any]) -> tuple[str, str]:
     return ("E5", "no index or sourcetype") if app_cisco else ("C", "no Cisco product in app")
 
 
+def _load_override_ids() -> set[str]:
+    path = REPO_ROOT / "data" / "equipment-tag-overrides.json"
+    if not path.is_file():
+        return set()
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return {k.removeprefix("UC-") for k in data.get("overrides") or {}}
+
+
+def _action(cat: str, uc: dict[str, Any], app_cisco: bool, entry: dict[str, Any], overrides: set[str]) -> str:
+    if uc["id"] in overrides:
+        return "keep via data/equipment-tag-overrides.json"
+    if cat in ("E4", "F") and not app_cisco:
+        ev = ev_mod.extract_spl_evidence(uc.get("spl"), uc.get("cimSpl"))
+        if not ev_mod.matches_evidence(ev, ev_mod.evidence_block(entry)):
+            return "remove-tag (Cisco named only in prose)"
+    return ACTIONS[cat]
+
+
 def build_rows() -> list[Row]:
     entry = _registry()
+    overrides = _load_override_ids()
     rows: list[Row] = []
     for _path, uc in iter_uc_sidecars():
         eq = list(uc.get("equipment") or [])
@@ -162,6 +182,7 @@ def build_rows() -> list[Row]:
         all_tas = list(entry.get("tas") or []) + [
             p for m in entry.get("models") or [] for p in m.get("tas") or []
         ]
+        app_cisco = any(ev_mod.token_contains(app_lower, p.lower()) for p in all_tas)
         rows.append(
             Row(
                 uc_id=f"UC-{uc['id']}",
@@ -172,9 +193,9 @@ def build_rows() -> list[Row]:
                 indexes=";".join(sorted(ev.indexes)),
                 macros=";".join(sorted(ev.macros)),
                 uses_datamodel=ev.uses_datamodel,
-                app_names_cisco=any(ev_mod.token_contains(app_lower, p.lower()) for p in all_tas),
+                app_names_cisco=app_cisco,
                 category=cat,
-                action=ACTIONS[cat],
+                action=_action(cat, uc, app_cisco, entry, overrides),
                 detail=detail,
             )
         )
