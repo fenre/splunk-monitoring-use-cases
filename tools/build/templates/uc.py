@@ -107,6 +107,7 @@ def render_html(
             _section_implementation_ordering(uc, ctx=ctx),
             _section_products(uc),
             _section_spl(uc),
+            _section_spl_variants(uc),
             _section_dma_spl(uc),
             _section_implementation(uc),
             _section_visualization(uc),
@@ -414,6 +415,7 @@ def render_markdown_twin(
     _add_text_section("Value", uc.get("v"))
     _add_code_section("SPL", uc.get("q"), "spl")
     _add_code_section("CIM SPL (tstats)", uc.get("qs"), "spl")
+    _add_variant_sections(lines, uc)
     for artifact in _products.artifacts_of(uc):
         _add_code_section(
             _artifact_heading(artifact),
@@ -756,6 +758,54 @@ def _section_products(uc: CatalogUC) -> str:
     return "\n".join(parts)
 
 
+def _variant_items(uc: CatalogUC) -> list[dict[str, Any]]:
+    raw = uc.get("qv") or []
+    if not isinstance(raw, list):
+        return []
+    return [item for item in raw if isinstance(item, dict) and item.get("model") and item.get("q")]
+
+
+def _variant_preamble(item: dict[str, Any]) -> str:
+    sourcetypes = item.get("sourcetypes") or []
+    parts = [f"Model: `{item.get('model')}`"]
+    if isinstance(sourcetypes, list) and sourcetypes:
+        parts.append("sourcetypes: " + ", ".join(f"`{s}`" for s in sourcetypes))
+    app_id = item.get("splunkbaseAppId")
+    if app_id:
+        parts.append(f"Splunkbase app {app_id}")
+    status = item.get("status")
+    if status:
+        parts.append(f"status: {status}")
+    if item.get("requiresSmeReview") is True:
+        parts.append("requires SME review")
+    return ". ".join(parts) + "."
+
+
+def _add_variant_sections(lines: list[str], uc: CatalogUC) -> None:
+    for item in _variant_items(uc):
+        model = str(item.get("model"))
+        lines.append(f"## SPL variant: {model}")
+        lines.append("")
+        lines.append(_variant_preamble(item))
+        notes = str(item.get("notes") or "").strip()
+        if notes:
+            lines.append("")
+            lines.append(notes)
+        lines.append("")
+        lines.append("```spl")
+        lines.append(str(item.get("q")).strip())
+        lines.append("```")
+        lines.append("")
+        qs = str(item.get("qs") or "").strip()
+        if qs:
+            lines.append(f"## CIM SPL variant: {model}")
+            lines.append("")
+            lines.append("```spl")
+            lines.append(qs)
+            lines.append("```")
+            lines.append("")
+
+
 def _section_spl(uc: CatalogUC) -> str:
     spl = str(uc.get("q") or "").strip()
     if not spl:
@@ -766,6 +816,29 @@ def _section_spl(uc: CatalogUC) -> str:
         + _helpers.escape(spl)
         + '</code></pre></section>'
     )
+
+
+def _section_spl_variants(uc: CatalogUC) -> str:
+    items = _variant_items(uc)
+    if not items:
+        return ""
+    parts = ["<section><h2>SPL variants</h2>"]
+    for item in items:
+        model = _helpers.escape(str(item.get("model")))
+        parts.append(f"<h3>{model}</h3>")
+        parts.append("<p>" + _helpers.escape(_variant_preamble(item).replace("`", "")) + "</p>")
+        notes = str(item.get("notes") or "").strip()
+        if notes:
+            parts.append("<p>" + _helpers.escape(notes) + "</p>")
+        parts.append(
+            '<pre><code class="lang-spl">' + _helpers.escape(str(item.get("q")).strip()) + "</code></pre>"
+        )
+        qs = str(item.get("qs") or "").strip()
+        if qs:
+            parts.append("<h4>CIM SPL</h4>")
+            parts.append('<pre><code class="lang-spl">' + _helpers.escape(qs) + "</code></pre>")
+    parts.append("</section>")
+    return "\n".join(parts)
 
 
 def _section_dma_spl(uc: CatalogUC) -> str:

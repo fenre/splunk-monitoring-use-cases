@@ -38,6 +38,23 @@ Every UC is implemented in one or more Splunk products. Products are defined onc
 
 `spl` and `cimModels` are required only when the primary product lists them in `requires`. SPL audits, saved-search exports, and dashboard generation run only for UCs whose products enable them in the registry.
 
+## SPL variants (optional, uc.schema 1.10.0+)
+
+A use case keeps one id and one default search (`spl`). `splVariants` holds another vendor's search for the same use case, so a multi-vendor use case can ship a Cisco search without a second UC id. At most one item per equipment model.
+
+| JSON key | Description |
+|----------|-------------|
+| `model` | Equipment model compound, the same form as `equipmentModels[]` (for example `cisco_firepower`). |
+| `sourcetypes` | Sourcetypes the variant search reads. At least one. |
+| `splunkbaseAppId` | Numeric Splunkbase<sup class="ref">[<a href="#ref-7">7</a>]</sup> app id of the add-on that produces them. Same id space as `splunkbaseApps[].id`. |
+| `spl` | The variant search. Same role as the use case `spl`. |
+| `cimSpl` | Optional tstats form. Same role as the use case `cimSpl`. |
+| `notes` | Optional. Where the field names come from, and what differs from the default search. |
+| `status` | Optional. `verified`, `community`, or `draft` — the use case status vocabulary. Omit means `community`. |
+| `requiresSmeReview` | Optional boolean. `true` while the variant awaits SME sign-off. Same flag as `splunkbaseApps[].requiresSmeReview`. |
+
+`catalog.json` emits the array as `qv`. Inside each item, `spl` and `cimSpl` become `q` and `qs`; the other keys keep these names. `uc-thin.json` lists the models as `variantModels[]` and omits the searches.
+
 ## Quality metadata (optional, v5.1+)
 
 These fields support the repository's quality and freshness tracking. They are **optional today** but CI will warn when they are missing and may gate new UCs in future versions.
@@ -180,14 +197,16 @@ Structured metadata for ranking or filtering UCs by Splunk licensing impact. All
 
 <a id="ref-6"></a>**[6]** Splunk Inc. (2026). *Splunk IT Service Intelligence Administration Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/ITSI
 
+<a id="ref-7"></a>**[7]** Splunk Inc. (2026). *Splunkbase — the Splunk app marketplace*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://splunkbase.splunk.com/
+
 <details>
 <summary>Additional online sources cited in the document body (3)</summary>
 
-<a id="ref-7"></a>**[7]** docs.splunk.com. *DMA docs*. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/Splunk/latest/Knowledge/Acceleratedatamodels
+<a id="ref-8"></a>**[8]** docs.splunk.com. *DMA docs*. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/Splunk/latest/Knowledge/Acceleratedatamodels
 
-<a id="ref-8"></a>**[8]** schema.ocsf.io. *OCSF*. Retrieved May 11, 2026, from https://schema.ocsf.io/
+<a id="ref-9"></a>**[9]** schema.ocsf.io. *OCSF*. Retrieved May 11, 2026, from https://schema.ocsf.io/
 
-<a id="ref-9"></a>**[9]** github.com. *Splunk Security Essentials*. Retrieved May 11, 2026, from https://github.com/splunk/security_content
+<a id="ref-10"></a>**[10]** github.com. *Splunk Security Essentials*. Retrieved May 11, 2026, from https://github.com/splunk/security_content
 
 </details>
 

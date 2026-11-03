@@ -505,6 +505,51 @@ def _references_to_legacy(value: Any) -> str:
     return ", ".join(parts)
 
 
+def _spl_variants_to_legacy(value: Any) -> list[dict[str, Any]]:
+    """Project sidecar ``splVariants[]`` onto the abbreviated catalogue form.
+
+    ``spl`` and ``cimSpl`` become ``q`` and ``qs``, matching the use case
+    fields. Other keys keep their sidecar names. Items that are missing a
+    required key are dropped; schema validation rejects them earlier.
+    """
+    if not isinstance(value, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        model = item.get("model")
+        spl = item.get("spl")
+        sourcetypes = item.get("sourcetypes")
+        app_id = item.get("splunkbaseAppId")
+        if not (
+            isinstance(model, str) and model
+            and isinstance(spl, str) and spl.strip()
+            and isinstance(sourcetypes, list) and sourcetypes
+            and isinstance(app_id, int) and app_id > 0
+        ):
+            continue
+        row: dict[str, Any] = {
+            "model": model,
+            "sourcetypes": [str(s) for s in sourcetypes if str(s).strip()],
+            "splunkbaseAppId": app_id,
+            "q": spl,
+        }
+        cim = item.get("cimSpl")
+        if isinstance(cim, str) and cim.strip():
+            row["qs"] = cim
+        notes = item.get("notes")
+        if isinstance(notes, str) and notes.strip():
+            row["notes"] = notes
+        status = item.get("status")
+        if isinstance(status, str) and status.strip():
+            row["status"] = status
+        if item.get("requiresSmeReview") is True:
+            row["requiresSmeReview"] = True
+        out.append(row)
+    return out
+
+
 def _list_to_csv(value: Any) -> str:
     if not isinstance(value, list):
         return ""
@@ -611,6 +656,12 @@ def _canonical_uc_to_legacy(canonical: dict[str, Any]) -> dict[str, Any]:
     cim_spl = canonical.get("cimSpl")
     if isinstance(cim_spl, str) and cim_spl.strip():
         uc["qs"] = cim_spl
+
+    # splVariants → qv. Inner spl/cimSpl follow the catalogue abbreviations
+    # q/qs; every other key keeps its sidecar name.
+    variants = _spl_variants_to_legacy(canonical.get("splVariants"))
+    if variants:
+        uc["qv"] = variants
 
     # premiumApps → legacy string
     premium_str = _premium_to_legacy(canonical.get("premiumApps"))

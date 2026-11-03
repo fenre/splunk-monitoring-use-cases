@@ -70,6 +70,7 @@ for the build stages.
 | `v` | Value | `ge` | Plain-language explanation |
 | `t` | App/TA | `d` | Data sources |
 | `q` | SPL query | `qs` | CIM/tstats SPL |
+| `qv` | SPL variants (`splVariants`; inner searches stay `q` / `qs`) | | |
 | `s` | Subcategories | `u` | Use cases |
 | `e` | Equipment IDs | `em` | Equipment model IDs |
 | `wv` | Wave (crawl/walk/run) | `pre` | Prerequisite UC IDs |

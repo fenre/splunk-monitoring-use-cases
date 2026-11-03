@@ -95,6 +95,7 @@ _SIDECAR_FIELD_ORDER: tuple[str, ...] = (
     "app",
     "spl",
     "cimSpl",
+    "splVariants",
     "cimModels",
     "dataModelAcceleration",
     "description",

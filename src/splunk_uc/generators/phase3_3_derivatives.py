@@ -133,6 +133,7 @@ SIDECAR_FIELD_ORDER: tuple[str, ...] = (
     "visualization",
     "cimModels",
     "cimSpl",
+    "splVariants",
     "schema",
     "dataModelAcceleration",
     "references",
