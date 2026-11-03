@@ -503,7 +503,9 @@ class EquipmentEntry(TypedDict, total=False):
     Field names match the wire format (``label``, ``tas``, ``models``).
     ``models`` enumerates specific hardware variants the catalogue knows
     about (e.g. ``["IR1101", "IR829"]`` under the ``cisco-ie`` family);
-    it's omitted when no model-level granularity exists.
+    it's omitted when no model-level granularity exists. ``evidence``
+    (vendor and model level) lists the sourcetypes, indexes and macros the
+    product produces; present only on evidence-gated vendors.
     """
 
     id: str
@@ -512,6 +514,7 @@ class EquipmentEntry(TypedDict, total=False):
     models: list[str]
     kind: str
     vendor: str
+    evidence: dict[str, list[str]]
 
 
 class ImplementationRoadmapEntry(TypedDict, total=False):

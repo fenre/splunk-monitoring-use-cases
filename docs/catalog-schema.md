@@ -203,7 +203,8 @@ Array of equipment/technology entries. Each entry has:
 | `id` | string | Slug (e.g. `"linux"`, `"cisco"`). |
 | `label` | string | Display label. |
 | `tas` | array | Substrings to match in use case App/TA (`t`). |
-| `models` | array | Optional. Finer-grained models: `{ "id", "label", "tas" }`. |
+| `models` | array | Optional. Finer-grained models: `{ "id", "label", "tas", "evidence"? }`. |
+| `evidence` | object | Optional, on the vendor and on each model. `{ "sourcetypes", "indexes", "macros" }` glob lists of the data the product produces. A vendor that carries it (currently Cisco) is tagged only when a use case's SPL names that data; see `src/splunk_uc/equipment_evidence.py`. |
 
 Use `e` and `em` on a use case to know which equipment IDs (and model IDs) it matches.
 
