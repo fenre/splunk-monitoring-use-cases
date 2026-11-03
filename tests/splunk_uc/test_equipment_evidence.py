@@ -142,3 +142,13 @@ def test_apply_tags_replaces_gated_tags_and_applies_overrides() -> None:
     out = et._apply_tags(sidecar, ["linux"], ["linux_rhel"], owned, {"add": ["cisco_asa"], "remove": []})
     assert out["equipment"] == ["cisco", "linux"]
     assert out["equipmentModels"] == ["cisco_asa", "linux_rhel"]
+
+
+def test_match_on_sourcetype_alias_names_sourcetypes() -> None:
+    spl = (
+        'index=network | eval st=lower(coalesce(sourcetype,_sourcetype,""))\n'
+        '| where match(st,"cisco:ios|cisco:ios_xr|juniper:junos|nokia")\n'
+        '| where match(msg,"cisco:not_a_sourcetype")'
+    )
+    got = ev.extract_spl_evidence(spl)
+    assert got.sourcetypes == {"cisco:ios", "cisco:ios_xr", "juniper:junos"}

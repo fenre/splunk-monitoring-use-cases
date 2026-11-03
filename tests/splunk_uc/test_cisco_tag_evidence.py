@@ -68,16 +68,18 @@ def test_generic_search_does_not_back_an_app_named_model(cisco: dict) -> None:
     assert not audit._model_backed(uc, "cisco_firepower", _block(cisco, "firepower"))
 
 
-def test_diff_baseline_reports_new_and_fixed() -> None:
-    new, fixed = audit.diff_baseline(
-        ["UC-1.2.3 cisco_asa", "UC-2.0.1 cisco_ise"],
-        {"UC-1.2.3 cisco_asa", "UC-9.9.9 cisco_ios"},
-    )
-    assert new == ["UC-2.0.1 cisco_ise"]
-    assert fixed == ["UC-9.9.9 cisco_ios"]
+def test_app_named_model_needs_a_listed_cim_model(cisco: dict) -> None:
+    firepower = next(m for m in cisco["models"] if m["id"] == "firepower")
+    app = "Cisco Secure Firewall"
+    generic = ev.extract_spl_evidence("index=firewall sourcetype=syslog action=blocked")
+    traffic = ev.extract_spl_evidence("| tstats count from datamodel=Network_Traffic.All_Traffic")
+    risk = ev.extract_spl_evidence("| from datamodel Risk.All_Risk")
+    entry = {**cisco, "models": [firepower]}
+    assert ev.compute_gated_tags(entry, app, generic)[1] == set()
+    assert ev.compute_gated_tags(entry, app, traffic)[1] == {"cisco_firepower"}
+    assert ev.compute_gated_tags(entry, app, risk)[1] == set()
 
 
-def test_load_baseline_skips_comments(tmp_path: Path) -> None:
-    path = tmp_path / "baseline.txt"
-    path.write_text("# comment\n\nUC-1.0.1 cisco_asa\n", encoding="utf-8")
-    assert audit.load_baseline(path) == {"UC-1.0.1 cisco_asa"}
+def test_thousandeyes_app_macros_back_the_model(cisco: dict) -> None:
+    uc = {"spl": "`stream_index` thousandeyes.test.type=agent-to-server | stats avg(network.latency)"}
+    assert audit._model_backed(uc, "cisco_thousandeyes", _block(cisco, "thousandeyes"))

@@ -14,10 +14,11 @@ entry and on each model::
 
 For gated vendors a model tag needs proof in the search itself (``spl`` /
 ``cimSpl`` / a matching ``splVariants`` entry): a sourcetype, index or
-macro that the model produces. A product named in ``app`` only counts when
-the search does not name a specific sourcetype of its own (CIM data model,
-macro, or generic syslog / SNMP / NetFlow searches). Words in the prose
-fields never count.
+macro that the model produces. A product named in ``app`` only stands in
+for that proof when the search names no vendor-specific sourcetype of its
+own and reads a data model listed in the model's ``cimModels``. The vendor
+tag alone may also come from ``app`` for generic syslog / SNMP / NetFlow
+searches. Words in the prose fields never count.
 
 Used by ``generators.equipment_tags`` (the tag writer) and
 ``audits.cisco_tag_evidence`` (the CSV work list and the CI gate).
@@ -148,6 +149,11 @@ _DATAMODEL_NAME = re.compile(
     )
     """
 )
+# ``eval st=lower(coalesce(sourcetype, ...))`` makes ``st`` an alias whose
+# ``match(st, "cisco:ios|juniper:junos")`` filter names sourcetypes.
+_SOURCETYPE_ALIAS = re.compile(r"\beval\s+(\w+)\s*=\s*[^|,]*?\bsourcetype\b", re.IGNORECASE)
+_MATCH_CALL = re.compile(r"""\bmatch\(\s*(\w+)\s*,\s*"([^"]+)"\s*\)""", re.IGNORECASE)
+_REGEX_SOURCETYPE = re.compile(r"^[a-z0-9_]+(?::[a-z0-9_\-]+)+$")
 _LIST_ITEM = re.compile(r"""\"([^\"]+)\"|'([^']+)'|([^\s,\"']+)""")
 # Macros that wrap a CIM / ES accelerated data model search.
 _CIM_MACROS: tuple[str, ...] = (
@@ -197,6 +203,14 @@ def extract_spl_evidence(*spl_texts: str | None) -> SplEvidence:
             sourcetypes.add(next(g for g in m.groups() if g).strip().lower())
         for m in _SOURCETYPE_IN.finditer(text):
             sourcetypes.update(v.lower() for v in _list_values(m.group(1)))
+        aliases = {"sourcetype"} | {a.lower() for a in _SOURCETYPE_ALIAS.findall(text)}
+        for m in _MATCH_CALL.finditer(text):
+            if m.group(1).lower() in aliases:
+                sourcetypes.update(
+                    alt
+                    for alt in (p.strip("^$()?: ").lower() for p in m.group(2).split("|"))
+                    if _REGEX_SOURCETYPE.match(alt)
+                )
         for m in _INDEX_EQ.finditer(text):
             indexes.add(next(g for g in m.groups() if g).strip().lower())
         for m in _INDEX_IN.finditer(text):
@@ -250,6 +264,16 @@ def matches_evidence(ev: SplEvidence, block: dict[str, list[str]]) -> bool:
         or any(_glob_any(i, block["indexes"]) for i in ev.indexes)
         or any(_glob_any(m, block["macros"]) for m in ev.macros)
     )
+
+
+def matches_cim_model(ev: SplEvidence, block: dict[str, list[str]]) -> bool:
+    """True when the search reads a data model listed in ``block['cimModels']``.
+
+    ``Network_Traffic.All_Traffic`` folds to ``Network_Traffic``; names
+    compare case-insensitively.
+    """
+    allowed = {name.lower() for name in block.get("cimModels") or []}
+    return any(token.split(".", 1)[0].lower() in allowed for token in ev.datamodels)
 
 
 def matches_sourcetype(ev: SplEvidence, block: dict[str, list[str]]) -> bool:
@@ -324,7 +348,11 @@ def compute_gated_tags(
         block = evidence_block(model)
         if compound in variants or matches_evidence(ev, block):
             models.add(compound)
-        elif app_ok and _app_mentions(app_lower, model.get("tas") or []):
+        elif (
+            app_ok
+            and matches_cim_model(ev, block)
+            and _app_mentions(app_lower, model.get("tas") or [])
+        ):
             models.add(compound)
 
     vendor = bool(models) or matches_evidence(ev, vendor_block)

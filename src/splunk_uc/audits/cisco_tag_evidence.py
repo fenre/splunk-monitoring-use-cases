@@ -26,11 +26,9 @@ Categories:
 index, or macro from that model's evidence block, or a CIM data model
 listed in ``evidence.cimModels``. ``data/equipment-tag-overrides.json``
 is an accepted exception (ESCU detections whose stored search is the
-Risk drill-down). Everything else that still fails is a known gap in
-``data/audit-baselines/cisco-tag-evidence.txt``. ``--check`` fails when
-a new gap appears or a baselined gap has been fixed and the line is
-still there. ``equipment: cisco`` with no model (category F) is not a
-failure: there is no model claim to disprove.
+Risk drill-down). Any other unbacked model tag fails ``--check``.
+``equipment: cisco`` with no model (category F) is not a failure: there
+is no model claim to disprove.
 
 Run::
 
@@ -57,7 +55,6 @@ from splunk_uc.audits._uc_walk import iter_uc_sidecars
 REPO_ROOT = Path(__file__).resolve().parents[3]
 _SCRIPTS_DIR = REPO_ROOT / "scripts"
 VENDOR = "cisco"
-DEFAULT_BASELINE = REPO_ROOT / "data" / "audit-baselines" / "cisco-tag-evidence.txt"
 
 ACTIONS = {
     "A": "keep",
@@ -181,17 +178,14 @@ def _model_backed(uc: dict[str, Any], compound: str, block: dict[str, list[str]]
     A listed CIM model counts only when the search names that data model.
     """
     ev = ev_mod.extract_spl_evidence(uc.get("spl"), uc.get("cimSpl"), *_variant_spl(uc, compound))
-    if ev_mod.matches_evidence(ev, block):
-        return True
-    allowed = {name.lower() for name in block.get("cimModels") or []}
-    return any(token.split(".", 1)[0].lower() in allowed for token in ev.datamodels)
+    return ev_mod.matches_evidence(ev, block) or ev_mod.matches_cim_model(ev, block)
 
 
 def backing_failures(entry: dict[str, Any] | None = None) -> list[str]:
     """``UC-<id> cisco_<model>`` lines whose tag has no producible evidence.
 
     Override entries are omitted. Lines are sorted by use-case id, then
-    model, so the baseline file stays stable.
+    model.
     """
     entry = entry or _registry()
     overrides = _load_override_ids()
@@ -210,30 +204,9 @@ def backing_failures(entry: dict[str, Any] | None = None) -> list[str]:
     return lines
 
 
-def load_baseline(path: Path) -> set[str]:
-    """Read a gap baseline. ``#`` comments and blank lines are ignored."""
-    if not path.is_file():
-        return set()
-    out: set[str] = set()
-    for line in path.read_text(encoding="utf-8").splitlines():
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#"):
-            continue
-        out.add(stripped)
-    return out
-
-
 def _line_sort_key(line: str) -> tuple[list[int], str]:
     uc_id = line.split()[0].removeprefix("UC-")
     return [int(part) for part in uc_id.split(".")], line
-
-
-def diff_baseline(current: list[str], baseline: set[str]) -> tuple[list[str], list[str]]:
-    """Return (new failures, baseline lines that no longer fail)."""
-    current_set = set(current)
-    new = sorted(current_set - baseline, key=_line_sort_key)
-    fixed = sorted(baseline - current_set, key=_line_sort_key)
-    return new, fixed
 
 
 def _load_override_ids() -> set[str]:
@@ -311,48 +284,22 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--check",
         action="store_true",
-        help="Fail when a cisco_<model> tag is not backed by evidence and is not in the baseline.",
-    )
-    parser.add_argument(
-        "--baseline",
-        type=Path,
-        default=DEFAULT_BASELINE,
-        help="Known-gap file used by --check (default: data/audit-baselines/cisco-tag-evidence.txt).",
-    )
-    parser.add_argument(
-        "--print-baseline",
-        action="store_true",
-        help="Print the current unbacked cisco_<model> lines, for refreshing the baseline.",
+        help="Fail when a cisco_<model> tag is not backed by evidence.",
     )
     args = parser.parse_args(argv)
 
     exit_code = 0
-    if args.check or args.print_baseline:
-        current = backing_failures()
-        if args.print_baseline:
-            for line in current:
-                print(line)
-        if args.check:
-            baseline = load_baseline(args.baseline)
-            new, fixed = diff_baseline(current, baseline)
-            print(
-                f"Cisco tag evidence: {len(current)} unbacked model tags, "
-                f"{len(baseline)} baselined."
-            )
-            if new:
-                print("NEW (not in the baseline):")
-                for line in new:
-                    print(f"  {line}")
-            if fixed:
-                print("FIXED (delete these baseline lines):")
-                for line in fixed:
-                    print(f"  {line}")
-            if new or fixed:
-                exit_code = 1
-            else:
-                print("Cisco tag evidence check passed.")
+    if args.check:
+        failures = backing_failures()
+        if failures:
+            print(f"Cisco tag evidence: {len(failures)} model tags have no producible evidence:")
+            for line in failures:
+                print(f"  {line}")
+            exit_code = 1
+        else:
+            print("Cisco tag evidence check passed.")
 
-    if args.write_csv or args.summary or not (args.check or args.print_baseline):
+    if args.write_csv or args.summary or not args.check:
         rows = build_rows()
         if args.write_csv:
             write_csv(rows, args.write_csv)
