@@ -46,12 +46,21 @@ the release notes block in `index.html` by hand.
   Traffic, Change, Network Sessions, Certificates, Intrusion Detection,
   Alerts). `cisco_ise`, `cisco_meraki`, and `cisco_secure_email` list the
   models on their add-on source-type pages. The Meraki page does not name
-  Network Traffic. Every Cisco model except HyperFlex and IM and Presence
+  Network Traffic. `cisco_ucs` lists Inventory and Performance (Splunk Add-on
+  for Cisco UCS sources page), `cisco_duo` lists Authentication and
+  `cisco_ios` lists Change and Network Traffic (Splunk Lantern), and
+  `cisco_secure_client` lists Endpoint and Network Traffic (Splunk Threat
+  Research NVM blog). SD-WAN and ThousandEyes ship their own data models,
+  and no CIM table is published for the other Cisco add-ons, so those
+  models list none. Every Cisco model except HyperFlex and IM and Presence
   cites its source in `evidence.references`.
 - **`audit-cisco-tag-evidence --check`.** Fails when a `cisco_<model>` tag
   has neither a producible sourcetype, index, or macro nor a listed CIM
   data model in `spl`, `cimSpl`, or the matching `splVariants` entry.
-  ESCU overrides are accepted. No known gaps remain.
+  ESCU overrides are accepted. No known gaps remain. The work list
+  (`--write-csv reports/cisco-tag-audit.csv`) has no remove, retag, or
+  review rows: every Cisco-tagged use case is backed by its search, a
+  listed CIM model, a reviewed override, or carries only the vendor tag.
 - **Splunk product per use case (ADR-0017).** `data/splunk-products.json`
   defines the Splunk products a UC can be implemented in (Splunk platform,
   Agent Observability, Observability Cloud, ITSI, SOAR, Edge Hub): required
@@ -122,7 +131,21 @@ the release notes block in `index.html` by hand.
   `duo:admin`. UC-22.53.21, 22.56.16, and 22.56.43 read
   `cisco_anyconnect:vpn` instead of `cisco:anyconnect`. UC-17.3.14 reads
   `cisco:umbrella:dns`, and UC-10.16.5 reads `cisco:esa:textmail` instead
-  of `cisco:esa:mail`. Field names in those searches are unchanged.
+  of `cisco:esa:mail`.
+- **Duo searches use the Duo Admin API v2 authentication-log fields.**
+  UC-9.5.7 filters `result="denied"` (not `deny`), UC-9.5.14 filters
+  `factor="duo_push"` (not `push`), UC-9.5.8 reads `trusted_endpoint_status`
+  instead of the undocumented `device_trust_level`, and UC-9.5.9 reads
+  enrollment events from `cisco:duo:authentication` (`event_type` is an
+  authentication-log field, not an administrator-log field). Each renames
+  `user.name`, `access_device.ip`, `auth_device.name`, and
+  `application.name` to the columns its text already describes.
+- **CUCM sourcetypes.** 12 searches read `cucm_cdr` / `cucm_cmr`, the
+  sourcetypes the TA for Cisco CDR Reporting and Analytics (Splunkbase 4434)
+  documents, instead of `cisco:ucm:cdr` / `cisco:ucm:cmr`, and 14 more use
+  cases name them in their text. Five use cases read `cisco:cucm:syslog`
+  from Splunk's Cisco source-type table instead of `cisco:ucm:syslog`. The
+  Unity Connection model no longer matches `cisco:cucm:*`.
 - **Splunk Add-on for Cisco ESA is Splunkbase 1761**, not 2919, in the
   email-security guide. The email-security and collaboration guides list
   only the ESA sourcetypes the add-on documents.
