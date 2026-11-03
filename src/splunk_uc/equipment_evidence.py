@@ -8,7 +8,8 @@ entry and on each model::
         "sourcetypes": ["cisco:asa*"],   # fnmatch globs, lowercase
         "indexes": ["cisco_aci*"],
         "macros": ["cisco_asa*"],
-        "cimModels": ["Network_Traffic"] # data models the add-on populates
+        "cimModels": ["Network_Traffic"],  # data models the add-on populates
+        "references": ["https://splunk.github.io/splunk-add-on-for-cisco-asa/DataTypes/"]
     }
 
 For gated vendors a model tag needs proof in the search itself (``spl`` /
@@ -135,6 +136,18 @@ _DATAMODEL = re.compile(
     r"(?:datamodel\s*[=:]|from\s+datamodel|\|\s*datamodel\s|\btstats\b[^|]*\bnodename\s*=)",
     re.IGNORECASE,
 )
+# Captures ``datamodel=Network_Traffic.All_Traffic``, ``from datamodel Risk``,
+# ``datamodel:Change``, and ``| datamodel Authentication``. The caller folds
+# a dotted dataset down to the root model.
+_DATAMODEL_NAME = re.compile(
+    r"""(?ix)
+    (?:
+        \bdatamodel\s*[=:]\s*["'`]?([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?)
+      | \bfrom\s+datamodel\s+([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?)
+      | \|\s*datamodel\s+([A-Za-z_][A-Za-z0-9_]*)
+    )
+    """
+)
 _LIST_ITEM = re.compile(r"""\"([^\"]+)\"|'([^']+)'|([^\s,\"']+)""")
 # Macros that wrap a CIM / ES accelerated data model search.
 _CIM_MACROS: tuple[str, ...] = (
@@ -154,6 +167,7 @@ class SplEvidence:
     indexes: frozenset[str] = field(default_factory=frozenset)
     macros: frozenset[str] = field(default_factory=frozenset)
     uses_datamodel: bool = False
+    datamodels: frozenset[str] = field(default_factory=frozenset)
 
     @property
     def specific_sourcetypes(self) -> frozenset[str]:
@@ -174,6 +188,7 @@ def extract_spl_evidence(*spl_texts: str | None) -> SplEvidence:
     sourcetypes: set[str] = set()
     indexes: set[str] = set()
     macros: set[str] = set()
+    datamodels: set[str] = set()
     uses_dm = False
     for text in spl_texts:
         if not text:
@@ -188,11 +203,19 @@ def extract_spl_evidence(*spl_texts: str | None) -> SplEvidence:
             indexes.update(v.lower() for v in _list_values(m.group(1)))
         for m in _MACRO.finditer(text):
             macros.add(m.group(1).lower())
+        for m in _DATAMODEL_NAME.finditer(text):
+            datamodels.add(next(g for g in m.groups() if g))
         if _DATAMODEL.search(text):
             uses_dm = True
     if any(_glob_any(mac, _CIM_MACROS) for mac in macros):
         uses_dm = True
-    return SplEvidence(frozenset(sourcetypes), frozenset(indexes), frozenset(macros), uses_dm)
+    return SplEvidence(
+        frozenset(sourcetypes),
+        frozenset(indexes),
+        frozenset(macros),
+        uses_dm,
+        frozenset(datamodels),
+    )
 
 
 def _glob_any(value: str, globs: Iterable[str]) -> bool:
@@ -214,7 +237,10 @@ def evidence_block(entry: dict[str, Any]) -> dict[str, list[str]]:
     return {
         k: [str(v).lower() for v in block.get(k) or []]
         for k in ("sourcetypes", "indexes", "macros")
-    } | {"cimModels": list(block.get("cimModels") or [])}
+    } | {
+        "cimModels": [str(v) for v in block.get("cimModels") or []],
+        "references": [str(v) for v in block.get("references") or []],
+    }
 
 
 def matches_evidence(ev: SplEvidence, block: dict[str, list[str]]) -> bool:

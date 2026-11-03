@@ -10,10 +10,37 @@ the release notes block in `index.html` by hand.
 
 ---
 
-## [Unreleased]
+## [8.27.0] - 2026-11-03
 
 ### Added
 
+- **Cisco equipment tags follow the search.** A `cisco_<model>` tag is
+  written only when `spl` or `cimSpl` names a sourcetype, index, or macro
+  that model produces, when `app` names the product and the search has no
+  vendor-specific sourcetype, or when `splVariants` carries that model.
+  Prose in `description`, `implementation`, and `dataSources` no longer
+  attaches ACI, Webex, or Cyber Vision. Hand exceptions for ESCU
+  detections whose stored search is the Risk drill-down live in
+  `data/equipment-tag-overrides.json`.
+- **Optional `splVariants` (uc.schema 1.10.0).** A use case may carry one
+  extra search per equipment model. `spl` stays the default. `catalog.json`
+  emits `qv` only when the array is present, and `uc-thin.json` adds
+  `variantModels` in that same case. Fourteen Secure Firewall / FTD
+  variants are `status: draft` and `requiresSmeReview: true`: UC-5.2.2,
+  UC-5.2.3, UC-5.2.8, UC-5.2.9, UC-5.2.10, UC-5.2.13–UC-5.2.18, UC-5.20.83,
+  UC-10.1.1, and UC-10.16.6. Field names come from the Cisco Security Cloud
+  eStreamer samples and the Splunk Add-on for Cisco ASA source-type table.
+- **Add-on CIM coverage on the equipment registry.** `cisco_asa` and
+  `cisco_firepower` list the CIM models the Splunk Add-on for Cisco ASA
+  documents for `cisco:asa` and `cisco:ftd` (Authentication, Network
+  Traffic, Change, Network Sessions, Certificates, Intrusion Detection,
+  Alerts). `cisco_ise` and `cisco_meraki` list the models on their add-on
+  source-type pages. The Meraki page does not name Network Traffic.
+- **`audit-cisco-tag-evidence --check`.** Fails when a `cisco_<model>` tag
+  has neither a producible sourcetype, index, or macro nor a listed CIM
+  data model in `spl`, `cimSpl`, or the matching `splVariants` entry.
+  ESCU overrides are accepted. The remaining gaps are baselined in
+  `data/audit-baselines/cisco-tag-evidence.txt`.
 - **Splunk product per use case (ADR-0017).** `data/splunk-products.json`
   defines the Splunk products a UC can be implemented in (Splunk platform,
   Agent Observability, Observability Cloud, ITSI, SOAR, Edge Hub): required

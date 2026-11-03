@@ -12,7 +12,7 @@
 	audit-vendor-changelog \
 	audit-doc-counts audit-openapi-drift audit-content-quality audit-exclusions-coverage \
        audit-baseline-clause-grammar-free audit-peer-review-signoffs \
-       audit-mcp-tool-schemas \
+       audit-mcp-tool-schemas audit-cisco-tag-evidence \
        stewardship-digest audit-reproducibility audit-reproducibility-fast \
        baseline devcontainer-init \
        generate-grandma-explanations \
@@ -114,7 +114,7 @@ audit: audit-structure audit-cim audit-consistency ## Run core audit checks
 
 # --- Audits (comprehensive) ---
 
-audit-full: audit audit-placeholders audit-mitre audit-spl-duplicates audit-spl-grammar audit-spl-anti-patterns-check audit-ids audit-monitoring-type audit-codeowners-coverage audit-exclusions-coverage audit-dashboards audit-sarif audit-observability-drift audit-cost-coverage audit-vendor-changelog ## Run ALL audit checks
+audit-full: audit audit-placeholders audit-mitre audit-spl-duplicates audit-spl-grammar audit-spl-anti-patterns-check audit-ids audit-monitoring-type audit-codeowners-coverage audit-exclusions-coverage audit-dashboards audit-sarif audit-observability-drift audit-cost-coverage audit-vendor-changelog audit-cisco-tag-evidence ## Run ALL audit checks
 
 audit-structure: ## Audit UC JSON structure (content/cat-*/UC-*.json)
 	$(SPLUNK_UC) audit-uc-structure --full
@@ -220,6 +220,9 @@ audit-regulatory-change-watch: ## Hermetic regulatory change-watch ledger audit 
 
 audit-vendor-changelog: ## Validate vendor changelogs (schema, freshness, UC impact advisory)
 	$(SPLUNK_UC) audit-vendor-changelog --check --max-age-days 180
+
+audit-cisco-tag-evidence: ## Fail when a cisco model tag has no producible sourcetype or CIM model
+	$(SPLUNK_UC) audit-cisco-tag-evidence --check
 
 add-vendor-changelog-entry: ## Append an entry to data/vendor-changelog/<vendor>.json (pass CLI flags)
 	$(SPLUNK_UC) add-vendor-changelog-entry --help

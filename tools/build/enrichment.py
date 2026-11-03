@@ -529,6 +529,18 @@ EQUIPMENT = [
                         "cisco_secure_firewall*",
                         "cisco_firepower*",
                         "cisco_ftd*"
+                    ],
+                    "cimModels": [
+                        "Alerts",
+                        "Authentication",
+                        "Certificates",
+                        "Change",
+                        "Intrusion_Detection",
+                        "Network_Sessions",
+                        "Network_Traffic"
+                    ],
+                    "references": [
+                        "https://splunk.github.io/splunk-add-on-for-cisco-asa/DataTypes/"
                     ]
                 }
             },
@@ -549,6 +561,18 @@ EQUIPMENT = [
                     ],
                     "macros": [
                         "cisco_asa*"
+                    ],
+                    "cimModels": [
+                        "Alerts",
+                        "Authentication",
+                        "Certificates",
+                        "Change",
+                        "Intrusion_Detection",
+                        "Network_Sessions",
+                        "Network_Traffic"
+                    ],
+                    "references": [
+                        "https://splunk.github.io/splunk-add-on-for-cisco-asa/DataTypes/"
                     ]
                 }
             },
@@ -589,6 +613,16 @@ EQUIPMENT = [
                     ],
                     "macros": [
                         "cisco_ise*"
+                    ],
+                    "cimModels": [
+                        "Alerts",
+                        "Authentication",
+                        "Change",
+                        "Inventory",
+                        "Network_Traffic"
+                    ],
+                    "references": [
+                        "https://splunk.github.io/splunk-add-on-for-cisco-identity-services/Sourcetypes/"
                     ]
                 }
             },
@@ -615,6 +649,16 @@ EQUIPMENT = [
                     "macros": [
                         "meraki*",
                         "cisco_meraki*"
+                    ],
+                    "cimModels": [
+                        "Alerts",
+                        "Authentication",
+                        "Change",
+                        "Malware",
+                        "Network_Sessions"
+                    ],
+                    "references": [
+                        "https://splunk.github.io/splunk-add-on-for-cisco-meraki/Sourcetypes/"
                     ]
                 }
             },

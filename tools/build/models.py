@@ -539,7 +539,9 @@ class EquipmentEntry(TypedDict, total=False):
     about (e.g. ``["IR1101", "IR829"]`` under the ``cisco-ie`` family);
     it's omitted when no model-level granularity exists. ``evidence``
     (vendor and model level) lists the sourcetypes, indexes and macros the
-    product produces; present only on evidence-gated vendors.
+    product produces, plus ``cimModels`` and ``references`` when an add-on
+    page names the CIM data models it fills. Present only on
+    evidence-gated vendors.
     """
 
     id: str

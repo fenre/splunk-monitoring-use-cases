@@ -59,6 +59,15 @@ def test_extract_spl_evidence_forms() -> None:
     assert got.indexes == {"fw"}
     assert "cisco_asa" in got.macros
     assert got.uses_datamodel
+    assert got.datamodels == {"Network_Traffic"}
+
+
+def test_datamodel_name_forms() -> None:
+    got = ev.extract_spl_evidence(
+        "| from datamodel Risk.All_Risk | from datamodel:Authentication.Failed_Authentication "
+        "| datamodel Change search"
+    )
+    assert got.datamodels == {"Risk.All_Risk", "Authentication.Failed_Authentication", "Change"}
 
 
 def test_neutral_sourcetypes_are_not_specific() -> None:
