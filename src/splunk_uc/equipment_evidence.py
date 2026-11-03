@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import fnmatch
 import re
+import string
 from dataclasses import dataclass, field
 from typing import Any, Iterable
 
@@ -162,7 +163,7 @@ _CIM_MACROS: tuple[str, ...] = (
     "drop_dm_object_name",
     "cim_*",
 )
-_TOKEN_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789"
+_TOKEN_CHARS = string.ascii_lowercase + string.digits
 
 
 @dataclass(frozen=True)

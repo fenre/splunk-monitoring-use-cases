@@ -36,3 +36,22 @@ def test_validate_coverage_percentage_bounds() -> None:
         }
     )
     assert any(i.code == "coverage-pct-range" for i in issues)
+
+
+def test_validate_quality_distribution_allows_rounding_drift() -> None:
+    metrics = {
+        "byCategoryCriticality": {
+            "13": {
+                "high": {
+                    "gold": 1,
+                    "silver": 1,
+                    "bronze": 1,
+                    "none": 0,
+                    "total": 3,
+                    "distribution": {"gold": 33.4, "silver": 33.4, "bronze": 33.3, "none": 0.0},
+                }
+            }
+        },
+        "bronzeHeavyCategories": [],
+    }
+    assert not [i for i in od.validate_quality(metrics) if i.code == "quality-distribution"]
