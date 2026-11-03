@@ -515,7 +515,22 @@ EQUIPMENT = [
                     "cisco-firepower",
                     "cisco:firepower",
                     "Cisco Secure Firewall"
-                ]
+                ],
+                "evidence": {
+                    "sourcetypes": [
+                        "cisco:firepower*",
+                        "cisco:ftd*",
+                        "cisco:fmc*",
+                        "cisco:estreamer*",
+                        "cisco:sfw*",
+                        "cisco:secure_firewall*"
+                    ],
+                    "macros": [
+                        "cisco_secure_firewall*",
+                        "cisco_firepower*",
+                        "cisco_ftd*"
+                    ]
+                }
             },
             {
                 "id": "asa",
@@ -525,7 +540,17 @@ EQUIPMENT = [
                     "Cisco ASA",
                     "cisco-asa",
                     "cisco:asa"
-                ]
+                ],
+                "evidence": {
+                    "sourcetypes": [
+                        "cisco:asa*",
+                        "cisco:pix*",
+                        "cisco:fwsm*"
+                    ],
+                    "macros": [
+                        "cisco_asa*"
+                    ]
+                }
             },
             {
                 "id": "ios",
@@ -534,8 +559,20 @@ EQUIPMENT = [
                     "TA-cisco_ios",
                     "Cisco IOS",
                     "cisco-ios",
-                    "cisco:ios"
-                ]
+                    "cisco:ios",
+                    "cisco:iosxe"
+                ],
+                "evidence": {
+                    "sourcetypes": [
+                        "cisco:ios*",
+                        "cisco:xr*",
+                        "cisco:xe*"
+                    ],
+                    "macros": [
+                        "cisco_networks*",
+                        "cisco_ios*"
+                    ]
+                }
             },
             {
                 "id": "ise",
@@ -545,7 +582,15 @@ EQUIPMENT = [
                     "Cisco ISE",
                     "cisco-ise",
                     "cisco:ise"
-                ]
+                ],
+                "evidence": {
+                    "sourcetypes": [
+                        "cisco:ise*"
+                    ],
+                    "macros": [
+                        "cisco_ise*"
+                    ]
+                }
             },
             {
                 "id": "meraki",
@@ -556,7 +601,22 @@ EQUIPMENT = [
                     "Meraki",
                     "cisco_meraki",
                     "meraki"
-                ]
+                ],
+                "evidence": {
+                    "sourcetypes": [
+                        "meraki",
+                        "meraki:*",
+                        "cisco:meraki*"
+                    ],
+                    "indexes": [
+                        "meraki*",
+                        "cisco_meraki*"
+                    ],
+                    "macros": [
+                        "meraki*",
+                        "cisco_meraki*"
+                    ]
+                }
             },
             {
                 "id": "ucs",
@@ -566,7 +626,34 @@ EQUIPMENT = [
                     "Cisco UCS",
                     "cisco:ucs",
                     "UCS Manager"
-                ]
+                ],
+                "evidence": {
+                    "sourcetypes": [
+                        "cisco:ucs*",
+                        "ucsm:*"
+                    ],
+                    "indexes": [
+                        "cisco_ucs*"
+                    ]
+                }
+            },
+            {
+                "id": "hyperflex",
+                "label": "Cisco HyperFlex",
+                "tas": [
+                    "cisco:hyperflex",
+                    "Cisco HyperFlex",
+                    "HyperFlex"
+                ],
+                "evidence": {
+                    "sourcetypes": [
+                        "cisco:hyperflex*",
+                        "hyperflex:*"
+                    ],
+                    "indexes": [
+                        "cisco_hyperflex*"
+                    ]
+                }
             },
             {
                 "id": "intersight",
@@ -575,7 +662,16 @@ EQUIPMENT = [
                     "Cisco Intersight Add-on",
                     "cisco:intersight",
                     "Intersight"
-                ]
+                ],
+                "evidence": {
+                    "sourcetypes": [
+                        "cisco:intersight*"
+                    ],
+                    "indexes": [
+                        "cisco_intersight*",
+                        "intersight"
+                    ]
+                }
             },
             {
                 "id": "aci",
@@ -583,10 +679,18 @@ EQUIPMENT = [
                 "tas": [
                     "cisco:aci",
                     "Cisco ACI",
-                    "ACI",
                     "APIC",
                     "TA_cisco-ACI"
-                ]
+                ],
+                "evidence": {
+                    "sourcetypes": [
+                        "cisco:aci*",
+                        "cisco:apic*"
+                    ],
+                    "indexes": [
+                        "cisco_aci*"
+                    ]
+                }
             },
             {
                 "id": "nexus",
@@ -598,7 +702,39 @@ EQUIPMENT = [
                     "Cisco DC Networking",
                     "NDFC",
                     "NX-OS"
-                ]
+                ],
+                "evidence": {
+                    "sourcetypes": [
+                        "cisco:nexus*",
+                        "cisco:nxos*",
+                        "cisco:nx-os*",
+                        "cisco:mds*",
+                        "cisco:ndfc*",
+                        "cisco:ndi*",
+                        "cisco:nd:*",
+                        "cisco:dcnm*"
+                    ],
+                    "indexes": [
+                        "cisco_dc*",
+                        "cisco_nexus*"
+                    ]
+                }
+            },
+            {
+                "id": "ndo",
+                "label": "Cisco Nexus Dashboard Orchestrator (MSO)",
+                "tas": [
+                    "cisco:mso",
+                    "cisco:ndo",
+                    "Nexus Dashboard Orchestrator",
+                    "Multi-Site Orchestrator"
+                ],
+                "evidence": {
+                    "sourcetypes": [
+                        "cisco:mso*",
+                        "cisco:ndo*"
+                    ]
+                }
             },
             {
                 "id": "sdwan",
@@ -608,7 +744,21 @@ EQUIPMENT = [
                     "Cisco SD-WAN",
                     "vManage",
                     "Catalyst SD-WAN"
-                ]
+                ],
+                "evidence": {
+                    "sourcetypes": [
+                        "cisco:sdwan*",
+                        "cisco:vmanage*",
+                        "cisco:viptela*"
+                    ],
+                    "indexes": [
+                        "cisco_sdwan*"
+                    ],
+                    "macros": [
+                        "cisco_sd_wan*",
+                        "cisco_sdwan*"
+                    ]
+                }
             },
             {
                 "id": "catalyst_center",
@@ -619,7 +769,19 @@ EQUIPMENT = [
                     "Catalyst Center",
                     "DNA Center",
                     "DNAC"
-                ]
+                ],
+                "evidence": {
+                    "sourcetypes": [
+                        "cisco:dnac*",
+                        "cisco:catalyst_center*",
+                        "cisco:catc*"
+                    ],
+                    "indexes": [
+                        "catalyst",
+                        "cisco_catalyst*",
+                        "cisco_dnac*"
+                    ]
+                }
             },
             {
                 "id": "wlc",
@@ -628,7 +790,12 @@ EQUIPMENT = [
                     "cisco:wlc",
                     "Cisco WLC",
                     "WLC"
-                ]
+                ],
+                "evidence": {
+                    "sourcetypes": [
+                        "cisco:wlc*"
+                    ]
+                }
             },
             {
                 "id": "ucm",
@@ -638,7 +805,44 @@ EQUIPMENT = [
                     "Cisco UCM",
                     "UCM CDR",
                     "CUCM"
-                ]
+                ],
+                "evidence": {
+                    "sourcetypes": [
+                        "cisco:ucm*",
+                        "cisco:cucm*"
+                    ]
+                }
+            },
+            {
+                "id": "unity",
+                "label": "Cisco Unity Connection",
+                "tas": [
+                    "cisco:unity",
+                    "Cisco Unity",
+                    "Unity Connection"
+                ],
+                "evidence": {
+                    "sourcetypes": [
+                        "cisco:unity*",
+                        "cisco:cuc*"
+                    ]
+                }
+            },
+            {
+                "id": "imp",
+                "label": "Cisco Unified IM and Presence",
+                "tas": [
+                    "cisco:imp",
+                    "Cisco IM and Presence",
+                    "Cisco IM&P",
+                    "Unified Presence"
+                ],
+                "evidence": {
+                    "sourcetypes": [
+                        "cisco:imp*",
+                        "cisco:cup*"
+                    ]
+                }
             },
             {
                 "id": "webex",
@@ -647,7 +851,18 @@ EQUIPMENT = [
                     "Webex",
                     "webex",
                     "ta_cisco_webex"
-                ]
+                ],
+                "evidence": {
+                    "sourcetypes": [
+                        "webex*",
+                        "cisco:webex*",
+                        "wxcc:*"
+                    ],
+                    "indexes": [
+                        "webex*",
+                        "cisco_webex*"
+                    ]
+                }
             },
             {
                 "id": "spaces",
@@ -657,7 +872,15 @@ EQUIPMENT = [
                     "cisco:spaces",
                     "cisco_spaces",
                     "Spaces Add-On"
-                ]
+                ],
+                "evidence": {
+                    "sourcetypes": [
+                        "cisco:spaces*"
+                    ],
+                    "indexes": [
+                        "cisco_spaces*"
+                    ]
+                }
             },
             {
                 "id": "thousandeyes",
@@ -666,7 +889,17 @@ EQUIPMENT = [
                     "ThousandEyes",
                     "thousandeyes",
                     "Cisco ThousandEyes App"
-                ]
+                ],
+                "evidence": {
+                    "sourcetypes": [
+                        "cisco:thousandeyes*",
+                        "thousandeyes*"
+                    ],
+                    "indexes": [
+                        "thousandeyes*",
+                        "cisco_thousandeyes*"
+                    ]
+                }
             },
             {
                 "id": "cyber_vision",
@@ -676,11 +909,45 @@ EQUIPMENT = [
                     "cisco-cybervision",
                     "cisco-cyber-vision",
                     "cisco_cyber_vision"
-                ]
+                ],
+                "evidence": {
+                    "sourcetypes": [
+                        "cisco:cybervision*",
+                        "cisco:cyber_vision*",
+                        "cisco:cyber-vision*"
+                    ],
+                    "indexes": [
+                        "cisco_cybervision*",
+                        "cisco_cyber_vision*",
+                        "cybervision"
+                    ]
+                }
             }
         ],
         "kind": "equipment",
-        "vendor": "Cisco"
+        "vendor": "Cisco",
+        "evidence": {
+            "sourcetypes": [
+                "cisco:*",
+                "cisco_*",
+                "meraki*",
+                "webex*",
+                "thousandeyes*",
+                "duo*",
+                "umbrella*",
+                "syslog:cisco*",
+                "snmp:cisco*"
+            ],
+            "indexes": [
+                "cisco*",
+                "meraki*",
+                "webex*"
+            ],
+            "macros": [
+                "cisco_*",
+                "meraki*"
+            ]
+        }
     },
     {
         "id": "paloalto",
