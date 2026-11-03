@@ -581,6 +581,11 @@ WELL_KNOWN_SOURCETYPES: set[str] = {
     "cisco:thousandeyes:alerts",
     "cisco:thousandeyes:trace",
     "cisco:thousandeyes:path-vis",
+    # CUCM syslog (IEV table) and Sideview TA for Cisco CDR Reporting — Splunkbase 4434
+    # https://sideviewapps.com/documentation/cisco-cdr-reporting-analytics-installation-step-3-data-collection
+    "cisco:cucm:syslog",
+    "cucm_cdr",
+    "cucm_cmr",
     # Generic open formats
     "json",
     "xml",

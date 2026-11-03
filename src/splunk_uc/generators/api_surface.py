@@ -1056,10 +1056,10 @@ def _looks_like_app_label(token: str) -> bool:
     picked up from the comma-split of free-text ``t``.
 
     The ``t`` field is human-authored markdown (e.g.
-    ``"Splunk Add-on for Cisco IOS (\\`Splunk_TA_cisco-ios\\`, Splunkbase 1352)"``).
+    ``"Splunk Add-on for Cisco IOS (\\`Splunk_TA_cisco-ios\\`, Splunkbase 1467)"``).
     Splitting on commas can land mid-parenthesis and produce tokens
     like ``"Splunk Add-on for Cisco IOS (Splunk_TA_cisco-ios"`` or
-    ``"Splunkbase 1352)"`` — neither of which is a Splunk app label and
+    ``"Splunkbase 1467)"`` — neither of which is a Splunk app label and
     both of which pollute the recommender's app-index. This guard:
 
     * rejects unbalanced-paren tokens

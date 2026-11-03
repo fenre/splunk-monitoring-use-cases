@@ -16,9 +16,11 @@ Categories:
 - ``C``  nothing in the search or ``app`` relates to the tagged model.
 - ``D``  the search names only generic sourcetypes (syslog, SNMP, ...).
 - ``E3`` no sourcetype; generic index only.
-- ``E4`` no sourcetype; CIM data model / CIM macro.
+- ``E4`` the search reads a CIM data model listed in a tagged model's
+  ``evidence.cimModels``, or (override entries only) any CIM data model.
 - ``E5`` no sourcetype and no index (lookups, REST, makeresults, ...).
-- ``F``  ``equipment: cisco`` with no ``cisco_*`` model tag.
+- ``F``  ``equipment: cisco`` with no ``cisco_*`` model tag (generic
+  syslog / SNMP / NetFlow searches whose ``app`` names a Cisco product).
 - ``G``  the search reads Cisco data, but none of the tagged models.
 
 ``--check`` is the CI gate. A ``cisco_<model>`` tag passes when ``spl``,
@@ -64,9 +66,9 @@ ACTIONS = {
     "C": "remove-tag",
     "D": "human-review",
     "E3": "human-review",
-    "E4": "keep; record add-on CIM coverage in registry",
+    "E4": "keep",
     "E5": "human-review",
-    "F": "human-review: pick a model or drop",
+    "F": "keep vendor tag; no model claim",
     "G": "retag-model",
 }
 CATEGORY_ORDER = ("A", "E1", "B", "E2", "C", "D", "E3", "E4", "E5", "F", "G")
@@ -146,6 +148,9 @@ def classify(uc: dict[str, Any], entry: dict[str, Any]) -> tuple[str, str]:
         return "A", extra
     if any(ok for ok, _ in results.values()):
         return "E1", "; ".join(x for x in ("backed by index/macro only", extra) if x)
+    cim_backed = sorted(m for m in models_tagged if m in blocks and _model_backed(uc, m, blocks[m]))
+    if cim_backed:
+        return "E4", f"reads a CIM model listed for {','.join(cim_backed)}"
 
     seen = sorted(c for c, b in blocks.items() if ev_mod.matches_evidence(ev, b))
     vendor_specific = ev_mod.SplEvidence(sourcetypes=ev.specific_sourcetypes)
