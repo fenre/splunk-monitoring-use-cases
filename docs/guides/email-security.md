@@ -7,7 +7,7 @@ ta_name: Splunk Add-on for Microsoft Office 365, Splunk Add-on for Proofpoint TA
 splunkbase_urls:
   - https://splunkbase.splunk.com/app/4055
   - https://splunkbase.splunk.com/app/3393
-  - https://splunkbase.splunk.com/app/2919
+  - https://splunkbase.splunk.com/app/1761
   - https://splunkbase.splunk.com/app/3852
   - https://splunkbase.splunk.com/app/6207
 indexes:
@@ -28,11 +28,10 @@ sourcetypes:
   - mimecast:ttp:url
   - mimecast:ttp:attachment
   - cisco:esa:textmail
-  - cisco:esa:status
+  - cisco:esa:http
   - cisco:esa:authentication
-  - cisco:esa:ldap
-  - cisco:esa:reporting
-  - cisco:esa:cli_logs
+  - cisco:esa:amp
+  - cisco:esa:cef
   - barracuda:esg
   - barracuda:cloudgen:email
   - trendmicro:email
@@ -284,7 +283,7 @@ graph LR
 | **Proofpoint TAP** | Splunk Add-on for Proofpoint TAP | [3393](https://splunkbase.splunk.com/app/3393) | `proofpoint:tap`, `proofpoint:url`, `proofpoint:attachment` |
 | **Proofpoint SIEM API** | Splunk Add-on for Proofpoint TAP | (same) | `proofpoint:siem` |
 | **Mimecast** | Splunk Add-on for Mimecast | [3852](https://splunkbase.splunk.com/app/3852) | `mimecast:siem`, `mimecast:audit`, `mimecast:ttp:url`, `mimecast:ttp:attachment` |
-| **Cisco ESA / IronPort** | Splunk Add-on for Cisco ESA | [2919](https://splunkbase.splunk.com/app/2919) | `cisco:esa:textmail`, `cisco:esa:status`, `cisco:esa:authentication` |
+| **Cisco ESA / IronPort** | Splunk Add-on for Cisco ESA | [1761](https://splunkbase.splunk.com/app/1761) | `cisco:esa:textmail`, `cisco:esa:http`, `cisco:esa:authentication` |
 | **Barracuda ESG** | (custom syslog via SC4S) | n/a | `barracuda:esg` |
 | **Trend Micro** | (custom syslog via SC4S) | n/a | `trendmicro:email` |
 | **Symantec MG** | (custom syslog via SC4S) | n/a | `symantec:msg:gateway` |
@@ -957,7 +956,7 @@ A: Key metrics: phishing-test click rate, user-report rate, mean time to detect 
 
 - [Splunk Add-on for Microsoft Office 365 (Splunkbase 4055)](https://splunkbase.splunk.com/app/4055)
 - [Splunk Add-on for Proofpoint TAP (Splunkbase 3393)](https://splunkbase.splunk.com/app/3393)
-- [Splunk Add-on for Cisco ESA (Splunkbase 2919)](https://splunkbase.splunk.com/app/2919)
+- [Splunk Add-on for Cisco ESA (Splunkbase 1761)](https://splunkbase.splunk.com/app/1761)
 - [Splunk Add-on for Mimecast (Splunkbase 3852)](https://splunkbase.splunk.com/app/3852)
 - [Microsoft 365 Defender Add-on (Splunkbase 6207)](https://splunkbase.splunk.com/app/6207)
 - [CIM: Email](https://docs.splunk.com/Documentation/CIM/latest/User/Email)
@@ -1025,7 +1024,7 @@ Part of the [Splunk Monitoring Use Cases](https://github.com/fenre/splunk-monito
 
 <a id="ref-17"></a>**[17]** splunkbase.splunk.com. *Splunkbase app #3852*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/3852
 
-<a id="ref-18"></a>**[18]** splunkbase.splunk.com. *Splunkbase app #2919*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/2919
+<a id="ref-18"></a>**[18]** splunkbase.splunk.com. *Splunkbase app #1761*. Retrieved May 11, 2026, from https://splunkbase.splunk.com/app/1761
 
 <a id="ref-19"></a>**[19]** docs.splunk.com. *CIM: Email*. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/CIM/latest/User/Email
 
