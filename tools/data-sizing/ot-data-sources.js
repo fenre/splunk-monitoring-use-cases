@@ -3620,7 +3620,7 @@ window.OT_DATA_SOURCES = [
     "vendor_examples": "Cisco UCM, Avaya, Mitel, Genesys, Shoretel, Twilio",
     "protocol": "Syslog / CDR file / REST API",
     "ingest_method": "UF (file monitor) or SC4S",
-    "splunk_sourcetype": "cisco:ucm:cdr, avaya:cdr",
+    "splunk_sourcetype": "cucm_cdr, avaya:cdr",
     "calibration": "pending",
     "drivers": [
       {
@@ -12235,7 +12235,7 @@ window.OT_DATA_SOURCES = [
     "vendor_examples": "Cisco UCM (CallManager), Cisco Unity Connection",
     "protocol": "Syslog / CDR flat file / JTAPI",
     "ingest_method": "UF (CDR file monitor) or SC4S (syslog)",
-    "splunk_sourcetype": "cisco:ucm:cdr, cisco:ucm:cmr, cisco:ucm:syslog",
+    "splunk_sourcetype": "cucm_cdr, cucm_cmr, cisco:cucm:syslog",
     "calibration": "pending",
     "drivers": [
       {

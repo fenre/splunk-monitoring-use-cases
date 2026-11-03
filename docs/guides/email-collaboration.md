@@ -35,9 +35,9 @@ sourcetypes:
   - gws:meet
   - gws:chat
   - gws:groups
-  - cisco:ucm:cdr
-  - cisco:ucm:cmr
-  - cisco:ucm:syslog
+  - cucm_cdr
+  - cucm_cmr
+  - cisco:cucm:syslog
   - cisco:webex:meeting
   - cisco:webex:audit
   - cisco:webex:calling:cdr
@@ -316,7 +316,7 @@ graph LR
 | **Google Workspace** | Splunk_TA_GoogleWorkspace | [5556](https://splunkbase.splunk.com/app/5556) | `gws:login`, `gws:admin`, `gws:drive`, `gws:gmail`, `gws:meet`, `gws:chat` |
 | **Zoom** | Splunk Connect for Zoom | [5224](https://splunkbase.splunk.com/app/5224) | `zoom:meetings`, `zoom:phone`, `zoom:metrics`, `zoom:audit` |
 | **Cisco Webex** | ta_cisco_webex_add_on_for_splunk | [5050](https://splunkbase.splunk.com/app/5050) | `cisco:webex:meeting`, `cisco:webex:audit`, `cisco:webex:calling:cdr` |
-| **CUCM** | (custom UF file tail) | n/a | `cisco:ucm:cdr`, `cisco:ucm:cmr` |
+| **CUCM** | (custom UF file tail) | n/a | `cucm_cdr`, `cucm_cmr` |
 | **MS Teams Voice** | Splunk_TA_MS_O365 + custom | (same) | `ms:o365:teams`, `ms:teams:cqd` |
 | **Postfix / Sendmail** | (syslog via SC4S) | n/a | `postfix:syslog`, `sendmail:syslog` |
 
@@ -563,7 +563,7 @@ CUCM Admin → Cisco Unified Serviceability → Tools → CDR Management:
 
 ```ini
 [monitor:///opt/cucm-cdr/cdr_*.txt]
-sourcetype = cisco:ucm:cdr
+sourcetype = cucm_cdr
 index = voip
 INDEXED_EXTRACTIONS = csv
 ```
@@ -571,7 +571,7 @@ INDEXED_EXTRACTIONS = csv
 ### Sample SPL — Toll fraud detection
 
 ```spl
-index=voip sourcetype="cisco:ucm:cdr" earliest=-1d
+index=voip sourcetype="cucm_cdr" earliest=-1d
 | where match(calledPartyNumber, "^011|^00") AND duration > 60
 | stats count, sum(duration) as total_min by callingPartyNumber, calledPartyNumber
 | where count > 10 OR total_min > 600

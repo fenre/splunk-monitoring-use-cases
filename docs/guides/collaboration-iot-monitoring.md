@@ -63,8 +63,8 @@ sourcetypes:
   - cisco:webex:calling:cmr
   - cisco:webex:audit
   - cisco:webex:devices
-  - cisco:ucm:cdr
-  - cisco:ucm:cmr
+  - cucm_cdr
+  - cucm_cmr
   - cisco:esa:textmail
   - cisco:esa:http
   - cisco:esa:authentication
@@ -857,7 +857,7 @@ index=bms sourcetype="bms:water" metric_name IN ("dhw_supply_temp","dhw_return_t
 ### Cisco UCM toll fraud (CDR pattern)
 
 ```spl
-index=uc_ucm sourcetype="cisco:ucm:cdr" originalCallingPartyNumber=*
+index=uc_ucm sourcetype="cucm_cdr" originalCallingPartyNumber=*
 | eval is_international = case(
     like(finalCalledPartyNumber, "+%") AND NOT like(finalCalledPartyNumber, "+1%"), 1,
     1=1, 0)
