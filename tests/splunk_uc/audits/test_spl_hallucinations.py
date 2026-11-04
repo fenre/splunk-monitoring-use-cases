@@ -542,16 +542,18 @@ class TestCheckBadPatterns:
         findings = sh.check_bad_patterns("tstats count from datamodel=Change_Analysis by user")
         assert findings and "Change_Analysis" in findings[0][1]
 
-    def test_summariesonly_true_lowercase(self) -> None:
-        findings = sh.check_bad_patterns("tstats summariesonly=true count from datamodel=Web")
+    def test_summariesonly_true_is_not_a_failure(self) -> None:
+        assert sh.check_bad_patterns("tstats summariesonly=true count from datamodel=Web") == []
+        findings = sh.check_info_patterns("tstats summariesonly=true count from datamodel=Web")
         assert findings and "summariesonly=t" in findings[0][1]
 
-    def test_summariesonly_false_uppercase(self) -> None:
-        findings = sh.check_bad_patterns("tstats SUMMARIESONLY=FALSE count from datamodel=Web")
-        assert findings
+    def test_summariesonly_false_uppercase_is_info(self) -> None:
+        assert sh.check_bad_patterns("tstats SUMMARIESONLY=FALSE count from datamodel=Web") == []
+        assert sh.check_info_patterns("tstats SUMMARIESONLY=FALSE count from datamodel=Web")
 
     def test_clean_spl_silent(self) -> None:
         assert sh.check_bad_patterns("tstats summariesonly=t count from datamodel=Web") == []
+        assert sh.check_info_patterns("tstats summariesonly=t count from datamodel=Web") == []
 
 
 # ---------------------------------------------------------------------------
@@ -673,13 +675,30 @@ class TestAuditJsonFile:
             "1.1.1",
             {
                 "id": "1.1.1",
-                "spl": "tstats summariesonly=true count from datamodel=Web",
+                "spl": "tstats count from datamodel=Performace by host",
             },
         )
         findings = sh.audit_json_file(str(p))
         bad = [f for f in findings if f.category == "pattern"]
         assert bad
         assert bad[0].severity == "MED"
+
+    def test_summariesonly_true_is_info_and_does_not_fail(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        cat_dir = _harness_cat_dir(monkeypatch)
+        p = _write_uc(
+            cat_dir,
+            "1.1.1",
+            {
+                "id": "1.1.1",
+                "spl": "tstats summariesonly=true count from datamodel=Web",
+            },
+        )
+        findings = sh.audit_json_file(str(p))
+        info = [f for f in findings if "summariesonly" in f.message]
+        assert info and info[0].severity == "INFO"
+        assert sh.main([]) == 0
 
     def test_in_wildcard_in_where_fires_med(self, monkeypatch: pytest.MonkeyPatch) -> None:
         cat_dir = _harness_cat_dir(monkeypatch)

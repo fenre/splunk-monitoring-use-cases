@@ -341,6 +341,11 @@ BAD_COMMAND_PATTERNS = [
         re.compile(r"\bdatamodel=Change_Analysis\b"),
         "Renamed in CIM 4.x -> 'Change' (not Change_Analysis)",
     ),
+]
+
+# Style notes. ``summariesonly=true`` and ``summariesonly=false`` are valid
+# SPL booleans (``t``/``f`` are the short form). They must not fail CI.
+INFO_PATTERNS = [
     (re.compile(r"\bsummariesonly=true\b", re.IGNORECASE), "Use summariesonly=t (not 'true')"),
     (re.compile(r"\bsummariesonly=false\b", re.IGNORECASE), "Use summariesonly=f (not 'false')"),
 ]
@@ -538,6 +543,15 @@ def check_bad_patterns(spl: str) -> list[tuple[str, str]]:
     return findings
 
 
+def check_info_patterns(spl: str) -> list[tuple[str, str]]:
+    """Style notes that do not fail the audit."""
+    findings: list[tuple[str, str]] = []
+    for pat, msg in INFO_PATTERNS:
+        if pat.search(spl):
+            findings.append(("style", msg))
+    return findings
+
+
 def check_known_hallucinated_fields(spl: str) -> list[tuple[str, str]]:
     """Flag SPL that uses field/index/sourcetype combinations known to be wrong.
 
@@ -709,6 +723,8 @@ def audit_json_file(filepath: str) -> list[Finding]:
             findings.append(Finding(fname, uc_id, "HIGH", cat, f"[{label}] {msg}", first_line))
         for cat, msg in check_bad_patterns(spl_clean):
             findings.append(Finding(fname, uc_id, "MED", cat, f"[{label}] {msg}", first_line))
+        for cat, msg in check_info_patterns(spl_clean):
+            findings.append(Finding(fname, uc_id, "INFO", cat, f"[{label}] {msg}", first_line))
         for cat, msg in check_in_with_wildcards_in_where_eval(spl_clean):
             findings.append(Finding(fname, uc_id, "MED", cat, f"[{label}] {msg}", first_line))
         for cat, msg in check_unknown_commands(spl_clean):
@@ -721,7 +737,8 @@ def audit_json_file(filepath: str) -> list[Finding]:
 def main(argv: list[str] | None = None) -> int:
     """Audit SPL hallucinations across the JSON SSOT corpus.
 
-    Returns non-zero when any finding is emitted so CI can gate on it.
+    Returns non-zero when any finding above INFO is emitted so CI can gate
+    on it. ``summariesonly=true`` is valid SPL and is reported as INFO only.
     """
     import argparse
 
@@ -752,7 +769,8 @@ def main(argv: list[str] | None = None) -> int:
         for finding in by_cat[cat]:
             print(f"  {finding}")
 
-    return 1 if all_findings else 0
+    failing = [f for f in all_findings if f.severity != "INFO"]
+    return 1 if failing else 0
 
 
 if __name__ == "__main__":
