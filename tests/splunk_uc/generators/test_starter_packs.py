@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+import builtins
 import json
+import sys
 from pathlib import Path
 
+import pytest
+
+from splunk_uc.audits import starter_packs as audit
 from splunk_uc.generators import api_surface
 from splunk_uc.generators import starter_packs as gen
 
@@ -58,3 +63,41 @@ def test_check_mode_without_tree_only_renders(tmp_path: Path) -> None:
 def test_subtree_is_external_to_api_surface() -> None:
     assert "starter-packs" in api_surface._EXTERNAL_SUBTREES
     assert api_surface._is_external(Path("starter-packs/index.json"))
+
+
+def _block_jsonschema(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make ``import jsonschema`` fail the way pages.yml does."""
+    for key in list(sys.modules):
+        if key == "jsonschema" or key.startswith("jsonschema."):
+            monkeypatch.delitem(sys.modules, key, raising=False)
+    real_import = builtins.__import__
+
+    def blocked(name, globals=None, locals=None, fromlist=(), level=0):  # type: ignore[no-untyped-def]
+        if name == "jsonschema" or name.startswith("jsonschema."):
+            raise ImportError("jsonschema is not installed")
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", blocked)
+
+
+def test_generate_without_jsonschema(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _block_jsonschema(monkeypatch)
+    out = tmp_path / "starter-packs"
+    assert gen.main(["--out", str(out)]) == 0
+    assert (out / "index.json").is_file()
+    assert gen.main(["--check", "--out", str(out)]) == 0
+
+
+def test_validate_flag_runs_schema_check(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = {"n": 0}
+    real = audit._validate_schema
+
+    def wrapped(pack):  # type: ignore[no-untyped-def]
+        calls["n"] += 1
+        return real(pack)
+
+    monkeypatch.setattr(audit, "_validate_schema", wrapped)
+    assert gen.main(["--out", str(tmp_path / "plain")]) == 0
+    assert calls["n"] == 0
+    assert gen.main(["--validate", "--out", str(tmp_path / "checked")]) == 0
+    assert calls["n"] > 0

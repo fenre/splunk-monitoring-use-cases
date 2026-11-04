@@ -26,6 +26,10 @@ Usage::
 
     python3 -m splunk_uc generate-starter-packs
     python3 -m splunk_uc generate-starter-packs --check
+    python3 -m splunk_uc generate-starter-packs --validate
+
+Schema validation imports ``jsonschema`` and runs only with ``--validate``.
+Pages deploy does not install that package, so the default render skips it.
 """
 
 from __future__ import annotations
@@ -141,7 +145,7 @@ def build_payloads(
     return out
 
 
-def render(out_dir: Path) -> list[Path]:
+def render(out_dir: Path, *, validate: bool = False) -> list[Path]:
     packs = audit.load_packs()
     ucs = audit.load_uc_index()
     groups = audit.load_alias_groups()
@@ -151,6 +155,7 @@ def render(out_dir: Path) -> list[Path]:
         catalog_apps=audit._load_catalog_apps(),
         equipment_ids=audit._load_equipment_ids(),
         aliases=audit.alias_map(groups),
+        validate_schema=validate,
     )
     payloads = build_payloads(packs, ucs, findings, groups, _read_version())
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -200,12 +205,20 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     parser.add_argument("--out", type=Path, default=API_OUT_DIR)
+    parser.add_argument(
+        "--validate",
+        action="store_true",
+        help=(
+            "Validate each pack against schemas/starter-pack.schema.json. "
+            "Requires jsonschema. Omitted on Pages, which does not install it."
+        ),
+    )
     args = parser.parse_args(argv)
 
     if args.check:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
-            written = render(tmp_path)
+            written = render(tmp_path, validate=args.validate)
             if not args.out.is_dir():
                 print(
                     f"Rendered {len(written)} starter-pack files (no {args.out} on disk to diff)."
@@ -226,7 +239,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.out.is_dir():
         for stale in args.out.glob("*.json"):
             stale.unlink()
-    written = render(args.out)
+    written = render(args.out, validate=args.validate)
     try:
         shown = args.out.relative_to(REPO_ROOT)
     except ValueError:
