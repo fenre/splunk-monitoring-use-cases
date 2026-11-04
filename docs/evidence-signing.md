@@ -2,8 +2,7 @@
 
 > **Status:** required for changes to
 > `src/splunk_uc/generators/sign_evidence.py`,
-> `src/splunk_uc/audits/evidence_signatures.py`,
-> `scripts/sign_evidence_batch.py`, or
+> `src/splunk_uc/audits/evidence_signatures.py`, or
 > `.github/workflows/sign-evidence.yml`.
 
 Auditors need more than a markdown evidence pack — they need proof that the
@@ -100,8 +99,8 @@ PYTHONPATH=src python3 -m splunk_uc generate-evidence-signatures --all
 # 3. Audit (hermetic fixtures + any dist/ output)
 PYTHONPATH=src python3 -m splunk_uc audit-evidence-signatures --check
 
-# Convenience wrapper
-python3 scripts/sign_evidence_batch.py
+# GPG fallback, when Sigstore is unavailable
+PYTHONPATH=src python3 -m splunk_uc generate-evidence-signatures --all --gpg
 ```
 
 ## Cross-references

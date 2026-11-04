@@ -120,12 +120,10 @@ def _make_report(per_file: dict[str, tuple[int, int]]) -> dict[str, Any]:
         ("scripts/equipment_lib.py", "tier2"),
         ("scripts/build_es.py", "tier2"),
         ("scripts/build_ta.py", "tier2"),
-        # Tier 3 (one-shot helpers — always exempt)
-        ("scripts/uplift_iso27001_tier_bcd.py", "tier3"),
+        # Tier 3 (one-shot helpers — always exempt). Path-shaped
+        # fixtures only; the files do not need to exist.
         ("python3 -m splunk_uc migrate-compliance-phase4", "tier3"),
-        ("scripts/_draft_uc_18_1_15.py", "tier3"),
         ("scripts/backfill_cim_models.py", "tier3"),
-        ("scripts/enrich_di_gold.py", "tier3"),
         # ``generate-md-from-json`` was retired on 2026-05-18 (F21 close);
         # this row is retained as a path-shape fixture so the classifier
         # logic is exercised, not as a live invocation.
