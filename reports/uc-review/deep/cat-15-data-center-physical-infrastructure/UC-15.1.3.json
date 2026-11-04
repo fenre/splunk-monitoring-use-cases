@@ -1,0 +1,100 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "160f46575a0dd0b1c2da1b88c5cf13c7d1760187823d434ffd414aca8c30cdff",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.1.3.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "'SNMP TA' and 'PDU/UPS events' are not product names, so a reader cannot tell what to install. Sibling UCs in 15.1 name Splunk Connect for SNMP (Splunkbase 6266) or SNMP Modular Input (Splunkbase 1537).",
+      "field": "app",
+      "quote": "SNMP TA, PDU/UPS events",
+      "severity": "major",
+      "suggested_fix": "Name the actual collector, for example Splunk Connect for SNMP (6266) or SNMP Modular Input (1537), and the PDU and UPS MIBs polled, for example the vendor PDU MIB and UPS-MIB (RFC 1628)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "evidence_ref": "docs/guides/datacenter-physical.md",
+      "explanation": "No MIB objects, sourcetypes or field derivations are given. The SPL relies on normalized fields (input_status, input_voltage, feed, pdu_name, rack_id) that no vendor MIB emits under those names, and the guide's PDU field dictionary does not define them. The appended Universal Forwarder sentence contradicts SNMP polling.",
+      "field": "dataSources",
+      "quote": "PDU input status, UPS input voltage, transfer switch events Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+      "severity": "major",
+      "suggested_fix": "List the vendor OIDs or fields mapped to input_status, input_voltage and feed, for example a per-inlet voltage or status object from the PDU MIB, and the props/eval aliases that create them. Remove the Universal Forwarder sentence."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The implementation and dataSources cover PDU inputs, UPS input voltage and ATS events, but the SPL searches only sourcetype=snmp:pdu. It also flags any single abnormal input row rather than a rack that has lost one of its A/B feeds. The visualization's 'racks with full redundancy %' needs per-rack A/B pairing that nothing produces.",
+      "field": "cross_field",
+      "quote": "Monitor PDU input status and UPS input voltage. Alert immediately on loss of any power feed. Track ATS (Automatic Transfer Switch) events.",
+      "severity": "major",
+      "suggested_fix": "Either narrow the prose to 'PDU inlet abnormal status or low voltage', or describe the per-rack A/B aggregation (stats by rack_id over feed) and the extra UPS/ATS sources the reader must add."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "A 24-hour lookback on a row-level filter re-alerts on every abnormal reading from the past day on each run, which contradicts 'Alert immediately on loss of any power feed'. The field also contains two full Step 1–5 sequences, and 'Step 4 — Operationalize' repeats four times.",
+      "field": "detailedImplementation",
+      "quote": "Schedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages.",
+      "severity": "major",
+      "suggested_fix": "Keep one step sequence, schedule every 5 minutes over about -10m with latest-per-inlet logic, and delete the duplicated headings."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The troubleshooting and validation steps are generic template text (REST API rate limits, inventory counts within ±5%, 'joins/lookups enrich owner') that do not apply to SNMP polling of PDUs and UPS units.",
+      "field": "detailedImplementation",
+      "quote": "API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.",
+      "severity": "major",
+      "suggested_fix": "Replace them with SNMP-specific checks: poller timeouts, comparing inlet voltage against the PDU web UI, and confirming that each rack reports both its A and B feeds."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "The HEC, inputs.conf and savedsearches.conf references are generic Splunk docs. None documents the PDU or UPS objects that the detection depends on.",
+      "field": "references",
+      "quote": "Splunk HTTP Event Collector",
+      "severity": "minor",
+      "suggested_fix": "Add the vendor PDU MIB reference and RFC 1628 (UPS-MIB) for input-voltage objects."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "consistency",
+      "explanation": "The SPL is a poll-based PDU search; no trap path is described.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_trap\",",
+      "severity": "minor",
+      "suggested_fix": "Drop snmp_trap unless a trap-based ATS or PDU path is documented."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The fixed `input_voltage < 180` threshold assumes 208/230 V feeds. Every inlet on a 120 V PDU matches and alerts continuously. Thresholds should come from nominal voltage per PDU.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The search is row-level with no latest-per-inlet or per-rack A/B aggregation, so it reports every abnormal sample rather than the current loss of redundancy.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0023-UC-15.1.3",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 1
+  },
+  "summary": "This is a generic legacy UC. The collector is unnamed, the normalized field names have no documented origin, the SPL flags any abnormal PDU input row rather than loss of A/B redundancy, and detailedImplementation is a duplicated template with four repeated Step 4 headings and conflicting schedules.",
+  "tier": "deep",
+  "uc_id": "UC-15.1.3",
+  "verdict": "rewrite"
+}

@@ -1,0 +1,76 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "ce2617d0e7e8c6fa247394160a6f63b847ab81a61b8fadae180d38fd34720ad3",
+  "file": "content/cat-07-database-data-platforms/UC-7.1.73.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL's only threshold is `events >= 10`; GC pause lines are counted as ordinary events and pause_time_ms is never extracted or compared in the final stage, and implementation promises correlation via `join` that is not in the search.",
+      "field": "cross_field",
+      "quote": "alert when `pause_time_ms` > 2000, or `events` >= 10",
+      "severity": "major",
+      "suggested_fix": "Either implement the pause_time_ms condition (with a stated extraction) or restate the alert as an event-rate rule only."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "Cassandra's system.log reports dropped messages in lines such as 'MUTATION messages were dropped in last 5000 ms', while `DroppedMutation` is a metric name; the exact strings and the `Read timeout` wording in the SPL should be confirmed against real log output, and the GC log format and sourcetype are not defined.",
+      "field": "dataSources",
+      "quote": "`cassandra:system` log; JVM `cassandra:gc` long pauses correlated",
+      "severity": "needs_verification",
+      "suggested_fix": "Check real system.log and gc.log lines and use them; document the props/transforms that extract pause_time_ms."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "No add-on, props/transforms or inputs.conf are given for the Cassandra logs, so the data pipeline, which the whole UC depends on, is left to the reader; detailedImplementation is generic modular-input/HEC boilerplate.",
+      "field": "implementation",
+      "quote": "use `TRANSFORMS` to extract `coordinator`, `keyspace`, `table` when present. Ingest GC logs with `pause_time_ms` extracted",
+      "severity": "major",
+      "suggested_fix": "Provide a sample inputs.conf monitor stanza, sourcetype definitions and the field extractions."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "grandma_fidelity",
+      "explanation": "Title words and generic data-platform text; does not explain that the database is dropping writes or timing out reads.",
+      "field": "grandmaExplanation",
+      "quote": "so we can keep this part of the data platform within the capacity and quality targets our teams expect",
+      "severity": "major",
+      "suggested_fix": "Say that we notice when the database is too busy and starts losing or delaying requests."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "Template scenarios; real causes (repairs and compaction, node bootstrap or decommission, planned load tests) are not named.",
+      "field": "knownFalsePositives",
+      "quote": "Scheduled automation elevates `_time` without crossing `pause_time_ms` > 2000 for UC-7.1.73.",
+      "severity": "major",
+      "suggested_fix": "Add those and suppression by host and window."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "Mixes mutation/read log lines and GC pause lines into one `events` count with `where events >= 10`, so ten GC lines trigger the same alert as ten drops; `pause_time_ms>2000` inside `search` relies on an undefined field.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0010-UC-7.1.15",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 2,
+    "overclaiming": 4,
+    "specificity": 2
+  },
+  "summary": "Intent is clear but the log patterns are not tied to real Cassandra log text, the GC pause field is never defined, the description lists a threshold the search does not implement, and the collection steps are boilerplate.",
+  "tier": "triage",
+  "uc_id": "UC-7.1.73",
+  "verdict": "rewrite"
+}

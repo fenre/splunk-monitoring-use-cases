@@ -1,0 +1,79 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "e662c56d06d1ec1fd1f27253ed780a46ad89eddbe43c44f986996b5ff0d0a488",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.5.11.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://www.splunk.com/en_us/download/universal-forwarder.html",
+      "explanation": "The Universal Forwarder is not a Splunkbase app and Splunkbase /app/617 returns 404. 'Milestone connector' and 'Hikvision ISAPI HEC' are not installable products, and none of the listed options is documented to emit `nvr:diagnostic` with `cpu_util_pct`/`mem_util_pct`.",
+      "field": "app",
+      "quote": "Hikvision ISAPI HEC, or Milestone connector mapped to listed sourcetypes — Universal Forwarder (Splunkbase 617)",
+      "severity": "blocker",
+      "suggested_fix": "For VMS recording servers running on Windows or Linux (for example Milestone XProtect or Genetec), collect host CPU and memory with a Universal Forwarder and the Splunk Add-on for Microsoft Windows (Splunkbase 742, Perfmon) or the Splunk Add-on for Unix and Linux (Splunkbase 833). For embedded NVR appliances, say that `nvr:diagnostic` is a custom sourcetype and document how it is collected."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
+      "explanation": "Host CPU and memory utilisation is exactly what the CIM Performance datamodel (CPU and Memory datasets) normalises, and the Windows and Unix/Linux add-ons map to it. Leaving `cimModels` empty pushes readers toward a bespoke feed.",
+      "field": "cimModels",
+      "quote": "\"cimModels\": []",
+      "severity": "major",
+      "suggested_fix": "Add `Performance` to `cimModels` for software-VMS hosts, and note that embedded appliances need a custom sourcetype."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "Neither step names an agent, API, sourcetype or field. 'Correlate with analytics enablement' gives no data source or join key.",
+      "field": "implementation",
+      "quote": "(1) Agent or API poll. (2) Correlate with analytics enablement.",
+      "severity": "major",
+      "suggested_fix": "Name the agent and input (for example Perfmon `Processor(_Total)\\% Processor Time` and `Memory\\% Committed Bytes In Use`, or `cpu.sh`/`vmstat.sh`). Map them to `cpu`/`mem`, and say which VMS event marks analytics enablement and how it is joined on `nvr_name`."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "A 300–900 s poll cannot produce meaningful 5-minute `timechart` buckets. The rest is REST-API template text (vendor API rate limits, HTTP 401/429, 'vendor admin UI inventory count') that does not apply to collecting host metrics.",
+      "field": "detailedImplementation",
+      "quote": "Default poll interval 300–900 seconds unless the vendor API rate-limits lower.",
+      "severity": "major",
+      "suggested_fix": "Specify a 60 s metric interval to match `span=5m`. Replace the generic steps with forwarder and add-on deployment and a check against the NVR's own resource monitor or Task Manager/top."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified although its sourcetype and fields are undocumented and its app reference points to a non-existent Splunkbase listing.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade the status until an SME has validated it against a real NVR host feed."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`where cpu>85 OR mem>90` runs before `timechart`, so the averages are computed only over samples that breached, and a single spiky sample produces a row. There is no sustained-saturation condition (for example avg over 15 min, or N consecutive buckets) and no alertable grain. Compute `avg` per `nvr_name` per span first, then filter on the averages.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0101-UC-15.5.11",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 3,
+    "correctness": 2,
+    "grandma_fidelity": 1,
+    "overclaiming": 2,
+    "specificity": 1
+  },
+  "summary": "Watching NVR host CPU and memory is sensible, but the UC invents an `nvr:diagnostic` feed and cites a non-existent Splunkbase app. It ignores the standard path for host metrics on VMS recording servers, which run on Windows or Linux: the Windows or Unix/Linux add-ons and the CIM Performance model. The SPL is a filtered timechart with no sustained-saturation condition.",
+  "tier": "deep",
+  "uc_id": "UC-15.5.11",
+  "verdict": "incorrect"
+}

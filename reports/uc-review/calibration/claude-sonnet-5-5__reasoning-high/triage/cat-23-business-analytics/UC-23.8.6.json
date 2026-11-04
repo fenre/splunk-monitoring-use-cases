@@ -1,0 +1,145 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "122e41af8d036e7712759420ab3114e28f4e543dec72d027f609f18ded0b6361",
+  "file": "content/cat-23-business-analytics/UC-23.8.6.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL returns a single row from `appendcols` with no history, no `streamstats`, and no alert condition. A twenty-event moving average, a five-day move, and treasury thresholds from a lookup (all described in implementation and Step 2) cannot be evaluated from this search output.",
+      "field": "cross_field",
+      "quote": "Alert when **CCC** moves more than five days versus a twenty-day moving baseline **and** the gap reproduces in the **ERP** aging reports.",
+      "severity": "major",
+      "suggested_fix": "Either add the daily snapshot history and the moving-baseline comparison to the search, or say that the SPL is an on-demand KPI calculation and describe the alerting search separately."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL hard-codes the RACCT regexes and `days_in_period=30` and never reads a lookup. The lookup is also called `ccc_policy.csv` in dataSources and `ccc_racct_policy.csv` in detailedImplementation, with different column sets.",
+      "field": "cross_field",
+      "quote": "Publish a small **lookup** for **RACCT** ranges, `days_in_period`, and company code so denominators stay audit-traceable.",
+      "severity": "major",
+      "suggested_fix": "Use one lookup name, document its columns, and apply it in the SPL, or drop the lookup from the text."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The SPL sums every `dbx:sap_mbew_wc` event since yesterday's midnight (`earliest=-1d@d`), and the same applies to the BSID and BSIK open items. If a DB Connect batch input runs more than once in that window, the totals multiply with the number of snapshots. There is no latest-snapshot selection.",
+      "field": "detailedImplementation",
+      "quote": "the first **stats** builds **inventory_value** from the latest **MBEW** snapshot",
+      "severity": "major",
+      "suggested_fix": "Add a latest-extract filter (for example a stamped extract timestamp or `dedup`) and say so, or limit the window to a single extract."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "Stray bold markers wrap nearly every word in long passages of Steps 1, 3 and 5, which makes the text hard to read and hides the real emphasis. Some sentences are also unclear, such as the `days_in_period` note about 'roughly one-ninth of a day each time', which does not apply to a fixed 30-day window.",
+      "field": "detailedImplementation",
+      "quote": "When the **warehouse** **lags** **S/4** by **twenty**-**four** **hours**, stamp **extract** **timestamps** on each **row** so **treasury** knows",
+      "severity": "major",
+      "suggested_fix": "Rewrite those passages as plain text with bold only for key terms, and correct or remove the days_in_period arithmetic."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "A second set of generic Steps 1 to 5 is appended after the finance-specific steps. It talks about HEC tokens, vendor API rate limits, `tstats` against vendor inventory, and HTTP 401/429 errors, none of which apply to a DB Connect SQL input. It also conflicts with the batch cadence and the 'schedule after the nightly extract' guidance.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=dbx:sap_mbew_wc, dbx:sap_bsid_open, dbx:sap_bsik_open into business. Default poll interval 300–900 seconds unless the vendor API rate-limits lower.",
+      "severity": "major",
+      "suggested_fix": "Delete the generic block, or replace it with DB Connect checks (connection test, input status, last-run timestamp, rising row watermark)."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "MB03 is generally the transaction for displaying a material document, not material valuation. Valuation views are normally checked with MM03 (accounting view), MB5L or similar. Check the SAP transaction codes in this reconciliation step (MB03, S_ALR_87012168, S_ALR_87012078).",
+      "field": "detailedImplementation",
+      "quote": "Tie **inventory_value** to **MB03** display material valuation",
+      "severity": "needs_verification",
+      "suggested_fix": "Verify each transaction code against SAP documentation and replace MB03 with the correct valuation or stock-value report."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "There is no `entity` field and the SPL does not group by anything. `cogs_30d_lc > 0` and `net_sales_30d_lc > 0` are divide-by-zero guards, not alert criteria. The description never says what is calculated (DIO, DSO, DPO and CCC) and the value text refers to 'delayed incident response', which does not fit a treasury KPI.",
+      "field": "description",
+      "quote": "Combines `sum` by `entity` and compares against `cogs_30d_lc` > 0, or `net_sales_30d_lc` > 0.",
+      "severity": "major",
+      "suggested_fix": "Say that the search computes DIO, DSO, DPO and the cash conversion cycle from inventory, open AR, open AP, cost of goods sold and net sales over 30 days, and state the value to treasury."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The SPL returns one aggregated row with no `BUKRS`, plant or date dimension and no history, so these panels need different searches.",
+      "field": "visualization",
+      "quote": "table of daily snapshot history with `BUKRS` or business unit; optional trellis by **WERKS** (plant)",
+      "severity": "minor",
+      "suggested_fix": "Describe panels that match the output or note which extra searches are needed."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "'verified' with an agent-handcraft reviewer is not an SME sign-off, and the SAP field and account assumptions are marked as examples elsewhere in the text.",
+      "field": "cross_field",
+      "quote": "\"status\": \"verified\", \"reviewer\": \"agent-handcraft-2026-04-27\"",
+      "severity": "major",
+      "suggested_fix": "Lower the status unless a finance or SAP SME review can be cited."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "The SPL has no `host` grouping or hourly span. The real causes of misleading values (valuation method change, FX translation, inter-company items, write-offs, in-transit stock, down payments) are documented in the Step 5 troubleshooting text, not here.",
+      "field": "knownFalsePositives",
+      "quote": "Synthetic probe on `host` — Health checks in `business` populate the same fields the SPL groups on.",
+      "severity": "minor",
+      "suggested_fix": "Move the genuine Step 5 causes into knownFalsePositives."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "specificity",
+      "explanation": "The primary path is SAP S/4HANA on HANA via DB Connect. Oracle is only an alternate extraction, so the model tag is a poor fit.",
+      "field": "equipmentModels",
+      "quote": "\"equipmentModels\": [ \"oracle_oracle_db\" ]",
+      "severity": "minor",
+      "suggested_fix": "Tag SAP and DB Connect, and mention Oracle as an alternative."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`latest=now()` uses an eval-style function call where a search time modifier is expected (`latest=now`), and may be rejected.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "BSID/BSIK `DMBTR` is an unsigned amount whose sign comes from `SHKZG` (debit/credit indicator). Summing it directly can add credits and payments on account instead of subtracting them. The text describes negative buckets from down payments, which implies signed values.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "Revenue filter `BLART IN (\"RV\",\"RE\",\"DZ\")`: RE (vendor invoice) and DZ (customer payment) do not normally post to revenue accounts. The `^4[0-9]{5,7}$` and `^5[0-9]{5,7}$` account regexes may not match SAP's 10-character zero-padded RACCT values.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "splunkPillar",
+      "issue": "'Platform' is a poor fit for a finance KPI search that has no platform health aspect.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0037-UC-23.8.6",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "A credible, finance-aware cash conversion cycle search with real SAP table and field knowledge, but the prose describes alerting, lookups, moving baselines and trellis views the SPL does not provide. The detailed implementation is scrambled by stray bold markup and ends with a generic template block, and a few SAP facts look wrong.",
+  "tier": "triage",
+  "uc_id": "UC-23.8.6",
+  "verdict": "rewrite"
+}

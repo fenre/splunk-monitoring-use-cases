@@ -1,0 +1,110 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "7f0049df472aabb6cd64d73ffcc6fa05a1712bb62a1b7013a115fef1ce14ebf6",
+  "file": "content/cat-03-containers-orchestration/UC-3.6.2.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://goharbor.io/docs/2.10.0/administration/vulnerability-scanning/scan-all-artifacts/",
+      "explanation": "Harbor's scheduled scan of all artifacts is a system-level setting under Administration → Interrogation Services → Vulnerability (Scan Now / schedule), requiring system-admin rights; project Configuration only offers scan-on-push.",
+      "field": "detailedImplementation",
+      "quote": "Configure a **nightly scheduled scan** in **Harbor** (Project → Configuration → **Scan schedule** → set cron `0 2 * * *`)",
+      "severity": "blocker",
+      "suggested_fix": "Point to Administration → Interrogation Services → Vulnerability and set the schedule there (custom cron), noting it scans all projects."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "evidence_url": "https://trivy.dev/latest/docs/configuration/reporting/",
+      "explanation": "dataSources describes one event per Trivy report, where vulnerabilities sit under Results[].Vulnerabilities[] and the image name is ArtifactName; the SPL reads top-level VulnerabilityID/Severity/Target as if each event were one vulnerability. With whole reports ingested, dc(cve_id) and severity filters will not work as written.",
+      "field": "cross_field",
+      "quote": "Trivy JSON scan reports from CI/CD pipelines ... typically 5–50 KB per scan report",
+      "severity": "major",
+      "suggested_fix": "State that each report must be split into one event per vulnerability (e.g. jq pre-processing or a props/transforms split) carrying ArtifactName, Target, VulnerabilityID, Severity, FixedVersion; or describe the mvexpand/spath step needed."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/splunk/splunk-connect-for-kubernetes",
+      "explanation": "Splunk Connect for Kubernetes reached End of Support on 1 January 2024 and its repository is archived; detailedImplementation repeats it as the source of kube:container:status and kube:deployment:status.",
+      "field": "app",
+      "quote": "**Splunk Connect for Kubernetes** for deployment and container status collection.",
+      "severity": "major",
+      "suggested_fix": "Use the Splunk OpenTelemetry Collector for Kubernetes (k8s_cluster / k8sobjects receivers) for running-image and deployment metadata."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats",
+      "explanation": "eventstats aggregates over all result rows, not the last three, so this does not measure a 3-day streak.",
+      "field": "detailedImplementation",
+      "quote": "alert when `critical_direction=RISING` for **3 consecutive days** (use `| eventstats count(eval(critical_direction=\"RISING\")) as rising_streak` over the last 3 rows)",
+      "severity": "minor",
+      "suggested_fix": "Use `streamstats window=3 count(eval(critical_direction=\"RISING\")) as rising_streak` and alert where rising_streak=3 on the latest row."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "The daily metric is dc(cve_id); re-pushing the same image adds no new distinct CVEs after day 1, so the daily count stays flat and the direction would not stay RISING.",
+      "field": "detailedImplementation",
+      "quote": "push a deliberately vulnerable base image (e.g., `debian:stretch` with known critical CVEs) daily for 3 days. The trend search should show `critical_direction=RISING` by day 3.",
+      "severity": "minor",
+      "suggested_fix": "Push a different vulnerable image each day (or several on day 1 after a clean baseline) so distinct critical CVE counts actually increase."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Scan findings map to the Vulnerabilities model (signature/cve, severity, dest); nothing in the SPL uses Inventory datasets.",
+      "field": "cimModels",
+      "quote": "\"Inventory\"",
+      "severity": "minor",
+      "suggested_fix": "Keep Vulnerabilities and drop Inventory unless a running-image inventory mapping is documented."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "Marked verified by an agent reviewer although the SPL contains an eval syntax error and assumes an event shape the data source description contradicts.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until an SME validates against real Trivy/Grype data."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval",
+      "field": "spl",
+      "issue": "`eval fixed_ver=coalesce(FixedVersion, fix.versions{}, \"none\")` uses an unquoted field name containing '.' and '{}'; in eval '.' is the concatenation operator, so this fails to parse or concatenates nonexistent fields. Field names with special characters must be wrapped in single quotes ('fix.versions{}').",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://trivy.dev/latest/docs/configuration/reporting/",
+      "field": "spl",
+      "issue": "image_ref uses Trivy `Target` (e.g. 'alpine:latest (alpine 3.20.3)' or a lockfile path for language packages) instead of `ArtifactName`, and `split(image_ref, \":\")` also truncates registry hosts with ports (registry:5000/app:tag). Per-image grouping and images_scanned are therefore unreliable.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "Daily counts are dc(cve_id) across whatever scans ran that day, so CI scan volume (more builds) directly moves the trend; normalising by images_scanned or using the latest scan per image per day would make RISING/FALLING meaningful.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0118-UC-3.6.2",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The trending design is sensible and well explained, but the SPL assumes one flat event per vulnerability while the UC says it ingests whole Trivy reports, it keys images on Trivy's Target rather than ArtifactName, an unquoted `fix.versions{}` breaks the eval, and the Harbor scan-schedule UI path is wrong.",
+  "tier": "deep",
+  "uc_id": "UC-3.6.2",
+  "verdict": "incorrect"
+}

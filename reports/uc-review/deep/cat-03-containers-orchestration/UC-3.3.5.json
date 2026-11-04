@@ -1,0 +1,129 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "1f2c669dcc8378d0afa9096da42e43393f2b305fe2a34799bdddc71cb6301ffe",
+  "file": "content/cat-03-containers-orchestration/UC-3.3.5.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The implementation says the lanes are 'fused' per cluster, namespace and app_key, but the keys come from different objects. Argo CD Application rows use the Application's own namespace (typically openshift-gitops) and name. Helm rows use the release namespace and release name. Audit rows use the mutated workload's namespace and object name (a Deployment or ConfigMap). An Application, its Helm release and a manual edit to its Deployment therefore land on different rows, and correlation such as 'audit_mut_hint==1 AND sync_status outofsync' can never fire across lanes.",
+      "field": "cross_field",
+      "quote": "eval namespace=lower(trim(toString(coalesce(namespace, metadata_namespace, app_namespace, \"\"))))",
+      "severity": "major",
+      "suggested_fix": "Explain that correlation requires keying Argo CD rows on spec.destination.namespace plus the argocd.argoproj.io/instance or app.kubernetes.io/instance tracking label. Until then, describe each lane as an independent detector."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://argo-cd.readthedocs.io/en/stable/user-guide/application-specification/",
+      "explanation": "In Argo CD, spec.source.targetRevision is usually a branch, tag or HEAD, while status.sync.revision is the resolved commit SHA. Comparing them for inequality (rev_drift) is almost always true, so it is not a drift signal. The meaningful comparison is status.sync.comparedTo.source.targetRevision or status.sync.status itself.",
+      "field": "detailedImplementation",
+      "quote": "Drift appears when sync.status stays OutOfSync while auto-sync is expected ... compare spec.source.targetRevision ... status.sync.revision",
+      "severity": "major",
+      "suggested_fix": "Describe revision drift as status.sync.status=OutOfSync, or as status.sync.revision differing from the expected commit or prefix in declared_revision_allowlist. Do not describe it as targetRevision != sync.revision."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/ComputeInventory",
+      "explanation": "The CIM Inventory model's internal name is Compute_Inventory, with root dataset All_Inventory. It describes compute hardware and OS inventory, not GitOps application revisions, so it neither resolves by this name nor fits the signal.",
+      "field": "cimModels",
+      "quote": "\"Inventory\"",
+      "severity": "major",
+      "suggested_fix": "Drop Inventory and keep Change for audited argoproj.io and workload mutations. Treat Helm and Argo CD status as non-CIM."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "These are generic template entries. The real causes already listed in the risk briefing (sync windows, canary Applications, superseded Helm revisions, SealedSecret rewrites, moving image digests) are missing.",
+      "field": "knownFalsePositives",
+      "quote": "Batch `max` on `helm_release_secret` — Scheduled automation elevates `namespace` without crossing `os_window` >= 2",
+      "severity": "major",
+      "suggested_fix": "List the concrete causes: AppProject sync windows, intentional OutOfSync canaries, Helm superseded history Secrets, SealedSecrets or operator controllers rewriting Secrets and ConfigMaps, HPA- or operator-driven field changes not covered by ignoreDifferences, and post-restore Helm Secrets with older generations."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "data/splunkbase-catalog.json has no 'Splunk OpenShift App' (its only OpenShift entry is Outcold's Monitoring OpenShift, 3836). The helm_release_secret and argocd_application sourcetypes come from custom exporters.",
+      "field": "app",
+      "quote": "\"app\": \"Splunk OpenShift App\"",
+      "severity": "needs_verification",
+      "suggested_fix": "Name the real collection path, for example Splunk OpenTelemetry Collector for Kubernetes (6264) k8sobjects for applications.argoproj.io plus a custom Helm release decoder. Otherwise cite the intended app's Splunkbase ID."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "Policy custom resources belong to Red Hat Advanced Cluster Management governance, not OpenShift GitOps (Argo CD).",
+      "field": "detailedImplementation",
+      "quote": "Case 12 — OpenShift GitOps policy automation lag after manual remediation: compare Policy custom resource",
+      "severity": "minor",
+      "suggested_fix": "Attribute Policy CRs to ACM, or drop the case."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The real page conditions are a failed Helm release, Degraded or Missing health, OutOfSync with auto-sync for at least 2 of the last 8 snapshots, a manual mutation, or unallowlisted revision drift. gitops_op_bad only produces warn.",
+      "field": "description",
+      "quote": "Alert logic enforces `os_window` >= 2, `audit_mut_hint` > 0, or `gitops_op_bad` > 0.",
+      "severity": "minor",
+      "suggested_fix": "List the page and warn conditions from the case() block."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/container-platforms-docker-openshift.md",
+      "explanation": "The grounding guide's crawl-tier table lists UC-3.3.5 as MachineConfig Pool Status, which conflicts with this UC's Helm and GitOps scope and its walk wave.",
+      "field": "cross_field",
+      "quote": "| 3.3.5 | OpenShift MachineConfig Pool Status |",
+      "severity": "minor",
+      "suggested_fix": "Update the guide's crawl table to the current UC IDs (MachineConfigPool is UC-3.3.17)."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/splunk-enterprise/spl-search-reference/9.4/search-commands/multisearch",
+      "field": "spl",
+      "issue": "Every multisearch subsearch ends in `| stats ... BY ...`, and the Argo CD arm also runs `sort 0` and `streamstats`. multisearch allows only streaming commands in its subsearches, so the search fails with 'Multisearch subsearches may only contain purely streaming operations'. Use union, or move the per-lane aggregation after fan-in.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The audit arm flags every create, update or patch on deployments, configmaps, secrets, services, statefulsets or daemonsets by any user not matching 'argocd|openshift-gitops' as manual_mutation, which pages. On OpenShift, platform operators, controllers, CI and Helm clients write these objects constantly, so the arm floods page severity. It needs a namespace scope (GitOps-managed destinations), exclusion of system:serviceaccount and system:node identities, and subresource filtering.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The Helm arm takes latest(helm_status) per release across all exported release Secrets. Each Helm revision is a separate Secret (sh.helm.release.v1.<name>.v<N>), so the latest ingested event may be a superseded revision. Select the highest revision (the version label) before evaluating status. The helm_bad regex also omits pending-install.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The final stats uses max() on string fields such as sync_status and health_status. Lexical max prefers 'synced' over 'outofsync' over 'manual_mutation', so merging lanes for the same key hides bad states. Use per-lane first() or explicit priority logic.",
+      "severity": "minor"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/change",
+      "field": "cimSpl",
+      "issue": "It uses `datamodel=Change WHERE nodename=Change` with Change.* fields, but the root dataset is All_Changes (All_Changes.action, ...). It also uses `datamodel=Inventory` with Inventory.* fields, but the internal model name is Compute_Inventory with root All_Inventory. Both tstats calls return nothing or error.",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0092-UC-3.3.5",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The detailedImplementation explains Helm and Argo CD drift concepts well, but the SPL cannot run (stats, sort and streamstats inside multisearch). Its lanes key on namespaces and names that never line up across Helm, Argo CD and audit data. The cimSpl names data models that do not exist, and the short fields are template residue.",
+  "tier": "deep",
+  "uc_id": "UC-3.3.5",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,103 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "818f9da886d4bda59c16aa9144a9913832c686624dacc586da58a61a80afc774",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.1.12.json",
+  "findings": [
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "No generator MIB, OID or Modbus register map is named, and detailedImplementation only says 'generator OIDs' and 'SNMP fuel tables'. Many generator controllers expose fuel level only over Modbus or a vendor gateway, not through a standard MIB, so the reader cannot build the feed from this text.",
+      "field": "dataSources",
+      "quote": "after SNMP polling via **Splunk Connect for SNMP ... or the **SNMP Modular Input add-on ...**, or after a BMS-forwarded Modbus register map",
+      "severity": "major",
+      "suggested_fix": "Name the controller families and interfaces in scope (for example the controller vendor's Modbus register for fuel level percent, or a BMS point), and how each one becomes fuel_level_pct, fuel_gallons and engine_status. If no standard SNMP object exists, say so and drop the SNMP-only path."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The template scenarios (batch count, `src`, synthetic probe) do not apply to tank telemetry. The real benign triggers are missing: a day tank that drains and is refilled from bulk storage, fuel polishing or transfer-pump cycles, level-sensor slosh during runs, and sensor faults such as an open 4–20 mA loop reading 0%.",
+      "field": "knownFalsePositives",
+      "quote": "Scheduled automation elevates `src` without crossing `fuel_level_pct` < 25",
+      "severity": "major",
+      "suggested_fix": "List the fuel-system causes above. Say how to tell them apart: check whether the reading is a day tank or bulk tank, require consecutive low polls, and treat 0% or out-of-range values as sensor faults routed to maintenance."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "implementation and visualization describe burn-rate math, 'indexed lag minutes' and a 'contracted reserve' threshold. The SPL only filters on a fixed `fuel_level_pct < 25` and computes neither burn rate nor lag.",
+      "field": "cross_field",
+      "quote": "derive burn rate whenever `engine_status` shows a run, and alert when `fuel_level_pct` violates the contracted reserve window",
+      "severity": "minor",
+      "suggested_fix": "Either label burn rate and lag as optional dashboard extensions with their own SPL, or describe the alert as a fixed 25% floor. Explain how 25% relates to the site's required runtime hours."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "SNMP Modular Input and SC4SNMP set polling as an interval or frequency in seconds, not as a cron expression. Cron applies to the saved-search schedule.",
+      "field": "detailedImplementation",
+      "quote": "every **five minutes** (`cron` `*/5 * * * *` on modular inputs)",
+      "severity": "minor",
+      "suggested_fix": "State the poll interval in seconds (for example 300) for the collector, and keep cron for the alert schedule only."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "clarity",
+      "explanation": "Ingestion lag delays or hides alerts. It does not create low-fuel readings, so this is not a false-positive mechanism. The real gap is that the search stays silent when telemetry stops arriving.",
+      "field": "detailedImplementation",
+      "quote": "treat sustained `_indextime` skew as ingestion triage, not a true low-fuel event",
+      "severity": "minor",
+      "suggested_fix": "Reword as a data-freshness check: alert separately when a generator_id has not reported for longer than two poll intervals."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "The URL (Data/ForwardingDatatoSplunk) returned HTTP 404 when fetched, and its path does not match the 'modular inputs' title.",
+      "field": "references",
+      "quote": "Splunk Documentation — Splunk Enterprise modular inputs overview",
+      "severity": "needs_verification",
+      "suggested_fix": "Replace it with a working Splunk Getting Data In page on modular inputs or HEC, and add the generator controller vendor's Modbus/SNMP integration documentation."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "A fuel totalizer measures consumed flow, not tank level, and plain Modbus has no authentication. The exclusion does not describe the level telemetry this UC needs.",
+      "field": "exclusions",
+      "quote": "lack an authenticated Modbus/SNMP fuel totalizer feed",
+      "severity": "minor",
+      "suggested_fix": "Exclude sites without a tank-level sensor (percent or volume) exposed through the generator controller or BMS."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "consistency",
+      "explanation": "The UC polls fuel levels. It does not consume traps, and no generator or Modbus model is listed.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_trap\"",
+      "severity": "minor",
+      "suggested_fix": "Replace snmp_trap with the polled controller or Modbus equipment model used by the catalogue."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "There is no per-generator latest() or consecutive-poll check, so each breaching poll becomes its own row. Nothing detects stale telemetry, so a dead feed looks healthy.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0004-UC-15.1.12",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 3,
+    "correctness": 3,
+    "grandma_fidelity": 1,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The evidence and validation steps are concrete, but the data path never names an actual generator-controller MIB or Modbus register source, the false positives ignore how generator fuel systems behave, and several prose features (burn rate, lag minutes) are not in the SPL.",
+  "tier": "deep",
+  "uc_id": "UC-15.1.12",
+  "verdict": "rewrite"
+}

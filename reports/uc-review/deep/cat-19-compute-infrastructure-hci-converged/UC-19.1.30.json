@@ -1,0 +1,171 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "bb62c0c3b2420755e7f832d5f37c74ff49937321b0bfa87351836c3eeb8c5a1d",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.1.30.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/",
+      "explanation": "The Splunk Add-on for Cisco UCS writes every class with sourcetype cisco:ucs. The class is carried in source cisco:ucs:<classId>, for example cisco:ucs:equipmentPsu. Neither cisco:ucs:inventory nor cisco:ucs:stats exists, so the documented search returns nothing on a stock install.",
+      "field": "dataSources",
+      "quote": "with `sourcetype=\"cisco:ucs:inventory\"` (XML for `classId=equipmentRackUnit` and `classId=equipmentPsu` ...) and `sourcetype=\"cisco:ucs:stats\"`",
+      "severity": "blocker",
+      "suggested_fix": "Use `sourcetype=cisco:ucs` and filter by `source=\"cisco:ucs:equipmentRackUnit\" OR source=\"cisco:ucs:equipmentPsu\" OR source=\"cisco:ucs:equipmentPsuStats\"` (or by classId). Make the same change in the description, value, implementation, knownFalsePositives, controlTest and detailedImplementation."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/ConfigureInputs/",
+      "explanation": "This 'sourcetype truth' paragraph replaces one invented sourcetype with two others. The add-on has no separate inventory and statistics modular inputs. It uses Managers (UCSM servers), Templates (lists of class IDs) and Inputs that bind a server to a template, interval, index and sourcetype, and the default sourcetype is cisco:ucs.",
+      "field": "detailedImplementation",
+      "quote": "the **Cisco UCS statistics modular input** (Splunk add-on) emits `cisco:ucs:stats` with a `classId` filter for `equipmentPsuStats` ... and `cisco:ucs:inventory` for `equipmentRackUnit`",
+      "severity": "blocker",
+      "suggested_fix": "Rewrite the prerequisite as follows: configure a UCS Manager, a Template containing equipmentRackUnit, equipmentPsu and equipmentPsuStats, and an Input with sourcetype cisco:ucs; then verify with `index=cisco_ucs sourcetype=cisco:ucs | stats count by source`."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/ConfigureInputs/",
+      "explanation": "The add-on does not define a cisco_ucs:// modular-input stanza. Collection is configured through Managers, Templates and Inputs (stored in the add-on's own conf files), and the path `$SPLUNK_HOME/etc/apps/Splunk_TA_cisco_ucs/` uses the wrong directory name. The 'literal illustration' points administrators to a stanza that will never match default/inputs.conf.",
+      "field": "detailedImplementation",
+      "quote": "# [cisco_ucs://prod_ucs_inventory]\\n# index = cisco_ucs\\n# <follow vendor connection keys>",
+      "severity": "blocker",
+      "suggested_fix": "Remove the inputs.conf illustration. Describe the UI flow (Configuration → Managers; Templates with the three class IDs; Inputs binding the manager and template with interval and index), and refer to `$SPLUNK_HOME/etc/apps/Splunk_TA_cisco-ucs/` if a filesystem path is needed."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/ConfigureInputs/",
+      "explanation": "The add-on folder is Splunk_TA_cisco-ucs (hyphen), not an underscore. The app field also says the add-on runs 'inventory and statistics modular inputs', which do not exist as separate inputs.",
+      "field": "app",
+      "quote": "Splunk Add-on for Cisco UCS, app directory `Splunk_TA_cisco_ucs`",
+      "severity": "blocker",
+      "suggested_fix": "Change to `Splunk_TA_cisco-ucs`, and describe the collection tier as running the add-on's UCS Manager inputs (Managers/Templates/Inputs)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL looks up redundancy_intent but never reads it in either case(). A row with redundancy_intent=single (for example NON_REDUND_C_LAB) and two PSUs is handled only by counts. The prose promises behaviour that the search does not implement.",
+      "field": "detailedImplementation",
+      "quote": "`redundancy_delta` is a state machine from counts and the lookup’s `redundancy_intent` ... or the intent in the lookup says the design is not redundant and you have acknowledged that in `info`",
+      "severity": "major",
+      "suggested_fix": "Either describe the state machine as purely count-based, or note that redundancy_intent is displayed only and that the case() must be extended locally if you want intent-aware states."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "explanation": "In the SPL, unknown_rack_model is set only when rack_model is null or empty in the event data, before the lookup runs. A lookup mismatch leaves default_psu_count null and silently falls back to 2. Also, because unknown_rack_model is the first case() branch, a rack with zero operable PSUs and no model string is reported as a warning rather than imminent_power_loss. The troubleshooting advice therefore points at the wrong cause and hides the precedence risk.",
+      "field": "detailedImplementation",
+      "quote": "All rows `unknown_rack_model` — the `equipmentRackUnit` model you emit does not match any CSV `rack_model` string; fix the lookup first",
+      "severity": "major",
+      "suggested_fix": "State that unknown_rack_model means the equipmentRackUnit model attribute was not collected, that a lookup miss falls back to an expected count of 2, and that a missing model currently masks a zero-operable state."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "Apart from the deterministic template findings, these scenarios do not make sense for PSU redundancy. 'Elevating cidl' (a lower-cased class ID) and 'synthetic probes' do not change PSU operState. Real false-positive sources (PSU hot-swap during an RMA, a single-PSU build by design, a power cord pulled during cabling work, an inventory poll that misses a PSU child) appear only in detailedImplementation.",
+      "field": "knownFalsePositives",
+      "quote": "**Batch `sum` on `cisco:ucs:inventory`** — Scheduled automation elevates `cidl` without crossing `default_psu_count` > 0",
+      "severity": "major",
+      "suggested_fix": "Replace the list with PSU-specific causes: a planned PSU or cord replacement, a deliberately single-PSU lab node, a transient missing equipmentPsu row after a UCSM failover, and an A/B feed maintenance window, each with a concrete suppression key."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "The paging condition shown is a list of preconditions that are almost always true; it is not the alert logic. The real trigger is redundancy_delta != intact (fewer operable PSUs than installed, or zero operable). The same wrong condition is repeated in controlTest.",
+      "field": "description",
+      "quote": "pages when `default_psu_count` > 0, `psu_slot_rows` > 0, `psu_total_count` >= 2, or `psu_operational_count` > 0",
+      "severity": "major",
+      "suggested_fix": "Say that the alert pages when a C-Series rack unit has fewer operable PSUs than installed (degraded) or none operable (critical)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "m365 and snmp are unrelated to UCSM XML API polling of rack-unit PSUs, and equipmentModels snmp_ups is a UPS model, not a UCS C-Series PSU.",
+      "field": "equipment",
+      "quote": "\"cisco\", \"m365\", \"snmp\"",
+      "severity": "minor",
+      "suggested_fix": "Keep `cisco` and `cisco_ucs`, and remove m365, snmp and snmp_ups."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The UC uses sourcetypes, an app directory and an input stanza that do not exist in the add-on, so it cannot have been verified against live data.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "minor",
+      "suggested_fix": "Downgrade to a draft or community status until the search is run against real cisco:ucs data."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The URL is the Search Reference root, not the coalesce documentation. The UC also does not reference the add-on's Sources page, which is the source that would have prevented the sourcetype error.",
+      "field": "references",
+      "quote": "\"title\": \"Splunk documentation — coalesce (field-normalization for MO spellings)\", \"url\": \"https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/\"",
+      "severity": "minor",
+      "suggested_fix": "Point to https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/ConditionalFunctions, and add https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "UCSM equipmentRackUnit.model usually carries a PID-style string such as UCSC-C220-M7S rather than a marketing name such as 'UCS C220 M7'. If so, most CSV rows will never match, and every rack silently falls back to an expected count of 2. The text does warn readers to confirm the string, but the sample rows imply that marketing names are typical.",
+      "field": "detailedImplementation",
+      "quote": "UCS C220 M7,2,1+1,ac,C220 two-bay 1+1",
+      "severity": "needs_verification",
+      "suggested_fix": "Use PID-style sample keys (for example UCSC-C220-M7S, UCSC-C240-M7SX) once confirmed against live equipmentRackUnit events, and label the marketing-name rows as examples only."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/",
+      "field": "spl",
+      "issue": "The search uses sourcetype cisco:ucs:inventory / cisco:ucs:stats, which the add-on does not emit (it uses sourcetype cisco:ucs with source cisco:ucs:<classId>), so it returns no events.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Search/Addcommentstosearches",
+      "field": "spl",
+      "issue": "The `/* UC-19.1.30 — ... */` inline block is not a valid SPL comment. Splunk comments use the ``` delimiter, so this text becomes literal search terms and filters out events.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "case() precedence: the unknown_rack_model branch is evaluated before psu_operational_count=0, so a rack with zero operable PSUs and a missing model string is reported as a warning instead of critical imminent_power_loss.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "is_oper treats operState 'equipped' as operable. equipped is a presence value, not an operability value, so a present-but-failed PSU can be counted as healthy.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "`sort 0 severity_bucket` sorts alphabetically (critical, info, ok, warning), so warning rows appear after ok rows. Use a numeric severity rank for ordering.",
+      "severity": "minor"
+    },
+    {
+      "field": "difficulty",
+      "issue": "Rated beginner, although the search uses a double rex, multi-stage dedup, a governed lookup and a 7-branch state machine that must be tuned per model.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0023-UC-19.1.30",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The rack-versus-blade PSU framing is well explained. However, the UC is built on sourcetypes (cisco:ucs:inventory / cisco:ucs:stats), an app directory and a cisco_ucs:// input stanza that the Splunk Add-on for Cisco UCS does not use. The prose also says redundancy_intent drives the state machine, but the SPL ignores it.",
+  "tier": "deep",
+  "uc_id": "UC-19.1.30",
+  "verdict": "incorrect"
+}

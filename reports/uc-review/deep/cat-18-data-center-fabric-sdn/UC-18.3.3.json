@@ -1,0 +1,83 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "55daceb2643c7f1bd781651ecf6e312cc5d3ff30374f9ed3d52990817771573a",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.3.3.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-unix-and-linux/Sourcetypes/",
+      "explanation": "Splunk_TA_nix does not define linux:journald, linux:syslog or linux:secure. Its sourcetypes include linux_secure, linux_audit and scripted inputs such as cpu and ps. Journald is collected by the native Splunk journald input, not by the TA. The same names are repeated in dataSources and detailedImplementation.",
+      "field": "app",
+      "quote": "**Splunk Add-on for Unix and Linux** (**Splunk_TA_nix**, [Splunkbase 833](https://splunkbase.splunk.com/app/833)) for **`linux:journald`**, **`linux:syslog`**, **`linux:secure`** on controller hosts",
+      "severity": "blocker",
+      "suggested_fix": "Use linux_secure (TA_nix) and the native journald input (or syslog via standard monitor inputs), and correct the sourcetype names everywhere."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "explanation": "The controllers run on Apache Karaf (an OSGi container), not on the Apache HTTP Server, so apache_httpd is a false match. The zookeeper and apache entries in equipment are equally unrelated to the SPL.",
+      "field": "equipmentModels",
+      "quote": "\"equipmentModels\": [\n    \"apache_httpd\"\n  ]",
+      "severity": "major",
+      "suggested_fix": "Remove apache_httpd, and list OpenDaylight/ONOS/Open vSwitch models if the taxonomy has them, or leave the field empty."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "OpenDaylight does not publish \"LTS\" releases, and the release months given for Calcium and Argon may be wrong. The default Karaf log path for ODL distributions is usually under the opendaylight install directory, not /opt/karaf.",
+      "field": "detailedImplementation",
+      "quote": "Pin inventories to **OpenDaylight Calcium** (Sep 2024 LTS posture per docs hub), **Argon** (May 2023)",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the release dates on the OpenDaylight release-notes page, drop the \"LTS\" label, and state the log path as \"<ODL_HOME>/data/log/karaf.log\"."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The final stats output does not contain gc_pressure, fd_exhaustion or openflow_signal (only saw_openflow_marker), so this panel cannot be built from the documented search.",
+      "field": "visualization",
+      "quote": "(5) Sparkline on gc_pressure and fd_exhaustion markers correlated with openflow_signal bursts.",
+      "severity": "minor",
+      "suggested_fix": "Base the panel on risk_bucket counts (jvm_or_os_resource_pressure, openflow_session_loss) over time, or describe the extra fields that would need to be carried through stats."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified, but the only reviewer is an automated agent and the SPL fails to parse.",
+      "field": "status",
+      "quote": "\"status\": \"verified\", ... \"reviewer\": \"agent-handcraft-2026-04-29\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until an SME validates the UC."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/spl-search-reference/10.4.2604/search-commands/eval",
+      "field": "spl",
+      "issue": "Lines such as `| eval jolokia_unreachable=match(...)`, `openflow_signal=match(...)`, `gc_pressure=match(...)` and others assign a Boolean to a field. Splunk rejects this (\"Fields cannot be assigned a boolean result\"), so the search fails. Each line needs `if(match(...),1,0)`.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "`dc(controller_cluster) as clusters_seen ... by controller_cluster risk_bucket` is always 1 because it counts the group-by key. Events lacking controller_cluster (most karaf/syslog lines unless aliased) are silently dropped by the stats BY clause.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0054-UC-18.3.3",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 4,
+    "consistency": 3,
+    "correctness": 2,
+    "grandma_fidelity": 5,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The implementation guidance for OpenDaylight and ONOS is specific and mostly plausible: Jolokia akka:type=Cluster, /onos/v1/cluster and the OpenFlow ports are all right. However, the SPL will not run because it assigns match() booleans to fields, the Splunk_TA_nix sourcetypes are invented, and equipmentModels confuses Apache Karaf with Apache httpd.",
+  "tier": "deep",
+  "uc_id": "UC-18.3.3",
+  "verdict": "incorrect"
+}

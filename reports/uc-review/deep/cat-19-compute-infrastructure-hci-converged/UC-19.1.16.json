@@ -1,0 +1,148 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "bec08701acd2fe056e3a57c01a4fa2e083dd607ee2ea13976d0bb1a6600e9e43",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.1.16.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://ciscoucs.github.io/ucsmsdk_docs/_modules/ucsmsdk/mometa/ether/EtherRxStats.html",
+      "explanation": "The UCSM object model (ucsmsdk `ether` package) has no `etherIomStats`, `etherIomTxStats` or `etherIomRxStats` classes. Ethernet port traffic counters live in `etherRxStats` and `etherTxStats`, children of the port MO, each exposing `totalBytes`, `totalBytesDelta` (plus Avg/Min/Max) and packet counters. Neither class has a `totalBytesRx` or `totalBytesTx` attribute; direction comes from the class itself.",
+      "field": "dataSources",
+      "quote": "Include `classId` values `etherIomStats`, `etherIomTxStats`, `etherIomRxStats`, and `fabricEthLanEpStats` ... Cumulative `totalBytesRx` / `totalBytesTx`",
+      "severity": "blocker",
+      "suggested_fix": "Base the UC on `etherRxStats` and `etherTxStats` rows whose `dn` sits under the IOM network ports (`sys/chassis-N/slot-M/...`). Use `totalBytesDelta` (or the `totalBytes` difference) per direction, and drop the `etherIom*` names from dataSources, implementation and detailedImplementation."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/",
+      "explanation": "The Splunk Add-on for Cisco UCS writes every class with `sourcetype=cisco:ucs` and a class-specific `source=cisco:ucs:<classId>`. There is no `cisco:ucs:stats` sourcetype. The detailedImplementation compounds this by calling `cisco:ucs:stats` the supported string and `cisco:ucs:iom_stats` the fictional one.",
+      "field": "dataSources",
+      "quote": "`index=cisco_ucs` and sourcetype `cisco:ucs:stats` from the Splunk Add-on for Cisco UCS",
+      "severity": "blocker",
+      "suggested_fix": "Describe the feed as `sourcetype=cisco:ucs source=cisco:ucs:etherRxStats OR source=cisco:ucs:etherTxStats`, and validate with `| stats count by source`."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/ConfigureInputs/",
+      "explanation": "The add-on has no separate statistics modular input and does not use `xml_url`, `enable_stats` or `stats_classes` keys. In the add-on UI you configure a Manager (UCSM host and credentials), Templates (lists of class IDs to collect) and Inputs that bind a Manager to Templates with an interval and index. The add-on runs on a heavy forwarder, and Deployment Server distribution is not supported. The `implementation` field repeats the same `enable_stats`/`stats_classes` instructions.",
+      "field": "detailedImplementation",
+      "quote": "open **Settings → Data inputs** and locate the **Cisco UCS statistics modular input** ... [ciscoucs://prod_ucsm] ... xml_url = https://ucsm.example.com/nuova ... enable_stats = true\\nstats_classes = etherIomStats,...",
+      "severity": "blocker",
+      "suggested_fix": "Replace the stanza with the documented steps: add a Manager, create a Template with `etherRxStats`, `etherTxStats`, `etherPIo` and `equipmentIOCard`, then create an Input binding them. Make the same change in `implementation`."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/print_page/",
+      "explanation": "The app directory and package name is `Splunk_TA_cisco-ucs` (hyphen), and the field gives no add-on version. The same underscore spelling appears in detailedImplementation (`$SPLUNK_HOME/etc/apps/Splunk_TA_cisco_ucs/local/inputs.conf`).",
+      "field": "app",
+      "quote": "`Splunk_TA_cisco_ucs` (Splunkbase 2731; install on a Heavy Forwarder",
+      "severity": "minor",
+      "suggested_fix": "Use `Splunk_TA_cisco-ucs` (Splunkbase 2731, v4.3.x) everywhere."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_url": "https://ciscoucs.github.io/ucsmsdk_docs/ucsmsdk.mometa.ether.html",
+      "explanation": "In the UCSM model, IOM network-facing ports (`etherSwitchIntFIo`) have rn `port-[portId]` under a port-group parent. IOM DNs typically look like `sys/chassis-N/slot-M/fabric/port-K` (or a `port-group` level), and the fabric side comes from the slot or `switchId`, not a `fabric-a`/`fabric-b` RN segment. The same assumption appears in exclusions (\"X-series IFM paths use the same chassis/slot/fabric/port dn tree\"), and that also needs proof.",
+      "field": "dataSources",
+      "quote": "The IOM–FI path is the dn tree `sys/chassis-*/slot-*/fabric-(a|b)/port-*`",
+      "severity": "needs_verification",
+      "suggested_fix": "Harvest real `dn` values from `source=cisco:ucs:etherRxStats` on a lab domain and document the observed shape, including the X-series IFM case, before publishing the regex."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_url": "https://ciscoucs.github.io/ucsmsdk_docs/ucsmsdk.mometa.ether.html",
+      "explanation": "Stats MOs carry no `operSpeed` or `model`, so the 'same poll line' path never applies. `etherSwitchIntFIo` (IOM fabric ports) does not expose `operSpeed` the way `etherPIo` on the FI does. The IOM model sits on `equipmentIOCard.model`, not on stats rows. In practice every row falls through to the lookup's `DEFAULT_IOM_10G` key, and so to 10G.",
+      "field": "detailedImplementation",
+      "quote": "Physical link speed: prefer operSpeed in megabits per second on the same poll line when the TA provides it, else join a parent **etherPIo** row",
+      "severity": "needs_verification",
+      "suggested_fix": "Join `equipmentIOCard` (by chassis/slot DN prefix) for `model`, and document which MO, if any, supplies the negotiated speed for IOM fabric ports."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "Cisco orders these IOMs under PIDs such as `UCS-IOM-2204XP`, `UCS-IOM-2208XP`, `UCS-IOM-2304` and `UCS-IOM-2408`. I could not confirm the `UCSB-IOM-` prefix or `N20-I6625-001` as a real IOM PID. Because the lookup matches exactly on `model`, wrong keys silently fall back to the 10G default, which overstates utilization on 25G and 40G IOMs by 2.5x to 4x.",
+      "field": "detailedImplementation",
+      "quote": "UCSB-IOM-2204XP,10000000000,...\\nN20-I6625-001,10000000000,legacy SKU you may see in older inventories\\nUCSB-IOM-2408,25000000000",
+      "severity": "needs_verification",
+      "suggested_fix": "Seed the CSV from `equipmentIOCard.model` values harvested from production, and drop unconfirmed SKUs."
+    },
+    {
+      "dimension": "consistency",
+      "explanation": "The prose describing severity tiers is muddled ('a single 90% on a prior cell'), so operators can't tell when warning fires.",
+      "field": "detailedImplementation",
+      "quote": "warning covers a single 90% bin or two consecutive 75% bins, or a single 90% on a prior cell per the case statement",
+      "severity": "minor",
+      "suggested_fix": "State the tiers plainly: critical = three consecutive bins at 90% or above; warning = current or previous bin at 90% or above, or two consecutive bins at 75% or above; watch = current bin at 60% or above."
+    },
+    {
+      "dimension": "specificity",
+      "explanation": "Two references point to site root pages, not the XML API class reference or a UCSM statistics guide, so readers can't check the cited class names.",
+      "field": "references",
+      "quote": "\"url\": \"https://developer.cisco.com/docs/\" ... \"url\": \"https://www.cisco.com/c/en/us/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the ucsmsdk `ether` package page (or the UCSM XML API model reference), the UCSM System Monitoring guide's statistics section, and the add-on's Sources page."
+    },
+    {
+      "dimension": "overclaiming",
+      "explanation": "A UC built on non-existent classes and a non-existent sourcetype has not been checked against real data.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "minor",
+      "suggested_fix": "Downgrade the status until the search has been run against a live UCSM feed."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/",
+      "field": "spl",
+      "issue": "The search filters `sourcetype=\"cisco:ucs:stats\"`; the Splunk Add-on for Cisco UCS emits `sourcetype=cisco:ucs` with `source=cisco:ucs:<classId>`, so the base search returns no events on a default install.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://ciscoucs.github.io/ucsmsdk_docs/_modules/ucsmsdk/mometa/ether/EtherRxStats.html",
+      "field": "spl",
+      "issue": "`where cidl in (\"etheriomstats\",\"etheriomtxstats\",\"etheriomrxstats\")` and `coalesce(totalBytesRx, ...)` / `coalesce(totalBytesTx, ...)` reference classes and attributes that UCSM does not have. Port byte counters are `etherRxStats.totalBytes` and `etherTxStats.totalBytes` (plus `totalBytesDelta`). Even if some rows got through, `tbr`/`tbt` default to \"0\" and util_pct would be 0.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "Utilization adds Rx and Tx bytes together (`tbr+tbt`, or the summed split classes) and divides by one direction's link speed. On a full-duplex link a fully loaded port shows up to 200%, and a port at 45% each way already reads as 90% critical. Compute util_pct per direction and take the max.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://ciscoucs.github.io/ucsmsdk_docs/ucsmsdk.mometa.ether.html",
+      "field": "spl",
+      "issue": "The rex requires a `fabric-(a|b)` RN segment under the IOM slot, which probably does not match real IOM port DNs (`etherSwitchIntFIo` has rn `port-N` under a port-group). `where isnotnull(chassis_num)` would then drop every row.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "`last(operSpeed)` and `last(model)` are read from stats rows, which carry neither field, so `link_speed_bps` always falls back to the lookup's 10G default. The second `streamstats current=f last(prior1) as prior2` runs as a separate pass over rows that already have prior1. That works, but a single `streamstats current=f window=2` with an explicit sort would be clearer.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0008-UC-19.1.16",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 5,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The capacity-headroom goal and the plain-language explanation are clear, but the UC depends on things that do not exist. UCSM has no `etherIomStats`, `etherIomTxStats` or `etherIomRxStats` classes and no `totalBytesRx`/`totalBytesTx` attributes, the add-on emits no `cisco:ucs:stats` sourcetype, and the described input stanza does not match how the add-on is configured. As written, the search returns nothing on a real install.",
+  "tier": "deep",
+  "uc_id": "UC-19.1.16",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,101 @@
+{
+  "confidence": 0.7,
+  "content_sha256": "b1bdb2944b1cf716a3a5d4f1292ae5e181e61699a06a01254bd26708bc50da68",
+  "file": "content/cat-12-devops-ci-cd/UC-12.2.31.json",
+  "findings": [
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/devops-cicd.md",
+      "explanation": "No add-on is named and Splunkbase 617 is not in the cached catalog. The guide integrates Argo CD through notification webhooks sending HEC events (argocd:event, argocd:sync), not through a Universal Forwarder or an application CR poller.",
+      "field": "app",
+      "quote": "Modular input or Event Router shipping Argo CD application CR status — Universal Forwarder (Splunkbase 617)",
+      "severity": "needs_verification",
+      "suggested_fix": "State the real ingest path (Argo CD notifications webhook to HEC, or a custom poller of the Application resource) and remove the Splunkbase 617 reference unless verified."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/devops-cicd.md",
+      "explanation": "The guide lists argocd:event and argocd:sync (index gitops) for Argo CD, not argocd:application, and uses index gitops rather than devops. The field names the SPL needs (operation_state, phase, name, namespace, revision) are not documented as extracted from any of them.",
+      "field": "dataSources",
+      "quote": "`sourcetype=argocd:application` polled application status",
+      "severity": "major",
+      "suggested_fix": "Align the sourcetype and index with the guide or document the custom polling input. List where each SPL field (for example status.operationState.phase) comes from."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "consistency",
+      "explanation": "implementation says to poll every 60 seconds, while detailedImplementation says the default poll interval is 300-900 seconds. The 900-second threshold in the SPL is the same as the upper end of the stated poll interval, so the two cannot both hold. The 'Join with Kubernetes API latency metrics' step is not in the SPL.",
+      "field": "cross_field",
+      "quote": "Poll application status every 60s; tune threshold per environment.",
+      "severity": "major",
+      "suggested_fix": "Use one polling interval well below the 900-second threshold and remove or document the Kubernetes join."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "clarity",
+      "explanation": "The SPL does not compute a count or an entity field. It lists Application events where the operation phase is Running and the event is more than 900 seconds old. The text never says what 'stuck' means or what a result row is.",
+      "field": "description",
+      "quote": "Summarises `count` grouped by `entity` across `the scheduled window` before applying `age_sec` > 900.",
+      "severity": "major",
+      "suggested_fix": "Say that each row is an Argo CD Application whose sync operation has been in the Running phase for more than 15 minutes."
+    },
+    {
+      "confidence": 0.45,
+      "dimension": "correctness",
+      "explanation": "Check whether this Argo CD wiki page exists. The second reference, github.com/splunk/Splunk-Infrastructure-Monitoring-App-for-ArgoCD, also needs checking, since both could be invented URLs.",
+      "field": "references",
+      "quote": "https://github.com/argoproj/argo-cd/wiki/Splunk",
+      "severity": "needs_verification",
+      "suggested_fix": "Replace with verified documentation, for example Argo CD's notifications documentation and the operation state fields of the Application resource."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "specificity",
+      "explanation": "None of the four scenarios is a real Argo CD cause. Real ones are long PreSync or PostSync hook jobs, slow sync waves for large apps, and operations waiting for resource health.",
+      "field": "knownFalsePositives",
+      "quote": "Health checks in `devops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.",
+      "severity": "major",
+      "suggested_fix": "List real causes: long-running sync hooks, large applications with many sync waves, and syncs waiting on slow-starting workloads."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "grandma_fidelity",
+      "explanation": "It uses jargon (GitOps, Argo) and never says the UC looks for a deployment that has been running far too long. It describes drift in general.",
+      "field": "grandmaExplanation",
+      "quote": "We watch GitOps sync and Argo signals so clusters stay aligned with the desired configuration in Git.",
+      "severity": "major",
+      "suggested_fix": "Say: 'We notice when an automatic software update to our servers has been running for far too long, so someone can check why it is stuck.'"
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`age_sec=now()-_time` measures how old the polled event is, not how long the operation has been running. A stuck operation produces fresh events with a small age, while any old completed Running event older than 900 seconds in the search window is flagged. The search needs the operation's start time (for example operationState.startedAt) or a per-application earliest time of the Running phase.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "The filter `operation_state=\"Running\" OR phase=\"Running\"` uses custom field names with no documented extraction. There is no dedup by application, so one stuck app yields one row per poll.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0017-UC-12.2.14",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The SPL measures the age of the event rather than the age of the Argo CD operation, so it cannot find a sync stuck in Running. Data source, sourcetype and references are unverified or guessed, and the text is template filler.",
+  "tier": "triage",
+  "uc_id": "UC-12.2.31",
+  "verdict": "rewrite"
+}

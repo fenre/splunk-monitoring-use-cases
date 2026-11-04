@@ -1,0 +1,104 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "727f5bf6f79071cc4b660cc296b5bd930e2adc4b1668db665f5803c943cca1df",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.2.17.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "description claims a count grouped by entity with a units_down > 0 rule, but the SPL has no stats, no entity field and also alerts on online_tons < required_tons * 1.1 (a 10% margin the prose never mentions).",
+      "field": "cross_field",
+      "quote": "aggregating `count` grouped by `entity` over `the scheduled window` and alerting when `units_down` > 0",
+      "severity": "major",
+      "suggested_fix": "Describe the real logic: alert when any cooling unit is down or online capacity (online_tons) falls below required_tons plus a 10% margin, one row per zone."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "It is unclear whether required_tons is a field emitted by the BMS or a value the operator configures; the SPL reads it from events and hard-codes the 1.1 factor, and the step is not a data-collection instruction.",
+      "field": "implementation",
+      "quote": "Set `required_tons` from peak IT load × safety factor.",
+      "severity": "major",
+      "suggested_fix": "State which system emits online_tons, required_tons and units_down, and either document the 1.1 margin or move it to a lookup/macro."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "A change-control action is not something this search detects or enforces.",
+      "field": "implementation",
+      "quote": "Block new installs if margin negative.",
+      "severity": "minor",
+      "suggested_fix": "Reword as a downstream operational use of the alert, or remove."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/datacenter-physical.md",
+      "explanation": "The sourcetype and fields are not in the grounding guide (it lists snmp:crac, snmp:bms, bacnet:metrics); no real BMS product is named as the source of these fields.",
+      "field": "dataSources",
+      "quote": "`sourcetype=\"bms:cooling_redundancy\"` (online_tons, required_tons, units_down)",
+      "severity": "needs_verification",
+      "suggested_fix": "Name the BMS/DCIM product and how it exposes online/required capacity, or label the sourcetype as a custom normalised feed."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "The HEC, inputs.conf and savedsearches.conf references are generic Splunk pages and say nothing about N+1 cooling redundancy or CRAC capacity.",
+      "field": "references",
+      "quote": "Splunk HTTP Event Collector",
+      "severity": "major",
+      "suggested_fix": "Replace with sources specific to cooling redundancy (for example the site's Uptime Institute Tier or vendor CRAC documentation); look these up rather than guessing."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "The SPL has no count, span=1h or host field. Planned CRAC maintenance that takes a unit offline is a legitimate redundancy loss rather than a false positive, and no real false-positive cause is named.",
+      "field": "knownFalsePositives",
+      "quote": "shifts `count` over `span=1h` while `host` remains in-scope",
+      "severity": "major",
+      "suggested_fix": "Name real causes (BMS point flapping, planned CRAC maintenance windows to annotate, stale required_tons after IT load changes) and key suppression on zone."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "The Step 4 heading is repeated four times and Steps 1-4 appear twice with different content, including generic boilerplate (default 300-900 second poll, vendor API) that does not apply to a BMS model.",
+      "field": "detailedImplementation",
+      "quote": "Step 4 — Operationalize\nStep 4 — Operationalize",
+      "severity": "minor",
+      "suggested_fix": "Collapse to one Step 1-5 sequence specific to the BMS feed."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "clarity",
+      "explanation": "The phrase has no clear meaning for cooling redundancy.",
+      "field": "value",
+      "quote": "before spreadsheet checks hide regressions",
+      "severity": "minor",
+      "suggested_fix": "State the real benefit: knowing when remaining CRAC capacity no longer covers peak IT load."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The search tables every raw event in the window rather than the latest state per zone, so one sustained redundancy loss re-fires on every poll; consider stats latest() by zone.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:53:11Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0007-UC-15.2.17",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 2,
+    "overclaiming": 4,
+    "specificity": 2
+  },
+  "summary": "The detection idea (N+1 cooling margin) is sound, but the prose describes an aggregated per-entity count that the SPL does not compute, hides the hard-coded 10% margin, and the implementation text mixes configuration advice with out-of-scope process steps.",
+  "tier": "triage",
+  "uc_id": "UC-15.2.17",
+  "verdict": "rewrite"
+}

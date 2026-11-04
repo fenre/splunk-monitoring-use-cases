@@ -1,0 +1,95 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "52bd29f78967f22c06b465bcdc39dc5f1dd796fad5b97291670efcd98c089e28",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.5.13.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://www.splunk.com/en_us/download/universal-forwarder.html",
+      "explanation": "The Splunk Universal Forwarder is not a Splunkbase app; it is downloaded from splunk.com, and splunkbase.splunk.com/app/617 returns 404. The same false attribution is repeated in `app` and `detailedImplementation` Step 1, and it contradicts the HEC path named in `app` (HEC ingestion does not go through a forwarder).",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll",
+      "severity": "blocker",
+      "suggested_fix": "Remove the 'Splunkbase 617' reference. Describe the real path: a custom scripted/REST input on a forwarder polling the VMS/ANPR server, or ANPR events pushed to an HTTP Event Collector token, writing sourcetype=cctv:analytics into index=physical. Name a vendor add-on only if one is confirmed on Splunkbase."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "A BMC EDAC (server memory-error) model has no relation to ANPR camera reads; the related `equipment` entry `hardware_bmc` is equally unrelated. This mis-routes the UC in equipment pickers.",
+      "field": "equipmentModels",
+      "quote": "hardware_bmc_edac",
+      "severity": "major",
+      "suggested_fix": "Remove `hardware_bmc_edac` (and `hardware_bmc` from equipment); map to CCTV/ANPR equipment only."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "Generic template: the SPL hard-codes earliest=-7d (overriding a -24h@h schedule), contains no macros or lookups (yet Step 4 routes 'from the lookup'), Step 3 compares an event count to a device inventory count, and Step 1 grants `list_inputs`/`search` 'on the target index' although capabilities are not index-scoped (index access comes from the role's allowed indexes). Nothing covers ANPR specifics such as plate-read fields or privacy controls.",
+      "field": "detailedImplementation",
+      "quote": "Schedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header.",
+      "severity": "major",
+      "suggested_fix": "Rewrite for this UC: how ANPR reads reach cctv:analytics (which `analytic_type` values, which plate field), a schedule matching the 7-day window or a report-style run, a restricted role for full plates, and validation against the ANPR system's read count for one camera."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "None of the scenarios names a real cause of misleading ANPR rows; the 'batch count ... without crossing configured threshold' item is not a false positive, and the SPL has no threshold.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `plate`, `camera_id`, `action`** — Health checks in `physical` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List real causes: OCR misreads splitting one vehicle into several plates, empty/unread plates grouped under an empty string, duplicate reads from overlapping cameras at the same gate, and test or fleet plates."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by 'catalog-team' while its prose is unedited template output and its collection path is wrong, so no SME review is evident.",
+      "field": "status",
+      "quote": "verified",
+      "severity": "major",
+      "suggested_fix": "Set status to draft/unverified until an SME reviews the content."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The SPL has no gate field; it groups by plate, camera_id and action only.",
+      "field": "visualization",
+      "quote": "histogram reads per gate",
+      "severity": "minor",
+      "suggested_fix": "Say 'reads per camera_id', or add a camera-to-gate lookup and document it."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "References are generic portal links shared by the whole subcategory; none documents ANPR event formats or the Splunk ingestion method used.",
+      "field": "references",
+      "quote": "Hikvision OpenAPI / ISAPI",
+      "severity": "minor",
+      "suggested_fix": "Cite the vendor ANPR/LPR event API documentation and the Splunk HEC or scripted-input documentation actually used."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "Title promises an 'Event Audit Trail' but the SPL aggregates seven days into `stats count by plate camera_id action`, discarding per-read timestamps; `coalesce(license_plate, plate_text, \"\")` also lumps all unread plates into one empty-string row. An audit trail needs per-read rows (_time, plate, camera_id, action) or at least first/last seen.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0103-UC-15.5.13",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 1,
+    "overclaiming": 2,
+    "specificity": 1
+  },
+  "summary": "Almost every prose field is cross-UC template residue; only the short implementation and visualization lines are about ANPR. The collection path attributes the Universal Forwarder to a non-existent Splunkbase app, and the equipment model mapping (BMC EDAC) has nothing to do with licence-plate recognition.",
+  "tier": "deep",
+  "uc_id": "UC-15.5.13",
+  "verdict": "incorrect"
+}

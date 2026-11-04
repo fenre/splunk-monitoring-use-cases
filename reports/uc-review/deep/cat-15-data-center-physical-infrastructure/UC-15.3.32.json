@@ -1,0 +1,103 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "821e6139a85ce1e7b7f1c8d23cc0fd366d7fe1753aa51d477f20874f8edade6b",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.3.32.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "explanation": "The CIM Authentication model describes login and authentication activity (user, src, dest, action). Wi-Fi presence and dwell events from Cisco Spaces are not authentication events, so the model does not fit the signal. The matching `dataModelAcceleration` advice ('Enable for Authentication') would waste acceleration on an unrelated dataset.",
+      "field": "cimModels",
+      "quote": "\"cimModels\": [\n    \"Authentication\"\n  ]",
+      "severity": "blocker",
+      "suggested_fix": "Set `cimModels` to an empty list and set `dataModelAcceleration` to 'Not applicable'. No CIM model covers location dwell analytics."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase 1352 is 'App for Cisco Network Data' (cisco_ios), a dashboard app for IOS, NX-OS and WLC data. It is not a Cisco Security add-on and plays no part in Cisco Spaces dwell analytics.",
+      "field": "references",
+      "quote": "Splunk Add-on for Cisco Security (Splunkbase 1352)",
+      "severity": "blocker",
+      "suggested_fix": "Remove the 1352 reference along with the generic Cisco Security support link. Cite the Cisco Spaces Firehose event-type and sample-event documentation instead."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.cisco.com/docs/cisco-spaces-firehose/sample-events/",
+      "explanation": "The text names no index, sourcetype or fields, while the search assumes `sourcetype=cisco:spaces:location` with flat `entryTime`, `exitTime`, `zoneName`, `building` and `floor`. Firehose DEVICE_PRESENCE nests its data under `devicePresence`. The fields are `entryTimestamp` and `exitTimestamp` (epoch milliseconds, exit 0 until the visit ends) and `visitDurationMinutes`, with a location hierarchy (`location.name`, `location.parent.name`, `floorNumber`) rather than a zoneName.",
+      "field": "dataSources",
+      "quote": "Cisco Spaces Firehose API (DEVICE_LOCATION_UPDATE, DEVICE_PRESENCE events — entry, exit, dwell)",
+      "severity": "major",
+      "suggested_fix": "List the index, the sourcetype the Spaces Add-On actually writes (verify it; third-party setup notes indicate `cisco:spaces:firehose`), and the real JSON paths: `devicePresence.presenceEventType`, `devicePresence.visitDurationMinutes`, `devicePresence.entryTimestamp`/`exitTimestamp` (ms) and `devicePresence.location.*`. State that dwell is only complete on DEVICE_EXIT_EVENT records."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The title and `visualization` (Sankey of movement flows between zones) promise flow analysis. The search only computes dwell statistics per zone from DEVICE_PRESENCE and never reads DEVICE_LOCATION_UPDATE or sequences zones per device. The `implementation` waves at the flow half in one sentence without a method.",
+      "field": "cross_field",
+      "quote": "Build movement flow analysis by sequencing location updates per device MAC.",
+      "severity": "major",
+      "suggested_fix": "Either describe the flow method concretely (DEVICE_LOCATION_UPDATE per deviceId, sorted by time, with streamstats to get the previous zone and then counts of zone-to-zone transitions; compare sibling UC-15.3.38) or limit the text and visualization to dwell time per location."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The validation step points at badge readers instead of the Cisco Spaces location analytics dashboard, the 'Step 4' heading appears four times, and Step 1 and the SPL explanation are truncated mid-sentence ('sequencing location updates…', 'which are passed…').",
+      "field": "detailedImplementation",
+      "quote": "Step 3 — Validate\nCompare with the badge reader and access control system for the same doors, events, and time range.\n\n\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize",
+      "severity": "major",
+      "suggested_fix": "Validate dwell figures against Cisco Spaces' own dwell-time or visit report for the same location and window. Remove the repeated headings and finish the truncated sentences."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "overclaiming",
+      "explanation": "Wi-Fi device presence covers all devices, employees included, so 'visitor' dwell is really device dwell, and patient-flow claims go beyond what MAC-level presence supports. The UC also omits the privacy and consent constraints of tracking device MACs.",
+      "field": "detailedImplementation",
+      "quote": "For healthcare, it tracks patient flow through departments to reduce wait times.",
+      "severity": "minor",
+      "suggested_fix": "Describe the output as device dwell per location, mention filtering by `visitClassification`/`deviceClassification` or SSID to approximate visitors, and add a note on privacy (MAC hashing, retention, consent)."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The scenarios contain no real dwell-time distortions. Real ones are fixed or stationary devices (printers, kiosks, laptops left on desks) inflating max dwell, MAC randomisation splitting a visit into several, and the inactivity/exit timeouts stretching dwell beyond actual presence.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `zoneName`, `building`, `floor`** — Health checks in `cisco_spaces` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List those causes and suggest excluding device types or manufacturers associated with fixed infrastructure, or capping dwell at a plausible maximum."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://developer.cisco.com/docs/cisco-spaces-firehose/sample-events/",
+      "field": "spl",
+      "issue": "`exitTime`, `entryTime`, `zoneName`, `building` and `floor` are not fields in Firehose DEVICE_PRESENCE. The real paths are `devicePresence.entryTimestamp`/`exitTimestamp` in epoch milliseconds, so `/60` yields thousandths of minutes rather than minutes, plus `devicePresence.visitDurationMinutes` and `devicePresence.location.*` (https://developer.cisco.com/docs/cisco-spaces-firehose/sample-events/). Entry events have `exitTimestamp=0`, which yields negative dwell. As written, the search returns nothing or wrong values.",
+      "severity": "blocker"
+    },
+    {
+      "field": "cimSpl",
+      "issue": "An Authentication data-model count by user, action and src has nothing to do with dwell time or movement flow.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0071-UC-15.3.32",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 1,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The goal (dwell time per zone from Cisco Spaces presence events) is reasonable. However, the UC maps to the CIM Authentication model, cites a Cisco networking app under a wrong name, and its search uses field names and units that do not match Firehose DEVICE_PRESENCE events. The 'movement flow' half of the title is never implemented, and the detailed implementation carries pasted boilerplate.",
+  "tier": "deep",
+  "uc_id": "UC-15.3.32",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,167 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "a1149b094b713b3676e697a4307f487afac927f296151f35320214e4c70d91e3",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.1.4.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase 4022 is 'Technical Addon for the Metricator application for Nmon (HEC)'. The Cisco ACI add-on is 'Cisco ACI Add-on for Splunk Enterprise' (TA_cisco-ACI, Splunkbase 1897, now deprecated), and its successor is Cisco DC Networking (cisco_dc_networking_app_for_splunk, Splunkbase 7777). No package named Splunk_TA_cisco-aci is listed. The '2.0.x' version also contradicts the guide's '6.x'.",
+      "field": "app",
+      "quote": "**Splunk_TA_cisco-aci** (Splunkbase **4022**, package directory **Splunk_TA_cisco-aci**, versions near **2.0.x**)",
+      "severity": "blocker",
+      "suggested_fix": "Name Cisco DC Networking (Splunkbase 7777) as the current ACI collector, and mention TA_cisco-ACI (1897) only as deprecated. Remove the 4022 ID and the guessed version. Apply the same fix in detailedImplementation and references."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://quickview.cloudapps.cisco.com/quickview/bug/CSCwc08792",
+      "explanation": "APIC exposes per-zoning-rule hit counters through the actrlRuleHit5min family (child CDactrlRuleHit5min of actrlRule, with ingrPktsCum / egrPktsCum / pktsCum and *Last attributes). Cisco's fault catalogue and bug notes reference actrlRuleHit5min. They never mention actrlPermitStats5min or actrlDropStats5min, which look invented. Sibling UC-18.1.9 correctly uses actrlRuleHit5min.",
+      "field": "dataSources",
+      "quote": "polling **`actrlPermitStats5min`**, **`actrlDropStats5min`**, **`actrlPermitStats15min`** optional grains, **`actrlEntity`** statistics",
+      "severity": "blocker",
+      "suggested_fix": "Replace the permit/drop stats classes with actrlRuleHit5min (or another actrlRuleHit* grain), and read the permit or deny action from the parent actrlRule. Fix the same names in implementation, detailedImplementation and visualization."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_url": "https://www.cisco.com/c/en/us/support/docs/cloud-systems-management/application-policy-infrastructure-controller-apic/221732-address-aci-fault-code-f3545-f3544-hard.html",
+      "explanation": "Cisco documents F3545 (zoning-rule / Policy CAM programming failure) and F3544 (prefix-rule failure) as the contract-TCAM faults. I could not confirm F4029, F4030 or F1742 with the stated meanings. The visualization and Step 4 also build on F4029/F4030.",
+      "field": "detailedImplementation",
+      "quote": "**F4029** contract not deployed, **F4030** partial programming success, **F1742** orphan contract references",
+      "severity": "needs_verification",
+      "suggested_fix": "Check F4029, F4030 and F1742 in the ACI System Messages Reference. Use F3545/F3544 as the TCAM programming-failure faults unless the others are confirmed."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_url": "https://blog.joshuamorgan.com.au/post/cisco-aci-deep-dive-contracts-part-2-zoning-rules/",
+      "explanation": "The actrlRule action property is documented as 'action' (a bitmask of deny, count, log, copy, permit, redir), not 'actionT'. A filter on actionT would return an error or nothing. The value list 'permit, deny, log, redirect' for actionT in Step 1 has the same problem.",
+      "field": "detailedImplementation",
+      "quote": "GET /api/class/actrlRule.json?query-target-filter=eq(actrlRule.actionT,\"deny\")",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm the attribute name in the APIC Management Information Model reference for actrl:Rule. If it is 'action', use wcard(actrlRule.action,\"deny\") or an equivalent filter."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "vzBrCP.prio is a QoS class (unspecified, level1 to level6). It is not a precedence for enforcing contracts, and actrlRule.prio is a numeric zoning-rule priority. The text treats these as the same thing and draws enforcement conclusions from a QoS setting.",
+      "field": "detailedImplementation",
+      "quote": "contract **prio** (**level1**–**level3**) ... prio_latest echoes Cisco contract priority (**level1** highest)—investigate when lower tiers appear dominant because **vzAny** inserts wide permits",
+      "severity": "needs_verification",
+      "suggested_fix": "Check vz:BrCP.prio and actrl:Rule.prio in the MIM reference. Describe them separately, and drop the claim that a QoS level shows which permits are winning."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/datacenter-fabric-sdn.md",
+      "explanation": "The rows are per-rule cumulative hit counters and contract configuration snapshots, not flow records with src/dest/transport. They do not populate Network_Traffic usefully, and contract config is not Inventory asset data. The guide maps Network_Traffic to flow sources (DFW, Hubble, OVS) and ACI faults to Alerts.",
+      "field": "cimModels",
+      "quote": "\"Network_Traffic\",\n    \"Inventory\"",
+      "severity": "major",
+      "suggested_fix": "Drop Network_Traffic and Inventory, or limit the mapping to fault rows (Alerts) and aaaModLR edits (Change). Update schema and dataModelAcceleration to match."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "evidence_ref": "content/cat-04-cloud-infrastructure",
+      "explanation": "cat-04 is Cloud Infrastructure, and no UC in the catalogue mentions eStreamer except this one, so the cross-reference goes nowhere. 'HyperFlex application-aware firewalling' is not a HyperFlex feature. The 'out of support since Mar 2024' claim for APIC 4.x is unsourced.",
+      "field": "exclusions",
+      "quote": "that data flows through the Cisco eStreamer use cases under cat-04; Cisco Hyperflex application-aware firewalling (use cat-19)",
+      "severity": "major",
+      "suggested_fix": "Point to the category that actually holds Secure Firewall UCs (look it up). Remove the HyperFlex clause, and either cite the Cisco end-of-support notice for APIC 4.x or delete that claim."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL has no baseline, no velocity calculation and no fault-code correlation. It sums counters over 24h and lists the top 250 DNs. The description's 'alert when total_pkt > 0' fires on every row with traffic.",
+      "field": "implementation",
+      "quote": "schedule Splunk alerts comparing deny velocities against baseline permits while correlating **faultInst** codes referencing TCAM programming",
+      "severity": "major",
+      "suggested_fix": "Describe what the search actually produces: a ranked table of rule DNs by drop volume. Alternatively, describe the baseline and threshold logic once the SPL implements them."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "contract_hint and rule_action do not survive the stats command; the output fields are mo_roles and action_latest. Panel 4 uses cisco:aci:syslog, which the SPL never searches.",
+      "field": "visualization",
+      "quote": "Heatmap **deny_ratio** × **contract_hint**. (3) Table worst **dn_lc** tuples with **prio_latest**, **rule_action**",
+      "severity": "minor",
+      "suggested_fix": "Use the output field names (mo_roles, action_latest), and either add a separate syslog/fault search for panel 4 or drop it."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "The -FX is not a legacy platform, and Cisco's TCAM guidance describes -FX/-FX3/-GX as the higher-capacity models compared with -EX/-FX2. The numbers are unsourced.",
+      "field": "hardware",
+      "quote": "TCAM capacity ranges from 4096 rules on legacy 9300-FX to 64K+ on 9300-GX2",
+      "severity": "needs_verification",
+      "suggested_fix": "Take the Policy CAM figures per platform from the ACI Verified Scalability Guide for the release in scope, or remove the numbers."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "grandma_fidelity",
+      "explanation": "The ending about blaming a software release has nothing to do with the detection, and 'counters that hide real movement' is vague. The search ranks network rules by how much traffic they block or allow.",
+      "field": "grandmaExplanation",
+      "quote": "so quiet mistakes—like shortcuts that bypass careful checks or counters that hide real movement—surface before anyone blames the wrong software release",
+      "severity": "minor",
+      "suggested_fix": "Say plainly that the search counts how often each network rule allowed or blocked traffic between application groups and highlights the rules blocking the most."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The reviewer is 'agent-handcraft-2026-04-29', and the text contains invented MO classes and an add-on ID that does not exist. That is not evidence of SME sign-off.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set the status to draft or unverified until an ACI SME confirms the classes, attributes and fault codes."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The search sums cumulative counters (permitPktCum, pktCum, ...) across every poll in 24h, which inflates totals by roughly the number of polls. It should use the *Last per-interval attributes or the delta between consecutive polls. permit_bytes also has no source, because actrlRuleHit5min carries packet counters only.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval",
+      "field": "spl",
+      "issue": "total_pkt=permit_sum+drop_sum is null whenever either sum is null, which happens for every DN that has only permit or only drop rows. deny_ratio is therefore null exactly where it matters. Wrap both sums in coalesce(x,0).",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The where clause matches class names (vzbrcp, actrlrule, fvrscons, ...) against the DN, but ACI DNs use rn prefixes (brc-, subj-, flt-, rscons-, rsprov-, rule-), so the regex rarely matches and permit_sum>0 does all the filtering. Config rows and stats rows are also grouped by different DNs, so they never join. The scope_tag patterns '/brcdef' and 'uni/tn-x/ctx-' do not identify vzAny contracts or contract scope; the vzAny DN is uni/tn-X/ctx-Y/any.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "contract_hint labels vzBrCP as 'bridge_domain_contract'. vzBrCP is the contract object (binary contract profile), not a bridge-domain construct.",
+      "severity": "minor"
+    },
+    {
+      "evidence_url": "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/aci/apic/sw/all/syslog/guide/b_ACI_System_Messages_Guide/m-aci-f9x-messages.html",
+      "field": "spl",
+      "issue": "The search reads stats from the invented classes actrlPermitStats5min and actrlDropStats5min. The real counter class is actrlRuleHit5min, with ingrPktsCum/egrPktsCum/pktsCum attributes.",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0017-UC-18.1.4",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 2,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "Long and confident, but it rests on invented APIC statistics classes (actrlPermitStats5min / actrlDropStats5min), a wrong Splunkbase ID for the ACI add-on, and unverified fault codes. The SPL sums cumulative counters and has no real alert condition, so the text promises a detection the search does not deliver.",
+  "tier": "deep",
+  "uc_id": "UC-18.1.4",
+  "verdict": "incorrect"
+}

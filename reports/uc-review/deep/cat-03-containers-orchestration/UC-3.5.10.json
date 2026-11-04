@@ -1,0 +1,130 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "f2093fc3e0a5f3c46ff1e8702ebc1e9421196552065398e1c598c6f04bd97159",
+  "file": "content/cat-03-containers-orchestration/UC-3.5.10.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://istio.io/latest/docs/reference/config/telemetry/",
+      "explanation": "`istio-system` is Istio's root configuration namespace; a selector-less Telemetry resource there is the mesh-level configuration, so this advice enables access logs for every workload rather than only the gateway.",
+      "field": "detailedImplementation",
+      "quote": "Alternatively, use a namespace-scoped **Telemetry** resource targeting only the `istio-system` namespace to avoid enabling access logs mesh-wide.",
+      "severity": "blocker",
+      "suggested_fix": "Use a Telemetry resource in the gateway's namespace with `selector.matchLabels` (for example `istio: ingressgateway`) so only gateway pods emit access logs."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://raw.githubusercontent.com/splunk/splunk-connect-for-kubernetes/main/README.md",
+      "explanation": "Splunk Connect for Kubernetes reached End of Support on 1 January 2024; Splunk recommends the Splunk OpenTelemetry Collector for Kubernetes (Splunkbase 6264 in the cached catalogue), which already collects container stdout access logs and Kubernetes events.",
+      "field": "app",
+      "quote": "**Splunk Connect for Kubernetes** for access log and event collection. — Splunk Connect for Kubernetes (Splunkbase 5167)",
+      "severity": "blocker",
+      "suggested_fix": "Name only the Splunk OpenTelemetry Collector for Kubernetes (Splunkbase 6264) with its filelog and k8s events receivers; drop SCK or label it legacy."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/container-platforms-docker-openshift.md",
+      "explanation": "The SPL reads only `envoy:accesslog`, so 'requiring five' is false, and the grounding guide places Envoy access logs in `index=mesh` as `istio:envoy:access`; `kube:pod:status` and `kube:container:logs` are not sourcetypes the OTel chart produces by default (container logs default to the container name).",
+      "field": "dataSources",
+      "quote": "`index=containers` requiring five distinct sourcetypes: **`sourcetype=envoy:accesslog`** ... **`sourcetype=kube:pod:status`** ... **`sourcetype=kube:container:logs`**",
+      "severity": "major",
+      "suggested_fix": "List the access log as the single required source using the guide's index/sourcetype names, and describe metrics, pod status and events as optional correlation sources with the sourcetypes your collector actually assigns."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web",
+      "explanation": "Gateway access logs are HTTP request records (status, method, path, duration), which fit the CIM `Web` datamodel; Network_Traffic models flow sessions and Performance models host resource metrics.",
+      "field": "cimModels",
+      "quote": "\"Network_Traffic\",\n    \"Performance\"",
+      "severity": "major",
+      "suggested_fix": "Map to `Web` (with aliases for status, http_method, uri_path, dest) or leave empty since the SPL uses no datamodel."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://istio.io/latest/docs/tasks/observability/logs/access-log/",
+      "explanation": "`meshConfig.accessLogFile` / `accessLogEncoding` are MeshConfig install options, not the Telemetry API; the text mixes the two mechanisms.",
+      "field": "detailedImplementation",
+      "quote": "Configure via the Istio **Telemetry API**:\n  — Set `meshConfig.accessLogFile` to `/dev/stdout`",
+      "severity": "minor",
+      "suggested_fix": "Present MeshConfig (`accessLogFile`, `accessLogEncoding: JSON`) and the Telemetry API (`accessLogging` with the `envoy` provider) as two alternatives."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL contains three searches (the response-flag breakdown is the third), and the per-route `gateway_slo_thresholds.csv` lookup described in detailedImplementation is never used by the SPL.",
+      "field": "implementation",
+      "quote": "Build two search variants: 5-minute p50/p95/p99 latency by route with SLO breach detection, and daily p95 trend",
+      "severity": "minor",
+      "suggested_fix": "Describe all three searches and either drop the lookup or note that the SPL hardcodes p95 > 500 ms and error rate > 1%."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "clarity",
+      "explanation": "A real-time search over access logs is costly and unnecessary for 5-minute buckets; the rest of the text describes scheduled cadence.",
+      "field": "detailedImplementation",
+      "quote": "Schedule the 5-minute latency search as a **real-time alert** with a 5-minute window.",
+      "severity": "minor",
+      "suggested_fix": "Schedule every 5 minutes over `-10m@m` to `-5m@m` (allowing for ingest lag) instead of real-time."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "explanation": "The title names perc but the URL is the eventstats page, and the SPL uses neither eventstats nor perc directly.",
+      "field": "references",
+      "quote": "\"title\": \"Splunk perc Command Reference\",\n      \"url\": \"https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eventstats\"",
+      "severity": "minor",
+      "suggested_fix": "Point to the Search Reference statistical functions page (percentile functions) and the trendline command page."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The reviewer is an automated agent and the content carries factual errors, so there is no evidence of SME sign-off.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft/community until a human SME validates."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Trendline",
+      "field": "spl",
+      "issue": "The daily trend search runs `trendline sma7(daily_p95)` after `stats ... by _time, route`; trendline has no by-clause, so the 7-row moving average mixes different routes and REGRESSION flags are meaningless unless results are split per route (for example with streamstats window=7 avg(daily_p95) by route).",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://istio.io/latest/docs/ops/diagnostic-tools/proxy-cmd/",
+      "field": "spl",
+      "issue": "Gateway filter `like(upstream_cluster, \"inbound%\")` matches requests logged by destination sidecars (inbound|port|... clusters) across the whole mesh, while ingress gateway requests use outbound|... upstream clusters; `pod_name` is not in Istio's default JSON access log and depends on collector metadata naming (e.g. k8s.pod.name). Verify and filter on the gateway pod/workload label instead.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "`coalesce(..., 0)` assigns 0 ms to requests with no parsable duration, dragging percentiles down; `response_flags` can carry several comma-separated flags so the case() mapping misses combinations.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0106-UC-3.5.10",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The detailed implementation explains Envoy response flags and SLO logic well, but the ingest path relies on the deprecated Splunk Connect for Kubernetes, the Telemetry scoping advice would enable access logs mesh-wide, the gateway filter in the SPL selects sidecar inbound traffic, and the trend search applies trendline across routes.",
+  "tier": "deep",
+  "uc_id": "UC-3.5.10",
+  "verdict": "incorrect"
+}

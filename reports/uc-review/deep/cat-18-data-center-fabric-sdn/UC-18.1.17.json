@@ -1,0 +1,119 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "0081fa29abaee1d05b1e3837bd8def7fc617ac284b21884f2d9754b587667089",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.1.17.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase 4022 is 'Technical Addon for the Metricator application for Nmon (HEC)'. The ACI add-on is TA_cisco-ACI (1897, deprecated). Cisco DC Networking (7777, listed as 'Cisco DC Networking') is the supported collector for ACI and Nexus Dashboard, not just optional dashboards. The 4022 ID repeats in dataSources, implementation, detailedImplementation and references.",
+      "field": "app",
+      "quote": "**Splunk_TA_cisco-aci** ([Splunkbase **4022**](https://splunkbase.splunk.com/app/4022)), **Cisco DC Networking Application for Splunk** (**Splunkbase** **7777**) optional dashboards",
+      "severity": "blocker",
+      "suggested_fix": "Make Cisco DC Networking (cisco_dc_networking_app_for_splunk, 7777) the primary collector for APIC and Nexus Dashboard data, list TA_cisco-ACI (1897, deprecated) as legacy, and remove 4022."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The implementation recommends a separate cisco_ndo index for the NDO audit and health lanes, but the SPL searches only index=cisco_aci, so following the guidance silently drops every NDO signal.",
+      "field": "cross_field",
+      "quote": "dataSources: \"`index=cisco_aci` (rename per governance) plus optional **`index=cisco_ndo`**\"; detailedImplementation: \"an `index=cisco_ndo` (or merged) lane for cisco:mso:audit ...\"; SPL: \"index=cisco_aci ( sourcetype IN (\\\"cisco:mso:audit\\\", ...\"",
+      "severity": "major",
+      "suggested_fix": "Either say all lanes must land in cisco_aci, or state that the search must cover (index=cisco_aci OR index=cisco_ndo)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The SLO breach, the velocity flag and pred_hot all depend on time_to_sync_seconds, but NDO audit and schema APIs do not return such a field and the UC never explains how to compute it (for example deploy-request time minus deploy-success time per schema/site).",
+      "field": "dataSources",
+      "quote": "**`time_to_sync_seconds`** when exporters compute latency",
+      "severity": "major",
+      "suggested_fix": "Define the computation explicitly: which audit records mark deployment start and completion, and how to pair them per schema_id and site_id. Or derive it in SPL with transaction or stats."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "'multiSite::NotPresent' does not look like any APIC fault or event format (APIC uses Fxxxx/Exxxx codes with lifecycle tags). The SPL's risk_fault lane depends on it.",
+      "field": "dataSources",
+      "quote": "**`sourcetype=cisco:aci:syslog`** (**Splunk_TA_cisco-aci**, Splunkbase **4022**) for **`multiSite::NotPresent`** narratives",
+      "severity": "needs_verification",
+      "suggested_fix": "Look up the APIC/NDO fault codes raised for intersite connectivity or multi-site spine issues in the ACI System Messages Reference, and use those codes."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Cloud APIC (Cloud Network Controller) exposes the standard APIC MIT REST API (for example /api/class/aaaModLR.json), not an /api/v1/audit path. The NDO site_state values 'Critical Comm Failure', 'Site Outage' and 'Reachability Degraded' are also unverified.",
+      "field": "detailedImplementation",
+      "quote": "Configure **Cloud APIC** **`GET https://<cloud-apic>/api/v1/audit`**",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Cloud Network Controller REST API guide and the NDO API reference, then replace the path and state strings with documented values."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "ACI Multi-Site spines peer with each other over MP-BGP EVPN across the ISN and are not usually described as ASBRs. No collector named in the UC produces bgp:evpn:asbr, and the source of this telemetry is never specified.",
+      "field": "dataSources",
+      "quote": "**`sourcetype=bgp:evpn:asbr`** or **`cisco:aci:bgp_evpn`** pivots renamed for spine **BGP-EVPN ASBR** posture",
+      "severity": "needs_verification",
+      "suggested_fix": "Describe collecting the spines' inter-site bgpPeerEntry (operSt) via APIC REST, and use a sourcetype that a named collector actually produces."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "This link points to the Cisco homepage, and the 4022 reference links to an Nmon add-on.",
+      "field": "references",
+      "quote": "\"title\": \"Cisco Nexus Dashboard Orchestrator User Guide (NDO documentation hub)\", \"url\": \"https://www.cisco.com/c/en/us/\"",
+      "severity": "major",
+      "suggested_fix": "Link the NDO configuration guide and NDO API reference pages, and replace 4022 with 7777."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "grandma_fidelity",
+      "explanation": "The sites here are data centres or cloud regions, not campuses, and the explanation leaves out the connection-down and BGP signals the SPL also checks.",
+      "field": "grandmaExplanation",
+      "quote": "We watch whether every campus still follows the same master playbook",
+      "severity": "minor",
+      "suggested_fix": "Say 'every data-centre site', and add that it also warns when the links between sites go down."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "An automated agent marked the UC verified, with no SME sign-off, while it depends on an uncomputed field and unverified fault strings.",
+      "field": "status",
+      "quote": "\"status\": \"verified\", ... \"reviewer\": \"agent-handcraft-2026-04-29\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft/unverified."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The search covers only index=cisco_aci, while the UC directs NDO audit and health lanes to index=cisco_ndo. It also keys risk_fault on the unverified 'multiSite::NotPresent' string and the SLO on time_to_sync_seconds, which no listed source emits.",
+      "severity": "major"
+    },
+    {
+      "field": "title",
+      "issue": "'ISN BGP-EVPN ASBR' is non-standard terminology for ACI Multi-Site spine EVPN peering. Verify it against Cisco Multi-Site architecture documentation.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0008-UC-18.1.17",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 3,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "Multi-site health is an important topic, but the UC names the wrong Splunkbase add-on and searches only index=cisco_aci while telling readers to land the NDO data in index=cisco_ndo. Its headline SLO depends on a time_to_sync_seconds field that no named source emits, and several fault strings, states and sourcetypes look invented.",
+  "tier": "deep",
+  "uc_id": "UC-18.1.17",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,126 @@
+{
+  "confidence": 0.78,
+  "content_sha256": "c76023adcf017ff1de3c1668482e3a7ed186b080b7ef58db9d2a7c9c6b3a68b4",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.4.11.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://www.splunk.com/en_us/download/universal-forwarder.html",
+      "explanation": "The Universal Forwarder is downloaded from splunk.com and is not a Splunkbase app; splunkbase.splunk.com/app/617 returns 404 and ID 617 is absent from data/splunkbase-catalog.json. The false ID is repeated in dataSources and detailedImplementation. SC4SNMP is Splunkbase 6266 and SNMP Modular Input is 1537 per the catalog.",
+      "field": "app",
+      "quote": "APC PowerNet-MIB / AirIR-MIB field extractions — Universal Forwarder (Splunkbase 617)",
+      "severity": "blocker",
+      "suggested_fix": "Remove \"Universal Forwarder (Splunkbase 617)\" and cite Splunk Connect for SNMP (Splunkbase 6266) or SNMP Modular Input (Splunkbase 1537)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/simonjj/SnmpMibs/blob/master/PowerNet-MIB.mib",
+      "explanation": "PowerNet-MIB has no battery-age-in-months object. The nearest is upsBasicBatteryLastReplaceDate (.1.3.6.1.4.1.318.1.1.1.2.1.3), a mm/dd/yy string that is factory-set and must be reset by the administrator after each replacement. The SPL's `battery_age_months` therefore has to be derived, and nothing tells the reader how. The replace signal is upsAdvBatteryReplaceIndicator (.1.3.6.1.4.1.318.1.1.1.2.2.4, 2 = batteryNeedsReplacing), which the text should name explicitly.",
+      "field": "dataSources",
+      "quote": "`sourcetype=\"snmp:apc:ups\"` (APC PowerNet / AirIR / ATS / NetBotz OIDs per deployment)",
+      "severity": "major",
+      "suggested_fix": "List the OIDs: upsAdvBatteryReplaceIndicator (1 = no, 2 = needs replacing) and upsBasicBatteryLastReplaceDate. Explain how to compute `battery_age_months` from the last-replace date (e.g. `strptime(upsBasicBatteryLastReplaceDate, \"%m/%d/%y\")` at search time or a calculated field), and warn that it is only accurate if technicians update the date after each swap."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "evidence_url": "https://github.com/simonjj/SnmpMibs/blob/master/PowerNet-MIB.mib",
+      "explanation": "The SPL does not predict and does not use impedance. It flags hosts where battery age exceeds 36 months, the replace indicator equals 2, or the raw event contains \"replace battery\", and then returns latest age and UPS names per host. The description implies a summarise-then-threshold order that is reversed in the SPL, and it never mentions the replace-indicator path.",
+      "field": "description",
+      "quote": "Summarises `values` grouped by `host` across `the scheduled window` before applying `age_months` > 36.",
+      "severity": "major",
+      "suggested_fix": "Describe the actual logic: over 30 days of polls, list each UPS host whose battery is older than 36 months or whose APC replace-battery indicator or log text says the battery needs replacing. State plainly that impedance is not measured; APC's internal self-test drives the replace indicator."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "clarity",
+      "explanation": "Too terse to act on: it does not say which OID or how to tie to procurement (upsAdvBatteryInternalSKU / external battery SKU exist in PowerNet-MIB).",
+      "field": "implementation",
+      "quote": "(1) Validate vendor-specific replace OID mapping. (2) Integrate with procurement SKU.",
+      "severity": "minor",
+      "suggested_fix": "Name upsAdvBatteryReplaceIndicator and upsBasicBatteryLastReplaceDate, and suggest adding upsAdvBatteryInternalSKU/ExternalBatterySKU (verify availability on the model) to the output for ordering replacements."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "Contradicts the SPL's `earliest=-30d`, and the rest is generic boilerplate (vendor API rate limits, HTTP 401/429, \"page\" on-call) that does not suit a slow-moving battery-lifecycle report that should run daily or weekly.",
+      "field": "detailedImplementation",
+      "quote": "Schedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages.",
+      "severity": "major",
+      "suggested_fix": "Recommend a daily or weekly scheduled report over 30 days, polling battery OIDs every 1-24 h, routing results to facilities as a ticket rather than a page, and validating against the NMC 'Battery' page (last replace date, replace indicator)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "No scenario names a real cause of a false replace recommendation.",
+      "field": "knownFalsePositives",
+      "quote": "Scheduled automation elevates `age_months` without crossing `age_months` > 36 for UC-15.4.11.",
+      "severity": "major",
+      "suggested_fix": "Name real causes: last-replace date never reset after a battery swap (age looks too old), factory date on newly installed UPS stock, replace indicator latching after a failed self-test until the next successful test, and external battery packs with different ages than the internal battery."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The title/SPL mismatch on impedance, the non-existent Splunkbase ID and the templated prose show no meaningful SME verification occurred.",
+      "field": "status",
+      "quote": "\"status\": \"verified\",",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until an SME validates OIDs and the age derivation against a real APC NMC."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "The Schneider link is a PDU product category, not UPS battery documentation; the SC4SNMP link is a Splunkbase search URL.",
+      "field": "references",
+      "quote": "https://www.se.com/ww/en/product-category/3100-2000-pdu/",
+      "severity": "minor",
+      "suggested_fix": "Link APC UPS battery replacement / NMC documentation, the PowerNet-MIB reference and https://splunkbase.splunk.com/app/6266."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "grandma_fidelity",
+      "explanation": "It does not mention backup batteries wearing out, which is what this UC is about.",
+      "field": "grandmaExplanation",
+      "quote": "We watch the physical data center for power, cooling, environment, and physical access.",
+      "severity": "minor",
+      "suggested_fix": "e.g. \"We list the backup power batteries that are more than three years old or that the UPS itself says need replacing, so they can be swapped before they fail.\""
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "title",
+      "issue": "Title promises \"Prediction from Age and Impedance\", but PowerNet-MIB exposes no battery impedance object and the SPL only applies an age threshold and the replace indicator (the variable named `imp` is the replace flag, not impedance). Retitle to something like \"APC UPS Battery Replacement Due (Age or Replace Indicator)\".",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`upsSmartBatteryReplace` does not appear in PowerNet-MIB; confirm it exists or drop it. `battery_age_months` has no source OID and must be derived from upsBasicBatteryLastReplaceDate.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "difficulty",
+      "issue": "`advanced` overstates a single-pass threshold search; `intermediate` fits better once the age derivation is documented.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0089-UC-15.4.11",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 1,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The SPL flags UPS units whose battery is over 36 months old or whose APC replace-battery indicator is set, but the title promises impedance-based prediction that neither the SPL nor PowerNet-MIB provides. Battery age has no source OID, the collection text cites a non-existent Splunkbase ID, and the rest is template boilerplate under a `verified` status.",
+  "tier": "deep",
+  "uc_id": "UC-15.4.11",
+  "verdict": "incorrect"
+}

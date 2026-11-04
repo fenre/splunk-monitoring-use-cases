@@ -1,0 +1,106 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "7d231ebfc36d9ba4034b425dfd83dd553ffb4adea080663cf217b09fca7f51a3",
+  "file": "content/cat-10-security-infrastructure/UC-10.13.2.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "explanation": "In the CIM Authentication model, `app` is 'the application involved in the event' (for example ssh, splunk, win:local) and `signature` is 'a human-readable signature name'. The mechanism has its own field, `authentication_method`, with `authentication_service` alongside. Grouping by signature and app yields event names and applications, not Kerberos/NTLM/SAML.",
+      "field": "dataSources",
+      "quote": "IdP logs with `signature` or `app` denoting mechanism",
+      "severity": "blocker",
+      "suggested_fix": "Say the UC needs the mechanism in CIM `authentication_method`. For Windows, map it from 4624 AuthenticationPackageName / LogonProcessName, or distinguish 4768/4769 (Kerberos) from 4776 (NTLM). For IdPs, map the protocol (SAML, OIDC, WS-Fed, legacy basic auth). Verify the field is populated for each sourcetype before relying on the distribution."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "implementation and detailedImplementation describe a baselined alert (new values, NTLM surges, per business unit), but the SPL is a static all-time count by signature and app. It has no time bucketing, no business-unit split, no baseline and no threshold. The visualization field also calls for a timechart the search does not produce.",
+      "field": "cross_field",
+      "quote": "implementation: \"Baseline per business unit; alert on new `signature` values or surges in `NTLM` where Kerberos is expected.\"",
+      "severity": "major",
+      "suggested_fix": "Either describe the UC as a distribution report (pie or bar of mechanism share over the window) or explain the alerting logic: compare this week's NTLM share per business unit or domain controller with a trailing baseline. Name the actual grouping fields."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "No concrete add-on is named. The Windows mechanism data comes from the Splunk Add-on for Microsoft Windows (Splunkbase 742) on domain controllers, and IdP data from vendor add-ons such as the Splunk Add-on for Okta Identity Cloud (6553) or Microsoft Entra ID inputs.",
+      "field": "app",
+      "quote": "AD, IdP TAs → CIM Authentication — Universal Forwarder (Splunkbase 617)",
+      "severity": "major",
+      "suggested_fix": "List the add-ons: Splunk Add-on for Microsoft Windows (742) for DC Security logs (4624/4768/4769/4776), plus the IdP add-on in use (for example Splunk Add-on for Okta Identity Cloud, 6553). Each must populate CIM authentication_method."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "clarity",
+      "explanation": "Steps 1 to 4 appear twice. The second copy is generic template text (HEC tokens, vendor API polling, 'sourcetype=see SPL', 401/429 errors) that does not apply to DC event logs, and the first 'Step 1' only repeats the implementation sentence.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=see SPL into security. Default poll interval 300–900 seconds unless the vendor API rate-limits lower.",
+      "severity": "major",
+      "suggested_fix": "Keep one step sequence: collect DC Security logs and IdP logs; confirm authentication_method is populated (`| tstats count from datamodel=Authentication by Authentication.authentication_method sourcetype`); accelerate Authentication; build the mechanism-share chart; define the NTLM-surge alert condition."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The scenarios are generic and refer to thresholds and placeholders that do not exist. They miss the real reasons the mechanism mix shifts benignly: legacy apps or appliances that only speak NTLM, IP-address (non-SPN) access forcing NTLM fallback, domain controller outages causing Kerberos failures, and new SaaS onboarding increasing SAML share.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `signature`, `app`** — Health checks in `security` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "Replace with concrete causes: NTLM fallback when clients connect by IP or the SPN is missing, legacy NAS/printers/scanners with NTLM-only auth, migrations or new SSO integrations shifting the SAML/OIDC share, and vulnerability scanners using NTLM credentials."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "grandma_fidelity",
+      "explanation": "It never says what is measured: which login methods people and systems use, and why a rise in older, weaker methods matters. It would fit any CIM UC.",
+      "field": "grandmaExplanation",
+      "quote": "We use the same kind of check described for \"Authentication Type Distribution\" once our data is shaped in a common, repeatable way across products.",
+      "severity": "major",
+      "suggested_fix": "We count which kinds of sign-in methods our computers and cloud apps use. If the older, easier-to-abuse method suddenly becomes more common where the modern one should be used, the team checks whether something is misconfigured or whether an attacker is forcing a downgrade."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The HEC, inputs.conf and savedsearches.conf references are generic and do not support this UC. Windows logon event documentation (4624 Authentication Package, 4776) would help.",
+      "field": "references",
+      "quote": "\"title\": \"Splunk HTTP Event Collector\"",
+      "severity": "minor",
+      "suggested_fix": "Replace with Microsoft documentation for events 4624/4768/4769/4776 and keep the CIM Authentication reference."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`stats count by signature, app` does not measure authentication type under CIM semantics. Group by authentication_method (or a coalesce of mechanism fields) and add a time dimension (timechart) to match the visualization and the 'surge' language. index=security is also an assumed index name.",
+      "severity": "major"
+    },
+    {
+      "field": "cimSpl",
+      "issue": "Same problem: groups by Authentication.signature and Authentication.app instead of Authentication.authentication_method.",
+      "severity": "major"
+    },
+    {
+      "field": "monitoringType",
+      "issue": "'Compliance' fits poorly. This is a security posture or protocol-downgrade analytic, so 'Security' would match splunkPillar.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0066-UC-10.13.2",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The UC promises a Kerberos vs NTLM vs SAML mix, but it groups by CIM `signature` and `app`. In CIM those fields are the human-readable event name and the application involved; the mechanism belongs in `authentication_method`. A reader following the text would build a chart that does not show authentication type. The rest of the prose is template residue with duplicated implementation steps.",
+  "tier": "deep",
+  "uc_id": "UC-10.13.2",
+  "verdict": "incorrect"
+}

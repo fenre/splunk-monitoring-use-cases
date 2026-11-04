@@ -1,0 +1,108 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "5c014a89cd58975f2e960bee0bbb2d4b3e54648c79be46a4cf4b32b511b8f7c6",
+  "file": "content/cat-24-business-intelligence-analytics-platforms/UC-24.7.32.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL has no count threshold or window. It outputs `events` and `last_event` per agent and returns every agent with at least one matching message in the search time range. The placeholders 'the scheduled window' and 'configured threshold' are unresolved, so the reader cannot tell what makes a row alert-worthy.",
+      "field": "description",
+      "quote": "Outputs `count` each `the scheduled window`; alert when configured threshold.",
+      "severity": "major",
+      "suggested_fix": "Say that each row is an agent with at least one unavailable, disconnected or lost message in the search window, with the count and time of the latest message. Name the alert condition."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The SPL has no production-host filter and no state tracking. Combined with the Step 2 advice `earliest=-24h@h`, a 5-minute schedule would re-alert on the same old messages for 24 hours even after the agent has reconnected. The 'recovered' state is never checked.",
+      "field": "cross_field",
+      "quote": "schedule every 5 minutes and alert on any agent-unavailable event for a production host",
+      "severity": "major",
+      "suggested_fix": "Use a short lookback matching the schedule, or compare the latest status message per agent and alert only when the last event is an unavailable one. State how production agents are identified."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The SPL only searches `controlm:em`. The listed `controlm:job` and `controlm:agent` sourcetypes are never used. Three ingestion paths are mentioned (Universal Forwarder with a 'modular input', HEC scripted inputs, DB Connect), and the subcategory guidance says Control-M data comes via its TA. The reader cannot tell which path produces `controlm:em`.",
+      "field": "dataSources",
+      "quote": "Control-M Automation API job status (`controlm:job`), Control-M/EM gateway and agent logs (`controlm:em`, `controlm:agent`). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll",
+      "severity": "major",
+      "suggested_fix": "Name one supported ingestion path for the EM or Server logs and the sourcetype it produces, and drop the sources the search does not use. Check what the Control-M add-on or app provides."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "`/run/jobs/status` reports job execution status. It does not report agent connectivity, which the Automation API exposes through its configuration endpoints for agents on a server. Check the BMC API documentation for the agent status call. The wording 'Disconnected' as an agent state should also be checked against real Control-M agent statuses.",
+      "field": "dataSources",
+      "quote": "the Control-M Automation API (`/run/jobs/status`)",
+      "severity": "needs_verification",
+      "suggested_fix": "Verify the Automation API endpoint and the status values for agents, and cite them. Remove the job status endpoint if it is not used."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "The search relies on free-text keywords and a regex that assume a message format ('Agent <name> ...') that is not documented. Real Control-M/EM messages and agent states may differ, in which case the `agent` field would capture the wrong token or nothing. A match on the lowercase word 'lost' could also hit unrelated text.",
+      "field": "cross_field",
+      "quote": "(\"Agent\" AND (\"Unavailable\" OR \"Disconnected\" OR \"lost\"))\n| rex \"Agent (?<agent>\\S+)\"",
+      "severity": "needs_verification",
+      "suggested_fix": "Add the exact Control-M message text or status field the search was built from, with a sample event, and align the keywords and the rex."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The whole text is generic scaffolding: HEC tokens, 'vendor API rate-limits', `tstats` against 'vendor admin UI inventory', and 401/429 errors. The prerequisites section is empty. There is nothing about Control-M/EM, gateway log paths, or how to tell an agent outage from a network outage.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=controlm:em into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower.",
+      "severity": "major",
+      "suggested_fix": "Rewrite with Control-M specifics: where the EM or Server logs live, how to forward them, a sample message, the agent status meanings, and how to check the agent in the Control-M UI."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "One sentence, with no hint about which logs, which index (`bi`), field extractions, or how the alert is routed. The visualization is just 'Table of agent by last event, status panel'.",
+      "field": "implementation",
+      "quote": "Ingest Control-M/EM gateway logs; schedule every 5 minutes",
+      "severity": "minor",
+      "suggested_fix": "Add the log source, the required rex, the alert action and an owner, and describe the dashboard in more detail."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "grandma_fidelity",
+      "explanation": "An 'unavailable' agent may be down for reasons other than the network (agent process stopped, host reboot, credentials). The text is plain and readable but narrows the cause.",
+      "field": "grandmaExplanation",
+      "quote": "drops off the network so it can be reconnected before jobs pile up",
+      "severity": "minor",
+      "suggested_fix": "Say that the machine that runs scheduled jobs stops answering the scheduler."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The search returns every agent with at least one matching message in the time range and sorts by `last_event` (an unformatted epoch). It does not compare the latest event with a recovery message, so an agent that has already reconnected still shows up. No threshold is applied.",
+      "severity": "major"
+    },
+    {
+      "field": "criticality",
+      "issue": "'critical' for a single agent connection message is questionable without a production-scope filter; check against the criticality criteria.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0038-UC-24.7.32",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The idea is clear, but nothing in the text describes how Control-M/EM agent messages reach Splunk or what the search matches. The description and detailed implementation are generic template text, and the SPL lists past agent messages without checking whether the agent is still down.",
+  "tier": "triage",
+  "uc_id": "UC-24.7.32",
+  "verdict": "rewrite"
+}

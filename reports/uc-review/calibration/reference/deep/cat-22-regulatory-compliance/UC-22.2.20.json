@@ -1,0 +1,149 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "4a6298a19994987920208308ee0f8db02e3ee0addf82ff02dfe77fda4427586a",
+  "file": "content/cat-22-regulatory-compliance/UC-22.2.20.json",
+  "findings": [
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://www.servicenow.com/docs/r/governance-risk-compliance/policy-and-compliance-management/r_InstallWPolAndCompl.html",
+      "explanation": "In ServiceNow Policy and Compliance Management, policies are stored in `sn_compliance_policy` (which extends `sn_grc_document`), with fields such as `name`, `state`, `approvers` and `approval_method`. The add-on names sourcetypes `snow:<table>`, so policy records arrive as `snow:sn_compliance_policy`. `sn_grc_policy` and the fields policy_name, approved_by and approval_date are not native.",
+      "field": "dataSources",
+      "quote": "ServiceNow GRC approvals and tasks are collected with the Splunk Add-on for ServiceNow (Splunkbase 1928) into `index=itsm` as `sourcetype=snow:sn_grc_policy` or `sourcetype=snow:task`, exposing `policy_name`, `approval_status`, `approved_by`, `approval_date`",
+      "severity": "blocker",
+      "suggested_fix": "Collect `sn_compliance_policy` (sourcetype `snow:sn_compliance_policy`) and, for approvals, the approval records (for example `sysapproval_approver`). Map the native fields (name, approvers, sys_updated_on or approval timestamps) to policy_name, approved_by and approval_date with documented aliases, after checking them against the customer instance."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "The Office 365 add-on collects Office 365 Management API audit logs, service status and messages, and DLP events. It does not ingest LMS completion exports and cannot produce `lms:completion` or `lms:enrollment`. The app field repeats this, yet no part of the SPL reads O365 data.",
+      "field": "dataSources",
+      "quote": "after ingest via HEC or the Splunk Add-on for Microsoft Office 365 (Splunkbase 4055) for Azure AD–connected LMS exports",
+      "severity": "blocker",
+      "suggested_fix": "State that LMS completions arrive via HEC, CSV monitor or DB Connect from the LMS. Remove 4055, or describe a specific identity-correlation search that actually uses its sourcetypes."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-servicenow/Configureinputs/",
+      "explanation": "The ServiceNow add-on does not produce LMS sourcetypes. Its input stanza is keyed by `account`, `table`, `duration` (the collection interval) and `timefield`, with the URL held in the account configuration. The sourcetype is assigned automatically as `snow:<table>`. Inputs are created on the add-on's Inputs tab, not under 'Settings > Data Inputs > ServiceNow Service Account'. The 'authoritative fields' listed (number, caller_id, opened_at, ...) are incident fields the SPL never uses.",
+      "field": "detailedImplementation",
+      "quote": "Data collection is performed by the Splunk Add-on for ServiceNow (Splunkbase app ID 1928), landing events in `training`, `itsm` under `lms:completion`, `lms:enrollment`, `snow:sn_grc_policy`, `snow:task`. ... [snow://{instance_slug}]\nurl = https://<instance>.service-now.com\ntable = {table_name}\ninterval = 300 ... sourcetype = {sourcetype}",
+      "severity": "blocker",
+      "suggested_fix": "Split collection into the LMS path (HEC/CSV into index=training) and the ServiceNow path. Show a real stanza (for example `[snow://sn_compliance_policy]` with account, table, duration, timefield=sys_updated_on, index=itsm) and list the policy and approval fields the SPL consumes."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "This is not the SPL. The outer side is `| inputlookup nis2_governance_evidence.csv`, followed by two left joins: index=training on person_id and index=itsm (snow sourcetypes) on policy_name. The time-zone paragraph also refers to a `where _time > last_training_date_epoch` comparison that does not exist. A reader debugging the search would be misled.",
+      "field": "detailedImplementation",
+      "quote": "This search correlates `index=training` (sourcetype=`lms:completion`) on the outer side with `index=itsm` (sourcetype=`lms:enrollment`) on the inner side, joined on `person_id` across the last 800 days.",
+      "severity": "blocker",
+      "suggested_fix": "Describe the actual pipeline: register lookup, roster enrichment, training join on person_id, policy join on policy_name, coalesce to evidence_epoch, then days_since thresholds of 270 and 365. Rewrite the time-zone note for the strptime calls actually used."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Join",
+      "explanation": "The join subsearch is limited by `[join] subsearch_maxout` (default 50,000 rows) and `subsearch_maxtime` (default 60 s) in limits.conf. max_searches_per_cpu controls search concurrency and has nothing to do with join output, so the Prerequisites advice to raise it is also misdirected.",
+      "field": "detailedImplementation",
+      "quote": "Splunk's `| join` subsearch is capped at `max_searches_per_cpu * subsearch_maxout` results (default: 50000).",
+      "severity": "blocker",
+      "suggested_fix": "State the [join] subsearch_maxout and subsearch_maxtime limits. Drop the max_searches_per_cpu advice, and tell the reader to check the job inspector messages for subsearch truncation."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "implementation says to schedule the search weekly and archive results to `index=audit_evidence`. The savedsearches.conf example runs every 6 hours over 800 days and writes to `summary_compliance`, which also contradicts the evidence field.",
+      "field": "cross_field",
+      "quote": "cron_schedule = 0 */6 * * *\ndispatch.earliest_time = -800d ... actions = summary_index\naction.summary_index._name = summary_compliance",
+      "severity": "major",
+      "suggested_fix": "Use a weekly cron (for example `0 6 * * 1`), and set the summary or collect target to `audit_evidence` with the evidence sourcetype named in the evidence field."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "Most of these fields are computed by the SPL or come from the lookups, so checking for them in raw lms:completion events always returns nulls. The Step 4 panel list was produced by splitting the visualization sentence into fragments ('Panel 2 — `Name`', 'Panel 3 — `Role`'), so it is unusable.",
+      "field": "detailedImplementation",
+      "quote": "This detection specifically needs: `approval_chain`, `board_member`, `course_code`, `days_since`, `evidence_id`, `evidence_type`, `governance_flag`, `indexed_approval_epoch`, `indexed_training_epoch`, `name`. Run:\n\n```spl\nindex=training sourcetype=lms:completion earliest=-1h",
+      "severity": "major",
+      "suggested_fix": "Validate the raw inputs instead: person_id, completion_date and course_code in lms:completion; the policy fields in the ServiceNow sourcetype; and the columns of both lookups. Replace the Step 4 panel list with the four rows already given in visualization."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://www.bsi.bund.de/DE/Service-Navi/Presse/Pressemitteilungen/Presse2025/251113_NIS-2-Umsetzungsgesetz.html",
+      "explanation": "Germany transposed NIS2 through the NIS-2-Umsetzungs- und Cybersicherheitsstärkungsgesetz, which enacted the new BSIG (BGBl. 2025 I Nr. 301), not 'IT-SiG 3'. The Dutch law is the Cyberbeveiligingswet (Cbw). The French LPM is the military programming law, not France's NIS2 transposition. The surrounding caveats also cite Art. 23 24-hour reporting, PCI/HIPAA/SOX retention and 'BA/BAA-style governance', none of which apply to Art. 20 governance evidence.",
+      "field": "detailedImplementation",
+      "quote": "A detection correct for German IT-SiG 3 (BSI) may be misaligned with Dutch CWV or French LPM.",
+      "severity": "major",
+      "suggested_fix": "Name the transposition acts correctly (NIS2UmsuCG/BSIG for DE, Cbw for NL; check the FR act), and replace the off-topic caveats with Art. 20 points: national rules on management liability and training cadence, and the definition of management body for each entity type."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "QSA is a PCI role and BAA is a HIPAA construct. A volume spike cannot cause a stale or missing evidence flag, and the text contains template residue ('configured sourcetype'). It misses the real causes of false flags in this search.",
+      "field": "knownFalsePositives",
+      "quote": "External assessor sampling — QSA activity spikes `index=training` `configured sourcetype` without crossing `days_since` > 365. ... Third-party processor under contract — BAA/DPA-covered vendor generates expected rows",
+      "severity": "major",
+      "suggested_fix": "List Art. 20-specific false positives: newly appointed board members within the onboarding grace period, training delivered offline or by external counsel and not recorded in the LMS, person_id mismatch between roster and LMS, and policies approved in board minutes rather than in ServiceNow."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The SPL uses only lookups and core searches. The app field itself calls ES 'optional for correlation dashboards'. Listing it as a premium dependency overstates requirements. Status 'verified' with a named reviewer is not credible while detailedImplementation contains the errors above.",
+      "field": "premiumApps",
+      "quote": "\"premiumApps\": [\"Splunk Enterprise Security\"]",
+      "severity": "major",
+      "suggested_fix": "Remove ES from premiumApps (keep it as optional in app), and set status back to draft or community until the implementation is corrected and re-reviewed."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Scheduled-search executions are normally evidenced by `index=_internal sourcetype=scheduler` (savedsearch_name, status). `_audit` records search activity (action=search), and 'action=log' may not be a real audit action.",
+      "field": "implementation",
+      "quote": "retain `index=_audit` action=log entries for the schedule",
+      "severity": "needs_verification",
+      "suggested_fix": "Check which _audit action values the schedule produces. Most likely, cite `index=_internal sourcetype=scheduler savedsearch_name=\"UC-22.2.20*\"` as the run evidence instead."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "That implementing act sets Art. 21(2) technical measures for specific digital-infrastructure and digital-provider entity types. It does not elaborate Art. 20 management-body accountability.",
+      "field": "references",
+      "quote": "Commission Implementing Regulation (EU) 2024/2690",
+      "severity": "minor",
+      "suggested_fix": "Keep it only with a note on its limited scope, or replace it with Art. 20 guidance (the directive text, ENISA guidance sections on governance, or the national transposition)."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "Both left joins run on every register row, and evidence_epoch coalesces the training epoch first, so a policy_approval or risk_acceptance row for a person can be satisfied by that person's training date. lms:enrollment events are treated as completions. The search uses non-native `snow:sn_grc_policy` and the fields approval_date and approved_by.",
+      "severity": "major"
+    },
+    {
+      "field": "compliance",
+      "issue": "evidenceArtifact cites `snow:sn_grc_policy` with policy_name, approval_date and approved_by, which are not native ServiceNow names (policy table is sn_compliance_policy). requires_sme_review=false while the data model is unverified.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0127-UC-22.2.20",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The core idea (staleness of board training, policy approval and risk-acceptance evidence against a management roster) is sound, and the grandma text is good. However, the detailedImplementation misdescribes the SPL, the ServiceNow add-on and join limits, and dataSources names a non-native ServiceNow policy table and an Office 365 add-on that cannot deliver LMS data. Status 'verified' is not credible with these errors.",
+  "tier": "deep",
+  "uc_id": "UC-22.2.20",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,124 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "c3ef5361597037e628dc75cc8b278ebf15154f46e687ab359d3d564b9e1955e3",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.1.35.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://www.cisco.com/c/en/us/td/docs/unified_computing/ucs/ucs-manager/Reference-Docs/Faults-Error-Msgs/4-2/b_Cisco_UCS_Faults_and_Error_Messages_Reference-4-2/b_Cisco_UCS_Faults_and_Error_Messages_Reference_chapter_01.html",
+      "explanation": "F0408 is fltEquipmentChassisPowerProblem (chassis power/PSU) and F0282 is fltFabricExternalPcDown (fabric/northbound port-channel down, which this UC explicitly excludes). The fault for an IOM/FI port in link-down is F0276 fltPortPIoLinkDown, affecting `sys/chassis-[id]/slot-[id]/[type]/port-[portId]`.",
+      "field": "dataSources",
+      "quote": "Complementary: `cisco:ucs:fault` for persistent `faultInst` rows (F0408, F0282)",
+      "severity": "blocker",
+      "suggested_fix": "Replace F0408/F0282 with F0276 (fltPortPIoLinkDown), and check the fault reference for the FEX host-port and adapter link-down codes if those paths are in scope."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/",
+      "explanation": "The Splunk Add-on for Cisco UCS writes polled data as sourcetype `cisco:ucs` with source `cisco:ucs:faultInst`; there is no `cisco:ucs:fault` sourcetype, and sibling UCs in the same subcategory use yet another name (`cisco:ucs:faults`).",
+      "field": "dataSources",
+      "quote": "`cisco:ucs:fault` for persistent `faultInst` rows ... polled via the TA XML path",
+      "severity": "major",
+      "suggested_fix": "Refer to `sourcetype=cisco:ucs source=cisco:ucs:faultInst` (or the site's documented override) consistently across UCs."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/NetworkTraffic",
+      "explanation": "Interface link-state syslog is not network traffic (flow/session) data, so it does not fit the CIM Network Traffic model; the UC's own dataModelAcceleration says no CIM model applies.",
+      "field": "cimModels",
+      "quote": "\"Network_Traffic\"",
+      "severity": "blocker",
+      "suggested_fix": "Remove Network_Traffic; keep at most Alerts if the alert output is normalised."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "The whole design assumes UCSM emits a distinct `UCSM-6-LINK_UP` mnemonic on recovery. UCSM fault syslog usually re-emits the fault's own cause-based mnemonic with severity `cleared` when a fault clears, in which case no LINK_UP line exists and no transaction ever closes.",
+      "field": "dataSources",
+      "quote": "The message line follows Cisco UCSM’s `%UCSM-*` token, bracketed F-code, and MO `dn` in `[…]`.",
+      "severity": "needs_verification",
+      "suggested_fix": "Capture a real down/up cycle from a lab FI and document the exact raised and cleared syslog lines (mnemonic, F-code, severity word) before fixing the startswith/endswith logic."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "The reference that should ground the LINK_DOWN/LINK_UP mnemonics points at the Cisco home page.",
+      "field": "references",
+      "quote": "\"title\": \"Cisco UCS Manager System Messages Reference (UCSM-* LINK / FSM messages)\",\n      \"url\": \"https://www.cisco.com/c/en/us/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the UCS Faults and Error Messages Reference (or System Messages guide) page for the release in scope."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "Template scenarios with no real flap causes; this detector's real false positives are IOM/FI firmware activations, FI reboots or failovers, chassis re-acknowledgement, and deliberate cable or optic swaps.",
+      "field": "knownFalsePositives",
+      "quote": "Scheduled automation elevates `message_code` without crossing `flap_pairs` >= 10",
+      "severity": "major",
+      "suggested_fix": "List those causes and point to the `ucs_change_windows` suppression already sketched in detailedImplementation Step 5."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "PagerDuty, ServiceNow and syslog are alert destinations or transports, not monitored equipment for this UC.",
+      "field": "equipment",
+      "quote": "\"pagerduty\",\n    \"servicenow\",\n    \"syslog\"",
+      "severity": "minor",
+      "suggested_fix": "Keep only `cisco`."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "Marked verified although the SPL cannot run as written (`#` line in the base search) and the fault codes it routes to are wrong.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until tested with real UCSM syslog flaps."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/SplunkCloud/latest/Search/Comments",
+      "field": "spl",
+      "issue": "Line 2 `# Anchor on real UCSM tokens ...` sits before the first pipe, so Splunk does not treat it as a comment: its words become additional search terms in the base search and the search returns nothing. Use triple-backtick comments.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Transaction",
+      "field": "spl",
+      "issue": "`| sort 0 _time` (ascending) immediately before `transaction ... maxspan=300s`; the transaction command requires descending chronological order and Splunk documents that ascending order with maxspan returns incorrect results. Use `sort 0 -_time`.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://www.cisco.com/c/en/us/td/docs/unified_computing/ucs/ucs-manager/Reference-Docs/Faults-Error-Msgs/4-2/b_Cisco_UCS_Faults_and_Error_Messages_Reference-4-2/b_Cisco_UCS_Faults_and_Error_Messages_Reference_chapter_01.html",
+      "field": "spl",
+      "issue": "recommended_action tells on-call to 'cross-check cisco:ucs:fault for F0408/F0282'; F0408 is a chassis power problem and F0282 a fabric external port-channel down, so the runbook points at the wrong faults (IOM/FI port link-down is F0276).",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The optic lookup keys on chassis_id/slot/port, so FEX host ports (chassis_id null) and switch-ether ports never match; fi_id is only set for switch-A/B DNs, so the owner lookup misses all chassis/IOM rows. The final `sort 0 - flap_pairs, severity_bucket` sorts severity alphabetically ascending, not by rank.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0028-UC-19.1.35",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The scope (chassis/IFM/FEX-to-FI micro-flaps versus northbound LAGs) is well argued, but the SPL has a `#` line in its base search that Splunk treats as search terms, it sorts ascending before `transaction maxspan`, which Splunk documents as giving wrong results, and the triage fault codes F0408/F0282 are a chassis power fault and a northbound port-channel fault, not IOM link flaps. The Network_Traffic CIM mapping is exactly the misfit the rubric warns about.",
+  "tier": "deep",
+  "uc_id": "UC-19.1.35",
+  "verdict": "incorrect"
+}

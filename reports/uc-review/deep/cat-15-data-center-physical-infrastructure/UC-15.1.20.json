@@ -1,0 +1,88 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "dcc11d9d3008f1221d7181dfa1531517915f47c7be28eab2355f387ffa5507c9",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.1.20.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/datacenter-physical.md",
+      "evidence_url": "https://www.splunk.com/en_us/download/universal-forwarder.html",
+      "explanation": "The Universal Forwarder is downloaded from splunk.com, not Splunkbase; splunkbase.splunk.com/app/617 returns 404. The UF also has no SNMP polling of its own, so following this text gives the reader no working collection path. The repository guide says to install an SNMP add-on on a heavy forwarder, and sibling UCs name Splunk Connect for SNMP (6266) or SNMP Modular Input (1537).",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+      "severity": "blocker",
+      "suggested_fix": "Say that branch-circuit OIDs are polled with Splunk Connect for SNMP (Splunkbase 6266) or the SNMP Modular Input add-on (Splunkbase 1537) on a heavy forwarder, and name the vendor MIB objects for branch current and rating (for example APC PowerNet-MIB rPDU2 bank/phase tables or Sentry/Raritan equivalents). Make the same correction in `app` and `detailedImplementation` Step 1."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/datacenter-physical.md",
+      "explanation": "The repository guide puts this exact check (PDU overcurrent risk at more than 80% of capacity) on `sourcetype=\"snmp:rpdu\"` with `bank_load_amps` / `bank_capacity_amps`. `snmp:pdu:branch` and the `branch_*` fields appear nowhere in the guide's sourcetype list or field dictionary, so a reader who follows the guide will not match this UC.",
+      "field": "dataSources",
+      "quote": "`sourcetype=\"snmp:pdu:branch\"` (branch_id, branch_amps, branch_rated_amps)",
+      "severity": "major",
+      "suggested_fix": "Either use the guide's `snmp:rpdu` sourcetype and bank_* field names, or state plainly that `snmp:pdu:branch` and `branch_amps`/`branch_rated_amps` are custom names the reader must create with props/transforms or FIELDALIAS, and say which vendor OIDs they come from."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The `implementation` field says to alert on a sustained 80% load, but the SPL fires on any single poll sample above 80% with no time window, stats, or minimum-duration logic. The `description` and `controlTest` fields also say results are 'grouped by `entity`' and output `count`, but neither field exists in the SPL.",
+      "field": "cross_field",
+      "quote": "Alert at 80% sustained.",
+      "severity": "major",
+      "suggested_fix": "Either describe the detection as 'any single poll above 80% of branch rating, or a branch alarm state', or define 'sustained' (for example, N consecutive polls or the average over 15 minutes above 80%) and ask a human to align the SPL. Remove the `entity`/`count` references and describe the per-`pdu_id`/`branch_id` row grain."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The SPL also filters on `branch_status=\"alarm\"` and outputs `pdu_id`, but the data sources list neither field. The reader cannot tell which OID or value produces the 'alarm' state.",
+      "field": "dataSources",
+      "quote": "(branch_id, branch_amps, branch_rated_amps)",
+      "severity": "minor",
+      "suggested_fix": "Add `pdu_id` and `branch_status` to the field list and name the vendor status object and value that map to 'alarm' (for example a near-overload or overload state in the bank/phase status table)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "The heading is repeated four times, and the whole Step 1–4 sequence then appears a second time with generic vendor-API, HEC and HTTP 401/429 text that does not apply to SNMP polling of a PDU. The second block also tells the reader to 'grant ... `search` on the target index', which is not how Splunk index access works (index access is granted through role srchIndexesAllowed).",
+      "field": "detailedImplementation",
+      "quote": "Step 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize",
+      "severity": "major",
+      "suggested_fix": "Merge into one Step 1–5 sequence. Make it specific to SNMP polling of PDU branch tables: poll interval, SNMPv3 credentials, the OIDs, how branches map to racks, and validation against the PDU web UI. Remove the HEC and vendor-API troubleshooting."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "HEC has nothing to do with SNMP polling of PDUs, and there is no reference to the PDU vendor MIB or to the SNMP add-on.",
+      "field": "references",
+      "quote": "Splunk HTTP Event Collector",
+      "severity": "minor",
+      "suggested_fix": "Replace with the documentation for the SNMP collection add-on and the PDU vendor's MIB reference for branch/bank current objects."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The SPL filters on `branch_status=\"alarm\"` but does not output `branch_status` in `table`, so a row raised only by the alarm state does not show why it alerted. There is also no per-branch dedup (`stats latest(*) by pdu_id, branch_id`), so a 24h schedule returns one row per poll sample.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0013-UC-15.1.20",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The core idea (branch amps over 80% of rating, or a branch alarm) is sound, but the collection path names the Universal Forwarder as a Splunkbase add-on that polls SNMP, the field and sourcetype names drift from the repository guide, the '80% sustained' rule in the prose is not what the SPL does, and the detailed implementation is duplicated template text.",
+  "tier": "deep",
+  "uc_id": "UC-15.1.20",
+  "verdict": "incorrect"
+}

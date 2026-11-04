@@ -1,0 +1,122 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "7bb56ed067e6f297c3bfb2bee33c6317275986db284a6c41a58858c11bea55e5",
+  "file": "content/cat-03-containers-orchestration/UC-3.2.5.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/kubernetes/kubernetes/blob/master/pkg/controller/volume/events/event.go",
+      "explanation": "The volume controller's event reasons include ProvisioningFailed, FailedBinding, ExternalProvisioning, WaitForFirstConsumer and ProvisioningSucceeded, but not FailedProvisioning. The PV controller also emits ExternalProvisioning as a Normal event on every CSI-provisioned claim, so it is not a failure signal. The same reason list is repeated in detailedImplementation Step 1.",
+      "field": "dataSources",
+      "quote": "sourcetype=kube:events for FailedProvisioning, ProvisioningFailed, ExternalProvisioning, and related volume-provisioner messages",
+      "severity": "blocker",
+      "suggested_fix": "List ProvisioningFailed and FailedBinding as the failure reasons. Describe ExternalProvisioning and WaitForFirstConsumer as Normal progress events that are only interesting after a long dwell, and drop FailedProvisioning."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "evidence_url": "https://kubernetes.io/docs/concepts/storage/storage-classes/",
+      "explanation": "The templated scenarios miss the main real false positive: claims on WaitForFirstConsumer StorageClasses stay Pending by design until a consuming pod is scheduled. Normal ExternalProvisioning events during routine CSI provisioning are another. detailedImplementation mentions the first only as a training note, and the SPL never uses volume_binding_mode.",
+      "field": "knownFalsePositives",
+      "quote": "Batch `max` on `prometheus:scrape:metrics`** — Scheduled automation elevates `namespace` without crossing `mv` > 0 for UC-3.2.5.",
+      "severity": "major",
+      "suggested_fix": "Name WaitForFirstConsumer claims with no consuming pod, normal ExternalProvisioning dwell under a few minutes, Helm or CI sandbox churn, and planned StorageClass migrations, and explain how to exclude each."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/inventory",
+      "explanation": "PVC phase and provisioning events are not host performance or inventory data. Performance appears only as a fleet memory average added with appendcols, and Inventory (internally Compute_Inventory) is used with the wrong model and dataset names in cimSpl.",
+      "field": "cimModels",
+      "quote": "\"Performance\",\n    \"Inventory\"",
+      "severity": "blocker",
+      "suggested_fix": "Mark the UC as non-CIM (kube-state-metrics plus kube:events), or keep CIM only as an explicitly optional overlay, and update dataModelAcceleration to match."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "`description` and `controlTest` present internal filters (`mv>0`, `pend>0`) as alert logic and call the detection 'on datamodel Performance'. The SPL actually alerts on medium, high or critical severity, driven by Pending soak (10, 15, 20 and 25 minutes) or provisioning-failure event text.",
+      "field": "cross_field",
+      "quote": "before applying `mv` > 0, `pend` > 0, `pending_soak_min` >= 10, or `pending_soak_min` >= 25",
+      "severity": "major",
+      "suggested_fix": "Describe each row as one PVC Pending for at least 10 minutes or carrying a provisioning-failure event. Then list the severity ladder and state that CIM Performance is an optional context column only."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "Step 1 carries 48 numbered 'Platform engineering notes' and a block of 'alignment' paragraphs, many generic (Jira, Slack, legal hold, penetration tests). The closing checklist ('five step headers use plain em dashes as mandated') is generator residue. The useful CSI-specific guidance is buried.",
+      "field": "detailedImplementation",
+      "quote": "Platform engineering note 43: Grafana mirror dashboards should cite Splunk as the paging system of record to avoid dual-alert fatigue.",
+      "severity": "major",
+      "suggested_fix": "Keep the CSI-driver-specific notes (EBS, GCE PD, Azure Disk, vSphere CNS, Rook, Longhorn, Portworx, static claimRef, WaitForFirstConsumer). Delete the generic process notes and the closing checklist."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/signalfx/splunk-otel-collector-chart/blob/main/helm-charts/splunk-otel-collector/templates/config/_otel-k8s-cluster-receiver-config.tpl",
+      "explanation": "`app` and `references` link the OTel collector to a 'Splunk Add-on for Kubernetes' doc page, and I could not confirm that page exists or describes the collector. The OTel chart also emits kube:events fields as `k8s.event.reason`, `k8s.object.name`, `k8s.namespace.name` and a log body, not the `reason`, `message` and `involvedObject_*` names the text tells readers to normalise.",
+      "field": "cross_field",
+      "quote": "Splunk OpenTelemetry Collector for Kubernetes ([Splunk Add-on for Kubernetes documentation](https://docs.splunk.com/Documentation/AddOns/released/Kubernetes/About))",
+      "severity": "needs_verification",
+      "suggested_fix": "Link the splunk-otel-collector-chart documentation instead. Check the kube:events field names in a live index and document them in Step 2."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified even though its SPL fails to parse and the event reason list contains a reason that does not exist. There is no SME evidence.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set the status to draft until the lab PVC test in Step 4 has actually been run."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/search-commands/multisearch",
+      "field": "spl",
+      "issue": "Both multisearch subsearches contain `stats`, `sort` and `streamstats`, but multisearch allows only streaming commands in subsearches, so the search errors.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/?resourceId=Splunk_SearchReference_Eval",
+      "field": "spl",
+      "issue": "`coalesce(..., `involvedObject.name`, ...)` and `` `involvedObject.kind` `` use backticks, which SPL expands as macro calls, so the search fails with undefined macros. Dotted field names in eval need single quotes.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://github.com/kubernetes/kubernetes/blob/master/pkg/controller/volume/persistentvolume/pv_controller.go",
+      "field": "spl",
+      "issue": "`pending_soak_min=(now()-first(_time))` uses the first Pending sample in the window, so a claim that was Pending 40 minutes ago and has since Bound still reports a 40-minute soak. Soak is also capped by the 45-minute window. Severity escalates on any `evt_reason` (including the Normal ExternalProvisioning), and the pattern `not found` matches broadly.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`sort - severity` sorts the strings alphabetically, putting medium ahead of high and critical. The appendcols Performance.Memory fleet average is template residue unrelated to PVC provisioning.",
+      "severity": "minor"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/inventory",
+      "field": "cimSpl",
+      "issue": "`FROM datamodel=Inventory WHERE nodename=Inventory ... BY Inventory.dest` uses the wrong names: the model is Compute_Inventory with root dataset All_Inventory (`All_Inventory.dest`, `All_Inventory.vendor_product`). The query is also unrelated to PVCs.",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0068-UC-3.2.5",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 3,
+    "correctness": 2,
+    "grandma_fidelity": 5,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The kube-state-metrics PVC and StorageClass families are named correctly and the sibling boundaries are clear. However, the text relies on a nonexistent `FailedProvisioning` event reason, treats the Normal `ExternalProvisioning` event as a failure, ignores WaitForFirstConsumer, and carries an SPL that cannot run (non-streaming commands inside multisearch, and backtick-quoted field names that eval treats as macros). The detailed implementation is padded with 48 generic notes.",
+  "tier": "deep",
+  "uc_id": "UC-3.2.5",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,123 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "936ab56054ac703e751cc68c261a41f0e585c182205eaaa20be4c883bbc36d1d",
+  "file": "content/cat-14-iot-operational-technology-ot/UC-14.2.27.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/api/v1/app/617/",
+      "explanation": "Splunkbase has no app 617: the Splunkbase API returns 404 'App was not found'. The Universal Forwarder is downloaded from splunk.com, not Splunkbase. It is also not a modular input, so the collection path as written cannot be followed.",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll",
+      "severity": "blocker",
+      "suggested_fix": "Drop the Splunkbase ID. Say the B2B gateway (IBM Sterling B2B Integrator, Seeburger BIS) or VAN tracking logs are read by a Universal Forwarder file monitor (or sent to HEC) into index=edi with the site-defined sourcetypes edi:control and as2:mdn, and that no Splunkbase TA supplies these sourcetypes."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The SPL computes no count. It takes earliest(_time) as the send time and latest(ack_time) as the ack time per interchange. It also alerts on missing acks (isnull(ack)), which the description leaves out. `the scheduled window` is an unfilled placeholder.",
+      "field": "description",
+      "quote": "by aggregating `count` grouped by `interchange_id`, `doc_type`, `partner_id` over `the scheduled window` and alerting when `ack_latency_sec` > 3600",
+      "severity": "major",
+      "suggested_fix": "Describe the real logic: for each interchange_id, doc_type and partner_id over the last 24 hours, compare the first send time with the latest acknowledgement time, and raise a row when no 997/999/CONTRL ack exists or the ack arrived more than 3600 seconds after sending."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "No `activity` field exists in the SPL or the data source; it is a template placeholder.",
+      "field": "value",
+      "quote": "by tracking `activity` on `edi:control` feeds",
+      "severity": "minor",
+      "suggested_fix": "State the business value: late or missing functional acknowledgements on ASNs and purchase orders signal partner or translator failures that lead to chargebacks, missed shipments and inventory errors."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "The ICS validation step does not apply to EDI acknowledgement tracking. Steps 1–4 also appear twice, and the second copy is generic boilerplate (vendor API rate limits, `list_inputs` role, vendor admin UI inventory count).",
+      "field": "detailedImplementation",
+      "quote": "Compare key fields and alarm states to the SCADA or DCS HMI and, where relevant, the engineering tool for the PLC.",
+      "severity": "major",
+      "suggested_fix": "Remove the duplicated generic block. Validate against the B2B gateway or VAN tracking console: pick known interchanges, confirm sent and ack times match, and confirm a deliberately unacknowledged test interchange appears."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "The step never says how `ack_time` ends up on the same events as `interchange_id`, and the SPL depends on that. Inbound 997/999/CONTRL and AS2 MDN records are separate messages and must be correlated to the outbound interchange by control number (ISA13/UNB0020). A per-partner SLA is mentioned, but the SPL uses a flat 3600 s.",
+      "field": "detailedImplementation",
+      "quote": "Step 1 — Configure data collection\nSLA per trading partner; auto-retry and partner escalation on NAK codes.",
+      "severity": "major",
+      "suggested_fix": "Explain the needed field extractions: interchange control number, partner ID, doc type, sent time and ack received time as epoch. Say whether the gateway writes ack_time onto the outbound record or whether the ack records must be correlated separately. If per-partner SLAs are intended, describe a partner SLA lookup."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "None of the four scenarios names a real cause of false positives for EDI ack monitoring. Real causes include interchanges sent minutes ago that are still inside the ack window, partners or doc types with no functional ack in the agreement, acks returned only as AS2 MDN, and timezone or clock differences between the gateway and the VAN.",
+      "field": "knownFalsePositives",
+      "quote": "Synthetic probe on `interchange_id`, `doc_type`, `partner_id` — Health checks in `edi` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "Replace with EDI-specific causes: recently sent interchanges not yet due, partners or doc types exempt from 997/999 per the trading partner agreement, acks delivered on a different channel or sourcetype, and ack timestamps in a different timezone than the send time."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "grandma_fidelity",
+      "explanation": "This UC watches electronic business documents exchanged with trading partners, not plant control systems. The text is misleading and does not say what is detected.",
+      "field": "grandmaExplanation",
+      "quote": "We watch your plant control systems and field data. We help you know if something is off with this area: edi acknowledgement",
+      "severity": "major",
+      "suggested_fix": "e.g. 'When we send orders or shipping notices to a business partner electronically, they should send back a receipt. We flag any document that got no receipt, or got one more than an hour late, so problems with the partner link are caught before shipments go wrong.'"
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "The references are generic Splunk configuration docs. There is nothing on X12 997/999, EDIFACT CONTRL, AS2 MDN (RFC 4130), or the B2B gateway's tracking log format.",
+      "field": "references",
+      "quote": "Splunk HTTP Event Collector",
+      "severity": "minor",
+      "suggested_fix": "Add RFC 4130 (AS2/MDN) and the X12 / UN/EDIFACT acknowledgement specifications or the gateway vendor's tracking/log documentation."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "EDI functional acknowledgements report rejection through status codes (for example X12 AK5/AK9 or IK5 'R' Rejected), not 'NAK codes'. The SPL also never checks the ack status, so a rejecting ack counts as success.",
+      "field": "implementation",
+      "quote": "partner escalation on NAK codes",
+      "severity": "minor",
+      "suggested_fix": "Refer to the acknowledgement's accept/reject status (AK9/IK5 or CONTRL action code) and note that rejected acks need a separate check."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`where isnull(ack)` has no grace period: with earliest=-24h every interchange sent in the last few minutes, still inside the ack window, raises a row. Add a condition such as `isnull(ack) AND now()-sent>3600`.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The SPL searches only edi:control. The as2:mdn sourcetype listed in dataSources is never used, and ack_time is assumed to be an epoch field on the same events. Ack status (accepted or rejected) is never evaluated.",
+      "severity": "major"
+    },
+    {
+      "field": "id",
+      "issue": "An EDI B2B acknowledgement use case is filed under subcategory 14.2 Industrial Control Systems (ICS/SCADA); that misplacement is why the ICS template text appears. Consider recategorising it.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0086-UC-14.2.27",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 1,
+    "overclaiming": 3,
+    "specificity": 1
+  },
+  "summary": "The core idea (flag EDI interchanges whose 997/999/CONTRL acknowledgement is missing or later than one hour) is sound, but nearly every prose field is template residue. The text cites a non-existent Splunkbase ID, describes a count aggregation the SPL does not perform, carries ICS/SCADA validation steps copied into an EDI use case, and has a grandma explanation about plant control systems.",
+  "tier": "deep",
+  "uc_id": "UC-14.2.27",
+  "verdict": "incorrect"
+}

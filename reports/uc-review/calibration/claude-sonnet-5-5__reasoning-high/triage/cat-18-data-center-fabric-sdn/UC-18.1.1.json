@@ -1,0 +1,114 @@
+{
+  "confidence": 0.65,
+  "content_sha256": "bbd31f017322eefd8b7dcb743f9a2929648fc0d5f0649062222345bd07d57b56",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.1.1.json",
+  "findings": [
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "In the cached Splunkbase catalog, app 4022 is 'Technical Addon for the Metricator application for Nmon (HEC)' (TA-metricator-hec-for-nmon), not a Cisco ACI add-on. The ID is repeated in dataSources-adjacent text, detailedImplementation and the references list, so the reader would be pointed at the wrong download. (The subcategory guide also uses 4022, so the correct Cisco ACI add-on ID needs to be re-checked and the guide fixed too.)",
+      "field": "app",
+      "quote": "**Splunk_TA_cisco-aci** (Splunkbase 4022, package directory **Splunk_TA_cisco-aci**",
+      "severity": "blocker",
+      "suggested_fix": "Look up the Splunk Add-on for Cisco ACI on Splunkbase, replace 4022 everywhere (app, detailedImplementation, references) with the verified ID and package name."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/datacenter-fabric-sdn.md",
+      "explanation": "The subcategory grounding says the Cisco ACI TA provides 'APIC syslog, fault, event, audit, and health-score ingest' with sourcetypes cisco:aci:fault, cisco:aci:health and so on. The UC instead tells readers to build bespoke REST collectors with rest_ta for the same sourcetypes, which would duplicate or conflict with what the TA already ingests.",
+      "field": "detailedImplementation",
+      "quote": "remember this TA normalizes APIC and fabric syslog into sourcetype=**cisco:aci:syslog** only—it does not poll REST APIs by itself.",
+      "severity": "blocker",
+      "suggested_fix": "Describe the TA's own REST/APIC inputs for health and fault data (verify against the add-on documentation) and use custom pollers only for classes the TA does not cover."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "Status is verified with reviewer 'agent-handcraft-2026-04-29', an automated author, not an SME; the app ID and TA behaviour above are unverified, so the verified claim is not supported.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until a named SME has reviewed the add-on facts, thresholds and SPL against a live APIC."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "These are colour bands, not alert thresholds. The SPL actually returns any DN with health < 90, a null score, or any fault event at all (`fault_events>0`), grouped by dn_lc; the description does not say that, and controlTest repeats the band list as if it were a trigger.",
+      "field": "description",
+      "quote": "with thresholds `cur_num` >= 90, `cur_num` >= 70, `cur_num` >= 50, or `cur_num` < 50. Groups `values` by `dn_lc`",
+      "severity": "major",
+      "suggested_fix": "State the real trigger: DNs whose latest health score is below 90, missing, or that have any fault record in the last 24 hours, labelled with the band."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "The fault-weight defaults and the 90/70/50 health bands attributed to the 'Cisco Operations Guide' are stated as vendor facts but the guide URL in references is just the Cisco root page; the 'crash-zone' / crash_band terminology is not Cisco vocabulary.",
+      "field": "detailedImplementation",
+      "quote": "defaults derive composite scores from descendant **faultInst** defects weighted critical 90%, major 60%, minor 30%, warning 10%, info/cleared 0%.",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the default weights and score colour thresholds in the APIC Operations / Basic Configuration guide for your release and link the exact page; rename crash_band to something self-explanatory."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "Several references have specific titles but link to generic landing pages (cisco.com root, developer.cisco.com/docs/, ciscolive.com), so a reader cannot reach the cited document.",
+      "field": "references",
+      "quote": "\"title\": \"Cisco APIC Operations Guide, Release 6.0(x)\",\n      \"url\": \"https://www.cisco.com/c/en/us/\"",
+      "severity": "major",
+      "suggested_fix": "Replace with deep links to the APIC Operations guide, the healthInst MIM page and the Splunk add-on documentation, or drop the entries."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "consistency",
+      "explanation": "The guide lists Splunk_TA_cisco-aci 6.x, while the UC says 2.0.x; one of them is wrong.",
+      "field": "app",
+      "quote": "versions near 2.0.x in 2026",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm the current add-on version on Splunkbase and align app, detailedImplementation and the guide."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL extracts `pod_tag`, not `pod_hint`; validation step 4 refers to a field that does not exist.",
+      "field": "detailedImplementation",
+      "quote": "confirm pod_hint splits replicate Cisco pod identifiers",
+      "severity": "minor",
+      "suggested_fix": "Use `pod_tag` in the validation step."
+    },
+    {
+      "confidence": 0.4,
+      "dimension": "correctness",
+      "explanation": "End-of-support dates are stated without citation and the detailed prerequisites separately say legacy 5.x is 'still observed', so the supported-release boundary is unclear.",
+      "field": "exclusions",
+      "quote": "APIC clusters running 4.x or earlier (out of support since Mar 2024)",
+      "severity": "needs_verification",
+      "suggested_fix": "Check Cisco's end-of-support notices for APIC 4.x/5.x and cite them, or remove the date."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`where ... OR fault_events>0 OR mvcount(fault_severity_vals)>0` makes almost every DN with any fault row appear, so the search is not a health-score alert; also faultInst DNs end in a fault-Fxxxx suffix and will not share a dn_lc with the healthInst rows, so health and fault data may never be merged by `stats ... by dn_lc`.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0025-UC-18.1.1",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The implementation text is detailed and APIC-aware, but its central add-on facts conflict with the grounding: Splunkbase 4022 is not the Cisco ACI add-on in the cached catalog, and the UC claims the TA does not poll REST although the subcategory guide says it ingests health and fault data. The description's bands do not match the SPL's alert condition, and the record is marked verified by an agent reviewer.",
+  "tier": "triage",
+  "uc_id": "UC-18.1.1",
+  "verdict": "incorrect"
+}

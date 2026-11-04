@@ -1,0 +1,156 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "43aaefd46c0d447b6ae70078dccc0f5a49738926276633ba2837ca97ddc8cec6",
+  "file": "content/cat-05-network-infrastructure/UC-5.20.88.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_url": "https://www.rfc-editor.org/info/rfc5765",
+      "explanation": "RFC 5765 is 'Security Issues and Solutions in Peer-to-Peer Systems for Realtime Communications' and has nothing to do with BGP. BGP unnumbered over IPv6 link-local relies on RFC 5549 (now RFC 8950), which lets IPv4 NLRI use an IPv6 next hop, plus ICMPv6 RA for neighbor discovery.",
+      "field": "dataSources",
+      "quote": "leveraging BGP Unnumbered (RFC 5765) with link-local peering",
+      "severity": "blocker",
+      "suggested_fix": "Replace 'RFC 5765' with 'RFC 5549 / RFC 8950 (IPv4 NLRI with IPv6 next hop)'."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://www.cisco.com/c/en/us/td/docs/dcn/nx-os/nexus9000/105x/unicast-routing-configuration/cisco-nexus-9000-series-nx-os-unicast-routing-configuration-guide/m-n9k-configuring-advanced-bgp-102x.html",
+      "explanation": "NX-OS has no `ipv6 link-local use-link-local-only` command. Cisco's guide for BGP interface peering over IPv6 link-local enables IPv6 with `ipv6 address use-link-local-only` and adds `ip forward` when the interface has no IPv4 address. It does not use `ip unnumbered loopback0`.",
+      "field": "detailedImplementation",
+      "quote": "interface Ethernet1/49\n medium p2p\n ip unnumbered loopback0\n ipv6 link-local use-link-local-only",
+      "severity": "blocker",
+      "suggested_fix": "Use the documented interface config: `ipv6 address use-link-local-only`, `ip forward` (when no IPv4 address is set), optional `ipv6 nd ra-interval 4 min 3` and `ipv6 nd ra-lifetime 10`, and `ipv6 link-local use-bia` on parallel links (9.3(6)+)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/ipv6-operations.md",
+      "evidence_url": "https://splunk.github.io/splunk-connect-for-syslog/main/sources/vendor/Cisco/cisco_ios/",
+      "explanation": "No standard Splunk ingestion path produces `cisco:nxos:syslog`, and the subcategory guide lists `cisco:nxos`, not this name. SC4S and the Cisco Catalyst Add-on (Splunkbase 7538) send NX-OS and IOS-XE syslog as `cisco:ios`, so a reader who copies these sourcetypes will get no data.",
+      "field": "dataSources",
+      "quote": "`index=network sourcetype=cisco:nxos:syslog` or `sourcetype=cisco:iosxe`",
+      "severity": "blocker",
+      "suggested_fix": "Document `sourcetype=cisco:ios` (the SC4S / Cisco Catalyst Add-on default for NX-OS and IOS-XE). If a site-specific rename is intended, say so explicitly and keep it consistent with docs/guides/ipv6-operations.md."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "The data is switch syslog, so no modular input or scripted poll collects it. Splunkbase 1352 is the 'App for Cisco Network Data', a search-head app rather than a collector. Its parsing add-on (TA-cisco_ios, 1467) is deprecated in favour of the Cisco Catalyst Add-on (7538).",
+      "field": "dataSources",
+      "quote": "Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+      "severity": "major",
+      "suggested_fix": "Say the logs arrive as syslog via SC4S or a syslog-receiving forwarder and are parsed by the Cisco Catalyst Add-on for Splunk (Splunkbase 7538). Optionally mention App for Cisco Network Data (1352) for dashboards."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "After the fabric-specific Steps 1-5, the text repeats Steps 1-5 as a generic template. That template covers API poll intervals, HEC tokens, vendor HTTP 401/429 errors and comparing counts to a 'vendor admin UI inventory', none of which applies to switch syslog. It also contradicts the first half.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=cisco:nxos:syslog, cisco:iosxe into network. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs`",
+      "severity": "major",
+      "suggested_fix": "Delete the second Step 1-5 block. Fold any useful syslog-specific checks (for example, confirming the SC4S/syslog receiver and timezone) into the first block."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "`stats ... by host` returns rows only for hosts that had matching events, so the 'NOT active' branch can never fire. NX-OS also does not syslog each suppressed NDP packet, so counting 'nve' and 'suppress' events does not show whether suppression is configured.",
+      "field": "detailedImplementation",
+      "quote": "| stats count as suppressed_ndp by host\n| eval status=if(suppressed_ndp > 0, \"NDP suppression active\", \"NDP suppression NOT active — multicast NDP flooding\")",
+      "severity": "major",
+      "suggested_fix": "Check NDP suppression from configuration or CLI output (`suppress-arp` / ND suppression under the NVE member VNI, `show ip arp suppression-cache` / `show ipv6 nd suppression-cache`) or compare against a lookup of expected leaf switches, so hosts that are missing show up."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://www.cisco.com/c/en/us/td/docs/dcn/nx-os/nexus9000/105x/unicast-routing-configuration/cisco-nexus-9000-series-nx-os-unicast-routing-configuration-guide/m-n9k-configuring-advanced-bgp-102x.html",
+      "explanation": "`show bgp l2vpn evpn summary` lists the EVPN address-family (overlay) sessions. The underlay sessions show up under `show bgp ipv6 unicast summary` / `show bgp ipv4 unicast summary`, or `show bgp ipv4 unicast neighbors <interface>` for interface peering.",
+      "field": "detailedImplementation",
+      "quote": "Run `show bgp l2vpn evpn summary`. Verify IPv6 underlay sessions are established.",
+      "severity": "minor",
+      "suggested_fix": "Validate the underlay with `show bgp ipv6 unicast summary` (and `show ipv6 routers interface <intf>` for link-local discovery), and use `show bgp l2vpn evpn summary` only for the overlay."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "`logging level bgp` and `logging level nve` are NX-OS facilities, but `vxlan` and `evpn` may not be valid `logging level` facility keywords.",
+      "field": "detailedImplementation",
+      "quote": "logging level bgp 5\nlogging level vxlan 5\nlogging level evpn 5\nlogging level nve 5",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the NX-OS System Management guide / `logging level ?` on a Nexus 9000 and keep only valid facility names (for example bgp, nve, l2rib, bgp evpn-related facilities)."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "RFC 7938 describes eBGP-only data center designs but does not define BGP unnumbered or IPv6 link-local peering, so the parenthetical misdescribes the source.",
+      "field": "references",
+      "quote": "RFC 7938 — Use of BGP for Routing in Large-Scale Data Centers (BGP Unnumbered with IPv6 link-local)",
+      "severity": "minor",
+      "suggested_fix": "Drop the parenthetical, or add RFC 8950 (formerly RFC 5549) as the reference for IPv4 routes over IPv6 link-local next hops."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The SPL counts syslog state-change events. It produces neither EVPN route counts nor a session-health percentage, because syslog has no route totals and no denominator of configured sessions.",
+      "field": "visualization",
+      "quote": "(3) Timechart: EVPN IPv6 route count over time. (4) Single-value: IPv6 underlay BGP session health percentage.",
+      "severity": "minor",
+      "suggested_fix": "Describe panels the SPL supports (count of BGP_DOWN / VTEP_PEER_DOWN events by host over time). If route counts or health percentages are wanted, name a separate source such as NX-API/telemetry or a configured-peer lookup."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "grandma_fidelity",
+      "explanation": "The analogy explains why the fabric matters but never says what the UC does. It watches switch logs for links between switches going down, tunnels between switches failing, and tenant routes being withdrawn, then raises an alert.",
+      "field": "grandmaExplanation",
+      "quote": "If the address system fails between any two sections, packages can't move.",
+      "severity": "minor",
+      "suggested_fix": "Add a sentence such as: 'This check reads the switches' logs and warns when a connection between sections drops or a tunnel between machines stops working.'"
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified, yet it carries template residue, a wrong RFC, a non-existent NX-OS command and a non-standard sourcetype. That is not consistent with SME sign-off.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft or community until an SME has corrected and re-reviewed the content."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The is_ipv6 regex `[0-9a-fA-F]{1,4}(:[0-9a-fA-F]{1,4}){2,}` matches ordinary syslog timestamps such as `15:40:00`, so nearly every event gets is_ipv6=1 and the IPv6-only branches for BGP_DOWN and EVPN_ROUTE_WITHDRAWN fire on IPv4 events. Restrict the match to the neighbor/peer field after rex, or require at least one `::` or hex letter.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://splunk.github.io/splunk-connect-for-syslog/main/sources/vendor/Cisco/cisco_ios/",
+      "field": "spl",
+      "issue": "The SPL hard-codes `sourcetype=\"cisco:nxos:syslog\" OR sourcetype=\"cisco:iosxe\"`. SC4S and the Cisco Catalyst Add-on deliver NX-OS/IOS-XE syslog as `cisco:ios`, so the search may return nothing (https://splunk.github.io/splunk-connect-for-syslog/main/sources/vendor/Cisco/cisco_ios/).",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "NX-OS does not normally syslog individual EVPN route withdrawals, so the `EVPN.*route.*withdraw` branch is unlikely to ever match. Verify the real NX-OS NVE/BGP EVPN mnemonics (for example %NVE-5-PEER_STATE_CHANGE) and adjust the case() patterns.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0038-UC-5.20.88",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 3,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The first half of detailedImplementation has real VXLAN/EVPN content, but the UC cites the wrong RFC for BGP unnumbered, gives an NX-OS interface command that does not exist, uses a non-standard NX-OS sourcetype, and repeats Steps 1-5 as a generic API-polling template that does not apply to syslog.",
+  "tier": "deep",
+  "uc_id": "UC-5.20.88",
+  "verdict": "incorrect"
+}

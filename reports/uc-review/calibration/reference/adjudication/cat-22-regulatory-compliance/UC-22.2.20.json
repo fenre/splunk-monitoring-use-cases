@@ -1,0 +1,88 @@
+{
+  "adjudicates": {
+    "agrees": true,
+    "model": "claude-opus-5-5@reasoning=high",
+    "tier": "deep"
+  },
+  "confidence": 0.99,
+  "content_sha256": "4a6298a19994987920208308ee0f8db02e3ee0addf82ff02dfe77fda4427586a",
+  "file": "content/cat-22-regulatory-compliance/UC-22.2.20.json",
+  "findings": [
+    {
+      "confidence": 0.98,
+      "dimension": "correctness",
+      "evidence_url": "https://www.servicenow.com/docs/r/governance-risk-compliance/policy-and-compliance-management/r_InstallWPolAndCompl.html",
+      "explanation": "ServiceNow documents the Policy table as `sn_compliance_policy`, not `sn_grc_policy`, and its native policy form uses fields such as Name, State, and Approvers. The stated table and approval field names are therefore not a valid native source contract for this SPL.",
+      "field": "dataSources",
+      "quote": "ServiceNow GRC approvals and tasks are collected with the Splunk Add-on for ServiceNow (Splunkbase 1928) into `index=itsm` as `sourcetype=snow:sn_grc_policy` or `sourcetype=snow:task`, exposing `policy_name`, `approval_status`, `approved_by`, `approval_date`",
+      "severity": "blocker",
+      "suggested_fix": "Collect the actual `sn_compliance_policy` table and map its documented fields, plus the relevant approval records if approval timestamps and approvers are required, into explicitly defined normalized fields before running the search."
+    },
+    {
+      "confidence": 0.99,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-microsoft-office-365/",
+      "explanation": "The Microsoft Office 365 add-on collects Office 365 audit, service health/message, DLP, message trace, and Entra metadata events; it is not an LMS-export collector and does not create `lms:completion` or `lms:enrollment` events.",
+      "field": "dataSources",
+      "quote": "after ingest via HEC or the Splunk Add-on for Microsoft Office 365 (Splunkbase 4055) for Azure AD–connected LMS exports",
+      "severity": "blocker",
+      "suggested_fix": "Document HEC, CSV, or a verified LMS-specific connector as the LMS ingestion path. Remove the Office 365 add-on unless the search is expanded to use a source that it actually collects."
+    },
+    {
+      "confidence": 0.99,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-servicenow/Configureinputs/",
+      "explanation": "The ServiceNow add-on collects selected ServiceNow tables and does not produce LMS sourcetypes. Its documented setup uses the add-on's Inputs tab with an account, collection interval, table, time field, and index; the supplied generic stanza, UI path, and manually assigned sourcetype do not match that procedure.",
+      "field": "detailedImplementation",
+      "quote": "Data collection is performed by the Splunk Add-on for ServiceNow (Splunkbase app ID 1928), landing events in `training`, `itsm` under `lms:completion`, `lms:enrollment`, `snow:sn_grc_policy`, `snow:task`.",
+      "severity": "blocker",
+      "suggested_fix": "Separate LMS ingestion from ServiceNow collection. Configure each real ServiceNow table through the add-on Inputs tab using a configured account and documented table/time field, and use the resulting `snow:<table>` events."
+    },
+    {
+      "confidence": 1.0,
+      "dimension": "consistency",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Join",
+      "explanation": "The SPL's left-side dataset is `nis2_governance_evidence.csv`, followed by separate left joins to training on `person_id` and ServiceNow data on `policy_name`; `lms:enrollment` is searched in the training join, not the ITSM join. The later discussion also cites a `_time > last_training_date_epoch` comparison that the SPL never performs.",
+      "field": "detailedImplementation",
+      "quote": "This search correlates `index=training` (sourcetype=`lms:completion`) on the outer side with `index=itsm` (sourcetype=`lms:enrollment`) on the inner side, joined on `person_id` across the last 800 days.",
+      "severity": "blocker",
+      "suggested_fix": "Describe the lookup as the left-side dataset and document each of the two actual joins, their keys, retained fields, and null behavior. Remove the nonexistent `_time` comparison."
+    },
+    {
+      "confidence": 1.0,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Join",
+      "explanation": "Splunk documents a default 50,000-row and 60-second limit for a join's right-side subsearch, controlled by the `[join]` settings `subsearch_maxout` and `subsearch_maxtime`. `max_searches_per_cpu` controls concurrency and is not a multiplier for join output.",
+      "field": "detailedImplementation",
+      "quote": "Splunk's `| join` subsearch is capped at `max_searches_per_cpu * subsearch_maxout` results (default: 50000).",
+      "severity": "blocker",
+      "suggested_fix": "State the documented join limits directly and remove the advice to raise `max_searches_per_cpu`; redesign with `stats` or lookups if the right-side datasets can exceed the join limits."
+    },
+    {
+      "dimension": "consistency",
+      "explanation": "The final SPL table does not emit either `approval_date` or `completion_date`, so the stated timeline cannot be built from this saved search's result set.",
+      "field": "visualization",
+      "quote": "Timeline: `approval_date` and `completion_date` overlays for drilldown.",
+      "severity": "major",
+      "suggested_fix": "Either retain appropriately normalized event timestamps in the SPL output or redesign the timeline as a drilldown search that retrieves those source fields."
+    }
+  ],
+  "firewalled_field_flags": [],
+  "model": "gpt-5.6-sol@reasoning=medium",
+  "reviewed_at": "2026-10-26T17:18:18Z",
+  "rubric_version": "1.0",
+  "run_id": "file:adjudication-0002-UC-22.2.20",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 1,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The high-level intent is understandable, but the source configuration and implementation guidance combine invented ServiceNow schema, an unsupported Office 365 ingestion path, and a description of search behavior that does not match the SPL. Following the instructions would leave required fields absent or queried from the wrong sources.",
+  "tier": "adjudication",
+  "uc_id": "UC-22.2.20",
+  "verdict": "incorrect"
+}

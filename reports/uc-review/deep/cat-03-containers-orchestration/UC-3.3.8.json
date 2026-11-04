@@ -1,0 +1,125 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "c65bbb99abece37a5da928e37459d6464372da5d38645fd2b66741547c73977e",
+  "file": "content/cat-03-containers-orchestration/UC-3.3.8.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://docs.splunk.com/Documentation/AddOns/released/Kubernetes/About",
+      "explanation": "Splunkbase 3743 is Outcold Solutions' 'Monitoring Kubernetes - Metrics and Log Forwarding', not a Splunk Add-on for Kubernetes. The app field also names `Splunk_TA_kubernetes`, which is deprecated. A reader would install the wrong product or a retired one.",
+      "field": "references",
+      "quote": "\"title\": \"Splunkbase — Splunk Add-on for Kubernetes\",\n      \"url\": \"https://splunkbase.splunk.com/app/3743\"",
+      "severity": "blocker",
+      "suggested_fix": "Point the reference and the app field at the Splunk OpenTelemetry Collector for Kubernetes (Splunkbase 6264) or a documented HEC exporter. Mention 3743 only if Outcold Collectord is intended, under its real name."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/common-information-model/8.5/data-models/application-state-deprecated",
+      "explanation": "Application_State is a deprecated CIM data model, and dataModelAcceleration tells operators to accelerate it. Neither Application_State nor Web describes certificate expiry. Web fits the router access logs only as a traffic-weighting input.",
+      "field": "cimModels",
+      "quote": "\"Application_State\"",
+      "severity": "blocker",
+      "suggested_fix": "Drop Application_State. If a CIM mapping is wanted for certificate metadata, consider the Certificates dataset, otherwise state that the detection runs on raw Route and metrics data. Keep Web only for the router-log weighting."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html/operator_apis/ingresscontroller-operator-openshift-io-v1",
+      "explanation": "IngressController access logging is disabled by default. When enabled, no headers are captured unless spec.logging.access.httpCaptureHeaders lists Host, and headers can never be captured for passthrough routes. The default HAProxy format has no Host field, so hostname and weekly_client_hits would stay empty. The validation step 'oc logs ... deployment/router-default' also omits '-c logs', the sidecar container that carries access logs when destination type is Container.",
+      "field": "detailedImplementation",
+      "quote": "enable HAProxy-style access logging on openshift-ingress router Pods per cluster policy, ship lines to Splunk with sourcetype=openshift:routerlogs, and normalize the HTTP Host header into hostname.",
+      "severity": "major",
+      "suggested_fix": "Document the spec.logging.access block: destination type Container or Syslog, httpCaptureHeaders.request with name Host, and optionally an httpLogFormat that emits host and %b. Alternatively, derive the route from the HAProxy backend name (%b, which encodes namespace and route). Note that passthrough traffic carries no Host header and use 'oc logs -c logs'."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html/ingress_and_load_balancing/routes",
+      "explanation": "A Route references a Secret only through spec.tls.externalCertificate.name. That field is GA from OCP 4.19 and was Technology Preview behind the RouteExternalCertificate feature gate in earlier releases. It also requires granting the router service account read access to the Secret. The UC never names the field, and the SPL's backing_secret coalesce (tls_secret_name, secretName, spec_tls_secret_name, ...) does not include it, so Secret-backed Routes will show no backing_secret.",
+      "field": "detailedImplementation",
+      "quote": "edge termination backed by Secrets referenced from the Route",
+      "severity": "major",
+      "suggested_fix": "Name spec.tls.externalCertificate.name, state its version and support status, and flatten it to backing_secret in the exporter. State that on earlier releases Route edge certificates are inline spec.tls.certificate only."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL has a fourth arm on sourcetype=openshift:secret (TLS Secret inventory), but dataSources, implementation and detailedImplementation never mention that sourcetype or the exporter that produces it. The arm's rows are also discarded by 'where lane=\"route_snapshot\"', so last_secret_seen never reaches the output. In addition, weekly_client_hits is computed over a 30-day router-log window, so it is not a weekly figure.",
+      "field": "dataSources",
+      "quote": "sourcetype=openshift:routerlogs for HAProxy access logs with HTTP Host headers used to compute weekly_client_hits",
+      "severity": "major",
+      "suggested_fix": "Either document the openshift:secret lane (fields, and the rule that it must emit only certificate metadata, never tls.key) and explain how it feeds notAfter, or ask the SPL owner to remove it. Rename weekly_client_hits in the prose, or state that it is a 30-day count."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "In the SPL, the next case branch ('days_until_expiry<=7' → page) pages anyway, so blast_radius_score and lu_criticality never change the severity. The traffic weighting promised here, in Case B and in grandmaExplanation ('weight findings by traffic') does not exist in the alert logic.",
+      "field": "detailedImplementation",
+      "quote": "case() maps severities to page inside seven days with amplification when blast_radius_score or lookup criticality indicates mission-facing traffic",
+      "severity": "major",
+      "suggested_fix": "Describe blast_radius_score as an output column for prioritisation only, or ask the SPL owner to use it (for example, page at 14 days for high-blast hosts) and then document the actual thresholds."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified under the generic repository handle, although the search cannot parse, the cert-manager join keys do not extract, and the add-on reference points at a different product.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until the search has run against real Route and cert-manager data with a named SME sign-off."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "grandma_fidelity",
+      "explanation": "'TLS certificate', 'HAProxy router' and 'edge' are jargon for a lay reader.",
+      "field": "grandmaExplanation",
+      "quote": "a TLS certificate that the HAProxy router presents at the edge",
+      "severity": "minor",
+      "suggested_fix": "Say 'a security certificate that proves the site is genuine'."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/splunk-enterprise/spl-search-reference/9.4/search-commands/multisearch",
+      "field": "spl",
+      "issue": "multisearch accepts only streaming commands in its subsearches, but the router-log and openshift:secret arms run stats, so the search fails to parse. Use append or union, or restructure the search.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The Route arm keeps every openshift:route snapshot from the last 7 days and never deduplicates to the latest snapshot per cluster, namespace and route. With 15–30 minute exports this produces hundreds of rows per Route, and after a renewal the older snapshots still carry the old notAfter and keep paging for up to a week. Add 'stats latest(...) BY cluster route_namespace route_name' (or dedup) before computing severity.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The cert-manager rex patterns 'namespace\\?=\"' and 'name\\?=\"' require a literal '?' before '=', so cm_ns and cm_name are never extracted. Even with the '?' removed, 'name=\"' would first match inside issuer_name=\"...\". The metric's name label is also the Certificate name, not the Secret or Route name, so cm_join rarely matches route rows. Anchor the label match (for example ',name=\"' or '{name=\"') and join on the Certificate's spec.secretName.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/common-information-model/8.5/data-models/application-state-deprecated",
+      "field": "cimSpl",
+      "issue": "The cimSpl uses the deprecated Application_State model, whose root dataset is All_Application_State, not Application_State. It also returns Web URL and status, which say nothing about certificate expiry.",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0095-UC-3.3.8",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The Route TLS expiry narrative is domain-aware and the plain-language explanation is good. However, the app and reference cite a Splunkbase ID that belongs to a third-party product, the CIM mapping uses the deprecated Application_State model, and the router-log lane depends on a Host header that OpenShift does not log by default. The SPL cannot run (multisearch with stats) and would keep paging on stale snapshots after a renewal.",
+  "tier": "deep",
+  "uc_id": "UC-3.3.8",
+  "verdict": "incorrect"
+}

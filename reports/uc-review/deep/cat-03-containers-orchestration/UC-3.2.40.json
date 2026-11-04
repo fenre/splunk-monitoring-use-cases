@@ -1,0 +1,187 @@
+{
+  "confidence": 0.83,
+  "content_sha256": "28f11f7deeef53f0cb681825b5ccfff13f403e626e1ffd4fe109380c12b664c1",
+  "file": "content/cat-03-containers-orchestration/UC-3.2.40.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/5167",
+      "explanation": "Splunkbase 5167 is 'Upgrade Universal Forwarder (Windows)', not Splunk Connect for Kubernetes (SCK). In the repository's Splunkbase catalogue, Splunk OpenTelemetry Collector for Kubernetes is 6264. SCK reached end of support on 2024-01-01. The link points to the Splunk Add-on for Kubernetes, which was deprecated in 2019, has no CIM support, and is not the OTel collector.",
+      "field": "app",
+      "quote": "Splunk OpenTelemetry Collector for Kubernetes ([Splunk Add-on for Kubernetes documentation](https://docs.splunk.com/Documentation/AddOns/released/Kubernetes/About)) ... — Splunk Connect for Kubernetes (Splunkbase 5167)",
+      "severity": "blocker",
+      "suggested_fix": "Name only the Splunk OpenTelemetry Collector for Kubernetes (Helm chart, Splunkbase 6264 per data/splunkbase-catalog.json), link its GitHub or docs page, and remove the SCK/5167 text and the deprecated add-on link."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/splunk/splunk-connect-for-kubernetes",
+      "explanation": "SCK is a Helm chart, not a modular input or scripted poll, and it reached end of support on 2024-01-01. Splunkbase 5167 is an unrelated Windows UF upgrade app. The same field earlier says the data comes from the OTel Collector prometheus receiver, so the two collection paths contradict each other.",
+      "field": "dataSources",
+      "quote": "Collected via Splunk Connect for Kubernetes (Splunkbase 5167) modular input or scripted poll into the index named in the SPL.",
+      "severity": "blocker",
+      "suggested_fix": "Delete the SCK sentence. Collection is by the Splunk OTel Collector prometheus receiver (apiserver and kube-state-metrics) and filelog or cloud audit export, sent to HEC."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/6.2/data-models/application-state-deprecated",
+      "explanation": "CIM Application_State has been deprecated since CIM 4.12. It models host process, service, and port inventory, not Kubernetes cluster or webhook state, and its root dataset is All_Application_State. Mapping admission-webhook reliability to it is incorrect, and dataModelAcceleration and Step 2 tell readers to accelerate a deprecated model.",
+      "field": "cimModels",
+      "quote": "\"Application_State\", \"Performance\"",
+      "severity": "blocker",
+      "suggested_fix": "Remove Application_State. Either declare no CIM model (the source is raw Prometheus metrics) or keep only Performance as an optional node-saturation overlay with correct dataset names. Update dataModelAcceleration and Step 2 to match."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/extend/validatingwebhookconfiguration-metrics.md",
+      "explanation": "These kube-state-metrics series are EXPERIMENTAL. They carry only the configuration-object name label (mutatingwebhookconfiguration or validatingwebhookconfiguration) and namespace; there is no hook_name label. Individual webhook names appear only on kube_*webhookconfiguration_webhook_clientconfig_service, as webhook_name. The UC's plan to map Prometheus hook names to configuration kinds from the *_info series cannot work.",
+      "field": "dataSources",
+      "quote": "kube-state-metrics kube_mutatingwebhookconfiguration_info plus kube_validatingwebhookconfiguration_info",
+      "severity": "major",
+      "suggested_fix": "Use kube_validatingwebhookconfiguration_webhook_clientconfig_service and kube_mutatingwebhookconfiguration_webhook_clientconfig_service (label webhook_name) for the mutating/validating mapping, and say that these metrics are experimental and must be enabled."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/extend/mutatingwebhookconfiguration-metrics.md",
+      "explanation": "As above, the *_info series do not carry per-webhook names, so this mapping is impossible from those series. Separately, 'Data quality path' and the runbook say to 'upgrade kube-state-metrics' when wh_sidecar is unknown, but with the current label assumptions wh_sidecar will always be unknown.",
+      "field": "detailedImplementation",
+      "quote": "Second, scrape kube-state-metrics for kube_mutatingwebhookconfiguration_info and kube_validatingwebhookconfiguration_info so analysts can map Prometheus hook names to configuration kinds without kubectl during incidents.",
+      "severity": "major",
+      "suggested_fix": "Point Step 2 and the Data quality path at the *_webhook_clientconfig_service series and their webhook_name label, and note that these collectors must be explicitly enabled with --resources in kube-state-metrics."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "evidence_url": "https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/",
+      "explanation": "The sample webhook_name values are names of ValidatingWebhookConfiguration objects. The apiserver_admission_webhook_* `name` label holds the individual webhook name inside the configuration, for example validate.kyverno.svc-fail or validation.gatekeeper.sh. The governance join on cluster+hook_name would never match, so owner_team, touches_kube_system_risk, and slo budgets would always fall back to defaults.",
+      "field": "detailedImplementation",
+      "quote": "prod-eks-01,kyverno-resource-validating-webhook-cfg,team-platform,fail,1,800,...\nlab-gke-01,gatekeeper-validating-webhook-configuration,team-security,fail,0,1000,OPA Gatekeeper",
+      "severity": "major",
+      "suggested_fix": "State that webhook_name must equal the webhooks[].name value exposed in the apiserver metric `name` label, and update the sample rows to those names."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "explanation": "The savedsearches.conf stanza invokes uc_3_2_40_webhook_reliability_base, a saved search that is not defined anywhere in the UC. The text elsewhere says to save the SPL itself as uc_3_2_40_webhook_reliability. As written, the stanza would fail or run the wrong search. The stanza also has no throttling, even though the narrative asks for ten-minute suppression on cluster and webhook_name.",
+      "field": "detailedImplementation",
+      "quote": "search = | savedsearch uc_3_2_40_webhook_reliability_base",
+      "severity": "major",
+      "suggested_fix": "Put the full SPL in `search =` (or define the _base search explicitly). Add alert.suppress = 1, alert.suppress.period = 10m, and alert.suppress.fields = cluster,hook_name to match the narrative."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The SPL hard-codes earliest=-30m@m latest=@m in every arm, so dispatch.latest_time = now is ignored and the narrative contradicts the search.",
+      "field": "detailedImplementation",
+      "quote": "dispatch earliest=-30m@m, dispatch latest=now",
+      "severity": "minor",
+      "suggested_fix": "Use latest=@m in both places, or remove the inline time modifiers and rely on dispatch times."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "With zero endpoints and failurePolicy=Fail, the apiserver typically rejects immediately with HTTP 500 InternalError ('failed calling webhook ...: no endpoints available for service ...'), not a 4xx timeout. A timeout requires a reachable but slow backend. The validation expectation is probably wrong and would make lab tests fail.",
+      "field": "detailedImplementation",
+      "quote": "scale the Kyverno or Gatekeeper webhook Deployment to zero while leaving failurePolicy=Fail ... confirm kube:apiserver:audit shows a four-xx response with webhook timeout language within one minute",
+      "severity": "needs_verification",
+      "suggested_fix": "Expect a 500 'failed calling webhook ... no endpoints available' for the scale-to-zero test, and use the sleep-injection test to exercise timeouts."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "evidence_url": "https://prometheus.io/docs/concepts/metric_types/#counter",
+      "explanation": "These are cumulative Prometheus counters and histogram buckets. The described computation sums raw samples per 5-minute bucket, which gives a lifetime average, not a current latency. The +Inf bucket equals the total count, so it is not a tail witness. The prose presents these as real latency and tail signals.",
+      "field": "detailedImplementation",
+      "quote": "apiserver_admission_webhook_admission_duration_seconds_sum and _count for average admission latency in milliseconds ... apiserver_admission_webhook_admission_duration_seconds_bucket for high le buckets that act as a tail-latency witness",
+      "severity": "major",
+      "suggested_fix": "Describe latency as rate(sum)/rate(count) over the window, and the tail as a histogram quantile from bucket deltas. Avoid calling +Inf a tail signal."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "evidence_url": "https://kubernetes.io/docs/reference/using-api/api-concepts/#dry-run",
+      "explanation": "The entries are generated template text built from field names. They are not real false-positive sources for admission webhooks, such as GitOps apply storms, intentional policy denials in CI dry-runs, webhook rollouts or restarts, or apiserver restarts resetting counters.",
+      "field": "knownFalsePositives",
+      "quote": "Batch `sum` on `prometheus:scrape:metrics` — Scheduled automation elevates `hook_name` without crossing `dur_cnt` > 0",
+      "severity": "major",
+      "suggested_fix": "Replace them with domain false positives: GitOps sync bursts causing transient denials, dry-run admission requests (which still pass through webhooks), webhook pod rolling updates, counter resets after apiserver restart, and duplicate scrapes from multiple collectors."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The title describes guidance that the target, a generic SIG folder, does not contain. The GKE and AKS references also point to generic documentation roots despite their specific titles, and the Splunk reference is the deprecated Add-on for Kubernetes.",
+      "field": "references",
+      "quote": "\"Kubernetes SIG Auth — Admission signals and SLO guidance\", \"url\": \"https://github.com/kubernetes/community/blob/master/sig-auth/\"",
+      "severity": "minor",
+      "suggested_fix": "Replace these with specific pages: the apiserver metrics reference, the Splunk OTel Collector for Kubernetes docs, and the cloud-provider webhook or private-cluster firewall pages."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The UC has the wrong Splunkbase ID, nonexistent kube-state-metrics labels, a lookup join that cannot match, and an undefined base saved search. It cannot have been run end to end.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft or community until the search has been validated in a lab."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/9.4/search-commands/multisearch",
+      "field": "spl",
+      "issue": "Each multisearch subsearch ends in `bucket | stats ... | eval`. multisearch requires every subsearch to contain only streaming commands, so stats inside the arms makes the search fail to parse.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://prometheus.io/docs/concepts/metric_types/#counter",
+      "field": "spl",
+      "issue": "Raw samples of cumulative counters (apiserver_admission_webhook_request_total, rejection_count, duration_seconds_sum and _count) are summed within 5-minute buckets instead of using a rate or delta. As a result, req_total, err_5xx, rej_obs (rej_obs>=5 fires on any long-lived cluster), and admit_avg_ms are lifetime or multiplied values, not current behaviour, so severity_tier is meaningless.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The le regex keeps +Inf (equal to the total count), so tail_bucket_sig is non-zero whenever any request occurred. The admit_latency_ms fallback then forces a 1200 ms value, above the default 1000 ms budget, which triggers 'high'.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/extend/validatingwebhookconfiguration-metrics.md",
+      "field": "spl",
+      "issue": "The kube-state-metrics join extracts a `hook_name=\"...\"` label that does not exist on kube_*webhookconfiguration_info, so wh_sidecar is always 'unknown'. like(mn, \"mutating\") has no wildcard and therefore never matches, so wh_kind is always 'validating'. The audit rex requires a 'ns/name' token, but real messages read 'failed calling webhook \"validate.kyverno.svc\": ...', so audit_hint_cnt is effectively always 0.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/6.2/data-models/application-state-deprecated",
+      "field": "spl",
+      "issue": "The inline tstats join uses the deprecated Application_State model with nodename=Application_State (the root dataset is All_Application_State) and joins Application_State.dest, a host, to the cluster name. The '%down%' critical rule therefore depends on data that will not exist.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/6.2/data-models/application-state-deprecated",
+      "field": "cimSpl",
+      "issue": "It uses invalid dataset paths: nodename=Application_State (the root is All_Application_State) and Performance.CPU and Performance.Memory (fields live under All_Performance.CPU and All_Performance.Memory, for example All_Performance.CPU.cpu_load_percent). It also queries a deprecated model and joins Performance.host to a cluster name. The search returns nothing.",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0062-UC-3.2.40",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The narrative about webhook failure modes is strong, but the collection guidance is wrong. It cites Splunkbase 5167 and the end-of-support Splunk Connect for Kubernetes, it relies on a deprecated CIM model, and it assumes kube-state-metrics labels that do not exist. The governance lookup is keyed on configuration names, so it can never join to the per-webhook `name` label.",
+  "tier": "deep",
+  "uc_id": "UC-3.2.40",
+  "verdict": "incorrect"
+}

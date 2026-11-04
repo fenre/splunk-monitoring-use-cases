@@ -1,0 +1,137 @@
+{
+  "confidence": 0.88,
+  "content_sha256": "0a419acd3135c2eaf8a2919aad4153355006ac83f14368c9d04e623ac6425ebb",
+  "file": "content/cat-03-containers-orchestration/UC-3.2.38.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/kubernetes/kube-state-metrics/blob/main/CHANGELOG.md#v290--2023-05-23",
+      "explanation": "kube-state-metrics deprecated its experimental VPA metrics and removed them in v2.9.0 (May 2023). Current releases export no kube_verticalpodautoscaler_* families unless you author a CustomResourceState configuration, whose metric and label names you choose yourself. detailedImplementation repeats the claim ('Deploy kube-state-metrics with VerticalPodAutoscaler informers enabled'), and the subcategory guide's series table has the same stale entry.",
+      "field": "dataSources",
+      "quote": "from kube-state-metrics exposing kube_verticalpodautoscaler_status_recommendation_containerrecommendations_target CPU (and memory in companion work), kube_verticalpodautoscaler_spec_updatepolicy_updatemode, kube_verticalpodautoscaler_spec_resourcepolicy_container_policies minallowed and maxallowed",
+      "severity": "blocker",
+      "suggested_fix": "State that VPA metrics require a kube-state-metrics CustomResourceState config (or the VPA recommender's own metrics), give a sample config with the exact metric and label names, and align the SPL to those names. Also correct docs/guides/kubernetes.md."
+    },
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/5167",
+      "explanation": "Splunkbase app 5167 is 'Upgrade Universal Forwarder (Windows)'. Splunk Connect for Kubernetes is a Helm chart that reached end of support on 1 January 2024, and the dataSources wording 'modular input or scripted poll' does not describe it. The current collector is Splunk OpenTelemetry Collector for Kubernetes (Splunkbase 6264).",
+      "field": "app",
+      "quote": "— Splunk Connect for Kubernetes (Splunkbase 5167)",
+      "severity": "blocker",
+      "suggested_fix": "Remove the SCK/5167 references from app and dataSources, and cite Splunk OpenTelemetry Collector for Kubernetes (Splunkbase 6264)."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/kubernetes/autoscaler/blob/master/vertical-pod-autoscaler/docs/quickstart.md",
+      "explanation": "In VPA, Auto is deprecated and currently equivalent to Recreate; both evict pods. Switching from Auto to Recreate does not stop an eviction storm. The 'Off mode is recommend-only' framing also leaves out InPlaceOrRecreate and InPlace.",
+      "field": "detailedImplementation",
+      "quote": "Case 1 — Auto mode eviction storm with customer-visible churn: temporarily switch updateMode to Recreate or Off under change control",
+      "severity": "blocker",
+      "suggested_fix": "Tell responders to switch to Off or Initial (or InPlace where supported) to stop evictions. Note that Recreate is the default and equals Auto."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "In the SPL, stale_rec_h is now() minus latest(_time) of the scraped target metric inside a 4-hour window. That measures scrape freshness, not recommendation age, and it can never exceed about 4 hours, so the 24-hour stale check described in the prose and Case 2 never fires.",
+      "field": "detailedImplementation",
+      "quote": "whether recommendation timestamps go stale beyond twenty-four hours while drift remains high",
+      "severity": "major",
+      "suggested_fix": "Describe stale_rec_h as metric freshness, or source a real recommendation timestamp (for example the VPA status condition lastTransitionTime via CustomResourceState) and widen the search window."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/6.2/data-models/application-state-deprecated",
+      "explanation": "Application_State has been deprecated since CIM 4.12 and models process, service and port inventory. Performance covers host CPU and memory, not VPA recommendation objects; the SPL only runs a tstats tick against it and then discards the result.",
+      "field": "cimModels",
+      "quote": "\"Performance\",\n    \"Application_State\"",
+      "severity": "blocker",
+      "suggested_fix": "Remove both models (the detection is metrics-native), or keep Performance only if node saturation is genuinely correlated in the SPL. Update dataModelAcceleration to match."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The pod-side workload_key strips a ReplicaSet-hash-plus-suffix pattern. StatefulSet pods (name-0, name-1) are never reduced to the StatefulSet name, so StatefulSet VPAs never join to live requests.",
+      "field": "detailedImplementation",
+      "quote": "workload_key which is the Deployment or StatefulSet name",
+      "severity": "minor",
+      "suggested_fix": "Say that only Deployment pods are matched, or document a StatefulSet ordinal-stripping rule."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/kubernetes/kube-state-metrics/blob/main/CHANGELOG.md#v290--2023-05-23",
+      "explanation": "That folder has no VPA metrics page, because the metrics were removed. The GKE and AWS entries point to generic index pages (/docs/concepts/, /blogs/containers/), not the titled articles.",
+      "field": "references",
+      "quote": "https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/",
+      "severity": "minor",
+      "suggested_fix": "Link the kube-state-metrics CustomResourceState docs and the exact GKE VPA concept page and AWS blog post."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The entries are template filler with SPL tokens (']', '[', 'search') as if they were grouping fields; none names a real VPA false-positive cause.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `merge_key`, `]`, `[`, `search`** — Health checks in `k8s_metrics` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List real causes: a new VPA without enough recommender history; batch or CronJob workloads with bursty usage; in-place resize changing requests between scrapes; Off-mode VPAs where drift is expected; a rollout in progress mixing old and new pod requests."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified, but its primary metrics have not existed in kube-state-metrics since 2023 and its SPL cannot run.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until it has been re-tested against a CustomResourceState-based VPA metric set."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/9.4/search-commands/multisearch",
+      "field": "spl",
+      "issue": "multisearch must be the first command in a search and accepts only streaming subsearches. Here it follows the comment macro, eval, join and fields, its subsearches end in stats, and the arms are double-bracketed. The search will not parse.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/pod-metrics.md",
+      "field": "spl",
+      "issue": "Every CPU arm filters with like(mn, \"%cpu%\") on the metric name. In kube-state-metrics v2, resource is a label (resource=\"cpu\") on kube_pod_container_resource_requests and limits, not part of the metric name, so these arms return nothing. The VPA metric names queried were also removed in v2.9.0.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://github.com/kubernetes/autoscaler/blob/master/vertical-pod-autoscaler/docs/quickstart.md",
+      "field": "spl",
+      "issue": "auto_storm and hpa_conflict key on update_mode=\"auto\", but Auto is deprecated and equivalent to the default Recreate mode, so Recreate and InPlaceOrRecreate eviction storms are not treated as auto storms. The rex looks for 'updatemode=' while the historical kube-state-metrics label was update_mode. stale_rec_h cannot exceed the 4-hour window, so stale_rec_flag never fires. The Performance tstats join result is discarded.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/6.2/data-models/application-state-deprecated",
+      "field": "cimSpl",
+      "issue": "Application_State is deprecated, and its root dataset is All_Application_State. Performance's root is All_Performance. 'nodename=Application_State', 'nodename=Performance.CPU' and the Application_State.app/info and Performance.* field paths are invalid.",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0059-UC-3.2.38",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The UC assumes kube-state-metrics exports built-in kube_verticalpodautoscaler_* series, which were removed in v2.9.0. The supported kube-state-metrics v2.10+ therefore produces none of the inputs. The runbook also misdescribes the VPA update modes, the stale-recommendation logic cannot fire, and the CIM and add-on attributions are wrong.",
+  "tier": "deep",
+  "uc_id": "UC-3.2.38",
+  "verdict": "incorrect"
+}

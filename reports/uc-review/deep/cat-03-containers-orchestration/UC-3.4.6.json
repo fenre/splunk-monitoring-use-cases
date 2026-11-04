@@ -1,0 +1,139 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "cd6ffa9b2ab83d99e5a7d2f107afda42e416667e9748e75d9f3fde8a653127a7",
+  "file": "content/cat-03-containers-orchestration/UC-3.4.6.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://goharbor.io/docs/2.10.0/administration/metrics/",
+      "explanation": "Harbor exposes no `harbor_replication_status` or `harbor_replication_tasks` metric. `harbor_task_queue_latency` is a gauge of job-queue latency by task type, not a replication histogram. dataSources repeats the non-existent metrics.",
+      "field": "detailedImplementation",
+      "quote": "Key metrics: `harbor_replication_status` (gauge per policy), `harbor_task_queue_latency` (histogram), and custom replication timing metrics if configured.",
+      "severity": "blocker",
+      "suggested_fix": "Remove the invented metrics. If metrics are wanted, cite real ones such as `harbor_task_queue_latency{type=\"REPLICATION\"}`, `harbor_task_queue_size` and `harbor_jobservice_task_process_time_seconds`, labelled as job-queue indicators."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://goharbor.io/docs/2.10.0/administration/configuring-replication/",
+      "explanation": "Replication rules and executions are system-level resources managed by the Harbor system administrator. A project-admin user cannot list them, so the input would return 403 or empty results.",
+      "field": "detailedImplementation",
+      "quote": "the API user needs the **ProjectAdmin** role or a custom role with `list` permission on **replication executions** and **replication policies**",
+      "severity": "blocker",
+      "suggested_fix": "State that a system administrator account, or a system-level robot account with replication read permissions where the Harbor version supports it, is required."
+    },
+    {
+      "dimension": "consistency",
+      "explanation": "detailedImplementation builds this lookup and puts `src_registry`/`dest_registry` in the Row D table and the alert payload. None of the three searches applies the lookup, so `policy_name` is just the numeric policy_id and the registry fields never appear.",
+      "field": "cross_field",
+      "quote": "Create a **lookup** (`harbor_replication_policies.csv`) mapping `policy_id` to `policy_name`, `src_registry`, `dest_registry`",
+      "severity": "major",
+      "suggested_fix": "Say the lookup must be applied (`| lookup harbor_replication_policies policy_id OUTPUT policy_name src_registry dest_registry`), or drop the fields from the dashboard and alert payload."
+    },
+    {
+      "dimension": "consistency",
+      "explanation": "The SPL's 'Per-Task Artifact Failure Detail' search reads execution-level `harbor:replication` records, not `harbor:replication:task`, so it gives no per-artifact detail. dataSources also lists harbor:audit, harbor:metrics, kube:container:logs and otel:metrics as required, but none is searched.",
+      "field": "cross_field",
+      "quote": "Index these as **`sourcetype=harbor:replication:task`** for drill-down from execution-level summaries to individual artifact failures.",
+      "severity": "major",
+      "suggested_fix": "Describe the third search as a per-policy failure rollup, and mark the task, metrics, log and network sources as optional context that the shipped SPL does not use."
+    },
+    {
+      "dimension": "consistency",
+      "explanation": "The SPL has no `lower()` on trigger, and trigger is never used after the eval, so the normalization claim is false and does not matter.",
+      "field": "detailedImplementation",
+      "quote": "The `coalesce` and `lower` functions normalize these differences.",
+      "severity": "minor",
+      "suggested_fix": "Remove the sentence, or note that trigger is captured but not used in the statistics."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "Harbor typically marks an execution Failed when any task fails, even if most artifacts succeeded (see the `failed`/`succeed` counts on the same record). If so, the CRITICAL description and the 'partial failures' HIGH tier overlap.",
+      "field": "detailedImplementation",
+      "quote": "— **CRITICAL**: the execution status is **Failed** — no artifacts were replicated",
+      "severity": "needs_verification",
+      "suggested_fix": "Check how Harbor sets execution status with mixed task results, and describe CRITICAL as 'execution reported Failed (one or more tasks failed)' if that is the behaviour."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "The format string `%Y-%m-%dT%H:%M:%S` ignores the trailing `.000Z`, so timestamps are parsed in the search head's timezone, not UTC. That skews `now() - start_ts` for in-progress executions by the UTC offset. In-progress records may also carry a zero-value end_time rather than null.",
+      "field": "detailedImplementation",
+      "quote": "The `strptime` in the SPL handles this format.",
+      "severity": "needs_verification",
+      "suggested_fix": "Use a format with fractional seconds and zone (for example `%Y-%m-%dT%H:%M:%S.%3N%Z`). Confirm what Harbor returns for end_time on running executions."
+    },
+    {
+      "dimension": "consistency",
+      "explanation": "`total > 0` is a divide-by-zero guard and not a threshold. The other values are AND-combined severity tiers (Failed → CRITICAL; >1800 s AND failed_pct > 0 → HIGH; >600 s → MEDIUM). The actual alert condition (has_critical=1 or avg_fail_pct > 20) is not mentioned.",
+      "field": "description",
+      "quote": "before applying `total` > 0, `duration_sec` > 1800, `failed_pct` > 0, or `duration_sec` > 600",
+      "severity": "major",
+      "suggested_fix": "Describe the tiers as the SPL defines them and state the alert condition from Step 2."
+    },
+    {
+      "dimension": "specificity",
+      "explanation": "The scenarios are field-name templates and do not name replication causes. Real ones: the first full sync of a new policy, large base-image layers, overlapping scheduled policies contending for jobservice workers, planned target-site maintenance, and event-based bursts after CI releases.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `_time`, `policy_name`** — Health checks in `containers` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List those causes with concrete handling (exclude first-run executions, stagger schedules, a maintenance lookup keyed on policy_id)."
+    },
+    {
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by an automated reviewer while it cites non-existent Harbor metrics and an RBAC role that cannot read replication data.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until an SME has validated the input and searches against a Harbor instance with replication rules."
+    },
+    {
+      "dimension": "consistency",
+      "explanation": "The SPL contains three searches; the per-policy failure rollup is not mentioned.",
+      "field": "implementation",
+      "quote": "Build two search variants: hourly execution monitoring with failure rate and severity classification, and 7-day lag trend with SMA.",
+      "severity": "minor",
+      "suggested_fix": "Mention the third search."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Trendline",
+      "field": "spl",
+      "issue": "`trendline` has no by-clause, so `sma7(avg_lag)` runs over the interleaved rows of every policy in the stats output. The SMA and the SPIKE flag therefore mix policies. Use `streamstats window=7 avg(avg_lag) by policy_name` instead.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "Polling `/replication/executions?page_size=50` every 5 minutes re-indexes the same execution records on every poll. Without `dedup id` (keeping the latest snapshot), `executions`, `failed_executions`, `sum(failed)` and `sum(total)` are inflated by the number of polls in the window, and in-progress snapshots skew durations.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`strptime(coalesce(start_time, _time), ...)` falls back to an epoch `_time`, which strptime cannot parse, so it yields null. The format also drops the `Z` zone designator, so values are parsed in local time.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "Three independent searches are concatenated in one field and cannot be pasted and run as one search.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0102-UC-3.4.6",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The UC correctly identifies Harbor's replication executions API as the primary source and explains severity tiers clearly. However, it cites Harbor replication metrics that do not exist and assigns the wrong RBAC role. Several promised elements never reach the SPL: the policy-name lookup, the per-task sourcetype, and src/dest registry fields. The SPL also re-counts every execution on each 5-minute poll and computes one SMA across all policies.",
+  "tier": "deep",
+  "uc_id": "UC-3.4.6",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,136 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "d14248cf6629bd7b5b6b6eb33bb0975a8e6f9962155a4f5249098b5940cd208c",
+  "file": "content/cat-03-containers-orchestration/UC-3.6.4.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/5167",
+      "explanation": "Splunkbase 5167 is 'Upgrade Universal Forwarder (Windows)'; Splunk Connect for Kubernetes is an archived GitHub Helm chart that reached End of Support on 1 January 2024.",
+      "field": "app",
+      "quote": "Splunk Connect for Kubernetes (Splunkbase 5167)",
+      "severity": "blocker",
+      "suggested_fix": "Use the Splunk OpenTelemetry Collector for Kubernetes (Splunkbase 6264) for metrics and events; drop SCK/5167 from app and dataSources."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://kubernetes.io/docs/reference/access-authn-authz/rbac/#core-component-roles",
+      "explanation": "Kubernetes has no default system:node-proxy ClusterRole; system:node-proxier is the kube-proxy role and does not grant kubelet metrics access. Scraping cAdvisor on 10250 needs get on nodes/metrics, nodes/stats (or nodes/proxy) via a custom ClusterRole.",
+      "field": "detailedImplementation",
+      "quote": "plus **kubelet** API access via the `system:node-proxy` **ClusterRole** binding",
+      "severity": "blocker",
+      "suggested_fix": "Specify a ClusterRole granting get on nodes, nodes/metrics, nodes/stats and nodes/proxy bound to the collector ServiceAccount."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "detailedImplementation correctly warns against latest() on the counter, yet the UC's own CPU search does exactly `latest(...) as cpu_usage_cores` on container_cpu_usage_seconds_total, and Step 2/3 describe the output as real CPU utilisation. Prose and SPL describe different calculations.",
+      "field": "cross_field",
+      "quote": "if the SPL uses `latest(value)` instead of rate calculation, it shows cumulative seconds, not cores",
+      "severity": "major",
+      "suggested_fix": "Make the prose state that the current SPL needs a rate step, or describe the delta-over-window calculation the search should use."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "CRITICAL requires limit_util_pct > 95; ~94% falls in HIGH (>85), so the validation as written would fail.",
+      "field": "detailedImplementation",
+      "quote": "deploy a container with 128Mi memory limit and `stress --vm 1 --vm-bytes 120M` — using ~94% of limit. The search should show `oom_risk=CRITICAL`.",
+      "severity": "major",
+      "suggested_fix": "Use ~124M to exceed 95%, or say the expected result is oom_risk=HIGH."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The Splunk OTel Collector chart's defaults use the kubeletstats and k8s_cluster receivers (e.g. k8s.container.cpu_request / cpu_limit / memory_limit), not Prometheus scrapes of cAdvisor and kube-state-metrics; the Prometheus metric names in the SPL would then not exist without custom config.",
+      "field": "detailedImplementation",
+      "quote": "scraping both **kube-state-metrics** (service port, typically 8080) and **kubelet cAdvisor** (HTTPS port 10250 with **bearer token** auth). The chart's default configuration enables both.",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the chart's default values.yaml; either document the custom prometheus scrape jobs or switch to the native k8s_cluster/kubeletstats metric names."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "cfs_periods_total (with cfs_throttled_periods_total) measures CPU throttling, not CPU usage; it cannot substitute for usage cores.",
+      "field": "detailedImplementation",
+      "quote": "or use the pre-computed `container_cpu_cfs_periods_total` ratio",
+      "severity": "minor",
+      "suggested_fix": "Recommend the rate of container_cpu_usage_seconds_total for usage and the throttled/periods ratio only for throttling."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "OOMKilling events are node-level (involvedObject is the Node, typically from node-problem-detector), so grouping by pod returns nothing; container OOMs surface as last terminated reason OOMKilled on the pod status.",
+      "field": "detailedImplementation",
+      "quote": "`index=containers sourcetype=\"kube:events\" reason=\"OOMKilling\" earliest=-24h | stats count by namespace, pod`",
+      "severity": "minor",
+      "suggested_fix": "Correlate with kube_pod_container_status_last_terminated_reason{reason=\"OOMKilled\"} or pod status instead of OOMKilling events."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/container-platforms-docker-openshift.md",
+      "explanation": "The integration guide lists UC-3.6.4 as 'Cross-cluster container count by environment' and says all 3.6 UCs populate container_summary; this UC has no summary-index step and neither search trends over time.",
+      "field": "cross_field",
+      "quote": "\"title\": \"Resource Request vs Limit Utilization Trending\"",
+      "severity": "minor",
+      "suggested_fix": "Reconcile the guide's Domain 5 list with the catalogue, and add a daily summary/timechart step if 'Trending' is kept."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Nothing in the SPL maps to Inventory datasets; container request/limit utilisation is at best a Performance (CPU/Memory) fit.",
+      "field": "cimModels",
+      "quote": "\"Inventory\"",
+      "severity": "minor",
+      "suggested_fix": "Drop Inventory."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "Marked verified by an agent reviewer while the CPU search computes utilisation from a cumulative counter and the validation steps contradict the thresholds.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until an SME validates on a live cluster."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://prometheus.io/docs/concepts/metric_types/#counter",
+      "field": "spl",
+      "issue": "`latest(...) as cpu_usage_cores` on container_cpu_usage_seconds_total takes the cumulative CPU-seconds counter, so request_util_pct grows with container uptime and every long-running container is classified AT_RISK/RIGHT_SIZED_HOT. Compute (last-first)/elapsed per series, or mstats rate, before dividing by the request.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "Namespace/pod coalesce prefers `namespace` over `exported_namespace`; when kube-state-metrics is scraped without honor_labels, `namespace` is KSM's own namespace, so request/limit rows will not line up with cAdvisor usage rows. cAdvisor also emits pod-level aggregate series with container=\"\" or \"POD\" that should be excluded.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "title",
+      "issue": "Title says 'Trending' but both searches are point-in-time snapshots with no time-series output.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0120-UC-3.6.4",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The right-sizing narrative is detailed and mostly sound, but the CPU search treats the cumulative container_cpu_usage_seconds_total counter as cores (the UC's own troubleshooting text says this is wrong), the RBAC role name does not exist, the OOM validation contradicts the thresholds, and the collector and Splunkbase facts are wrong.",
+  "tier": "deep",
+  "uc_id": "UC-3.6.4",
+  "verdict": "incorrect"
+}

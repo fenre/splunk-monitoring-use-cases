@@ -1,0 +1,110 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "9f9847f1a2b29b306ee1926a9d309c722a161b87b174fc96f74e06c6a42163fa",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.3.35.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "evidence_url": "https://developer.cisco.com/docs/cisco-spaces-firehose/event-types/",
+      "explanation": "`dataSources` and `implementation` name the DEVICE_PRESENCE event, but `spl` filters `eventType=\"DEVICE_ENTRY\"`. In the Firehose API these are different event types: DEVICE_ENTRY is the legacy entry event, while DEVICE_PRESENCE carries `devicePresence.presenceEventType` = DEVICE_ENTRY_EVENT / DEVICE_ACTIVE_EVENT / DEVICE_IN_ACTIVE_EVENT / DEVICE_EXIT_EVENT. A deployment that streams only DEVICE_PRESENCE returns nothing.",
+      "field": "cross_field",
+      "quote": "Cisco Spaces Firehose API (DEVICE_PRESENCE events — entry/exit with timestamps)",
+      "severity": "major",
+      "suggested_fix": "Pick one event model and use it everywhere, for example DEVICE_PRESENCE with presenceEventType=DEVICE_ENTRY_EVENT (or DEVICE_ACTIVE_EVENT, to catch devices that stay on after hours). Flag the SPL filter for human update."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "evidence_url": "https://developer.cisco.com/docs/cisco-spaces-firehose/sample-events/",
+      "explanation": "`hour` and `day` are computed by `eval` in the SPL, and `owner`, `department` and `authorized_afterhours` come from the `known_devices.csv` lookup, so none of them is a data-source field. The list also omits `zoneName` and `eventType`, which the SPL does use. In Firehose JSON, MAC address, floor and building are nested (`devicePresence.device.macAddress`, `devicePresence.location.name`, `devicePresence.location.parent.name`), so flat `macAddress`/`building`/`floor`/`zoneName` require explicit field aliasing.",
+      "field": "dataSources",
+      "quote": "Key fields: authorized_afterhours, building, day, department, floor, hour, macAddress, owner.",
+      "severity": "major",
+      "suggested_fix": "Split the list in two: raw Firehose fields with their JSON paths, and enrichment fields from `known_devices.csv` (macAddress → owner, department, authorized_afterhours). Say where `zoneName` comes from, and note that hour and day are derived at search time."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.cisco.com/docs/cisco-spaces-firehose/sample-events/",
+      "explanation": "The SPL computes hour and day with `strftime(_time, ...)`, which uses the search user's time zone, and applies one global window (before 06:00, after 20:00, weekends). Neither the implementation nor the dataSources text says that per-building hours need a lookup. They also do not mention that DEVICE_PRESENCE events carry a `timeZone` field for the site's local time, so multi-site deployments will alert at the wrong local hours.",
+      "field": "implementation",
+      "quote": "Define business hours per building/zone (some facilities operate 24/7).",
+      "severity": "major",
+      "suggested_fix": "Explain that the SPL uses one fixed window in the search head user's time zone. For multi-site or 24/7 facilities, say to add a per-building business-hours lookup and evaluate the time against the event's `timeZone`."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "evidence_url": "https://developer.cisco.com/docs/cisco-spaces-firehose/sample-events/",
+      "explanation": "Current iOS, Android and Windows clients use randomised per-SSID or rotating MAC addresses, and Cisco Spaces reports a `probingRandomizedPercentage`. A static MAC-to-person lookup therefore goes stale, and unassociated probing devices never match it. The UC presents MAC attribution as reliable evidence of who was present.",
+      "field": "implementation",
+      "quote": "Build a known devices lookup by correlating MAC addresses with user identities from ISE or Active Directory (via 802.1X authentication records).",
+      "severity": "major",
+      "suggested_fix": "Note that randomised MACs limit attribution. Recommend keying on the 802.1X identity, or using USER_PRESENCE (which Cisco Spaces aggregates per authenticated user), and treat unmatched MACs as \"unknown device\" rather than a named person."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The text contains two complete Step 1–4 sequences: the second is generic boilerplate and the first validates against a \"BMS console\". The Spaces add-on's Firehose input is a long-lived streaming connection, not a 300–900 s poll and not HEC. The text also repeats \"Step 4 — Operationalize\" four times and cuts off mid-word (\"Integrat…\").",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=cisco:spaces:presence into cisco_spaces. Default poll interval 300–900 seconds unless the vendor API rate-limits lower.",
+      "severity": "major",
+      "suggested_fix": "Keep one step sequence. Describe enabling the add-on's Firehose stream input, and validate against the Cisco Spaces dashboard's device presence view for the same site and time window. Remove the polling, HEC and BMS wording."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "`cimModels` is empty and the SPL uses no data model, so the CIM Authentication reference is irrelevant. The Search Reference URL contains a literal apostrophe (`What'sInThisManual`) and the Splunk Enterprise documentation link is generic. None of the references points to the Cisco Spaces Firehose documentation.",
+      "field": "references",
+      "quote": "\"title\": \"CIM: Authentication\"",
+      "severity": "minor",
+      "suggested_fix": "Replace these with the Cisco Spaces Firehose event-type documentation (DEVICE_PRESENCE) and, optionally, the Splunk `lookup` command reference."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/8485",
+      "explanation": "On Splunkbase, the current Spaces Add-On (2.0.20) supports Splunk platform 9.4 through 10.6.",
+      "field": "splunkVersions",
+      "quote": "\"9.2+\"",
+      "severity": "minor",
+      "suggested_fix": "Change the value to 9.4+ (and Cloud)."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`stats ... by macAddress, owner, department, building, floor, zoneName` drops every event where any by-field is null. Devices that are not in `known_devices.csv` have null `owner` and `department`, so the unknown devices the `isnull(authorized_afterhours)` branch is meant to catch never reach the output. Fill the lookup outputs with `fillnull value=\"unknown\" owner department` before stats, or move owner and department into `values()`.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "`sort -count` sorts on a field that no longer exists, because stats renames the count to `entries`. The sort has no effect; it should be `sort -entries`.",
+      "severity": "minor"
+    },
+    {
+      "evidence_url": "https://www.skillsdirectory.com/skills/chambear2809-cisco-spaces-setup",
+      "field": "spl",
+      "issue": "`eventType=\"DEVICE_ENTRY\"` is the legacy Firehose entry event, while the documented data source is DEVICE_PRESENCE (presenceEventType DEVICE_ENTRY_EVENT). Also check whether `sourcetype=\"cisco:spaces:presence\"` exists: a published setup guide for ta_cisco_spaces lists only `cisco:spaces:firehose`, `cisco:spaces:firehose:health` and `cisco:spaces:log` (https://www.skillsdirectory.com/skills/chambear2809-cisco-spaces-setup).",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0074-UC-15.3.35",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 1,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The intent (Wi-Fi devices seen after hours that are not on an authorised list) is clear in `implementation`, but the data-source text disagrees with the SPL on the Firehose event type. `stats` drops exactly the unknown devices the UC is meant to catch, and the text overclaims how reliable MAC-to-person attribution is.",
+  "tier": "deep",
+  "uc_id": "UC-15.3.35",
+  "verdict": "rewrite"
+}

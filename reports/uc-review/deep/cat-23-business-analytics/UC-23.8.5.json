@@ -1,0 +1,136 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "010f24215852b989f2cb2b782e1aa93612dbbbc3e49276cff4f07f2a0368b752",
+  "file": "content/cat-23-business-analytics/UC-23.8.5.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-salesforce/SourceTypes/",
+      "explanation": "The Splunk Add-on for Salesforce (3549) object input polls the REST Query API with SOQL, using LastModifiedDate checkpoints, and writes Opportunity records as `sfdc:opportunity` (or `sfdc:object`). It does not run Bulk API 2.0 jobs, and it does not emit `salesforce:opportunity`, which in the category guide comes from a custom Path A modular input. The same claim appears in `app` and detailedImplementation.",
+      "field": "dataSources",
+      "quote": "Salesforce Opportunities flow into index=business sourcetype salesforce:opportunity via Splunk Add-on for Salesforce modular inputs executing asynchronous Bulk API 2.0 query jobs",
+      "severity": "blocker",
+      "suggested_fix": "Either say the TA's `sfdc_object` input (object=Opportunity) lands `sfdc:opportunity`, or say `salesforce:opportunity` comes from a custom Bulk API 2.0 to HEC collector as in guide §3.1 Path A. Align the SPL sourcetype with whichever you choose."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.salesforce.com/docs/atlas.en-us.api_asynch.meta/api_asynch/query_get_job_results.htm",
+      "explanation": "The Bulk API 2.0 results URI is /services/data/vXX.X/jobs/query/{queryJobId}/results, and calls go to the org's instance URL, not login.salesforce.com. login.salesforce.com is only the OAuth endpoint.",
+      "field": "dataSources",
+      "quote": "POST https://login.salesforce.com/services/data/v60.0/jobs/query then GET services/data/v60.0/jobs/{id}/results",
+      "severity": "major",
+      "suggested_fix": "Use POST https://<instance>.my.salesforce.com/services/data/v60.0/jobs/query, then GET .../jobs/query/{jobId}/results, paging on the Sforce-Locator header."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://dev.chartmogul.com/reference/metrics/all/",
+      "explanation": "The ChartMogul API base is https://api.chartmogul.com/v1/ with no /api/ segment. The same wrong path is repeated in detailedImplementation.",
+      "field": "dataSources",
+      "quote": "GET https://api.chartmogul.com/api/v1/customers/{uuid}",
+      "severity": "major",
+      "suggested_fix": "Use GET https://api.chartmogul.com/v1/customers/{uuid}."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "Marketo REST calls use a per-instance base URL (https://<munchkin-id>.mktorest.com/rest/...), not rest.marketo.com. No HubSpot transactional-email stats endpoint or Amplitude /api/2/users endpoint could be confirmed, and transactional email stats are not campaign response metrics.",
+      "field": "dataSources",
+      "quote": "GET https://rest.marketo.com/rest/asset/v1/programs.json ... GET https://api.hubapi.com/marketing/v3/transactional/email/stats ... GET https://api.amplitude.com/api/2/users",
+      "severity": "needs_verification",
+      "suggested_fix": "Check each vendor's developer docs. Use the Marketo instance-specific REST host, and replace the HubSpot and Amplitude paths with documented endpoints (for example, HubSpot marketing email statistics, or Amplitude user search/cohort export) or describe them generically."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL collapses tier and segment into one monthly row and has no acquisition-channel, funnel-stage or per-cohort-quarter payback output, so none of these panels can be built from it. detailedImplementation Step 4 repeats them.",
+      "field": "visualization",
+      "quote": "matrix heatmap blending blended_cac across acquisition channel by customer segment; ranked table surfacing worst-payback channels including spend and logo counts; Sankey diagram tracing acquisition funnel stages",
+      "severity": "major",
+      "suggested_fix": "Describe panels that match the SPL output (monthly blended_cac, simple_payback_months and ltv_cac_ratio trends against the 12/18-month and 3.0 benchmarks), and note that channel, segment and funnel panels need extra SPL keyed on demand_gen_program_map.csv."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "These are division guards copied from the SPL, not alert conditions; they would page every month. The real alert logic in implementation is payback above 24 months twice, or LTV:CAC below 3 across two closes.",
+      "field": "description",
+      "quote": "pages when `new_logos` > 0, `paying_accounts` > 0, `contribution_per_month` > 0, or `blended_cac` > 0",
+      "severity": "major",
+      "suggested_fix": "Describe the UC as a monthly CAC, payback and LTV:CAC computation that alerts when simple_payback_months > 24 for two closes or ltv_cac_ratio < 3.0 for two consecutive months."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The scenarios (maintenance windows, synthetic probes, 48h baselines) do not apply to monthly finance data. The real distortions are listed in Step 5: month-13 accrual true-ups, long enterprise cycles, ramp-heavy AE cohorts, M&A logo influx, and FX translation.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `ym`, `tier`, `segment`, `]`** — Health checks in `business` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "Rewrite the KFPs from the Step 5 troubleshooting causes."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "Nothing in this SaaS unit-economics UC involves Dell EMC infrastructure.",
+      "field": "equipment",
+      "quote": "\"dell_emc\"",
+      "severity": "major",
+      "suggested_fix": "Remove `dell_emc` from equipment."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The only reviewer is an automated agent, and the TA and sourcetype facts and the API paths are wrong, so no SME verification is evident.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until a RevOps/FP&A SME validates the search on live data."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`eval gm_pct=coalesce(tonumber(gm_pct_override),0.72)` and `monthly_churn=coalesce(...,0.017)` silently substitute hard-coded 72% margin and 1.7% churn whenever the policy lookups are missing a month. The resulting payback and LTV look authoritative but are fabricated. Return null or flag `policy_missing` instead.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Sort",
+      "field": "spl",
+      "issue": "In the cohort append branch, `sort cid cohort_month ym` without a count keeps only the first 10,000 rows, so customer-month cohort history is silently truncated before streamstats. Use `sort 0 ...`. Also `streamstats current=f window=12` sums the prior 12 months excluding the current one, which is not the 'twelve-month cumulative' the prose describes.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-salesforce/SourceTypes/",
+      "field": "spl",
+      "issue": "The search queries `salesforce:opportunity`, but the Splunk Add-on for Salesforce emits `sfdc:opportunity`; the sourcetype must match whichever collector is actually deployed.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "`stats dc(cid) by ym tier segment | stats sum(new_logos) by ym` double-counts any account appearing under more than one tier or segment in a month; compute dc(cid) by ym directly. Monthly economics rows and cohort rows are also appended into one table with different columns, which makes the output hard to chart.",
+      "severity": "minor"
+    },
+    {
+      "field": "monitoringType",
+      "issue": "`Performance` and `Reliability` do not describe a CAC/payback finance KPI; `Business` fits the signal and the sibling UCs.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0051-UC-23.8.5",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 5,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The CAC, payback and LTV maths and the troubleshooting section are substantive, but the Splunk Add-on for Salesforce is credited with Bulk API 2.0 jobs and a `salesforce:opportunity` sourcetype it does not produce, and several vendor API paths are wrong. The SPL silently substitutes hard-coded margin and churn defaults, and its cohort branch truncates at the sort limit. The visualization, description and monitoringType do not match what the search computes.",
+  "tier": "deep",
+  "uc_id": "UC-23.8.5",
+  "verdict": "incorrect"
+}

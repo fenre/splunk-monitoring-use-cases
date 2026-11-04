@@ -1,0 +1,83 @@
+{
+  "confidence": 0.65,
+  "content_sha256": "1fec746d8e449a65c071979791a289fc26c15cfb604bcff40973e7e113fff457",
+  "file": "content/cat-01-server-compute/UC-1.1.134.json",
+  "findings": [
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/apple-oss-distributions/file_cmds/blob/file_cmds-430.100.5/df/df.c",
+      "explanation": "Apple's df appends the suffix \"i\" to every base-2 human-readable value, including the byte unit produced by humanize_number with HN_B. As a result, sub-KiB values print as `0Bi`/`512Bi`. The documented contract and the parser it describes have no `Bi`/`BI` form, so a completely full volume is labelled \"malformed\" and dropped by the `isnotnull(available_bytes)` gate. That fails open, staying silent exactly when the disk is exhausted.",
+      "field": "detailedImplementation",
+      "quote": "`B` means bytes; K/Ki, M/Mi, G/Gi, T/Ti, and P/Pi variants use powers of 1024.",
+      "severity": "blocker",
+      "suggested_fix": "Add `Bi` (upper-cased `BI`) to the documented byte vocabulary alongside `B`. Add a `0Bi` / `100%` fixture that must return critical. State that a row with `used_pct` valid but `Avail` unparseable should still be evaluated on the percentage branch, or should be surfaced by source health, rather than silently discarded."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The negative scenario exercises synthetic malformed tokens but no positive scenario covers the genuine macOS exhaustion output (`Avail=0Bi`, `UsePct=100%`). The control suite would therefore pass while the detector misses a full disk.",
+      "field": "controlTest",
+      "quote": "`UsePct=?`; `UsePct=101%`; `Avail=?`; a sample 901 seconds old",
+      "severity": "major",
+      "suggested_fix": "Add a positive case: `UsePct=100%`, `Avail=0Bi` must return critical with `available_bytes=0`; and a case such as `Avail=512Bi` that must parse to 512 bytes."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "clarity",
+      "explanation": "The list mixes inputs that must parse (lowercase and whitespace are normalised by `upper(trim())`) with inputs that must be rejected, without saying which is which. \"Fail closed\" is also used for row rejection, which for an alert means silence rather than a safe default.",
+      "field": "detailedImplementation",
+      "quote": "Test `40.0Gi`, `0B`, lowercase input, whitespace trimming, malformed suffix, negative number, and scientific notation; unsupported formats must fail closed.",
+      "severity": "minor",
+      "suggested_fix": "Split the fixtures into \"must parse to N bytes\" and \"must be rejected and reported by source health\". Describe rejection as \"excluded from the primary search and surfaced by source health\" rather than \"fail closed\"."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "consistency",
+      "explanation": "The title, policy lookup, and description scope the UC strictly to enrolled Macs, and the SPL drops Linux hosts by design. Tagging `linux` equipment surfaces a macOS-only detector in Linux equipment views.",
+      "field": "cross_field",
+      "quote": "\"equipment\": [\"linux\", \"macos\"]",
+      "severity": "minor",
+      "suggested_fix": "Tag only `macos` (keep the Splunk_TA_nix dependency in `app`/`splunkbaseApps`), unless the equipment taxonomy requires the TA's platform slug."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "clarity",
+      "explanation": "The implementation runs to several thousand words, with long caveat chains repeated across exclusions, evidence, knownFalsePositives, and detailedImplementation, such as APFS sharing, purgeable space, and the no-Apple-thresholds disclaimer. That repetition makes the actionable steps hard to find.",
+      "field": "detailedImplementation",
+      "quote": "The base measurement has two independent dimensions.",
+      "severity": "minor",
+      "suggested_fix": "State the APFS and purgeable caveats once (in exclusions or prerequisites) and reference them elsewhere. Keep each step to its configuration and its verification."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://github.com/apple-oss-distributions/file_cmds/blob/file_cmds-430.100.5/df/df.c",
+      "field": "spl",
+      "issue": "The `available_unit` regex alternation and `case()` multiplier lack `BI`, although macOS `df -h` prints byte-scale values as `<n>Bi` (Apple df.c appends \"i\" to all base-2 units). With `Avail=0Bi` the rex fails, `available_bytes` is null, and the `where ... isnotnull(available_bytes)` gate drops a 100%-used row, so a fully exhausted volume never alerts. Add `BI` to the alternation and map it to 1 (evidence: https://github.com/apple-oss-distributions/file_cmds/blob/file_cmds-430.100.5/df/df.c).",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The SPL embeds `use_case=\"UC-1.1.134\"` as an output column, so the UC's own ID appears in its search. This is harmless but is template residue.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0002-UC-1.1.134",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 4,
+    "correctness": 3,
+    "grandma_fidelity": 5,
+    "overclaiming": 5,
+    "specificity": 5
+  },
+  "summary": "A carefully scoped, APFS-aware macOS capacity UC with honest draft status and coherent thresholds and controls. However, its documented unit vocabulary omits the `Bi` suffix that macOS `df -h` emits for byte-scale values, so the most severe case (a fully exhausted Data volume, e.g. `Avail=0Bi`) is rejected as malformed instead of alerting. The text is also very dense.",
+  "tier": "deep",
+  "uc_id": "UC-1.1.134",
+  "verdict": "incorrect"
+}

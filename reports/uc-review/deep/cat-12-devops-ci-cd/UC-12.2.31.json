@@ -1,0 +1,110 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "b1bdb2944b1cf716a3a5d4f1292ae5e181e61699a06a01254bd26708bc50da68",
+  "file": "content/cat-12-devops-ci-cd/UC-12.2.31.json",
+  "findings": [
+    {
+      "confidence": 0.7,
+      "dimension": "clarity",
+      "evidence_url": "https://github.com/argoproj/argo-cd/blob/master/pkg/apis/application/v1alpha1/types.go",
+      "explanation": "No concrete collector is named. A Kubernetes event router forwards core/v1 Event objects (for example Argo CD's OperationStarted or OperationCompleted events), not the Application custom resource `status.operationState`, so it would not supply the `phase` or `operation_state` fields the SPL filters on. A reader cannot tell what to install.",
+      "field": "app",
+      "quote": "Modular input or Event Router shipping Argo CD application CR status — Universal Forwarder (Splunkbase 617)",
+      "severity": "major",
+      "suggested_fix": "Name one supported path. For example, a scripted or REST input polling `GET /api/v1/applications` on the Argo CD API server, or `kubectl get applications.argoproj.io -A -o json`. Write one event per Application, flattening `metadata.name`, `metadata.namespace`, `status.operationState.phase`, `status.operationState.startedAt` and `status.sync.revision`, as `sourcetype=argocd:application`."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "`implementation` says to poll every 60 seconds, while `detailedImplementation` says 'Default poll interval 300–900 seconds'. A 900-second poll interval against a 900-second stuck threshold makes detection latency up to double the threshold.",
+      "field": "cross_field",
+      "quote": "Poll application status every 60s",
+      "severity": "major",
+      "suggested_fix": "State one poll interval, 60 seconds as in `implementation`, and explain that it must be well below the 900-second threshold."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL has no `stats`, no `count` and no `entity` field. It filters events whose operation state or phase is Running, computes `age_sec=now()-_time`, and keeps rows older than 900 seconds. The description also never says what 'stuck' means.",
+      "field": "description",
+      "quote": "Summarises `count` grouped by `entity` across `the scheduled window` before applying `age_sec` > 900.",
+      "severity": "major",
+      "suggested_fix": "Describe the detection: Argo CD Applications whose sync operation (`status.operationState.phase`) has stayed `Running` for more than 15 minutes. Return one row per application with namespace, target revision and age in seconds."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The listed causes are template text about `host` and `count`, neither of which is in the SPL. The real benign causes of a long Running sync are missing: PreSync or Sync hook Jobs such as database migrations that legitimately run longer than 15 minutes, sync waves waiting for earlier resources to become Healthy, automated sync retries with backoff (`retryCount`), and very large applications.",
+      "field": "knownFalsePositives",
+      "quote": "Planned work for 'Argo CD Stuck Sync with Running Operation State' shifts `count` over `span=1h` while `host` remains in-scope.",
+      "severity": "major",
+      "suggested_fix": "List those Argo CD-specific causes. Suggest per-application threshold overrides (lookup keyed on app name and namespace) for apps with known long hooks."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The whole field is the generic five-step skeleton. There are no Argo CD specifics: no API endpoint or RBAC needed to read Applications, and no sample event. The 24-hour window it recommends makes the SPL return every historical Running poll event older than 15 minutes, including syncs that finished long ago. There is also no `entity` field to throttle on.",
+      "field": "detailedImplementation",
+      "quote": "Schedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages.",
+      "severity": "major",
+      "suggested_fix": "Replace it with Argo CD-specific steps: create a read-only Argo CD account or Kubernetes service account with `get/list` on `applications.argoproj.io`, configure the poll, show a sample flattened event, schedule every 5 minutes over a short window, and throttle on `name` plus `namespace`."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "grandma_fidelity",
+      "explanation": "Generic GitOps text that does not describe this UC: a deployment that started and has been 'in progress' for more than 15 minutes without finishing.",
+      "field": "grandmaExplanation",
+      "quote": "We watch GitOps sync and Argo signals so clusters stay aligned with the desired configuration in Git.",
+      "severity": "major",
+      "suggested_fix": "For example: 'When an automatic software rollout starts but is still not finished after 15 minutes, we flag it so someone can check whether it is stuck.'"
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/devops-cicd.md",
+      "explanation": "The DevOps guide documents Argo CD data as `index=gitops` with sourcetypes `argocd:event` and `argocd:sync`. This UC uses `index=devops` and `argocd:application`, which the guide does not list.",
+      "field": "dataSources",
+      "quote": "`sourcetype=argocd:application` polled application status",
+      "severity": "minor",
+      "suggested_fix": "Align the UC and the guide on one index and sourcetype naming, or add `argocd:application` and its index to the guide."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "That repository holds Splunk Observability Cloud dashboards built on Argo CD Prometheus metrics, not a source for `argocd:application` status events. No reference documents the Application `status.operationState` fields the UC depends on.",
+      "field": "references",
+      "quote": "Splunk Infrastructure Monitoring App for Argo CD (GitHub)",
+      "severity": "minor",
+      "suggested_fix": "Add the Argo CD Application status or API documentation, and keep the Observability repository only if a metrics-based alternative (for example via `argocd_app_info` or sync metrics) is described."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`age_sec=now()-_time` measures how old the poll event is, not how long the sync operation has been running. With a 60-second poll, the newest event for a stuck app is always under 900 seconds old. Meanwhile, old poll events from syncs that later completed are returned. Compute age from `status.operationState.startedAt` on the latest event per application (`stats latest(...) by name, namespace`).",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "In the Application CR, `operationState` is an object, and its `phase` field carries `Running`. `operation_state=\"Running\"` only matches if the input flattens and renames that field. Confirm the field names against a real event.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0075-UC-12.2.31",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The goal (find Argo CD syncs whose operation has been Running too long) is useful, but almost every prose field is template text. The data-collection path is vague and self-contradictory, and the SPL measures event age rather than operation age.",
+  "tier": "deep",
+  "uc_id": "UC-12.2.31",
+  "verdict": "rewrite"
+}

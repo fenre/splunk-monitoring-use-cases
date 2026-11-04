@@ -1,0 +1,146 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "7258258a024d447f7a93ff68882e3f2cb86f1c6215e5ba8f0535d5dceaf05465",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.2.2.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/4856",
+      "explanation": "Splunkbase app 4856 is the community 'Metrics Add-on for Infrastructure' (TA-linux-metrics), not an NSX add-on; no Splunk-supported `Splunk_TA_vmware-nsxt` exists. The NSX options on Splunkbase are the VMware-built 'VMware NSX-T Splunk App' (4241) and the community 'VMware NSX add-on' TA-nsx (6805). The same wrong ID repeats in dataSources, detailedImplementation and references.",
+      "field": "app",
+      "quote": "**`Splunk_TA_vmware-nsxt`** ([Splunkbase 4856](https://splunkbase.splunk.com/app/4856))",
+      "severity": "blocker",
+      "suggested_fix": "Replace with the real NSX integration (e.g. VMware NSX-T Splunk App, Splunkbase 4241, and/or TA-nsx, Splunkbase 6805) or describe the feed as custom syslog/REST ingestion; then re-derive sourcetype names from whichever add-on is chosen."
+    },
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/1810",
+      "explanation": "Splunkbase 1810 is 'Hunk App for MongoDB'. The Splunk Add-on for VMware (splunk_TA_vmware) is Splunkbase 3215. Repeated in dataSources, detailedImplementation and references.",
+      "field": "app",
+      "quote": "**`Splunk_TA_vmware`** ([Splunkbase 1810](https://splunkbase.splunk.com/app/1810))",
+      "severity": "blocker",
+      "suggested_fix": "Use Splunk Add-on for VMware, Splunkbase 3215 (https://splunkbase.splunk.com/app/3215)."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/AddOns/released/VMW/Sourcetypes",
+      "explanation": "The Splunk Add-on for VMware has no `vmware:vmware:vsphere:vcenter` sourcetype; VM inventory (guest IPs, names) is `vmware:inv:vm` and vCenter logs are `vmware:vclog:*`. The same invented sourcetype appears in app and detailedImplementation.",
+      "field": "dataSources",
+      "quote": "**`vmware:vmware:vsphere:vcenter`** from **`Splunk_TA_vmware`**",
+      "severity": "blocker",
+      "suggested_fix": "Use `vmware:inv:vm` for VM display-name/IP enrichment."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "Since the named add-on does not exist, these sourcetype names cannot come from it; the VMware NSX-T Splunk App (4241) and TA-nsx (6805) use their own sourcetypes. The text also says the REST JSON is ingested 'through' the TA, but the implementation section says custom HTTPS collectors are needed.",
+      "field": "dataSources",
+      "quote": "**`vmware:nsxt:dfw_groups`** JSON ... **`vmware:nsxt:dfw_policy`** snapshots ... **`vmware:nsxt:firewall`** plus optional **`vmware:nsxt:idfw`**",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the sourcetypes defined by Splunkbase 4241/6805 props.conf; state clearly that dfw_groups/dfw_policy are site-defined sourcetypes produced by a custom Policy API collector."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "detailedImplementation alert design uses a 15-minute window, but the SPL bins `span=1h` over -24h, so `flow_events` is an hourly count and cannot be compared to a 15m threshold; the 7-day 3σ baseline also has no counterpart in the 24h search.",
+      "field": "cross_field",
+      "quote": "Page when `unmapped_source_on_permit` `flow_events` exceeds `50` in `15m` **and** `hour_total` `>2000`",
+      "severity": "major",
+      "suggested_fix": "Either state thresholds per 1h bin consistent with the SPL, or document a separate 15m alert search and a separate 7-day baseline search."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The implementation, dataSources and title promise Applied-To scope and policy-coverage analysis from `vmware:nsxt:dfw_policy`, but the SPL only reads firewall/IDFW verdict lines and an IP→group lookup; `applied_to`, `sequence_number` and policy JSON are never searched. Readers will expect shadowed-rule and scope-drift output the search does not produce.",
+      "field": "cross_field",
+      "quote": "maintain Splunk lookups expanding **NSGroup** membership per IP; run the **`spl`** saved search hourly",
+      "severity": "major",
+      "suggested_fix": "Describe the detection as flow-vs-NSGroup coverage classification, and move applied-to / policy-scope review to a separate documented search (or a sibling UC such as UC-18.2.7)."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "Traceflow in NSX Manager lives under Plan & Troubleshoot > Traceflow; 'Plan Tier-1' is not a UI path.",
+      "field": "detailedImplementation",
+      "quote": "Use **Plan Tier-1** (or supported **Traceflow** entry points)",
+      "severity": "minor",
+      "suggested_fix": "Say 'Plan & Troubleshoot → Traceflow'."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "NSX Policy DFW categories are Ethernet, Emergency, Infrastructure, Environment and Application; 'Default' is a default policy inside Application, not a category value.",
+      "field": "detailedImplementation",
+      "quote": "`category` (Emergency, Infrastructure, Environment, Application, Default)",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm against the NSX 4.2 Policy API SecurityPolicy.category enum and list the actual values."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "An SNMP UPS model has nothing to do with NSX DFW enforcement posture.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_ups\"",
+      "severity": "minor",
+      "suggested_fix": "Remove `snmp_ups`."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by an automated agent while carrying wrong Splunkbase IDs and an invented sourcetype; there is no evidence of SME sign-off.",
+      "field": "status",
+      "quote": "\"status\": \"verified\", ... \"reviewer\": \"agent-handcraft-2026-04-29\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft/community until a human SME validates against a live NSX feed."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "grandma_fidelity",
+      "explanation": "The search does not check which workloads policies are applied to; it classifies observed flows by whether source/destination IPs fall in known groups.",
+      "field": "grandmaExplanation",
+      "quote": "that firewall blueprints still wrap the workloads they should",
+      "severity": "minor",
+      "suggested_fix": "Say it looks at real traffic and flags connections allowed to or from machines that are not in any security group, or allowed between different groups."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://techdocs.broadcom.com/us/en/vmware-security-load-balancing/vdefend/vdefend-firewall/4-2/security-administration-guide/security/distributed-firewall/firewall-packet-logs.html",
+      "field": "spl",
+      "issue": "NSX DFW packet logs report the permit action as PASS (actions PASS, DROP, REJECT) and identify the rule as `<ruleset>/<rule-id>`. `verdict_norm` only maps ALLOW/ACCEPT, and both `_raw` fallbacks look for ALLOW (`\\bALLOW\\b`, `INET match (ALLOW|DROP|REJECT)`), so permitted flows never become ALLOW and the `unmapped_source_on_permit`, `allow_toward_peer_outside_nsgroups` and `cross_nsg_allow_needs_review` classes cannot fire on native logs. Add PASS to the ALLOW mapping and parse rule IDs from the `ruleset/id` token rather than assuming a `seq|policy|rule` RULE_TAG tuple.",
+      "severity": "blocker"
+    },
+    {
+      "field": "title",
+      "issue": "Title promises 'Applied-To Scope, and Policy Coverage Gaps' but the SPL never reads policy/applied_to data; it only classifies flows by IP→NSGroup lookup.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "Branch `unmapped_source_on_permit` fires on `verdict_norm IN (\"ALLOW\",\"REJECT\")`; REJECT is not a permit, so the label and logic disagree. Also the `_raw` fallback `\\bALLOW\\b`/`\\bDROP\\b` can match rule names or other text, and a CSV lookup may return multivalue groups for IPs in several NSGroups, making `src_group_path!=dst_group_path` comparisons unreliable.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0033-UC-18.2.2",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 3,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The SPL and search-logic notes describe a coherent flow-to-NSGroup lookup detection, but NSX logs permits as PASS (which the SPL never maps to ALLOW), the add-on identity is wrong throughout (Splunkbase 4856 and 1810 are unrelated apps, `Splunk_TA_vmware` sourcetype is invented), the title/implementation promise applied-to and policy-coverage analysis the SPL never performs, and the alert thresholds do not match the search grain.",
+  "tier": "deep",
+  "uc_id": "UC-18.2.2",
+  "verdict": "incorrect"
+}

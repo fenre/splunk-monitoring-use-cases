@@ -1,0 +1,131 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "0c4cb055266b2d67eb545b1cc2d2f33d9cae286b74b3299a70f77bb64e16eecb",
+  "file": "content/cat-03-containers-orchestration/UC-3.4.8.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://dev.splunk.com/enterprise/docs/developapps/addsupport/logging/loggingbestpractices/",
+      "explanation": "Values such as `not_after` (`Jun 15 12:00:00 2026 GMT`) and the subject/issuer DNs contain spaces and commas and are not quoted. Splunk's automatic key-value extraction stops at the first delimiter, so `not_after` becomes `Jun` and `issuer_cn` only its first RDN. strptime then returns null, days_left is null, and the urgency case() falls through to OK even for expired certificates.",
+      "field": "detailedImplementation",
+      "quote": "echo \"registry_host=$host, not_after=$not_after, subject=$subject, issuer_cn=$issuer, key_size=$key_size, signature_algorithm=$sig_alg, serial=$serial, description=$desc\"",
+      "severity": "blocker",
+      "suggested_fix": "Quote every value (key=\"value\") or emit one JSON object per endpoint (for example `openssl x509 -enddate -noout` plus `jq -n`), and use `-nameopt` to emit a clean CN."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://goharbor.io/docs/2.10.0/administration/metrics/",
+      "explanation": "Harbor's exporter, core, registry and jobservice components expose no `harbor_registry_tls_cert_expiry_seconds` or any TLS-expiry metric.",
+      "field": "dataSources",
+      "quote": "including `harbor_registry_tls_cert_expiry_seconds` and custom certificate gauges if configured",
+      "severity": "blocker",
+      "suggested_fix": "Remove harbor:metrics as a certificate source. If a metric source is wanted, name a real one such as the Prometheus blackbox exporter's `probe_ssl_earliest_cert_expiry`."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/kubernetes/kubernetes/blob/master/pkg/kubelet/events/event.go",
+      "explanation": "The kubelet reports image pull failures with event reason `Failed` (and `BackOff` for retries) and a message such as `Failed to pull image ... x509: ...`. `FailedPulling` is not a kubelet event reason, so this validation returns nothing. dataSources makes the same claim.",
+      "field": "detailedImplementation",
+      "quote": "`index=containers sourcetype=\"kube:events\" reason=\"FailedPulling\" \"x509\" earliest=-10m`",
+      "severity": "blocker",
+      "suggested_fix": "Use `reason=\"Failed\" \"x509\"` in Step 3(d), and describe the events in dataSources as reason Failed/BackOff with x509 text in `message`."
+    },
+    {
+      "dimension": "consistency",
+      "explanation": "The third search depends on `chain_validation`, `chain_depth`, `issuer_o` and `san_entries`, but the script in Step 1(1) emits none of them. Step 1(2) does not say which field names to write. chain_valid is therefore always `unknown`, CHAIN_BROKEN can never fire, and san_count is always 1.",
+      "field": "cross_field",
+      "quote": "Use `openssl verify -CAfile <ca-bundle>` to detect chain trust issues before they cause pull failures. Record chain depth and any chain validation errors.",
+      "severity": "major",
+      "suggested_fix": "Extend the script example to emit `chain_validation=\"valid|invalid\"`, `chain_depth`, `issuer_o` and `san_entries` with the exact names the SPL reads."
+    },
+    {
+      "dimension": "consistency",
+      "explanation": "The grouping and outputs come from the Kubernetes TLS-failure search, while the days_left thresholds come from the certificate inventory search, which is one row per registry with no hourly grouping. A reader cannot tell what one result row means.",
+      "field": "description",
+      "quote": "grouped by `_time`, `registry_host`. Outputs `affected_pods`, `affected_namespaces` each `1h`; alert when `days_left` <= 0, `days_left` <= 7, `days_left` <= 30, or `days_left` <= 90.",
+      "severity": "major",
+      "suggested_fix": "Describe the per-registry certificate inventory (urgency tiers at 90/30/7/0 days, plus weak crypto) separately from the hourly count of x509 pull failures per registry."
+    },
+    {
+      "dimension": "consistency",
+      "explanation": "implementation probes daily and describes two search variants. detailedImplementation probes every 6 hours (interval 21600), and the SPL contains three searches.",
+      "field": "cross_field",
+      "quote": "Deploy a scripted input on a Splunk forwarder that runs openssl s_client against each registry endpoint daily",
+      "severity": "minor",
+      "suggested_fix": "Use one interval and mention the chain-trust search."
+    },
+    {
+      "dimension": "specificity",
+      "explanation": "The scenarios are field-name templates. Real causes: ACME/Let's Encrypt 90-day certificates sit permanently in the ≤90-day NOTICE tier, a load balancer or CDN presents a different certificate from the registry origin, renewal lands between probes, and pulls of public images hit x509 errors through corporate TLS-inspection proxies.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `_time`, `registry_host`** — Health checks in `containers` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List those causes and concrete handling (lower the NOTICE tier for ACME-issued certs, probe both the edge and the origin, re-probe before paging)."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "Certificate expiry inventory and x509 pull errors are not authentication events. Certificates is the right datamodel.",
+      "field": "cimModels",
+      "quote": "\"Authentication\"",
+      "severity": "minor",
+      "suggested_fix": "Keep Certificates only and document the mapping (ssl_end_time, ssl_issuer, ssl_subject_common_name, dest)."
+    },
+    {
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by an automated reviewer although the shipped probe output cannot produce a valid days_left.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until an SME has run the probe and confirmed urgency tiers against a known-expiring certificate."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/ConditionalFunctions",
+      "field": "spl",
+      "issue": "When `not_after` is missing or unparsable (failed probe, unreachable endpoint, extraction error), `days_left` is null, every `days_left <= n` comparison is false, and urgency falls through to \"OK\". Broken or unreachable endpoints are reported as healthy. Add an explicit `isnull(days_left)` → \"PROBE_FAILED\" branch.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`registry_host` is taken from `split(message, \"/\")[0]`. For kubelet messages such as `Failed to pull image \"harbor.example.com/lib/app:1\": ...`, that yields `Failed to pull image \"harbor.example.com`, so grouping by registry is wrong. Extract the host with rex, for example `rex field=message \"image \\\"(?<registry_host>[^/\\\"]+)/\"`.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval",
+      "field": "spl",
+      "issue": "`involvedObject.namespace` and `involvedObject.name` are unquoted in eval, so `.` is string concatenation rather than a field path. Use single quotes: `'involvedObject.name'`.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`reason IN (\"Failed\", \"FailedPulling\", \"ErrImagePull\")`: only `Failed` is a kubelet event reason for pull failures. The other two never match; harmless but misleading.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "Three independent searches are concatenated in one field and cannot be pasted and run as a single search.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0103-UC-3.4.8",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 5,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The tiered certificate-expiry design and openssl probe are a solid core. However, the probe emits unquoted key=value pairs with spaces, so Splunk extracts `not_after=Jun`, days_left becomes null, and every certificate is classified OK. The UC also cites a Harbor TLS metric and a Kubernetes event reason (FailedPulling) that do not exist, and the chain-validation search depends on fields the script never emits.",
+  "tier": "deep",
+  "uc_id": "UC-3.4.8",
+  "verdict": "incorrect"
+}

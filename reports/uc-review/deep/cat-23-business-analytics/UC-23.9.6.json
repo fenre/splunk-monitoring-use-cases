@@ -1,0 +1,180 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "0da81da0debfcc48829c330a2802fc967867993fa444f7454216ec211fd3f73e",
+  "file": "content/cat-23-business-analytics/UC-23.9.6.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/alert-and-respond/alerting-manual/10.4/create-alerts/use-cron-expressions-for-alert-scheduling",
+      "explanation": "Splunk cron fields run minute, hour, day-of-month, month, day-of-week. So `0 15 5 * *` runs at 15:00 on day 5, not at 05:15.",
+      "field": "detailedImplementation",
+      "quote": "schedule `0 15 5 * *` (05:15 UTC on day five)",
+      "severity": "blocker",
+      "suggested_fix": "Use `15 5 5 * *` for 05:15 on day five, or change the prose to say 15:00. Note that Splunk Enterprise evaluates cron in the search head's timezone; it is UTC only on Splunk Cloud."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.watttime.org/",
+      "explanation": "WattTime access tokens expire after 30 minutes, not twelve hours. API v2 (`/v2/index`, used in Step 1 and dataSources) was supported only until June 2024; the current endpoint is `/v3/signal-index`. It returns a 0–100 percentile `value`, not a field named `marginal_emissions_g_co2_kwh`.",
+      "field": "detailedImplementation",
+      "quote": "**`watttime:index` bearer expiry every twelve hours** — modular-input failures cascade NULL `marginal_emissions_g_co2_kwh`",
+      "severity": "blocker",
+      "suggested_fix": "Describe a token refresh through `GET https://api.watttime.org/login` every 30 minutes or on HTTP 401. Move the poller to `/v3/signal-index` (or `/v3/historical` for MOER values in lbs/MWh). Name the stored fields after the v3 response (`point_time`, `value`, `meta.region`, `meta.units`). Apply the same change in dataSources and Step 1."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "detailedImplementation says the lookup is keyed on `subregion`. The SPL runs `lookup egrid_residual_mix.csv facility_id OUTPUTNEW subregion ...`, which needs a `facility_id` column. A lookup built as the prose describes will return nothing, and the SPL then falls back to its default factor.",
+      "field": "cross_field",
+      "quote": "Publish `egrid_residual_mix.csv` keyed `subregion` with `factor_year`",
+      "severity": "major",
+      "suggested_fix": "Document the lookup as keyed on `facility_id`, or as a two-step mapping: a facility-to-subregion lookup, then a subregion-to-factor lookup. Make the column list match what the SPL outputs."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://resource-solutions.org/2025-residual-mix/",
+      "explanation": "EPA eGRID publishes location-based subregion output emission rates, not market-based residual-mix rates. In the US, residual-mix rates by eGRID subregion are published as Green-e residual mix by the Center for Resource Solutions. GHG Protocol allows eGRID grid averages for the market-based method only when no residual mix is available.",
+      "field": "dataSources",
+      "quote": "tie-outs leverage **`lookup egrid_residual_mix.csv`** for **`subregion`**, **`factor_year`** referencing EPA **eGRID 2024** class emissions-factor grids",
+      "severity": "minor",
+      "suggested_fix": "State that `residual_mix_factor_g_co2e_per_kwh` comes from Green-e (CRS) residual mix rates for US subregions, or AIB European Residual Mixes in Europe. Use eGRID only as a labelled fallback."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL outputs neither `hourly_match_score` nor `marginal_emissions_g_co2_kwh`. It also never queries `watttime:index`, `electricitymaps:intensity` or `flexidao:cfe_hourly`, so these panels cannot be built from this search. The same applies to the 'trailing-twelve-month trend', because the SPL computes only monthly values.",
+      "field": "visualization",
+      "quote": "versus **`hourly_match_score`** companion panel fed by granular certificate feeds; heatmap ... with **`watttime:index`** **`marginal_emissions_g_co2_kwh`** contextual bands",
+      "severity": "major",
+      "suggested_fix": "Limit the visualization to fields the SPL emits (the four attribution kWh columns, `renewable_share_pct`, `market_based_carbon_intensity_g_co2e_kwh`). Label any hourly-CFE or marginal-emissions panels as separate companion searches and name them."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The SPL computes no trailing average and has no alert condition. 'SBTi corridors' are not defined anywhere in the UC, so a reader cannot build this alert.",
+      "field": "detailedImplementation",
+      "quote": "Schedule alerts when `renewable_share_pct` drops twelve-month trailing averages below Science Based Targets initiative corridors",
+      "severity": "minor",
+      "suggested_fix": "Give the concrete alert clause, for example `streamstats window=12 avg(renewable_share_pct) by facility_id` followed by `where ttm_share < <target>`. Name the target source, such as the company's RE100 or SBTi renewable-electricity target percentage."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "This benchmark paragraph has no citations and does not help anyone implement the UC. Some figures look misattributed: the ~510 GW figure for 2023 additions is the IEA's estimate (IRENA reported ~473 GW), and the RE100 percentages are unsupported.",
+      "field": "detailedImplementation",
+      "quote": "**RE100** 2024 Annual Disclosure reporting cadences show ninety-nine percent of member companies tracking REC retirements quarterly and sixty-four percent achieving one-hundred-percent renewable electricity globally ... **IRENA** Renewable Capacity Statistics twenty-twenty-four describe roughly five-hundred-ten gigawatts renewable capacity additions",
+      "severity": "major",
+      "suggested_fix": "Remove the benchmark paragraph, or keep only figures with a cited source and the exact report name and year."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "These Arcadia and Urjanet hosts and paths (also in detailedImplementation Step 1) look invented. 'arcadiaweather' in particular does not match any known Arcadia utility-data endpoint.",
+      "field": "dataSources",
+      "quote": "`GET https://utility.arcadia.com/arcadiaweather/api/v2/usage`-class paths or `GET https://api.urjanet.net/v2/utility-data`",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Arcadia Plug / Urjanet API reference for the real base URL, auth flow and statement or usage endpoints. If they cannot be confirmed, describe the source generically without paths."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "The M-RETS API path, auth and field names are not confirmed. M-RETS certificates identify the generator, not the consuming facility, so the SPL join on `facility_id` needs a mapping the UC never describes. Step 5 also ties M-RETS to 'ERCOT thirty-six-month vintage windows', but ERCOT runs its own REC programme.",
+      "field": "dataSources",
+      "quote": "nightly **`GET https://api.mrets.org/api/v1/certificates`** (Bearer token; pagination via `limit`/`offset`) emitting **`serial_range`**, **`vintage_period`**, **`retirement_account`**, **`match_kwh`**",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the M-RETS API documentation for the retirement or transaction endpoint and field names. Document how a retirement is assigned to a `facility_id` (for example, a retirement-reason or beneficiary lookup). Drop or correct the ERCOT vintage claim."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "The SolarEdge Monitoring API site-energy endpoint is generally documented as `https://monitoringapi.solaredge.com/site/{siteId}/energy` with an `api_key` query parameter, without an `/api` prefix.",
+      "field": "dataSources",
+      "quote": "SolarEdge **`/api/site/{siteId}/energy`**",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm the path against the SolarEdge Monitoring Server API document and correct it, including the `timeUnit` parameter needed for monthly energy."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The listed scenarios (maintenance windows, synthetic probes, a 48-hour onboarding burst, `span=1m`) do not apply to a monthly utility-bill attribution report. The real causes of misleading results are documented only in Step 5.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `facility_id`, `_time`, `]`** — Health checks in `business` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "Replace the list with the real causes: billing-cycle skew between `invoice_period_end` and calendar months, consolidated-invoice replays duplicating `usage_kwh`, PPA forecast versus settled volumes in `facility_ppa_monthly.csv`, RECs from a PPA also appearing in M-RETS retirements (double counting), and a stale residual-mix `factor_year`."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The reviewer is an automated agent and there is no record of SME sign-off, yet the UC contains unverified API paths and the factual errors above.",
+      "field": "status",
+      "quote": "\"status\": \"verified\", ... \"reviewer\": \"agent-handcraft-2026-04-28\"",
+      "severity": "major",
+      "suggested_fix": "Set status to a draft or community value until a sustainability or Splunk SME validates it."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "Cisco ACI (and the `cisco` equipment tag) has nothing to do with utility-bill, REC or inverter data. This is tagging residue.",
+      "field": "equipmentModels",
+      "quote": "\"equipmentModels\": [\"cisco_aci\"]",
+      "severity": "major",
+      "suggested_fix": "Remove `cisco_aci` and `cisco`. Keep only equipment the UC actually ingests, such as Enphase Envoy and SolarEdge inverters if catalogue slugs exist."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/business-analytics.md",
+      "explanation": "The category guide's index set has `esg` and `sustainability` for ESG data but no `compliance` or `environment` index, so the UC departs from the documented role-separation model.",
+      "field": "dataSources",
+      "quote": "`index=compliance` **`sourcetype=mrets:certificates`** ... `index=environment` **`sourcetype=watttime:index`**",
+      "severity": "minor",
+      "suggested_fix": "Use the guide's `esg` or `sustainability` indexes, or explain why separate `compliance` and `environment` indexes are needed."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "Generator-prompt residue leaked into reader-facing text.",
+      "field": "detailedImplementation",
+      "quote": "Technical mechanics without forbidden scaffolding verbs:",
+      "severity": "minor",
+      "suggested_fix": "Delete the phrase and start the paragraph with 'How the search works:'."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`attribution_total_kwh` adds bundled PPA, unbundled RECs, on-site generation and bill green-tariff kWh without capping or de-duplicating them. `renewable_share_pct` can therefore exceed 100%, and RECs delivered under a PPA count twice. The `double_count_guard` mentioned in detailedImplementation is not in the SPL. Cap the share (for example `min(attribution_total_kwh,total_facility_load_kwh)`) and apply an overlap rule.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`coalesce(residual_mix_factor_g_co2e_per_kwh,\"412\")` silently uses an undocumented 412 g/kWh factor whenever the lookup misses. This happens for every row if the lookup is built keyed on `subregion` as the prose says. Market-based intensity is then fabricated with no flag. Emit null or a `factor_missing` flag instead.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`max(green_tariff_pct)` across all accounts of a facility is applied to the facility's total load, which overstates `bill_green_kwh` when only one account is on a green tariff. Compute green kWh per account before summing.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0057-UC-23.9.6",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The SPL and the detailed implementation describe a credible monthly market-based renewable-attribution report, but the text has wrong product facts: the cron string, WattTime token lifetime and API version, and residual-mix sourcing. It also references fields and feeds the SPL never uses, carries unsourced benchmark statistics, and claims verified status with no evidence.",
+  "tier": "deep",
+  "uc_id": "UC-23.9.6",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,180 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "da99f050812f910c2a48e34b66e820634a036b3c5aab11f361d13c0cd8a1c164",
+  "file": "content/cat-03-containers-orchestration/UC-3.4.1.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/container-platforms-docker-openshift.md",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/FormateventsforHTTPEventCollector",
+      "explanation": "Harbor posts its own JSON body. The HEC /services/collector/event endpoint rejects bodies that lack the HEC envelope with an `event` key, so webhook delivery fails. The repository guide uses the /services/collector/raw endpoint for this reason.",
+      "field": "detailedImplementation",
+      "quote": "— Endpoint URL: `https://<splunk-hec-host>:8088/services/collector/event`",
+      "severity": "blocker",
+      "suggested_fix": "Use `https://<hec-host>:8088/services/collector/raw?sourcetype=harbor:webhook&index=containers`, or put a relay in front of HEC that wraps the payload in {\"event\": ...}. State why."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://goharbor.io/docs/2.10.0/working-with-projects/project-configuration/configure-webhooks/",
+      "explanation": "In the Default payload, Harbor puts the event name in `type`, not `event_type`. Tag and digest sit under `event_data.resources[]`, not `event_data.repository.tag` or `.digest`. The validation search `event_type=\"PUSH_ARTIFACT\"` in Step 3(b) therefore returns nothing, and the stated nested field list is wrong.",
+      "field": "detailedImplementation",
+      "quote": "The **`event_type`** field should read **`PUSH_ARTIFACT`**.",
+      "severity": "blocker",
+      "suggested_fix": "Say the event name is in `type` (CloudEvents format uses values such as `harbor.artifact.pushed`). Document tag and digest as `event_data.resources{}.tag` and `event_data.resources{}.digest`, and change the Step 3(b) search to `type=\"PUSH_ARTIFACT\"`."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://goharbor.io/docs/2.10.0/working-with-projects/project-configuration/configure-webhooks/",
+      "explanation": "Harbor webhook policies are configured per project (Projects > project > Webhooks) by a project administrator. A system administrator only gets a global on/off checkbox under Configuration > System Settings. The troubleshooting step repeats the non-existent Administration → Webhooks path.",
+      "field": "detailedImplementation",
+      "quote": "navigate to **Administration → Webhooks** (or per-project under **Project → Webhooks**)",
+      "severity": "blocker",
+      "suggested_fix": "Use Projects → <project> → Webhooks in both places, and note that one policy is needed per audited project. Mention the global 'Webhooks enabled' checkbox under Configuration → System Settings."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Dedup",
+      "explanation": "`dedup` takes a field list plus keepevents, keepempty, consecutive and sortby. It has no `span` argument, so this does not deduplicate within 60-second buckets as claimed.",
+      "field": "detailedImplementation",
+      "quote": "`| dedup actor, repository, tag, action, _time span=60s`",
+      "severity": "blocker",
+      "suggested_fix": "Bucket time first, then dedup: `| bin _time span=60s as dedup_bucket | dedup actor repository tag action dedup_bucket`."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "Harbor's v2.0 API documents basic auth (robot accounts use `robot$<name>` plus the secret). I could not find an `X-Harbor-Robot` header in Harbor documentation.",
+      "field": "detailedImplementation",
+      "quote": "Authenticate with `X-Harbor-Robot: <robot-secret>` or **basic auth** against the robot account.",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Harbor API/robot-account docs. If no such header exists, keep only basic auth with the `robot$...` username and the secret."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "Harbor's rsyslog collector writes one file per component under `/var/log/harbor/`, for example `proxy.log` for the nginx proxy. It does not use an `nginx/access.log` subpath. The step also says the access log yields `type=pull`, but nginx access lines have no such field.",
+      "field": "detailedImplementation",
+      "quote": "monitor `/var/log/harbor/nginx/access.log` as `sourcetype=harbor:access`",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the actual proxy log filename on a Harbor host (likely `/var/log/harbor/proxy.log`). Drop the claim that access-log events carry `type=pull`, or document the props.conf extraction that derives it from the HTTP method and URI."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "Harbor documentation says the Default payload structure has not changed from previous versions. The difference that matters is Default versus CloudEvents format.",
+      "field": "detailedImplementation",
+      "quote": "Harbor 2.6+ changed the webhook payload schema",
+      "severity": "minor",
+      "suggested_fix": "Say that null fields usually mean the policy uses CloudEvents format, or that extractions assume the wrong nesting (`event_data.resources{}`)."
+    },
+    {
+      "dimension": "consistency",
+      "explanation": "detailedImplementation Steps 2 and 4 (Row D, tile 'tag mutations') rely on a tag-mutation search with `overwrite_count`, `pushers` and `window_hours`. The `spl` field contains no such search. A reader cannot build the alert or the dashboard row from the UC.",
+      "field": "cross_field",
+      "quote": "The tag-mutation variant runs every **1 hour** over `-24h` and alerts when `overwrite_count > 0`",
+      "severity": "major",
+      "suggested_fix": "Remove the tag-mutation variant from implementation and visualization, or ask a human editor to add that search to `spl`."
+    },
+    {
+      "dimension": "consistency",
+      "explanation": "dataSources says five sourcetypes are required, but the SPL reads only harbor:webhook, harbor:audit and harbor:access. Step 3(f) validates docker:registry:events, which no search consumes. kube:events is never used.",
+      "field": "cross_field",
+      "quote": "**`sourcetype=docker:registry:events`** (Docker Distribution v2 notification endpoint for non-Harbor registries), **`sourcetype=kube:events`**",
+      "severity": "major",
+      "suggested_fix": "List the three Harbor sourcetypes as required and mark Docker Distribution and Kubernetes events as optional future extensions that the shipped SPL does not cover."
+    },
+    {
+      "dimension": "consistency",
+      "explanation": "The prerequisites tell the reader to use a project-read robot account. The troubleshooting section says `/api/v2.0/audit-logs` needs at least project-admin scope and that a project-scoped robot only sees its own logs. A reader following the prerequisites would get incomplete audit data.",
+      "field": "cross_field",
+      "quote": "A dedicated **Harbor robot account** scoped to project-level read on every project you audit",
+      "severity": "major",
+      "suggested_fix": "State one verified permission requirement for the audit-log API (check the Harbor API docs) and use it in both the prerequisites and troubleshooting."
+    },
+    {
+      "dimension": "consistency",
+      "explanation": "The description merges two different searches into one sentence. The audit-trail stats (by actor, project, action_class, registry_host) have no threshold. The pull_count/unique_repos/pull_rate thresholds belong to the separate unauthorized-pull search grouped only by actor and project.",
+      "field": "description",
+      "quote": "by aggregating `action_diversity`, `unique_sources`, `repos_touched` grouped by `actor`, `project`, `action_class`, `registry_host` over `the scheduled window` and alerting when `pull_count` > 25",
+      "severity": "major",
+      "suggested_fix": "Describe two outputs: an unthresholded per-actor push/pull/delete audit trail, and an alert on pulls by actors missing from `authorized_registry_users` with more than 25 pulls, more than 5 repositories, or more than 100 pulls per hour."
+    },
+    {
+      "dimension": "specificity",
+      "explanation": "The scenarios are field-name templates and do not name real registry causes. The `span=1h` they cite does not exist in the SPL. Real benign causes are named elsewhere in the UC: Trivy scanner robot accounts pulling every artifact (Harbor's own PULL_ARTIFACT example has a Trivy robot operator), GC bulk deletes, replication pulls and CI pipelines.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `actor`, `project`, `action_class`, `registry_host`** — Health checks in `containers` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "Replace the list with the concrete causes: scanner robot pulls (`robot$...Trivy...`), replication jobs, CI/CD bursts after merges, and garbage-collection or tag-retention deletes. Give a specific suppression for each."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "Image push, pull and delete events are not logon events and carry no authentication action or result. Neither search maps to any CIM datamodel, so listing Authentication misleads readers who expect tstats coverage.",
+      "field": "cimModels",
+      "quote": "\"Authentication\"",
+      "severity": "major",
+      "suggested_fix": "Drop Authentication. Keep Change only if a CIM mapping for push/delete (object, action, user) is documented, or leave cimModels empty."
+    },
+    {
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by an automated reviewer (`agent-handcraft-2026-04-30`), yet it contains wrong Harbor field names and a non-working HEC endpoint. There is no evidence of SME sign-off.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft or community until an SME has tested the webhook ingestion and searches against a live Harbor instance."
+    },
+    {
+      "dimension": "specificity",
+      "explanation": "The titles promise the webhook and audit-log pages, but the URLs point at generic section landing pages.",
+      "field": "references",
+      "quote": "\"title\": \"Harbor API v2.0 — Audit Logs\", \"url\": \"https://goharbor.io/docs/2.10.0/build-customize-contribute/\"",
+      "severity": "minor",
+      "suggested_fix": "Link https://goharbor.io/docs/2.10.0/working-with-projects/project-configuration/configure-webhooks/ for webhooks and the Harbor v2.0 swagger audit-logs operation for the API."
+    },
+    {
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/container-platforms-docker-openshift.md",
+      "explanation": "The category guide sends Harbor webhooks to `index=registry` with `sourcetype=harbor:registry` (audit as `harbor:audit`). This UC and its siblings use `index=containers` and `harbor:webhook`. Readers following the guide will not match the SPL.",
+      "field": "dataSources",
+      "quote": "`index=containers` requiring five distinct sourcetypes: **`sourcetype=harbor:webhook`**",
+      "severity": "minor",
+      "suggested_fix": "Align index and sourcetype naming with the guide, or add a note mapping the guide's names to the ones this UC expects."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://goharbor.io/docs/2.10.0/working-with-projects/project-configuration/configure-webhooks/",
+      "field": "spl",
+      "issue": "The SPL reads tag and digest from `event_data.repository.tag` and `event_data.repository.digest`. Harbor webhook payloads put them under `event_data.resources{}.tag` and `.digest`, so `tag` is always \"untagged\" and `image_ref` is built from an empty digest. The actor fallback to `event_data.repository.namespace` labels events with the project name instead of a user. CloudEvents-format type values (`harbor.artifact.pulled`) are also not matched by the action case().",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The field holds two independent searches separated by a blank line (audit trail plus unauthorized pull detection). Pasted as one search, the second `index=containers ...` becomes search terms of the first pipeline's final `sort`, so it cannot run as shipped. Split them into separate saved searches.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "harbor:access (nginx) events have no `event_type`, `operation` or `type` field, so they always fall into action \"unknown\" and action_class \"other\". Webhook events carry no client IP, so `unique_sources` and `src_ip` are \"unknown\" for most rows. Including harbor:access adds noise without classification.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0097-UC-3.4.1",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The detailed implementation is rich, but several Harbor and Splunk facts are wrong. It points Harbor webhooks at the HEC /event endpoint, uses the wrong webhook field names (event_type, repository.tag), gives a non-existent system-level webhook menu, and uses dedup with a span option that dedup does not have. Prose, dataSources and dashboards also describe searches (tag mutation, Docker Distribution, kube events) that the SPL does not contain.",
+  "tier": "deep",
+  "uc_id": "UC-3.4.1",
+  "verdict": "incorrect"
+}

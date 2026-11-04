@@ -1,0 +1,106 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "a96b7f4c1d647e73b4440fd64d83490b7fa2f4337bfb01f6fe28101687cdc914",
+  "file": "content/cat-23-business-analytics/UC-23.5.3.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/4045",
+      "explanation": "Splunkbase app 4045 is 'Angular Examples', a dashboard-example app, not an SAP HANA add-on, and the ID is absent from the cached Splunkbase catalogue. HANA JDBC access only needs the SAP ngdbc.jar driver installed in DB Connect. The same wrong citation appears in references and detailedImplementation.",
+      "field": "app",
+      "quote": "Splunk Add-on for SAP HANA ([Splunkbase 4045](https://splunkbase.splunk.com/app/4045)) optional when JDBC targets native HANA SQL views",
+      "severity": "blocker",
+      "suggested_fix": "Remove the Splunkbase 4045 add-on. State that DB Connect connects to HANA with the SAP HANA JDBC driver (ngdbc.jar) added as a custom JDBC driver."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "implementation gives tier targets 98 leverage / 90 bottleneck / 85 non-critical. detailedImplementation says 'ninety-eight strategic, ninety-five leverage', and Step 4 says strategic suppliers escalate below 98. The two fields disagree on what the supplier_classification.csv targets are.",
+      "field": "cross_field",
+      "quote": "numeric OTIF targets (ninety-eight leverage, ninety bottleneck, eighty-five non-critical)",
+      "severity": "minor",
+      "suggested_fix": "Publish one target table, for example strategic 98, leverage 95, bottleneck 90, non-critical 85, and use it in both fields."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "detailedImplementation ingests 101 and 102 movements, but the SPL filters `MOVEMENT_TYPE=101` and never nets 102 reversals. Reversed receipts therefore still count as received, which overstates in_full. Step 5 also gets the effect backwards ('Splunk totals understate receipts').",
+      "field": "cross_field",
+      "quote": "emitting sourcetypes `dbx:sap_ekbe` and `dbx:sap_eket` sourced from SAP extraction SQL selecting GR rows (`MOVEMENT_TYPE IN ('101','102')`)",
+      "severity": "minor",
+      "suggested_fix": "Either say the SQL must net reversals before ingest, or have the SPL include 102 with negative quantity. Correct the Step 5 bullet to say missing reversal handling overstates receipts."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "Coupa's purchase-order resource /api/purchase_orders is real, but the receipt endpoint is usually documented as Receiving Transactions (/api/receiving_transactions). /api/order_header_receipts looks invented. The Coupa reference links only the corporate home page.",
+      "field": "dataSources",
+      "quote": "plus `GET /api/order_header_receipts` ingested as `coupa:purchase_order` and `coupa:receipt`",
+      "severity": "needs_verification",
+      "suggested_fix": "Check against the Coupa Core API reference (Receiving Transactions / Receipts) and correct the path. Link the specific Coupa API documentation page instead of coupa.com."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/DBX/latest/DeployDBX/Configurationfilereference",
+      "explanation": "DB Connect db_inputs.conf has no cron_schedule key (the schedule goes in `interval`, which accepts a cron string), and stanzas are `[<input_name>]` with a `connection =` key, not `[oracle://...]` URIs.",
+      "field": "detailedImplementation",
+      "quote": "Stand up DB Connect rising-column polls (`cron_schedule = 0 */4 * * *` typical) ... Oracle alternative wires `[oracle://corp/rs_rcv_po]` feeds",
+      "severity": "minor",
+      "suggested_fix": "Use `interval = 0 */4 * * *` and a `[rs_rcv_po]` stanza with `connection = oracle_ebs_ro`."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The status says verified, but the reviewer is an agent and the Splunkbase citation is plainly wrong, so no SME validation is evident.",
+      "field": "status",
+      "quote": "\"status\": \"verified\", ... \"reviewer\": \"agent-handcraft-2026-04-28\"",
+      "severity": "major",
+      "suggested_fix": "Set the status to draft or community until a procurement SME confirms it."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "The ASCM, Gartner, Coupa and SAP references are home or topic hubs, not documents that define OTIF or describe the EKBE/EKET tables.",
+      "field": "references",
+      "quote": "\"title\": \"ASCM — Supply chain metrics education hub\", \"url\": \"https://www.ascm.org/\"",
+      "severity": "minor",
+      "suggested_fix": "Link specific documents, such as the SAP MM purchasing-history (EKBE) and schedule-line (EKET) documentation and the ASCM SCOR delivery-performance metric definition, or drop the generic hubs."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The search starts from goods-receipt rows (dbx:sap_ekbe, MOVEMENT_TYPE=101), so PO lines whose promised date has passed with no receipt never appear. The most severe OTIF failures (not delivered at all) are excluded and otif_pct is overstated. The denominator should be all schedule lines due in the period (from EKET), left-joined to receipts.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Join",
+      "field": "spl",
+      "issue": "`join type=left PO_NUMBER, ITEM_NUMBER [search ... dbx:sap_eket ...]` keeps only the first matching subsearch row by default (max=1), so items with multiple EKET schedule lines get one arbitrary promise date and quantity. The subsearch is also capped at 50,000 results, and it does not inherit the outer `earliest=-180d`. Promise rows outside the saved search's time range give null promised_date, which forces on_time=0. Use `stats` over both sourcetypes (or a lookup of schedule lines) instead of join.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`max(qty_ordered)` across schedule lines takes the largest single line rather than the total ordered quantity for the item, so in_full is wrong for split schedules. Use `sum` over distinct schedule lines, or EKPO.MENGE.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0031-UC-23.5.3",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 4,
+    "consistency": 3,
+    "correctness": 2,
+    "grandma_fidelity": 5,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The OTIF logic and the SAP/Oracle/Dynamics table choices (EKBE/EKET, RCV_TRANSACTIONS/PO_LINE_LOCATIONS_ALL, ME23N/MB51 validation) are well grounded, and the explanation is clear. But it cites a Splunkbase ID that belongs to an unrelated 'Angular Examples' app. The SPL's left join and GR-only starting point produce a biased OTIF figure: lines that were never delivered are excluded, and multi-schedule-line promises are truncated.",
+  "tier": "deep",
+  "uc_id": "UC-23.5.3",
+  "verdict": "incorrect"
+}

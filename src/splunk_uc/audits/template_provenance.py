@@ -13,6 +13,7 @@ Usage:
     PYTHONPATH=src python3 -m splunk_uc audit-template-provenance --report
     PYTHONPATH=src python3 -m splunk_uc audit-template-provenance --files content/cat-01-server-compute/UC-1.1.1.json
     PYTHONPATH=src python3 -m splunk_uc audit-template-provenance --check --max-templated 12691
+    PYTHONPATH=src python3 -m splunk_uc audit-template-provenance --check --max-any-v2 16300
 """
 
 from __future__ import annotations
@@ -26,6 +27,7 @@ from typing import Any
 
 from splunk_uc.audits._template_fingerprints import (
     detect_template_flags,
+    detect_template_flags_v2,
     infer_priority,
     is_fully_templated_v2,
 )
@@ -60,6 +62,8 @@ def audit_paths(paths: list[Path]) -> dict[str, Any]:
     flagged_entries: list[dict[str, Any]] = []
     by_category: dict[str, dict[str, int]] = {}
     flag_counts: Counter[str] = Counter()
+    v2_flag_counts: Counter[str] = Counter()
+    any_flag_v2 = 0
     fully_templated = 0
     any_flag = 0
     clean = 0
@@ -80,7 +84,11 @@ def audit_paths(paths: list[Path]) -> dict[str, Any]:
             rel = str(path)
         uc_id = f"UC-{data.get('id', path.stem.replace('UC-', ''))}"
         flags = detect_template_flags(data)
+        flags_v2 = detect_template_flags_v2(data)
         category = _category_from_path(path)
+        if flags_v2:
+            any_flag_v2 += 1
+            v2_flag_counts.update(flags_v2)
 
         if flags:
             any_flag += 1
@@ -94,9 +102,17 @@ def audit_paths(paths: list[Path]) -> dict[str, Any]:
 
         cat_bucket = by_category.setdefault(
             category,
-            {"total": 0, "any_template": 0, "fully_templated_v2": 0, "clean": 0},
+            {
+                "total": 0,
+                "any_template": 0,
+                "any_template_v2_families": 0,
+                "fully_templated_v2": 0,
+                "clean": 0,
+            },
         )
         cat_bucket["total"] += 1
+        if flags_v2:
+            cat_bucket["any_template_v2_families"] += 1
         if flags:
             cat_bucket["any_template"] += 1
         else:
@@ -128,6 +144,8 @@ def audit_paths(paths: list[Path]) -> dict[str, Any]:
             "fully_templated_v2": fully_templated,
             "clean": clean,
             "by_flag": dict(sorted(flag_counts.items())),
+            "any_template_v2_families": any_flag_v2,
+            "by_flag_v2_families": dict(sorted(v2_flag_counts.items())),
         },
         "by_category": dict(sorted(by_category.items())),
         "ucs": sorted(flagged_entries, key=lambda row: (row["priority"], row["id"])),
@@ -155,6 +173,12 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Fail --check when any_template count exceeds this cap",
     )
+    parser.add_argument(
+        "--max-any-v2",
+        type=int,
+        default=None,
+        help="Fail --check when any_template_v2_families count exceeds this cap",
+    )
     args = parser.parse_args(argv)
 
     paths = _iter_uc_paths(args.files)
@@ -172,7 +196,8 @@ def main(argv: list[str] | None = None) -> int:
     print(
         f"Template provenance: {summary['total']} scanned, "
         f"{summary['fully_templated_v2']} fully templated v2, "
-        f"{summary['any_template']} any flag, {summary['clean']} clean"
+        f"{summary['any_template']} any flag, {summary['clean']} clean, "
+        f"{summary['any_template_v2_families']} with v2 template families"
     )
 
     if args.check:
@@ -186,6 +211,16 @@ def main(argv: list[str] | None = None) -> int:
         if args.max_any is not None and summary["any_template"] > args.max_any:
             print(
                 f"FAIL: any_template {summary['any_template']} > max {args.max_any}",
+                file=sys.stderr,
+            )
+            return 1
+        if (
+            args.max_any_v2 is not None
+            and summary["any_template_v2_families"] > args.max_any_v2
+        ):
+            print(
+                f"FAIL: any_template_v2_families {summary['any_template_v2_families']} "
+                f"> max {args.max_any_v2}",
                 file=sys.stderr,
             )
             return 1

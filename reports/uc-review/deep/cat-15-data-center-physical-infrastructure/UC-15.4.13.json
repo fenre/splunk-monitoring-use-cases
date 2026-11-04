@@ -1,0 +1,114 @@
+{
+  "confidence": 0.82,
+  "content_sha256": "b5b81a56fa5306cad50a4606b427b134e265b28b724b1b8a8c95bafa1568050a",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.4.13.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://www.splunk.com/en_us/download/universal-forwarder.html",
+      "explanation": "The Splunk Universal Forwarder is downloaded from splunk.com, not Splunkbase, and it has no SNMP polling input; splunkbase.splunk.com/app/617 returns 404. A reader following this would install a forwarder and get no PDU data.",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll",
+      "severity": "blocker",
+      "suggested_fix": "Name the actual SNMP collector: Splunk Connect for SNMP (containerised, sends to HEC) or the SNMP Modular Input (Splunkbase 1537) on a heavy forwarder, polling PowerNet-MIB rPDULoadStatusTable. Drop the Universal Forwarder and the 617 ID."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/datacenter-physical.md",
+      "evidence_url": "https://splunk.github.io/splunk-connect-for-snmp/main/configuration/splunk-configuration/",
+      "explanation": "The app field offers SC4SNMP, but SC4SNMP writes polling events as sourcetype sc4snmp:event to index netops by default, while the spl expects sourcetype snmp:apc:pdu in index=power with flat fields such as pdu_name. Neither app nor detailedImplementation explains the sourcetype or index override, or how pdu_name gets extracted. The repository guide uses sourcetype snmp:pdu / snmp:rpdu instead.",
+      "field": "cross_field",
+      "quote": "Splunk Connect for SNMP (SC4SNMP) or SNMP Modular Input",
+      "severity": "major",
+      "suggested_fix": "State which collector produces sourcetype snmp:apc:pdu. For SC4SNMP, document the sourcetypePollingEvents/eventIndex overrides and the props that extract pdu_name and the phase load fields; otherwise align with the guide's snmp:pdu sourcetype."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "evidence_url": "https://www.apc.com/us/en/faqs/FA156142/",
+      "explanation": "There is no imbalance threshold, no units note (the PowerNet load values are tenths of amps), and no warning that on three-phase multibank 1G Rack PDUs the rPDULoadStatusTable instances are banks, not phases. A reader cannot tell what counts as unbalanced.",
+      "field": "implementation",
+      "quote": "(1) Three-phase PDUs only. (2) Export top imbalanced PDUs quarterly.",
+      "severity": "major",
+      "suggested_fix": "Add an imbalance criterion (for example, max phase-to-phase difference as a percentage of the mean phase current, with a site-chosen threshold). Note the /10 scaling and the phase-versus-bank instance ordering of rPDULoadStatusTable, and say which PDU models report per-phase rather than per-bank values."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "These are generic REST-API and HEC troubleshooting steps. The data is SNMP polling, so the real failure modes (community/SNMPv3 credentials, UDP 161 reachability, MIB loading, timeouts) are missing. The 'joins/lookups enrich owner' text describes SPL that does not exist.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token ... unless the vendor API rate-limits lower ... inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.",
+      "severity": "major",
+      "suggested_fix": "Rewrite the steps for SNMP polling of PowerNet-MIB rPDULoadStatusLoad: SNMPv3 credentials, poll interval, MIB availability for name translation, verifying pdu_name extraction, and SNMP timeout errors in the collector logs."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The listed scenarios are template filler that don't describe a real cause of an apparent phase imbalance. The SPL also has no threshold to cross.",
+      "field": "knownFalsePositives",
+      "quote": "Batch `max` on `snmp:apc:pdu` — Scheduled automation elevates `l1` without crossing configured threshold",
+      "severity": "major",
+      "suggested_fix": "List real causes: a single large single-phase load (such as a blade chassis) on one phase by design, PDUs where instances 1-3 are banks rather than phases, a missing phase sample that makes the imbalance calculation null or skewed, and planned load migrations during moves."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The SPL references non-existent MIB objects and the collection path is wrong, so the UC cannot have been run and signed off as written.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft or unverified until an SME runs the search against real PowerNet-MIB data."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-connect-for-snmp/main/",
+      "explanation": "Splunk Connect for SNMP is not distributed through Splunkbase; this search link does not lead to the product.",
+      "field": "references",
+      "quote": "https://splunkbase.splunk.com/apps#/search=connect%20for%20snmp",
+      "severity": "minor",
+      "suggested_fix": "Link the SC4SNMP documentation (https://splunk.github.io/splunk-connect-for-snmp/) and a PowerNet-MIB reference for rPDULoadStatusTable."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The detection uses polled phase load values, not SNMP traps.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_trap\"",
+      "severity": "minor",
+      "suggested_fix": "Remove snmp_trap unless a trap-based variant is added."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://oidref.com/1.3.6.1.4.1.318.1.1.12.2.3.1",
+      "field": "spl",
+      "issue": "rPDUPhaseStatusLoad, rPDUPhaseStatusLoad2 and rPDUPhaseStatusLoad3 are not PowerNet-MIB objects. Per-phase/bank current is the single column rPDULoadStatusLoad (tenths of amps), returned as one instance per phase or bank (https://oidref.com/1.3.6.1.4.1.318.1.1.12.2.3.1). On three-phase multibank 1G PDUs, instances 1-3 are banks rather than phases (https://www.apc.com/us/en/faqs/FA156142/), so l1/l2/l3 must come from instance-indexed values filtered by rPDULoadStatusPhaseNumber.",
+      "severity": "blocker"
+    },
+    {
+      "field": "title",
+      "issue": "The title says 'Branch Circuit' load balancing, but the SPL computes whole-PDU phase (L1-L3) averages; no branch circuit or breaker is measured.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0091-UC-15.4.13",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 1,
+    "overclaiming": 2,
+    "specificity": 1
+  },
+  "summary": "Template-generated sidecar around a phase-imbalance report whose SPL reads PowerNet-MIB object names that do not exist. The collection path (Universal Forwarder as a Splunkbase SNMP input) is wrong, and the implementation text describes HEC and vendor REST APIs rather than SNMP polling.",
+  "tier": "deep",
+  "uc_id": "UC-15.4.13",
+  "verdict": "incorrect"
+}

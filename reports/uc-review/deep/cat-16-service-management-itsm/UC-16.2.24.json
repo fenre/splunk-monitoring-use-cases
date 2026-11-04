@@ -1,0 +1,104 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "ffafdef6147d0384268466483afd779e34a37173ca52e1bb30725738ed88530a",
+  "file": "content/cat-16-service-management-itsm/UC-16.2.24.json",
+  "findings": [
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "evidence_url": "https://community.pagerduty.com/ask-a-product-question-2/unable-to-receive-any-webhook-from-pagerduty-760?postid=1724",
+      "explanation": "PagerDuty documents no exportable 'Event Orchestration debug logs' and no public per-delivery webhook log; its own guidance is to contact Support to review delivery attempts. The verifiable signals are the receiver's own web-server / reverse-proxy / WAF access logs (status returned to PagerDuty's user agent) and the `delivery_method.temporarily_disabled` flag on the webhook_subscriptions REST API.",
+      "field": "app",
+      "quote": "Custom log forwarder from PagerDuty Event Orchestration debug logs or proxy logs",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm whether any PagerDuty API or log export exposes per-delivery HTTP status. If not, rewrite the app/dataSources to: receiver-side access logs (nginx/ALB/Cloudflare) filtered to PagerDuty webhook requests and normalized to `pagerduty:webhook_delivery`, plus a scripted poll of `GET /webhook_subscriptions` for `temporarily_disabled`."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "evidence_url": "https://docs.pagerduty.com/integrations/webhooks",
+      "explanation": "This is the entire implementation and it is repeated as 'Step 1 — Configure data collection'; it gives no way to produce `pagerduty:webhook_delivery` events with `http_status`, `delivery_status`, `subscription_id` and `endpoint_host`, which the SPL requires.",
+      "field": "implementation",
+      "quote": "Correlate with Cloudflare/AWS WAF logs if available.",
+      "severity": "major",
+      "suggested_fix": "Describe how the feed is built: which logs are collected (receiver access logs or proxy logs), how PagerDuty requests are identified (user agent `PagerDuty-Webhook/V3.0`, `x-webhook-subscription` header carrying the subscription ID), and how the fields are extracted or normalized; keep WAF correlation as an optional triage step."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.pagerduty.com/developer/webhook-behavior",
+      "explanation": "The text omits the vendor behaviour that makes this UC matter: PagerDuty drops 4xx (except 429) deliveries without retry, retries timeouts/5xx/429 for up to 48 hours, and disables the subscription for 24 hours after 3 consecutive dropped webhooks, discarding queued events. Without that, the reader cannot judge urgency or set a sensible threshold.",
+      "field": "description",
+      "quote": "Outputs `count` each `the scheduled window`; alert when `http_status` >= 400.",
+      "severity": "major",
+      "suggested_fix": "Explain that the search counts failed deliveries per subscription and receiving host, and that three consecutive drops disable the subscription for 24 hours (re-enable via UI or `POST /webhook_subscriptions/{id}/enable`), so even small clusters warrant action."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "evidence_url": "https://docs.pagerduty.com/developer/webhook-behavior",
+      "explanation": "The validation step is about incident records, not webhook deliveries; the duplicated generic Steps 1–5 add a 'vendor admin UI inventory count' check, a poll interval for a log forwarder and 'critical severity' routing that the SPL does not produce.",
+      "field": "detailedImplementation",
+      "quote": "Compare with the PagerDuty incident timeline and service view for the same window. Reconcile a few incident numbers, state changes, and acknowledgement times.",
+      "severity": "major",
+      "suggested_fix": "Validate by sending a test event from the webhook subscription's settings page to a deliberately failing endpoint and confirming the row appears; compare against the subscription's 'Needs Attention' state on the webhooks dashboard. Remove the duplicated template steps."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "grandma_fidelity",
+      "explanation": "The UC monitors PagerDuty's outbound webhooks to downstream systems (ITSM sync, runbook triggers, per detailedImplementation), so the broken pipe is the one fed by the on-call system, not the one feeding it.",
+      "field": "grandmaExplanation",
+      "quote": "We look for a burst of bad answers from the place we post events, so the pipe that feeds the on-call system is not quietly broken.",
+      "severity": "major",
+      "suggested_fix": "E.g. 'When the paging system tries to tell our other tools about an incident and those tools keep refusing the message, we notice before the paging system gives up and stops sending.'"
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Opsgenie is unrelated to this PagerDuty UC, and the PagerDuty App for Splunk (3013) is an alert-action app that does not ingest webhook delivery results; the PagerDuty webhook behaviour and webhook subscription API docs, which the UC actually depends on, are missing.",
+      "field": "references",
+      "quote": "\"title\": \"Opsgenie for Splunk\"",
+      "severity": "minor",
+      "suggested_fix": "Drop the Opsgenie reference; add https://docs.pagerduty.com/developer/webhook-behavior and the webhook_subscriptions API reference."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The SPL groups only by `subscription_id` and `endpoint_host`; there is no status column for an endpoint × status table or `_time` for a timeline.",
+      "field": "visualization",
+      "quote": "Table (endpoint × status), Timeline.",
+      "severity": "minor",
+      "suggested_fix": "Describe a table of failure count per subscription and endpoint, or note the SPL change needed (add `http_status` to the split, or a `timechart`) for the status matrix and timeline."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "title",
+      "issue": "Title says 'Non-200' but the SPL only catches `http_status>=400` or `delivery_status=failed`; PagerDuty treats any non-2xx as failure and community reports show 3xx redirects also trigger disablement, which this SPL misses. Align title and filter (e.g. non-2xx).",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "`pagerduty:audit` records do not carry `http_status` or `delivery_status`, so including that sourcetype adds nothing (or mis-matches on unrelated fields). Also there is no threshold or time bucketing, so any single failure produces a row; consider counting consecutive failures per subscription to mirror PagerDuty's 3-drop disablement rule.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0099-UC-16.2.24",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The detection intent (cluster failed PagerDuty outbound webhook deliveries by subscription and endpoint) is useful, but the sidecar never explains where per-delivery status data can actually come from, its single implementation sentence is not a collection step, the validation steps describe incident reconciliation rather than webhook deliveries, and the plain-language text reverses the direction of the webhook flow.",
+  "tier": "deep",
+  "uc_id": "UC-16.2.24",
+  "verdict": "rewrite"
+}

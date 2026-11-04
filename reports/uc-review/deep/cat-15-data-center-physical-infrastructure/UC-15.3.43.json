@@ -1,0 +1,96 @@
+{
+  "confidence": 0.7,
+  "content_sha256": "7b1cc0cc2784c9f5774eeaccdd3b2b4438a2c15de65654612b862aae6445d543",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.3.43.json",
+  "findings": [
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_url": "https://ipvm-uploads.s3.amazonaws.com/uploads/10b4/c3cf/HIKVISION%20ISAPI_2.0-RaCM%20Service.pdf",
+      "explanation": "Hikvision's ISAPI documentation exposes device logs, including security/operation logs, through `POST /ISAPI/ContentMgmt/logSearch` with a CMSearchDescription body. I could not find a `Security/auditLog` resource. `Event/notification/alertStream` is a long-lived HTTP event stream that a UF cannot 'forward' by itself.",
+      "field": "app",
+      "quote": "Hikvision ISAPI `Security/auditLog` or `Event/notification/alertStream` forwarded via UF",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm against the ISAPI developer guide for the target firmware. Most likely, describe a scripted/modular input that polls `/ISAPI/ContentMgmt/logSearch` (or subscribes to alertStream) and writes JSON to HEC or a monitored file."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "Hikvision logs use Major Type / Minor Type categories, and ISAPI returns XML by default. It is unverified that these exact tokens appear, or that the payload is JSON, unless a custom collector converts it. The SPL keyword filter depends on these strings.",
+      "field": "dataSources",
+      "quote": "security audit JSON (`IllegalLogin`, `loginFailure`, `maxSession`, `Unauthorized`)",
+      "severity": "needs_verification",
+      "suggested_fix": "Capture a real failed-login log record from the target NVR/camera firmware (logSearch result or web UI export), and list the actual minor-type string and payload format the collector writes."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "Server BMC / EDAC memory-error hardware has nothing to do with Hikvision NVR or camera logins. The tag will surface this UC in the equipment picker for the wrong product family.",
+      "field": "equipmentModels",
+      "quote": "\"equipment\": [\"cctv\", \"hardware_bmc\"], \"equipmentModels\": [\"hardware_bmc_edac\"]",
+      "severity": "major",
+      "suggested_fix": "Remove hardware_bmc / hardware_bmc_edac and tag the CCTV/Hikvision equipment model if one exists in the equipment taxonomy."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://ipvm-uploads.s3.amazonaws.com/uploads/330e/3f4a/hik-cam-security.pdf",
+      "explanation": "Hikvision devices with Illegal Login Lock enabled (recommended in the vendor hardening guide) reject a source IP for 30 minutes after 7 failed admin attempts (5 for operator/user). So more than 15 failures per user in 5 minutes mostly fires for distributed sources or devices with the lock disabled. The implementation should explain this interaction.",
+      "field": "implementation",
+      "quote": "Tune threshold per internet-exposed vs internal-only management networks.",
+      "severity": "major",
+      "suggested_fix": "Explain the lockout behaviour, recommend enabling Illegal Login Lock, and suggest a threshold near the lockout count (or alerting on lockout events themselves)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "A 24-hour lookback re-reports every 5-minute burst from the past day on each run. The appended template (poll interval 300–900 s, 'vendor admin UI inventory count (+/-5%)', a duplicated Step 1–4 sequence) does not describe how to collect or validate Hikvision login failures.",
+      "field": "detailedImplementation",
+      "quote": "Schedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages.",
+      "severity": "major",
+      "suggested_fix": "Use a short schedule (every 5 min over the last 10 min) with throttling on host+userName. Validate by deliberately failing logins on a lab camera and confirming the events and failure count. Merge the two step lists into one."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The link is the CISA homepage, not hardening guidance. The Search Reference URL contains a stray apostrophe, and the Hikvision link is the SDK download page rather than ISAPI documentation.",
+      "field": "references",
+      "quote": "\"title\": \"CISA — IP camera hardening guidance\",\n      \"url\": \"https://www.cisa.gov/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the Hikvision network camera security/hardening guide and the ISAPI log search documentation; fix the Search Reference URL to .../SearchReference/WhatsInThisManual."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "Automatic blocking requires Splunk SOAR, a premium product not listed in app or premiumApps, and goes beyond what the detection itself provides.",
+      "field": "implementation",
+      "quote": "Auto-block at firewall via SOAR when `src_ips` repeat.",
+      "severity": "minor",
+      "suggested_fix": "Mark the SOAR response as optional and list Splunk SOAR under premiumApps if retained."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "Grouping by userName misses password-spraying across many accounts from one source, and events without userName are dropped. The bare tokens \"401\" and brute match any log line containing them. Consider grouping by src_ip as well and anchoring on the parsed status/minor-type field.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0082-UC-15.3.43",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The intent (brute-force login detection against Hikvision NVRs and cameras) is clear and the implementation note names the right fields. But the collection path cites an unverified ISAPI endpoint, the equipment tags point at server BMC hardware, the threshold ignores Hikvision's built-in illegal-login lock, and the detailed procedure is a generic template.",
+  "tier": "deep",
+  "uc_id": "UC-15.3.43",
+  "verdict": "rewrite"
+}

@@ -1,0 +1,93 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "9ebe7bb02e72ac6a0b5388cd3f3fd2404df32e6a2ff4f12363b66922adab651e",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.4.7.json",
+  "findings": [
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.cisco.com/docs/nexus-dashboard-orchestrator/4-0-1/api-changelog/",
+      "explanation": "On Nexus Dashboard, NDO APIs are served under /mso/api/v1/ (for example /mso/api/v1/schemas, /mso/api/v1/audit-records). Per-site deployment status comes from GET /mso/api/v1/schemas/{schemaId}/status or /deploy/status/schema/{schemaId}/template/{templateName}. No 'policy-deployment-status' or 'platform/health' endpoint is listed in the NDO API reference. The same wrong paths are in detailedImplementation Step 1 and the SPL playbook text.",
+      "field": "dataSources",
+      "quote": "(**GET** `/api/v1/schemas/{id}/policy-deployment-status`), **`sourcetype=cisco:ndo:audit`** (**GET** `/api/v1/audit-records`), **`sourcetype=cisco:ndo:site_status`** (**GET** `/api/v1/sites`), **`sourcetype=cisco:ndo:platform`** (**GET** `/api/v1/platform/health`)",
+      "severity": "blocker",
+      "suggested_fix": "Replace the paths with the documented /mso/api/v1/ endpoints (schemas, schemas/{schemaId}/status, audit-records, sites). For platform health, use the Nexus Dashboard cluster-health API, checked against the ND API reference."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.cisco.com/docs/nexus-dashboard-orchestrator/4-3-1/api-changelog/",
+      "explanation": "The NDO schema status response is a per-site delta structure (bds, epgs, contracts, …), not a single deployment_status enum. Audit records use event values such as deployed-failed, deployed-timeout and redeployed-failed. These token names and the deployment_status field look assumed rather than taken from the payload.",
+      "field": "detailedImplementation",
+      "quote": "**`deployment_status`** tokens (**deployed**, **not_deployed**, **modified**, **stale**, **failed**)",
+      "severity": "needs_verification",
+      "suggested_fix": "Capture a real /schemas/{schemaId}/status and /audit-records response, then document the actual status and event fields and values (for example audit `event` = deployed-failed / undeployed-timeout)."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "'ND-STARTER' and 'ND-3K' do not match the documented Nexus Dashboard appliance PIDs (for example SE-NODE-G2 or the ND-NODE series).",
+      "field": "detailedImplementation",
+      "quote": "Nexus Dashboard appliances (ND-STARTER, ND-3K, virtual OVA)",
+      "severity": "needs_verification",
+      "suggested_fix": "Take appliance PIDs from the Nexus Dashboard hardware/deployment guide, or just say 'physical or virtual Nexus Dashboard cluster'."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "clarity",
+      "explanation": "-24h is a search window, not a threshold, and 'Watch terms' just lists the title words. The description never says that a row means a schema/template with failed, stale or partial deployment, an unreachable site, or an NDO platform fault.",
+      "field": "description",
+      "quote": "Threshold bundle: -24h; aggregation grain: `schema_key`, `template_key`, `signal`; metrics: `sites_touched`. Watch terms: Nexus, Dashboard, Orchestrator, Cross, Fabric.",
+      "severity": "major",
+      "suggested_fix": "Describe the detection in plain sentences: one row per schema/template/signal, with the five signal lanes and the P1/P2/P3 severity mapping."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "Cassandra and ZooKeeper are tagged as equipment only because the SPL regex mentions them as internal service names. The UC does not monitor those products.",
+      "field": "equipment",
+      "quote": "\"cassandra\",",
+      "severity": "minor",
+      "suggested_fix": "Remove cassandra and zookeeper. Consider adding cisco_nexus to equipmentModels, because NDO can also orchestrate NDFC fabrics, as the hardware field states."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The reviewer is an automated agent, and the polled API paths do not match the NDO API reference, so the collection steps cannot have been exercised end to end.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until the collectors are validated against a live NDO 4.x cluster."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/Inventory",
+      "field": "cimSpl",
+      "issue": "The cimSpl is a generic Change plus Inventory tstats count across all data, with no NDO/sourcetype/vendor constraint. It reproduces none of the deploy_gap/site_island logic, and `All_Inventory.ip` / `All_Inventory.host` are not standard Inventory root fields. NDO sourcetypes are not tagged into either model by any add-on the UC cites.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`like(lr,\"%policy%push%\")` and `like(lr,\"%inter-site%\")` flag any NDO syslog line that mentions a policy push or inter-site connectivity, successful operations included, so the P3 lane will be noisy. deploy_state also coalesces the generic `status` field, which may carry success values on deploy_status events.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0069-UC-18.4.7",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 3,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "This is one of the more coherent UCs in the subcategory: the signal lanes, severity mapping and validation steps match the SPL. The NDO REST paths it tells readers to poll, however, do not match the NDO API, which is served under /mso/api/v1 and exposes schema deployment status at /schemas/{schemaId}/status. The cimSpl is generic and unrelated to NDO data.",
+  "tier": "deep",
+  "uc_id": "UC-18.4.7",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,97 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "237b5bcf1191f0448a42a1c16692f4a61dc1859048a6f748e3ce0e1017397e7c",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.3.40.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/1352",
+      "explanation": "Splunkbase 1352 is 'App for Cisco Network Data' (cisco_ios), not a Cisco Security add-on, and it has nothing to do with Cisco Spaces or BMS data. The companion 'Cisco Security documentation' link is likewise unrelated to this UC.",
+      "field": "references",
+      "quote": "\"title\": \"Splunk Add-on for Cisco Security (Splunkbase 1352)\"",
+      "severity": "blocker",
+      "suggested_fix": "Remove the 1352 and Cisco Security documentation references; reference the Spaces Add-On for Splunk (https://splunkbase.splunk.com/app/8485) and Cisco Spaces IoT/Firehose API documentation instead."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The Splunkbase listing for the Spaces Add-On (ta_cisco_spaces, 8485) does not publish its sourcetypes, and nothing in the repository confirms that it emits `cisco:spaces:iot_sensors` or `cisco:spaces:occupancy`, or fields such as `alert_active`, `alert_reason`, `zone_id` and `occupancy_count`.",
+      "field": "dataSources",
+      "quote": "`sourcetype=cisco:spaces:iot_sensors`, `sourcetype=bacnet:events` or `sourcetype=bms:events`, `sourcetype=cisco:spaces:occupancy`",
+      "severity": "needs_verification",
+      "suggested_fix": "Install ta_cisco_spaces and check default/props.conf and inputs.conf for the actual IoT telemetry and occupancy sourcetypes and field names; if they differ, state them, or mark these as site-defined names."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The implementation prose promises a per-alert 15-minute response window, but the SPL joins only the latest BMS HVAC action per zone across the whole search window and computes alert time minus BMS time. So a BMS action that happens after the alert yields a negative delay, while an unrelated action hours earlier yields 'Slow Response'. The prose and the detection disagree.",
+      "field": "cross_field",
+      "quote": "Correlate by zone ID and time window: when a sensor alert fires, check whether a corresponding BMS action occurred within 15 minutes.",
+      "severity": "major",
+      "suggested_fix": "Either describe what the SPL actually does (latest BMS action per zone over the window), or have the SPL owner rework it to find the first BMS action after each alert within 15 minutes, then align the implementation text."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "dataSources offers `bacnet:events` as an alternative, but the SPL reads only `index=building sourcetype=\"bms:events\" action_type=\"HVAC*\"`. Neither dataSources nor implementation mentions the `building` index or the `action_type`/`action` fields the join relies on.",
+      "field": "cross_field",
+      "quote": "`sourcetype=bacnet:events` or `sourcetype=bms:events`",
+      "severity": "minor",
+      "suggested_fix": "List the `building` index and required BMS fields (`zone_id`, `action_type`, `action`) in dataSources, and note that a `bacnet:events` feed must be normalised to the same fields or the SPL edited."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The SPL queries no Meraki sourcetype; MT sensor data reaches this detection only through Cisco Spaces. Listing the Meraki add-on as required suggests a dependency the search does not have.",
+      "field": "app",
+      "quote": "`Cisco Meraki Add-on for Splunk` (Splunkbase 5580)",
+      "severity": "minor",
+      "suggested_fix": "Drop 5580 from app, or describe it as optional for direct Meraki MT telemetry, which would need its own SPL branch."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/8485",
+      "explanation": "The current Spaces Add-On release (2.0.20) lists platform compatibility from Splunk 9.4 upward, so 9.2+ overstates support for the primary add-on.",
+      "field": "splunkVersions",
+      "quote": "\"9.2+\"",
+      "severity": "minor",
+      "suggested_fix": "State 9.4+ (or whatever minimum the add-on version you document supports)."
+    },
+    {
+      "confidence": 0.95,
+      "dimension": "clarity",
+      "explanation": "The step heading is repeated four times, and Step 1 and the 'Understanding this SPL' paragraph are truncated mid-sentence with an ellipsis.",
+      "field": "detailedImplementation",
+      "quote": "Step 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize",
+      "severity": "minor",
+      "suggested_fix": "Keep one Step 4 heading and restore the full Step 1 and explanation text."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "response_delay_min = (_time - bms_response_time)/60 uses the latest BMS action per zone over the entire window, unbounded by the alert time. A response after the alert gives a negative delay (classified 'Timely Response'), and a stale action before the alert gives 'Slow Response', so the assessment does not measure BMS response to the alert. Also, `join` without max=0 keeps only the first subsearch row per zone_id.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0079-UC-15.3.40",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The implementation prose describes a sensible sensor-alert-to-BMS-response correlation, but the references cite an unrelated Splunkbase app under a wrong name, the sourcetypes are unverified against the Spaces add-on, and the SPL's response-delay arithmetic does not implement the 15-minute response window the prose promises.",
+  "tier": "deep",
+  "uc_id": "UC-15.3.40",
+  "verdict": "incorrect"
+}

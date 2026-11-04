@@ -1,0 +1,101 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "27cd9226a096c1ca7246558c19d075ff99bdba8037a58a4cd7480726374c2ed5",
+  "file": "content/cat-14-iot-operational-technology-ot/UC-14.1.35.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The implementation and detailedImplementation describe schedule-lookup comparison, override duration and justification checks. The SPL uses a hard-coded 21:00–06:00 weekday window plus all weekend, discards 'override' and 'off' events, and counts 'on' transitions. Lights switched on at 20:00 and left on all night produce no row, and overrides are never tracked despite the title.",
+      "field": "cross_field",
+      "quote": "Compare on/off events to published schedule. Track overrides with timestamp and duration. Alert on sustained after-hours lighting without override justification.",
+      "severity": "major",
+      "suggested_fix": "Either describe the search as 'count of lighting-on commands issued outside a fixed after-hours window per building/floor', or document the intended design: a schedule lookup per zone, on/off pairing (for example with transaction or streamstats) to compute after-hours on-duration, and a separate override count with justification fields."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/iot-ot.md",
+      "explanation": "No Splunkbase add-on produces bms:lighting, and a Universal Forwarder has no modular input for DALI or KNX. Lighting data reaches Splunk through a BMS or gateway export (BACnet via Edge Hub, MQTT, syslog or HEC from Niagara/Desigo/KNX IP routers) using a locally defined sourcetype. The guide lists bacnet:event/bacnet:metrics and edgehub:event for this kind of path.",
+      "field": "app",
+      "quote": "DALI/KNX gateway, BMS lighting control module, smart relay monitoring — Universal Forwarder (Splunkbase 617)",
+      "severity": "major",
+      "suggested_fix": "State that bms:lighting is a site-defined sourcetype. Name realistic paths, such as a BMS (Niagara, Desigo, EcoStruxure) exporting lighting point changes over HEC/MQTT/syslog, or Splunk Edge Hub reading BACnet binary-output points, and list the fields required (event_type, zone, floor, building)."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/iot-ot.md",
+      "explanation": "bms:bacnet is listed, but the SPL never queries it. The SPL's index=building also differs from the guide's index=bms convention.",
+      "field": "dataSources",
+      "quote": "`sourcetype=bms:lighting`, `sourcetype=bms:bacnet`",
+      "severity": "minor",
+      "suggested_fix": "Drop bms:bacnet or explain its role, and align the index name with the guide (bms) or say it is site-specific."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "strftime(_time, \"%H\"/\"%u\") evaluates in the timezone of the user or search owner, not the building's local time. For multi-site estates, after-hours classification will be wrong for every building outside that timezone. Nothing in the UC mentions this.",
+      "field": "implementation",
+      "quote": "Compare on/off events to published schedule.",
+      "severity": "major",
+      "suggested_fix": "Add a building-to-timezone lookup (or ingest local-time fields from the BMS), and tell readers to run the saved search as an owner whose timezone matches the site, or to compute the local hour per building."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "This is an unsourced quantitative claim.",
+      "field": "detailedImplementation",
+      "quote": "Lighting left on outside scheduled hours wastes 10-20% of lighting energy.",
+      "severity": "minor",
+      "suggested_fix": "Cite a source (for example a DOE or ASHRAE 90.1 lighting-controls study) or soften it to 'a significant share'."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "grandma_fidelity",
+      "explanation": "The sentence is garbled template text. The search has nothing to do with daylight, and it does not prevent harm or damage.",
+      "field": "grandmaExplanation",
+      "quote": "We help you know if something is off with lighting and daylight the way the schedule and savings plan expect before harm, damage, or wasted effort piles up.",
+      "severity": "minor",
+      "suggested_fix": "For example: 'We count how often lights are switched on at night or at weekends on each floor, so facilities staff can fix schedules or add motion sensors where lights are wasting power.'"
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "explanation": "Niagara is Tridium's framework, so listing them as alternatives is misleading.",
+      "field": "detailedImplementation",
+      "quote": "against the BMS console (for example Niagara, Tridium, or Honeywell)",
+      "severity": "minor",
+      "suggested_fix": "Use 'Tridium Niagara, Siemens Desigo, or Honeywell EBI'."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "Only event_type=\"on\" rows survive the where clause, so the 'off' and 'override' events in the base search are fetched for nothing. Override tracking and after-hours duration, both named in the title, are not computed. A light switched on before 21:00 and left on overnight is never detected.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "hour and dow come from strftime and are strings, compared numerically (hour>=21, dow<=5). Wrap them in tonumber() so the comparisons are reliably numeric.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0085-UC-14.1.35",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 3,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "This is a beginner lighting UC whose prose promises override tracking, durations, published-schedule comparison and justification checks. The SPL only counts 'on' events that occur inside a hard-coded after-hours window. The collection story (a 'Universal Forwarder modular input' for DALI/KNX) is templated and not actionable.",
+  "tier": "deep",
+  "uc_id": "UC-14.1.35",
+  "verdict": "rewrite"
+}

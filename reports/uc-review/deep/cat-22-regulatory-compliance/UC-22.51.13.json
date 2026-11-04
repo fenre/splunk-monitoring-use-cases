@@ -1,0 +1,189 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "4b8f9b3706164bdb581fb128bfa6ad4aa93c9bf1f094f02361482f9799f11c87",
+  "file": "content/cat-22-regulatory-compliance/UC-22.51.13.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Security/Dataintegritycontrol",
+      "explanation": "crcSalt is a file-monitor CRC setting and has nothing to do with data integrity. Splunk warns against using it with rotating logs because it causes re-indexing, so setting it in [default] is not best practice. Splunk data integrity control (SHA-256 l1Hashes/l2Hash) works only on Splunk Enterprise local indexes. It is not supported on Splunk Cloud or SmartStore.",
+      "field": "detailedImplementation",
+      "quote": "Splunk integrity checks: per `inputs.conf` `[default] crcSalt = <SOURCE>` on UFs (already best practice), plus Splunk Cloud's per-bucket hash-chain.",
+      "severity": "blocker",
+      "suggested_fix": "Replace with: enable `enableDataIntegrityControl = true` per index in indexes.conf on Splunk Enterprise local (non-SmartStore) indexes, and verify with `splunk check-integrity -index <name>`. State that Splunk Cloud and SmartStore indexes need a different tamper-evidence control. Remove the crcSalt advice."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Security/Dataintegritycontrol",
+      "explanation": "The integrity flag depends on bucket hashes, and SmartStore indexes do not support data integrity control. This prerequisite therefore points readers at a storage option on which the integrity half of the UC cannot work. The same applies to dataSources ('Integrity hashes via Splunk Cloud's S3 frozen archive').",
+      "field": "detailedImplementation",
+      "quote": "Splunk Cloud frozen-bucket archive enabled or Splunk Enterprise's smartstore with S3 retention configured",
+      "severity": "blocker",
+      "suggested_fix": "State that integrity verification needs Splunk Enterprise local indexes with enableDataIntegrityControl. Split retention guidance (frozenTimePeriodInSecs / DDAA / DDSS) from integrity guidance. Fix dataSources to match."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-microsoft-windows/UpgradeLegacy/",
+      "explanation": "Since Splunk Add-on for Windows 5.0, Security and Application events are indexed with sourcetype `WinEventLog` (or `XmlWinEventLog`), and the channel is carried in `source`. A matrix keyed on sourcetype `WinEventLog:Security` will flag every modern Windows host as missing. The SPL joins on sourcetype case-sensitively, so the lowercase Sysmon value will also fail to match.",
+      "field": "detailedImplementation",
+      "quote": "engineering_workstation_windows,\"WinEventLog:Security|xmlwineventlog:microsoft-windows-sysmon/operational|WinEventLog:Application|MS-Defender:operational\"",
+      "severity": "blocker",
+      "suggested_fix": "Key the expected-log matrix on `source` for Windows channels (e.g. `WinEventLog:Security`, `XmlWinEventLog:Microsoft-Windows-Sysmon/Operational`), or on sourcetype+source pairs. Check the exact case emitted by the deployed Sysmon add-on (Splunkbase 5709) and the Defender input. Apply the same fix to the `implementation` field."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The sample CSV in detailedImplementation separates sourcetypes with '|', but the SPL splits `expected_sourcetypes_csv` on ','. The lookup also has a `retention_days_required` column that the SPL ignores; the SPL hard-codes 2555/365 instead.",
+      "field": "cross_field",
+      "quote": "ot_logging_required.csv ... \"WinEventLog:Security|xmlwineventlog:...\" vs SPL split(expected_sourcetypes_csv, \",\")",
+      "severity": "major",
+      "suggested_fix": "Use one delimiter in both places. Either read `retention_days_required` from the lookup or drop the column from the documented schema."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "This is the opposite of the detection. The SPL raises a row when an asset has no data, partial data, short retention or a failed integrity check, not when events are present. The description also names `index=_audit` as the primary source, but the main source is `index=*` driven by the asset inventory.",
+      "field": "description",
+      "quote": "alert when `event_count_6h` > 0, `missing_count` > 0, or `observed_count` > 0",
+      "severity": "major",
+      "suggested_fix": "Describe the real logic: for each active prod OT asset, compare expected log sources against those seen in the last 6 hours. Flag assets with none or only some, plus assets with retention below the class requirement or failed integrity checks."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "controlTest, knownFalsePositives and detailedImplementation each name a different suppression store, and the SPL uses none of them. `plant_shutdown_windows.csv` is listed as a prerequisite but is not applied in the search either.",
+      "field": "cross_field",
+      "quote": "`compliance_exception_register.csv` ... `nca_otcc_exception_register.csv` ... KV Store `otcc_22_51_13_exceptions`",
+      "severity": "major",
+      "suggested_fix": "Pick one exception store and one shutdown-window lookup, add them to the search (or say they are applied in a downstream suppression), and reference the same names in every field."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "These are domain-pack boilerplate scenarios. QSA and BAA are PCI and HIPAA terms, irrelevant to an NCA OTCC log-coverage check, and assessor activity cannot cause a missing-log row. The real false-positive causes are documented elsewhere in this UC but not listed here: planned plant shutdowns, quiet vendor consoles that only log on operator action, sourcetype renames after a TA upgrade, and Cyber Vision sensor outages.",
+      "field": "knownFalsePositives",
+      "quote": "External assessor sampling — QSA activity spikes `index=_audit` ... Third-party processor under contract — BAA/DPA-covered vendor",
+      "severity": "major",
+      "suggested_fix": "Replace with the OT-specific causes from the detailedImplementation troubleshooting section, each with its suppression (`plant_shutdown_windows.csv`, a per-sourcetype quiet-allowed flag, a sensor-health correlation)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Indexesconf",
+      "explanation": "The SPL does not use `| metadata`; it runs `index=* | stats latest(_time)`. `_audit` does not record per-host retention_days or integrity_check events, because retention is a per-index indexes.conf setting and integrity checks are CLI-run per index or bucket. The listed sources would not supply these fields.",
+      "field": "dataSources",
+      "quote": "Splunk `metadata` command for last-event-time per host (across all in-scope indexes). `index=_audit` for retention and rotation events.",
+      "severity": "major",
+      "suggested_fix": "List the actual sources: `index=*` (or a pre-aggregated summary) for last-seen per host/source, `| rest /services/data/indexes` for frozenTimePeriodInSecs per index, and the output of a scheduled `splunk check-integrity` job ingested to a named index/sourcetype."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "The metadata command reads from the index's metadata, including hot buckets. The claim that it updates only at bucket roll looks inaccurate, and the main SPL does not use metadata anyway.",
+      "field": "detailedImplementation",
+      "quote": "the `metadata` command relies on bucket-level metadata that updates only at bucket roll",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the metadata command reference for freshness behaviour and either correct the statement or remove it."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Propsconf",
+      "explanation": "The props.conf `rename` setting renames a sourcetype at search time. It belongs with the search-time knowledge (search head or bundle), not as an indexer-tier fix. `MS-Defender:operational` is also not a sourcetype that Splunk_TA_windows emits.",
+      "field": "detailedImplementation",
+      "quote": "Normalise via `props.conf` `RENAME` directive on the indexer tier.",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the props.conf spec for `rename` placement and the Defender sourcetype/source produced by the deployed add-on, then correct the tip."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "The expected-log matrix depends on Sysmon, Cyber Vision, Palo Alto and CyberArk sourcetypes, but none of the producing add-ons are listed. The Cisco Cyber Vision add-on in data/splunkbase-catalog.json is 5748, not the 6071 used by the subcategory grounding.",
+      "field": "app",
+      "quote": "Splunk Add-on for Microsoft Windows (Splunkbase 742) on OT Windows hosts. Splunk Universal Forwarder on every host. Splunk Enterprise Security (Splunkbase 263).",
+      "severity": "minor",
+      "suggested_fix": "List the add-ons for each expected sourcetype (Sysmon 5709, Cisco Cyber Vision Splunk Add On 5748, Palo Alto, CyberArk) or say they come from the upstream UCs."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The savedsearches stanza attaches the notable action to every result row. Nothing restricts notables to the two flags, as the prose says.",
+      "field": "detailedImplementation",
+      "quote": "actions = summary_index, notable, email ... Notable on `no_data_flag=true OR integrity_failed_flag=true`.",
+      "severity": "minor",
+      "suggested_fix": "Split into two saved searches, or explain how notables are filtered (for example, a separate correlation search on audit_evidence)."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "There may be no page at this path. Forwarder monitoring is documented in the Monitoring Console manual.",
+      "field": "references",
+      "quote": "https://docs.splunk.com/Documentation/Splunk/latest/DistSearch/MonitorForwardingDeployments",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the URL resolves; otherwise link the Monitoring Console forwarder-monitoring page."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The status is 'verified' while the compliance entry has requires_sme_review: true. The integrity and retention logic cannot work as written on the stated platforms, which suggests no real SME sign-off.",
+      "field": "status",
+      "quote": "\"status\": \"verified\" ... \"reviewer\": \"OT Cybersecurity SME Panel\"",
+      "severity": "major",
+      "suggested_fix": "Set the status to draft/community until a named SME confirms the integrity and retention mechanism."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`observed_count = mvcount(observed_sourcetypes)` returns null, not 0, when no sourcetype is observed. As a result `no_data_flag = if(observed_count=0, ...)` never fires for completely silent assets, which is the primary condition. Use `coalesce(mvcount(...),0)`.",
+      "severity": "needs_verification"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Security/Dataintegritycontrol",
+      "field": "spl",
+      "issue": "Per-host retention and integrity come from `index=_audit action=update retention_policy=*` and `action=\"integrity_check\"`. Splunk does not emit these events; retention is per index (frozenTimePeriodInSecs) and integrity checks run via the `splunk check-integrity` CLI per index or bucket. See https://docs.splunk.com/Documentation/Splunk/latest/Security/Dataintegritycontrol",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The `ot_logging_required.csv` join evals `expected_sourcetypes` but tables only `asset_class expected_count`, so the split is dead code. `rename source AS _source` is also unused. `join asset_key type=outer` against a 7-day `_audit` subsearch and the `index=*` subsearch will hit subsearch limits on large estates.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`integrity_failed_flag` behaviour when no integrity-check event exists (status null) is unclear; confirm whether every asset is flagged or none.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "compliance",
+      "issue": "assurance 'full' and the 12-month / 7-year-safety retention figures are asserted for OTCC-2-12-1-1 without a clause quote. Check against the NCA OTCC-1:2022 text, and downgrade assurance because the integrity and retention checks cannot run as written.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "mitreAttack",
+      "issue": "T1562.008 is 'Disable or Modify Cloud Logs'. For OT Windows hosts and forwarders, T1562.002 (Disable Windows Event Logging) or T1562.006 (Indicator Blocking) fits better.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0134-UC-22.51.13",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The detailedImplementation has a credible OT logging-coverage design. But the integrity and retention parts rest on Splunk features that do not exist as described. The expected-sourcetype matrix uses pre-5.0 Windows TA sourcetypes. The templated description, controlTest and knownFalsePositives get the alert logic backwards and name three different suppression lookups.",
+  "tier": "deep",
+  "uc_id": "UC-22.51.13",
+  "verdict": "incorrect"
+}

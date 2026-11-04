@@ -1,0 +1,125 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "e409020d9bd4b832a886ce9918c190e9374c7f6ac5d9dd5a96201c1bade38e62",
+  "file": "content/cat-17-network-security-zero-trust/UC-17.2.3.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The description speaks of counting by entity against a threshold, but the SPL lists individual connections from countries outside a hard-coded list, while detailedImplementation uses an approved_vpn_countries.csv lookup, per-user stats and an impossible-travel search. Three different detections are described.",
+      "field": "cross_field",
+      "quote": "Threshold bundle: configured threshold; aggregation grain: `entity`; metrics: `count`.",
+      "severity": "major",
+      "suggested_fix": "State the primary detection (VPN connects from a country not on the approved list, one row per connection) and describe impossible travel as a separate, optional search; use the same approved-country mechanism everywhere."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "grandma_fidelity",
+      "explanation": "The plain-language text describes impossible travel, which is not what the title, description or SPL detect (connections from unexpected countries); it also overlaps with sibling UC-17.2.14 Geo-Impossible VPN Connections.",
+      "field": "grandmaExplanation",
+      "quote": "if someone appears to be in two faraway places at almost the same time, we know something is wrong",
+      "severity": "major",
+      "suggested_fix": "Explain that the check flags people connecting to the VPN from countries where the company does not expect staff, which may mean a stolen password."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/NetworkSessions",
+      "explanation": "A VPN session connect event with geolocation fits the Network_Sessions or Authentication data models better than Network_Traffic (flow data), and the SPL does not use either model; listing both without a matching search is inconsistent.",
+      "field": "cimModels",
+      "quote": "\"Authentication\",\n    \"Network_Traffic\"",
+      "severity": "major",
+      "suggested_fix": "Map the VPN session events to Network_Sessions and/or Authentication, and align cimModels with the cimSpl that is shipped."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "Several scenarios (login storm, SAML metadata refresh and its auth failures, split-tunnel route changes, ZTNA health checks) are about authentication failures or traffic volume and do not apply to a geolocation-of-source-IP detection.",
+      "field": "knownFalsePositives",
+      "quote": "Brief auth failures during federation cert rotation.",
+      "severity": "major",
+      "suggested_fix": "List real causes: approved business travel, commercial VPN or proxy egress, carrier-grade NAT and mobile networks that geolocate to another country, outdated GeoIP data, and cloud-hosted VPN clients."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Sort",
+      "explanation": "`sort` without a count keeps only 10,000 results, so the impossible-travel search silently drops events at volume. Separately the primary search ends with `sort - risk`, which orders HIGH, LOW, MEDIUM alphabetically, not by severity.",
+      "field": "detailedImplementation",
+      "quote": "| sort user, _time\n| streamstats current=f last(Country) as prev_country",
+      "severity": "minor",
+      "suggested_fix": "Use `sort 0 user _time` and sort the risk field via a numeric risk_score."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "evidence_url": "https://dev.maxmind.com/geoip/geolite2-free-geolocation-data",
+      "explanation": "GeoLite2 is MaxMind's free database; the commercial MaxMind product is GeoIP2. The sentence also contrasts it with 'MaxMind's free database', which is the same product family that Splunk ships.",
+      "field": "detailedImplementation",
+      "quote": "Consider the commercial GeoLite2 or ip-api for better accuracy.",
+      "severity": "minor",
+      "suggested_fix": "Say 'consider MaxMind's commercial GeoIP2 databases or another commercial geolocation service'."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "overclaiming",
+      "explanation": "Blocking and 'report per compliance requirements' (runbook) are policy actions beyond what a detection search provides, and the UC does not maintain a sanctions list.",
+      "field": "implementation",
+      "quote": "Block sanctioned countries.",
+      "severity": "minor",
+      "suggested_fix": "Say that sanctioned-country connections should be escalated to the owning policy team; do not imply the UC enforces blocking or satisfies reporting duties."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "A second generic Steps 1-5 block (modular input or HEC, poll interval, `host, user, action`, HTTP 401/429) follows the real steps; ASA/VPN logs arrive via syslog or SC4S, not a polled modular input, so this contradicts the specific steps above.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=cisco:asa into vpn. Default poll interval 300–900 seconds",
+      "severity": "major",
+      "suggested_fix": "Delete the generic block and keep the UC-specific steps and troubleshooting."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "The app and equipment lists cover Palo Alto, Fortinet and Juniper, but the SPL only searches sourcetype=cisco:asa with an ASA-style action value; the other vendors would need different sourcetypes and fields.",
+      "field": "app",
+      "quote": "`Splunk_TA_paloalto` (GlobalProtect), `TA-fortinet_fortigate`, `Splunk_TA_juniper`",
+      "severity": "minor",
+      "suggested_fix": "Either document per-vendor sourcetype and field changes or restrict the listed apps/equipment to Cisco ASA."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`action=\"session_connect\"` is not a standard CIM or ASA value for sourcetype cisco:asa (CIM action for VPN logon is success/failure); verify the field and value exist in your ASA data. The country list is hard-coded rather than using the approved_vpn_countries.csv lookup that the implementation describes.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "cimSpl",
+      "issue": "The tstats search on Network_Traffic.All_Traffic counts traffic by user/action/src/dest and contains no geolocation, so it does not reproduce the geo-anomaly detection.",
+      "severity": "major"
+    },
+    {
+      "field": "mitreAttack",
+      "issue": "T1219 (Remote Access Software, i.e. legitimate remote-access tools such as AnyDesk) does not fit unusual-country VPN logons; T1078 Valid Accounts or T1133 External Remote Services is the closer match.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0024-UC-17.2.3",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The detailedImplementation is a rich, useful treatment (approved-country lookup plus impossible travel), but the headline description, SPL and CIM mapping describe only a fixed country allow-list, and the grandma text, false positives and CIM choice do not match the detection.",
+  "tier": "triage",
+  "uc_id": "UC-17.2.3",
+  "verdict": "rewrite"
+}

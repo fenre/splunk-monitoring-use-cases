@@ -1,0 +1,101 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "4188b7dc42f468c1b2bc242cfa479cb0831ece4c2821b3d0856904ee3ac1af1a",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.3.15.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-servicenow/Datatypes/",
+      "explanation": "The Splunk Add-on for ServiceNow names sourcetypes `snow:<table_name>`, so change_request records arrive as `snow:change_request`, not `servicenow:change`. A reader using the TA as instructed would get zero matches in the join and every after-hours badge would alert. `detailedImplementation` repeats the wrong sourcetype.",
+      "field": "dataSources",
+      "quote": "into `index=itsm` as `sourcetype=\"servicenow:change\"`. Land ServiceNow rows via **Splunk Add-on for ServiceNow** (`Splunk_TA_snow`, Splunkbase **1928**)",
+      "severity": "blocker",
+      "suggested_fix": "Use `sourcetype=\"snow:change_request\"`, or state explicitly that `servicenow:change` is a site-defined rename. Also check the TA's field names for change number and planned window: ServiceNow's change_request table uses `number`, `start_date` and `end_date` rather than `change_number`, `planned_start` and `planned_end`."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "`description` presents the UC as a plain after-hours threshold with a count by `entity`. The `spl` returns individual granted badge events between 23:00 and 05:59 that have no matching open ServiceNow change, which is the defining condition named in the title. Note that `hour > 22` excludes the 22:00 hour.",
+      "field": "cross_field",
+      "quote": "grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `hour` < 6, or `hour` > 22.",
+      "severity": "major",
+      "suggested_fix": "Describe one row per granted badge event from 23:00 to 05:59 local time whose badge_id has no ServiceNow change in Implement state covering that time, showing time, badge holder, door and badge_id."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The scenarios refer to `host`, `count` and synthetic probes and name no real cause of after-hours access without a change. Some real causes appear only as troubleshooting cues at the end of detailedImplementation.",
+      "field": "knownFalsePositives",
+      "quote": "Synthetic probe on `host`** — Health checks in `physical` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List real causes: security guards, cleaners and NOC staff with standing night-shift access; emergency changes raised in ServiceNow after the work started; changes linked to a person or CI whose badge mapping is missing in CMDB; vendor escorts badging on a host's card; and daylight-saving or timezone skew between reader clocks and change windows."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "Alert rows are exactly those without a matching change, so `change_number` is empty on every alerting row and cannot be a suppression key. The fifteen-to-sixty-minute skew buffer the text describes is also absent from the search. `visualization` likewise promises a 'matched change_number' column and a denied versus granted ratio, but the SPL keeps only granted events and does not output change_number.",
+      "field": "implementation",
+      "quote": "suppress repeat pages using change_number plus badge_holder until the underlying ticket closes.",
+      "severity": "minor",
+      "suggested_fix": "Throttle on badge_id plus door. Describe the skew buffer as a tuning step to add. Align the visualization with the SPL output, or note that the extra panels need separate searches."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The URL returned HTTP 404 when fetched. The REST API Modular Input is a third-party Splunkbase app (1546), not a Splunk Enterprise documentation page. This UC also uses Splunk_TA_snow, not a generic REST poller.",
+      "field": "references",
+      "quote": "\"title\": \"Splunk Documentation — REST API Modular Input\",\n      \"url\": \"https://docs.splunk.com/Documentation/Splunk/latest/Data/MonitorRESTfulAPIs\"",
+      "severity": "needs_verification",
+      "suggested_fix": "Remove this reference, or replace it with the Splunk Add-on for ServiceNow 'Configure inputs' page."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "Splunk_TA_snow pulls tables directly over the ServiceNow REST API from the Splunk collection node. A ServiceNow MID Server is not part of that path, so a MID outage would not normally stop ingestion.",
+      "field": "detailedImplementation",
+      "quote": "MID-server outages that stop `servicenow:change` ingestion",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the TA's collection architecture. If it is direct REST, replace the MID-server cue with API credential or rate-limit failures visible in the TA's internal logs."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`wo_open` compares `now()` (search time) with the change window instead of the badge event's `_time`. A change open during the 02:00 access but closed by search time counts as missing, and the reverse also happens. `planned_start` and `planned_end` from ServiceNow are datetime strings, so the numeric comparison with now() needs strptime first.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`hour` from strftime is a string, so `hour < 6 OR hour > 22` should use tonumber() to be reliable. The left join on `badge_id` assumes change records carry a badge_id field, which the change_request table does not have natively. `state=\"Implement\"` depends on the TA's display_value setting.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "mitreAttack",
+      "issue": "T1078 (Valid Accounts) is a logical-account technique. Mapping a physical badge-access anomaly to it is a loose fit.",
+      "severity": "minor"
+    },
+    {
+      "field": "cimSpl",
+      "issue": "The Authentication tstats search counts by user, action and src only. It does not implement the after-hours window or the work-order correlation, so it is not an equivalent of the primary SPL.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0053-UC-15.3.15",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The implementation, evidence and detailedImplementation text is specific and mostly useful. The UC tells readers that Splunk_TA_snow lands change records as `servicenow:change`, but the add-on uses `snow:change_request`, and the correlation logic has a time-reference flaw. The description and false positives are template residue that omit the work-order half of the detection.",
+  "tier": "deep",
+  "uc_id": "UC-15.3.15",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,117 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "b8471f6b36f2e96039b1c6d13dd85459f0df5fb0dab823d677a00cd22716701e",
+  "file": "content/cat-10-security-infrastructure/UC-10.6.180.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/splunk/security_content/blob/develop/detections/web/tomcat_session_deserialization_attempt.yml",
+      "explanation": "ESCU ships this detection with type: Anomaly, not TTP. Anomaly detections contribute intermediate risk and are not high-fidelity alerts, so the text overstates confidence and misdescribes how it behaves in RBA.",
+      "field": "detailedImplementation",
+      "quote": "\"Tomcat Session Deserialization Attempt\" is a TTP (Tactics, Techniques, and Procedures) detection that identifies known adversary behaviors with high fidelity",
+      "severity": "blocker",
+      "suggested_fix": "Describe it as an ESCU Anomaly detection that contributes risk (intermediate finding) to the involved entities and is meant to be correlated with 'Tomcat Session File Upload Attempt' (stage one, HTTP PUT of a .session file)."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "evidence_url": "https://research.splunk.com/web/e28b4fd4-8f5a-41cd-8222-2f1ccca53ef1/",
+      "explanation": "There is no 'entity' field and no threshold. The real detection matches Web.http_method=GET with Web.status=500 and a cookie that starts with 'JSESSIONID=.' (a leading dot referencing an uploaded session file). It groups by src, dest, http_user_agent, uri_path and cookie. The 500-status condition that the ESCU KFP text relies on is missing from every reader-facing field.",
+      "field": "description",
+      "quote": "using datamodel `Web.Web` via filter `http_method=GET AND cookie=\"*JSESSIONID=.*\" src=$src$` by aggregating `count` grouped by `entity` over `the scheduled window` and alerting when configured threshold.",
+      "severity": "major",
+      "suggested_fix": "Explain that a result row is a GET request to a Tomcat-fronted host whose JSESSIONID cookie begins with '.', naming a file uploaded earlier through a partial PUT (CVE-2025-24813), and that returned HTTP 500. Rows are grouped by source IP, destination, user agent, URI path and cookie."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase 617 is not in the catalogue and is not the Universal Forwarder. The detection needs web access logs CIM-mapped to the Web datamodel (ESCU data source 'Nginx Access'), which the Splunk Add-on for NGINX (3258) provides. ESCU is Splunkbase 3449, not Security Essentials (3435).",
+      "field": "app",
+      "quote": "Splunk Security Essentials / ESCU — Universal Forwarder (Splunkbase 617)",
+      "severity": "blocker",
+      "suggested_fix": "Splunk ES Content Update (Splunkbase 3449) plus a Web-CIM-compliant add-on for the access logs in front of Tomcat, for example Splunk Add-on for NGINX (Splunkbase 3258), Splunk Add-on for Apache Web Server (3186) or Splunk Add-on for Tomcat (2911)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "evidence_url": "https://research.splunk.com/web/e28b4fd4-8f5a-41cd-8222-2f1ccca53ef1/",
+      "explanation": "cimModels is empty, but both the displayed SPL and the ESCU detection run on the CIM Web datamodel (Web.Web), and implementation says the data must be CIM-normalized.",
+      "field": "cross_field",
+      "quote": "\"cimModels\": []",
+      "severity": "major",
+      "suggested_fix": "Set cimModels to [\"Web\"] and state that the Web.cookie and Web.status fields must be populated, since many access-log formats do not log cookies by default."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "Steps 1 to 5 are generic template text. 'sourcetype=see SPL', index=main and vendor-API polling do not apply to file-monitored web access logs. Step 3's 'host, user, action' fields are not the Web fields this detection uses. The key prerequisite is missing: the web tier must log the Cookie header (for example an NGINX log_format with $http_cookie), otherwise Web.cookie is empty and the detection never fires.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=see SPL into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower.",
+      "severity": "major",
+      "suggested_fix": "Replace with: monitor the NGINX/Apache/Tomcat access logs with a UF and the matching add-on. Extend the log format to capture the Cookie header and status. Verify `| tstats count from datamodel=Web where Web.cookie=* by sourcetype`. Correlate with 'Tomcat Session File Upload Attempt' (PUT of *.session)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "evidence_url": "https://research.splunk.com/web/e28b4fd4-8f5a-41cd-8222-2f1ccca53ef1/",
+      "explanation": "The listed scenarios (maintenance windows, batch jobs, onboarding bursts) are generic and refer to placeholders and thresholds the detection does not have. They omit the real benign cause ESCU names: legitimate application errors with leading-dot JSESSIONID-like cookies that return HTTP 500. Vulnerability scanners probing CVE-2025-24813 are another real source.",
+      "field": "knownFalsePositives",
+      "quote": "**Batch `count` on `configured_sourcetype`** — Scheduled automation elevates `src` without crossing configured threshold",
+      "severity": "major",
+      "suggested_fix": "List: authorised vulnerability scanners or pentests checking CVE-2025-24813, and applications that return 500 with unusual JSESSIONID values. Suppress through `tomcat_session_deserialization_attempt_filter` keyed on src and dest."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "grandma_fidelity",
+      "explanation": "The sentence is missing its object ('exploitation of [CVE-2025-24813] in'), and 'second stage of the attack' means nothing to a lay reader. It does not explain that an attacker first uploads a booby-trapped file and then tricks the server into opening it.",
+      "field": "grandmaExplanation",
+      "quote": "This detection identifies potential exploitation of in Apache Tomcat through the second stage of the attack",
+      "severity": "major",
+      "suggested_fix": "Explain in plain words: an attacker who has slipped a malicious file onto a Tomcat web server sends a request that tricks the server into loading it. We spot that request in the web logs when it causes a server error, so the team can check the server quickly."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "The detection targets Apache Tomcat. Apache HTTP Server is relevant only when it is the reverse proxy in front of Tomcat, and no Tomcat model is listed.",
+      "field": "equipmentModels",
+      "quote": "\"apache_httpd\"",
+      "severity": "minor",
+      "suggested_fix": "Add a Tomcat equipment model if one exists in the taxonomy, and keep apache_httpd/nginx only as front-end proxies whose access logs feed the Web datamodel."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "All reference titles are raw URLs, and the ESCU detection page is not referenced.",
+      "field": "references",
+      "quote": "\"title\": \"https://nvd.nist.gov/vuln/detail/CVE-2025-24813\"",
+      "severity": "minor",
+      "suggested_fix": "Use descriptive titles (for example 'NVD CVE-2025-24813', 'Apache Tomcat security announcement') and add https://research.splunk.com/web/e28b4fd4-8f5a-41cd-8222-2f1ccca53ef1/."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The SPL is ESCU's 'View suspicious JSESSIONID cookies' drilldown, with an unresolved $src$ token, not the detection. It omits the Web.status=500 condition and the ^JSESSIONID=\\. match, and wildcard matching on cookie=\"*JSESSIONID=.*\" also hits cookies containing JSESSIONID=. anywhere. Consider using the ESCU tstats search on datamodel=Web with Web.status=500 and the where match(cookie, \"^JSESSIONID=\\.\") filter.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0063-UC-10.6.180",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 2,
+    "specificity": 1
+  },
+  "summary": "This UC wraps ESCU's CVE-2025-24813 stage-two detection in template prose. It calls the analytic a high-fidelity TTP when ESCU ships it as an Anomaly. It never mentions the HTTP 500 and leading-dot JSESSIONID conditions that define the detection, and it attributes collection to the Universal Forwarder (Splunkbase 617) instead of a Web-CIM-mapping add-on such as the Splunk Add-on for NGINX.",
+  "tier": "deep",
+  "uc_id": "UC-10.6.180",
+  "verdict": "incorrect"
+}

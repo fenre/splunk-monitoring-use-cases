@@ -1,0 +1,151 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "2c5c0fdb021b1e6cdf3abfdb2f180b62969267c753b8b16d51dc925a94c1b740",
+  "file": "content/cat-03-containers-orchestration/UC-3.1.6.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/splunk/docker-logging-plugin",
+      "explanation": "Splunk Connect for Docker (Splunkbase 4496) is a Docker logging plugin that forwards container stdout/stderr through HEC. It does not stream Docker Engine events, so it cannot produce sourcetype docker:events.",
+      "field": "app",
+      "quote": "Splunk Connect for Docker ([Splunkbase 4496](https://splunkbase.splunk.com/app/4496)) or equivalent modular input for docker:events",
+      "severity": "blocker",
+      "suggested_fix": "Describe docker:events as coming from a customer scripted or modular input that wraps `docker events --format '{{json .}}'` (or the Engine /events API). Keep Splunk Connect for Docker only as the container log path, if it is used at all."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Strcat",
+      "explanation": "The fenced SPL builds ns_summary with `eval ns_summary=strcat(...)` in two arms, but the spl field uses `.` concatenation. eval has no strcat() function (strcat is a separate search command), so the runbook copy would fail to parse.",
+      "field": "detailedImplementation",
+      "quote": "Fenced SPL for runbooks must match the spl JSON field byte-for-byte",
+      "severity": "major",
+      "suggested_fix": "Replace the fenced block with an exact copy of the spl field, or drop the byte-for-byte claim."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The description and controlTest say alerts fire only when rolling_bad >= 9, and the negative test expects zero rows below that. In the SPL, rolling_bad >= 9 only fills the sustained_drift_hits column. Every row with a non-null severity_tier is returned, so one unapproved privileged container alerts on the first poll.",
+      "field": "cross_field",
+      "quote": "with thresholds `rolling_bad` >= 9",
+      "severity": "major",
+      "suggested_fix": "State that any unapproved privileged, host-PID, dangerous-capability, unconfined or risky-mount row alerts, and that rolling_bad >= 9 only marks sustained repeat offenders (sustained_drift_hits). Rewrite the negative test around an allowlisted container rather than a threshold."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "None of the listed scenarios names a real cause of privileged-container hits, and the text cites a span=1h that is not in the SPL. The detailed implementation already names the real ones: Docker-in-Docker CI builders, kube-proxy/CNI agents, GPU device plugins, mesh init containers and hardware telemetry sidecars.",
+      "field": "knownFalsePositives",
+      "quote": "Batch `sum` on `docker:inspect` — Scheduled automation elevates `container_id` without crossing `rolling_bad` >= 9",
+      "severity": "major",
+      "suggested_fix": "Replace the list with those concrete platform-agent and CI-builder cases, each with its allowlist or baseline remedy."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.docker.com/reference/cli/docker/system/events/",
+      "explanation": "Docker Engine container events carry Actor.Attributes such as image, name, exit code and container labels, but not HostConfig settings like Privileged or CapAdd. The docker:events arm would therefore rarely, if ever, match.",
+      "field": "dataSources",
+      "quote": "sourcetype=docker:events filtered for container create and policy-bearing strings referencing privileged flags, host pid, host network, or capability additions",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Engine API /events payload for a `docker run --privileged` create event. If HostConfig is absent, describe docker:events as a trigger for re-inspection only."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Falco JSON nests fields under output_fields with dotted keys (container.id, container.image.repository), so Splunk extracts names like output_fields.container.id rather than the container_id and container_image_repository the SPL coalesces. Sibling UC-3.1.21 also uses falco:json, not falco:alert.",
+      "field": "dataSources",
+      "quote": "index=containers sourcetype=falco:alert JSON from Falco via HEC",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm the field names Falco/falcosidekick produce in Splunk, document any FIELDALIAS needed, and align the sourcetype with UC-3.1.21."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "Nothing in the detection maps to the Change data model. The privileged-container signal is a container configuration attribute, not a CIM Change event or an Endpoint process, so both mappings overstate CIM fit.",
+      "field": "cimModels",
+      "quote": "\"Change\",\n    \"Endpoint\"",
+      "severity": "major",
+      "suggested_fix": "Drop Change. Keep Endpoint only if the audit/Sysmon arm is normalised to Endpoint.Processes, and say the main docker:inspect signal has no CIM model."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified with a generic reviewer handle, yet it contains a non-parsing runbook SPL, an inaccurate app claim and templated controlTest/KFP text. Nothing shows SME sign-off.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft or community until an SME validates the SPL against real docker:inspect data."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "This is generator-instruction residue that tells the reader nothing about implementing the detection. It also says the table projects nineteen columns, but the table command lists eighteen.",
+      "field": "detailedImplementation",
+      "quote": "Closing checklist: five step headers use plain text with em dashes, multisearch lists four arms, coalesce appears throughout, ... narrative JSON fields avoid forbidden boilerplate phrases",
+      "severity": "major",
+      "suggested_fix": "Delete the closing checklist and the 'Supplemental engineering notes' filler, or replace them with an operator checklist (lookups published, inputs verified, test containers fired)."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_url": "https://csrc.nist.gov/publications/detail/sp/800-190/final",
+      "explanation": "In SP 800-190, section 4.5 covers host OS countermeasures. Insecure container runtime configuration, including privileged mode, is covered in 3.4.3 (risk) and 4.4.3 (countermeasure).",
+      "field": "evidence",
+      "quote": "NIST SP 800-190 section 4.5",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the SP 800-190 section numbering and cite 4.4.3, insecure container runtime configurations, if confirmed."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "dockershim was removed in Kubernetes 1.24, so current Kubernetes nodes no longer expose Docker inspect for pods unless cri-dockerd is installed.",
+      "field": "detailedImplementation",
+      "quote": "where Kubernetes nodes run a Docker shim",
+      "severity": "minor",
+      "suggested_fix": "Say 'Kubernetes nodes using cri-dockerd' instead of 'Docker shim'."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://community.splunk.com/t5/Splunk-Search/Eval-can-not-concatenate-fields-where-there-is-a-null-value/m-p/61550",
+      "field": "spl",
+      "issue": "ns_summary is built with the eval '.' operator over if(..., \"...|\", null()) terms. If any term is null the whole concatenation is null, so ns_summary is null unless every namespace mode is host. As a result other_ns_host never fires for net=host, ipc=host or uts=host on their own, and mount_and_sec_hints loses the namespace text. Use coalesce(...,\"\") or if(...,\"x\",\"\") per term.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "Allowlisted containers whose image does not match image_allow_regex are labelled 'high_dangerous_capability_added' even when no capability was added. The tier name misleads analysts; a distinct 'approved_image_drift' tier would be accurate.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "The docker:events arm sets privileged_flag=1 when the raw text contains 'hostpid', which conflates host PID namespace sharing with privileged mode and sends those rows to critical_privileged_unapproved instead of critical_host_pid_namespace.",
+      "severity": "minor"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation:CIM:User:Endpoint",
+      "field": "cimSpl",
+      "issue": "Filters Processes.process=\"dockerd\". In CIM Endpoint.Processes, process is the full command line, so this misses most dockerd launches; process_name is the correct field. The search also only counts dockerd processes and detects nothing about privileged containers, so it is not a CIM equivalent of the primary SPL.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0025-UC-3.1.6",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The detailed implementation explains the threat model and the lab tests well. But the app field says Splunk Connect for Docker collects docker:events, which it does not, the prose misstates what the rolling_bad threshold does, and the 'byte-for-byte' runbook SPL differs from the spl field and calls an eval function that does not exist. The SPL's null concatenation also silently drops net/ipc/uts=host detections.",
+  "tier": "deep",
+  "uc_id": "UC-3.1.6",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,101 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "c9081231148bbaedf91a6e1373e983a14863e8688afd816dd5901d30edb113a5",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.2.18.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/ot-intelligence/administer-splunk-edge-hub-os/2.5/get-started/create-indexes-for-splunk-edge-hub-os",
+      "explanation": "Splunk documents the Edge Hub sensor index as the metrics index `edge_hub_data` (underscores, not hyphens), and a Datastreamer sending to a metrics index must use sourcetype `log2metrics_json`; tags do not apply to metric data points. A reader creating `edge-hub-data` or filtering on `sourcetype=edge_hub` would find no data.",
+      "field": "dataSources",
+      "quote": "`index=edge-hub-data` tag=humidity tag=temperature, `sourcetype=edge_hub`",
+      "severity": "blocker",
+      "suggested_fix": "Say: Edge Hub internal/external sensor metrics in the metrics index `edge_hub_data` (sourcetype `log2metrics_json`), sent by an OT Intelligence Datastreamer subscribed to `edgehub/+/+/values`; confirm metric names with `| mcatalog values(metric_name) WHERE index=edge_hub_data`."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/ot-intelligence/administer-splunk-edge-hub-os/2.3/data-ingestion/use-datastreamer-to-load-data-into-your-splunk-platform-deployment",
+      "explanation": "Edge Hub data is not collected by a Universal Forwarder; Edge Hub OS posts to HEC through a Datastreamer configured in the OT Intelligence app's Data Ingestion tab. The appended 'Universal Forwarder (Splunkbase 617)' (also repeated in dataSources and detailedImplementation Step 1) sends the reader down the wrong ingestion path.",
+      "field": "app",
+      "quote": "Splunk Edge Hub (humidity + temperature sensors), Splunk OT Intelligence — Universal Forwarder (Splunkbase 617)",
+      "severity": "blocker",
+      "suggested_fix": "Replace with: Splunk Edge Hub OS with a Datastreamer to an HEC token on the Splunk platform, configured through Splunk OT Intelligence; remove the Universal Forwarder / Splunkbase 617 reference."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The description, knownFalsePositives (`target_index`, `configured_sourcetype`) and detailedImplementation Step 1 (`writes sourcetype=see SPL into index=main`) contain unfilled placeholders that contradict dataSources, and the threshold is misstated: the SPL alerts when the temperature–dew point spread is under 2 °C, not when `dew_point` < 2.",
+      "field": "cross_field",
+      "quote": "over `index=target_index` sourcetype `configured sourcetype` with thresholds `dew_point` < 2. Groups `temp` by `host`",
+      "severity": "major",
+      "suggested_fix": "Describe the real logic: per Edge Hub (`host`), average humidity and temperature, compute dew point with the Magnus formula, and flag HIGH when temperature minus dew point is under 2 °C and CRITICAL when it is zero or below; use `edge_hub_data` throughout."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "explanation": "The UC references no data model (`cimModels` is empty), so data model acceleration is irrelevant; `mstats` reads the metrics index directly. Other generic text (vendor API 401/429 errors, 300–900 s poll interval, `tstats` against a vendor inventory) also does not apply to an Edge Hub pushing to HEC.",
+      "field": "detailedImplementation",
+      "quote": "Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above",
+      "severity": "minor",
+      "suggested_fix": "Remove the acceleration sentence and the vendor-API troubleshooting; validate with `| mcatalog values(metric_name) WHERE index=edge_hub_data` and check HEC errors in `index=_internal sourcetype=splunkd component=HttpInputDataHandler`."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "The SPL compares the air temperature with the dew point of the same air, which can never be lower than that air temperature, so CRITICAL cannot occur and HIGH is effectively a relative-humidity-above-about-88% alert. Condensation forms on surfaces colder than the room air (chilled-water pipes, cold supply air), which this UC does not measure.",
+      "field": "description",
+      "quote": "Prevents equipment failure by detecting dew point conditions before condensation forms on servers and network infrastructure.",
+      "severity": "major",
+      "suggested_fix": "State that the UC alerts on near-saturation room air (high RH) as a condensation-risk proxy, or add a surface or supply-air temperature source and compare that with the room dew point (as sibling UC-15.2.16 does with `surface_temp_c`)."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "Edge Hub documentation describes a per-Datastreamer 'Backlog Size' database setting; I could not confirm a 'Sensor Polling interval' option under Advanced Settings or that the backlog is SQLite.",
+      "field": "implementation",
+      "quote": "Configure Advanced Settings → Sensor Polling interval to 30 seconds for real-time dew point calculation. Use local SQLite backlog",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Edge Hub OS Advanced Settings documentation for the exact sensor sampling setting name, and refer to the Datastreamer 'Backlog Size' option for buffering during outages."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "overclaiming",
+      "explanation": "Splunk Edge Hub is a hardware device, not a premium Splunk app, and the SPL runs on core Splunk; whether Splunk OT Intelligence is a paid premium product is not established by the UC.",
+      "field": "premiumApps",
+      "quote": "\"Splunk Edge Hub\",\n    \"Splunk OT Intelligence\"",
+      "severity": "minor",
+      "suggested_fix": "List Edge Hub under equipment only, and keep OT Intelligence in premiumApps only if its licensing is confirmed as premium; otherwise list it as the required configuration app."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`mstats avg(Humidity)` has no `AS` rename, so the output field is named `avg(Humidity)` and the later `ln(Humidity/100)` is null; `dew_point` is null and every row evaluates to NORMAL, so the search never alerts. It also has no `WHERE index=edge_hub_data`, no span, and capitalised metric names (`Humidity`, `Temperature`) that must match the case-sensitive Edge Hub metric names exactly.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "`temp<=dew_point` (CRITICAL) is physically unreachable when both values come from the same air sample; the logic needs a surface or supply-air temperature to detect condensation.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0038-UC-15.2.18",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 1,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The intent (compute dew point from Edge Hub humidity and temperature and alert when air approaches saturation) is useful, but the index and sourcetype are wrong for Edge Hub sensor metrics, the ingestion path is described as a Universal Forwarder modular input instead of the Edge Hub Datastreamer to HEC, and the description, false positives and control test are still placeholder text (`target_index`, `configured sourcetype`).",
+  "tier": "deep",
+  "uc_id": "UC-15.2.18",
+  "verdict": "incorrect"
+}

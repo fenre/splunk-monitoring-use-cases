@@ -1,0 +1,162 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "d8a3708a21ffdd8d9eaeb05d18db4aef4442c990ebd5c0b57228d7cc52eba89b",
+  "file": "content/cat-03-containers-orchestration/UC-3.1.14.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://github.com/splunk/docker-logging-plugin",
+      "explanation": "Splunk Connect for Docker is a container-log driver plugin. It does not open docker.sock to stream Engine events, so it cannot supply docker:events type=network. The app field and Step 2 repeat the claim.",
+      "field": "dataSources",
+      "quote": "collected via Splunk Connect for Docker Splunkbase 4496 or an equivalent modular input opening unix:///var/run/docker.sock",
+      "severity": "blocker",
+      "suggested_fix": "Name a real collector for network events, for example a systemd unit running `docker events --filter type=network --format '{{json .}}'` tailed by a Universal Forwarder, or a custom scripted input."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "I don't believe `docker network inspect` output contains an EndpointCount field (it has Containers, Peers, IPAM, Options and so on). On a Swarm node, Containers lists only local endpoints. Endpoint-count drift built on EndpointCount would always be null.",
+      "field": "dataSources",
+      "quote": "runs docker network inspect --format json per network and posts EndpointCount, Driver, IPAM.Config[].Subnet, Containers[], and Options",
+      "severity": "needs_verification",
+      "suggested_fix": "Check real inspect output. Derive endpoint count from the number of Containers keys per node (summed across nodes), and use the overlay `Peers` list to detect asymmetric VXLAN membership."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "Overlay network state and Containers lists are node-local. Polling only managers cannot show whether a worker holds the network, yet the asymmetry tier compares observed hosts against expected_node_set (typically workers).",
+      "field": "dataSources",
+      "quote": "from a privileged scripted input on every Swarm manager that runs docker network inspect",
+      "severity": "major",
+      "suggested_fix": "Require the inspect poller on every overlay-attached node (managers and workers), or base asymmetry on the Peers list visible from managers."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "/proc/net/stat/nf_conntrack reports per-CPU, kernel-global counters with no interface dimension. DOCKER-USER rule counters are per rule, and the chain contains only a RETURN rule unless operators add policy. 'Per-interface' conntrack or iptables drops cannot be produced as described.",
+      "field": "dataSources",
+      "quote": "parses iptables -L DOCKER-USER -n -v -x output to materialize per-interface IPTABLES_FORWARD_DROP, iptables_drop_count, conntrack_drop, and conntrack_table_full counters scoped to docker_gwbridge, docker0, br-*, and vxlan* interfaces",
+      "severity": "major",
+      "suggested_fix": "Use per-interface drop counters from `ip -s link` (rx_dropped/tx_dropped) for docker0, br-*, docker_gwbridge and vxlan*. Report conntrack insert_failed/drop as host-global, and state that DOCKER-USER counters only exist for rules you add."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The journald input (`journald://` stanza) is a native Splunk Enterprise / Universal Forwarder input, not part of Splunk_TA_nix. detailedImplementation also names the unit 'dockerd.service' in one place and 'docker.service' in another.",
+      "field": "dataSources",
+      "quote": "shipped by Splunk Add-on for Unix and Linux (Splunkbase 833) journald input filtered on _SYSTEMD_UNIT=docker.service",
+      "severity": "major",
+      "suggested_fix": "Attribute journald collection to the platform journald input on the Universal Forwarder and use one unit name (docker.service on standard packages)."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "These dockerd/libnetwork message strings, and the gossip strings used for classification ('network not converged', 'gossip protocol failure'), look reconstructed rather than quoted from real logs. The classifier depends on them.",
+      "field": "detailedImplementation",
+      "quote": "a deliberate docker network rm of a stale overlay should log libnetwork: failed to update driver state at INFO; ... a vxlan_id collision ... logs vxlan_id collision",
+      "severity": "needs_verification",
+      "suggested_fix": "Capture dockerd journal output during the documented lab tests (UDP 7946 block, kill -9 dockerd) and replace the strings with verbatim messages."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "The math is the spread between the earliest and latest event per network and action in the hour. For five-minute inspect polls this is about 55 minutes on every network. Calling it gossip staleness misleads responders.",
+      "field": "detailedImplementation",
+      "quote": "a second eventstats max(row_event_lag_sec) BY network_key derives gossip_lag_sec — the maximum staleness any row showed for the latest action affecting that network",
+      "severity": "major",
+      "suggested_fix": "Describe what the field actually measures, or define gossip lag from a real signal (for example the time between a node's 'peer disconnect' and matching rejoin lines)."
+    },
+    {
+      "confidence": 0.95,
+      "dimension": "consistency",
+      "explanation": "Asterisk (VoIP PBX) is unrelated to Docker overlay networking.",
+      "field": "equipment",
+      "quote": "\"asterisk\"",
+      "severity": "major",
+      "suggested_fix": "Remove 'asterisk'."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "None of the four data sources produce flow records or CIM-mapped performance events. Network_Traffic would only fit if underlay flow logs on UDP 4789 and TCP/UDP 7946 were ingested, which the UC never describes.",
+      "field": "cimModels",
+      "quote": "\"Network_Traffic\", \"Performance\"",
+      "severity": "major",
+      "suggested_fix": "Either add an explicit underlay flow source (firewall or VPC flow logs) mapped to Network_Traffic, or clear cimModels."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "There is no product by that name, and the link points to the Kubernetes install guide.",
+      "field": "app",
+      "quote": "Splunk OpenTelemetry Collector for Docker ([Splunk documentation](https://docs.splunk.com/observability/en/gdi/opentelemetry/install-k8s.html))",
+      "severity": "minor",
+      "suggested_fix": "Refer to the Splunk Distribution of the OpenTelemetry Collector (Linux install) and link the Linux install page."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "This checklist is addressed to the authoring pipeline, as are 'well above the twelve-column floor' and 'exactly the six mandated tier strings'. With the long 'Supplemental engineering notes', the field is far too long for an operator to use.",
+      "field": "detailedImplementation",
+      "quote": "Closing checklist: five plain-text step headers with em dashes; multisearch lists four arms ...; six unique reference URLs span Docker overlay docs, RFC 7348",
+      "severity": "major",
+      "suggested_fix": "Remove the closing checklist, mandate language and supplemental notes. Keep the data-collection, validation and troubleshooting cases."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The SPL cannot execute and core fields (EndpointCount, per-interface conntrack) are doubtful, so verification is not credible.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until the search runs against real inspect, journal and netfilter data."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/splunk-enterprise/spl-search-reference/9.4/search-commands/multisearch",
+      "field": "spl",
+      "issue": "The fourth multisearch arm uses `sort 0 + host_id, iface, _time` and `streamstats`. multisearch subsearches may contain only streaming operations, so the search fails. Move the rate calculation after fan-in, or use append.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "gossip_lag_sec = max(_time − min(_time)) per network across all action_lc values, including 5-minute 'poll' rows. It is roughly 3,300 s for any polled network, so a single 'peer disconnect' journal line pushes critical_overlay_split_brain_or_gossip_failure. The 60 s gate is meaningless.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "Journal rows get network_name only from `network=` in _raw. Most libnetwork lines lack it, so they collapse into network_key='unscoped', mixing hosts and networks. hosts_seeing_network also counts hosts from journal and netfilter arms, not just hosts that hold the network, which inflates observed_node_count and masks asymmetry.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The low_routine_network_create_or_disconnect tier emits a row for every routine network create/connect/disconnect. Combined with a 5-minute schedule over a 1-hour window, the same routine rows are re-alerted about 12 times.",
+      "severity": "minor"
+    },
+    {
+      "field": "cimSpl",
+      "issue": "The query is syntactically valid against Network_Traffic.All_Traffic but has no connection to the detection. No described data source populates Network_Traffic for ports 4789/7946.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0006-UC-3.1.14",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "This is an ambitious four-signal overlay detection with concrete remediation commands, but several of its foundations are wrong. The SPL cannot run as a multisearch. 'gossip_lag_sec' is just the time spread of events in the window. Docker network inspect does not expose an EndpointCount field. Conntrack and iptables counters are described as per-interface when they are not. Equipment and CIM fields are mis-set, and detailedImplementation is very long, with template residue at the end.",
+  "tier": "deep",
+  "uc_id": "UC-3.1.14",
+  "verdict": "incorrect"
+}

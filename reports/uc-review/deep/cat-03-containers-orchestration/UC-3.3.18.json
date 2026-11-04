@@ -1,0 +1,112 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "778ed1365749cf343f2ffa1786bc0d9ab5efd404d2a325484707980309bfc8c6",
+  "file": "content/cat-03-containers-orchestration/UC-3.3.18.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_url": "https://etcd.io/docs/v3.5/metrics/",
+      "explanation": "etcd exposes etcd_disk_wal_fsync_duration_seconds, etcd_disk_backend_commit_duration_seconds and etcd_network_peer_round_trip_time_seconds as Prometheus histograms (_bucket/_sum/_count), not summaries. They have no quantile=\"0.99\" label, so p99 must come from histogram_quantile() in a recording rule. The text in dataSources and detailedImplementation ('quantiles when enabled', 'confirm quantile labels exist') sends readers looking for series that do not exist.",
+      "field": "dataSources",
+      "quote": "etcd_disk_wal_fsync_duration_seconds and etcd_disk_backend_commit_duration_seconds quantiles or recording-rule equivalents",
+      "severity": "blocker",
+      "suggested_fix": "State that these are histograms. Require a Prometheus recording rule, e.g. histogram_quantile(0.99, rate(etcd_disk_wal_fsync_duration_seconds_bucket[5m])), forwarded under a documented metric name, and drop the 'quantile label' wording."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/container-platforms-docker-openshift.md",
+      "explanation": "Neither 'Splunk OpenShift monitoring patterns' nor 'Splunk Add-on for Kubernetes' is a recognisable Splunk product. The subcategory guide names the Splunk OpenTelemetry Collector for Kubernetes for event and metric collection.",
+      "field": "app",
+      "quote": "Splunk OpenShift monitoring patterns, Splunk Add-on for Kubernetes event forwarding",
+      "severity": "needs_verification",
+      "suggested_fix": "Name the Splunk OpenTelemetry Collector for Kubernetes (prometheus receiver + k8s events/k8sobjects receiver) and drop the invented add-on name."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/endpoint",
+      "explanation": "Application_State has been deprecated since CIM 4.12.0 (replaced by Endpoint). Neither model represents etcd raft or leader-election telemetry; the signal is Prometheus metrics, which CIM does not model. dataModelAcceleration repeats the deprecated model.",
+      "field": "cimModels",
+      "quote": "\"Application_State\",\n    \"Performance\"",
+      "severity": "blocker",
+      "suggested_fix": "Remove Application_State and its acceleration guidance. Either set schema to none (metrics-native), or keep Performance only if host disk latency from node metrics is actually used."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The description's alert condition uses the maintenance-lookup columns start_epoch/end_epoch, which suppress alerts rather than trigger them. The real triggers in the SPL and detailedImplementation are leader_roll15 >= 3 combined with WAL fsync p99 > 50 ms or backend commit p99 > 25 ms.",
+      "field": "cross_field",
+      "quote": "alert when `start_epoch` > 0, or `end_epoch` > 0",
+      "severity": "major",
+      "suggested_fix": "Describe the actual trigger: page when at least 3 leader changes in a 15-minute rolling window coincide with WAL fsync p99 > 50 ms or backend commit p99 > 25 ms. Warn on storms with peer RTT p99 > 80 ms or proposal-failure deltas >= 25."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL computes perc90 BY cluster after the data is already one row per cluster, so fleet_leader_p90 and fleet_fsync_p90 just echo the cluster's own value. They are not fleet context.",
+      "field": "detailedImplementation",
+      "quote": "eventstats adds fleet percentile context for executive heatmaps",
+      "severity": "minor",
+      "suggested_fix": "Describe these fields as per-cluster echoes, or note that fleet context requires eventstats without BY cluster."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "Marked verified by a generic repository handle, yet the SPL cannot execute and its core lanes target non-existent quantile series. That is not consistent with SME sign-off.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until a named SME runs the search against real OpenShift etcd telemetry."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/search-commands/multisearch",
+      "field": "spl",
+      "issue": "multisearch arms contain non-streaming commands (bucket+stats, sort, streamstats). multisearch only permits purely streaming subsearches, so the search errors.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/search-commands/streamstats",
+      "field": "spl",
+      "issue": "Leader lane: streamstats window=2 current=t last(mx) returns the current row's own value, so inc = mx - pm is always 0. leader_roll15 never exceeds 0, storm_hint and correlate never fire, and the page tier is unreachable. Use current=f window=1 (or delta) to get the previous sample. The proposals lane has the same defect and also sorts _time descending.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://etcd.io/docs/v3.5/metrics/",
+      "field": "spl",
+      "issue": "Disk and RTT lanes filter on a quantile label matching 0.99. etcd WAL fsync, backend commit and peer RTT metrics are histograms with only le bucket labels (no 0.99 bucket), so cluster_fsync_p99, cluster_be_p99 and peer_rtt_p99_ms are null unless a custom recording rule emits a quantile label.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The m_hist lane takes max() of cumulative bucket counters across le values, which yields the +Inf count (total samples), not a latency hint. coarse_commit_hist_hint has no latency meaning.",
+      "severity": "minor"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/endpoint",
+      "field": "cimSpl",
+      "issue": "Uses Performance.* and nodename=Performance, but the Performance model's root dataset is All_Performance (e.g. All_Performance.CPU.cpu_load_percent). The Application_State model is deprecated since CIM 4.12.0. Neither tstats returns etcd data.",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0082-UC-3.3.18",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 5,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The detailed implementation tells a coherent etcd leader-churn-plus-disk-latency story, but the UC treats etcd's histogram metrics as quantile summaries. As a result the disk and peer-RTT lanes never populate. The SPL cannot run (non-streaming commands inside multisearch), and even with that fixed its leader-delta logic always yields zero, so the headline correlation can never page.",
+  "tier": "deep",
+  "uc_id": "UC-3.3.18",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,90 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "9226ab1937a8cd350f6f6a9816e9a4be0a0e3e53d454b1f12a9379635e459788",
+  "file": "content/cat-09-identity-access-management/UC-9.1.18.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-microsoft-cloud-services/Migrate/",
+      "explanation": "Splunk_TA_microsoft-cloudservices (3110, also named in `app` and `detailedImplementation`) collects Entra logs through Event Hub. It has no input for Entra device objects. Splunk's migration guidance sends Entra metadata (Users, Groups, Applications, Devices) to the Splunk Add-on for Microsoft Office 365 Entra ID Metadata input (default sourcetype `o365:metadata`). The legacy Splunk Add-on for Microsoft Azure (TA-MS-AAD, Splunkbase 3757) has an `MS_AAD_device` input.",
+      "field": "dataSources",
+      "quote": "Entra ID device objects (`trustType`, `isCompliant`, `profileType`), Intune compliance reports Collected via Splunk Add-on for Microsoft Azure (Splunkbase 3110) modular input",
+      "severity": "blocker",
+      "suggested_fix": "Name the real collector: Splunk Add-on for Microsoft Office 365 (Splunkbase 4055) Entra ID Metadata input with Entra ID Type = Devices (Graph `GET /devices`, Device.Read.All), or legacy TA-MS-AAD (3757) `MS_AAD_device`. State the resulting sourcetype and make the SPL sourcetype match."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://learn.microsoft.com/en-us/graph/api/resources/intune-devices-manageddevice?view=graph-rest-1.0",
+      "explanation": "Intune `managedDevice` records carry `complianceState`, `deviceName` and `azureADDeviceId`, not `trustType`, `isCompliant` or `displayName`. Any `azure:intune:devices` events are therefore dropped by the SPL's `where trustType=\"ServerAd\"` filter. Only the Entra `device` object has the fields used.",
+      "field": "dataSources",
+      "quote": "Intune compliance reports",
+      "severity": "major",
+      "suggested_fix": "Either drop Intune from dataSources, or explain that Intune data must be joined on `azureADDeviceId` = Entra `deviceId` and uses `complianceState` (compliant, noncompliant, inGracePeriod, ...)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL has no sign-in join, no state-change logic and no duration check. It lists hybrid-joined devices whose latest record shows `isCompliant=false`. The same text is repeated as `detailedImplementation` Step 1, where it stands in for collection steps.",
+      "field": "implementation",
+      "quote": "Join with sign-in logs for non-compliant hybrid devices. Alert on compliance flip from true to false or long-running non-compliance.",
+      "severity": "major",
+      "suggested_fix": "Describe what the SPL does (inventory of hybrid-joined, non-compliant devices with last-seen time), or mark the flip and sign-in correlation as an extension. Replace Step 1 with the input configuration, Graph permission and poll interval."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "evidence_url": "https://learn.microsoft.com/en-us/graph/api/resources/device?view=graph-rest-1.0",
+      "explanation": "The scenarios (maintenance windows, synthetic probes, batch jobs) do not fit a device-inventory snapshot. They miss the real causes of noise in this signal.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `deviceId`, `displayName`, `managementType`, `isCompliant`** — Health checks in `azure` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "Real causes: hybrid-joined devices not enrolled in Intune (isCompliant null or false), newly enrolled devices still in compliance grace period, stale device objects never cleaned up, and 'dual state' devices with both a Workplace-registered and a ServerAd object."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The reference points to an add-on that does not collect the data source. The Graph device resource page, which documents trustType and isCompliant, is not referenced.",
+      "field": "references",
+      "quote": "\"title\": \"Splunk_TA_microsoft-cloudservices\",\n      \"url\": \"https://splunkbase.splunk.com/app/3110\"",
+      "severity": "minor",
+      "suggested_fix": "Reference the collecting add-on's Entra ID metadata input docs and https://learn.microsoft.com/en-us/graph/api/resources/device?view=graph-rest-1.0."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The `sourcetype=\"azure:intune:devices\"` branch can never pass `where trustType=\"ServerAd\"`, because Intune managedDevice records have no trustType. The sourcetype names `azure:intune:devices` / `azure:aad:devices` match no documented add-on default (TA-MS-AAD device input uses a configurable `device_sourcetype`; O365 add-on default is `o365:metadata`). Align with the actual feed.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`stats latest(_time) by ..., isCompliant` after filtering to false keeps devices that have since become compliant. Compute `latest(isCompliant)` per deviceId before filtering to show current state.",
+      "severity": "minor"
+    },
+    {
+      "field": "mitreAttack",
+      "issue": "T1078 (Valid Accounts) is a loose fit for a device-compliance inventory; no account misuse is detected.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0059-UC-9.1.18",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The detection idea is sound: list Entra device objects with `trustType=ServerAd` and `isCompliant=false`, and the field names match the Graph device resource. But the UC names an add-on that does not collect device objects, mixes in an Intune feed whose fields cannot satisfy the filter, and describes alert logic (compliance flips, sign-in join) that the SPL does not implement.",
+  "tier": "deep",
+  "uc_id": "UC-9.1.18",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,126 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "faf67ddf1a3c15123ccca727ef0219a36d6fc1c9ba4abd6275efae97b64f2150",
+  "file": "content/cat-23-business-analytics/UC-23.2.8.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.salesforce.com/docs/atlas.en-us.object_reference.meta/object_reference/sforce_api_objects_forecastingquota.htm",
+      "explanation": "Collaborative Forecasts quotas live in the `ForecastingQuota` sObject, whose fields are `QuotaOwnerId`, `QuotaAmount`, `StartDate` (monthly), `CurrencyIsoCode`, `ForecastingTypeId`, `Territory2Id` and others. There is no `OwnerId` or `Type`. detailedImplementation's `SELECT OwnerId,QuotaAmount,StartDate,CurrencyIsoCode,Type FROM Quota` and the dataSources reference to `Quota.Type` would fail.",
+      "field": "implementation",
+      "quote": "hydrate rep_quota_forecast.csv nightly from Quota (/services/data/v62.0/sobjects/Quota)",
+      "severity": "blocker",
+      "suggested_fix": "Query `SELECT QuotaOwnerId, QuotaAmount, StartDate, CurrencyIsoCode, ForecastingTypeId FROM ForecastingQuota`, filter to the forecast type in use, and sum the three monthly rows into a quarterly quota per QuotaOwnerId before writing rep_quota_forecast.csv."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.salesforce.com/docs/atlas.en-us.object_reference.meta/object_reference/sforce_api_objects_opportunityhistory.htm",
+      "explanation": "OpportunityHistory has no OldValue/NewValue fields. It stores snapshots of StageName, Amount, Probability, CloseDate and ForecastCategory (plus PrevAmount/PrevCloseDate); OldValue/NewValue belong to OpportunityFieldHistory.",
+      "field": "dataSources",
+      "quote": "Optional **`salesforce:opportunity_history`** (`OpportunityHistory` **`OldValue`**/**`NewValue`**/**`StageName`**)",
+      "severity": "blocker",
+      "suggested_fix": "Describe OpportunityHistory with its real fields (StageName, CreatedDate per change) for stage-dwell logic, or use OpportunityFieldHistory with Field='StageName' and OldValue/NewValue."
+    },
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase 4146 is the Webtools Add-on (TA-webtools); the Splunk Add-on for Salesforce is Splunkbase 3549.",
+      "field": "app",
+      "quote": "Splunk Add-on for Salesforce (`Splunk_TA_salesforce`, Splunkbase [4146](https://splunkbase.splunk.com/app/4146))",
+      "severity": "blocker",
+      "suggested_fix": "Change the link to https://splunkbase.splunk.com/app/3549."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Outputcsv",
+      "explanation": "`outputcsv` writes a CSV file under $SPLUNK_HOME/var/run/splunk/csv on the search head; it cannot write to an index. A reader relying on this for audit evidence would retain nothing in `audit_evidence`.",
+      "field": "detailedImplementation",
+      "quote": "Archive weekly CSV snapshots via **`outputcsv`** into restricted **`audit_evidence`** index",
+      "severity": "blocker",
+      "suggested_fix": "Use `collect index=audit_evidence` (or summary indexing) for index-based retention, or `outputlookup` / `outputcsv` for file snapshots, and say which."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The text presents specific benchmark statistics attributed to InsightSquared, Forrester, Salesforce State of Sales and HubSpot without any citation in `references`, and they are not used by the SPL.",
+      "field": "detailedImplementation",
+      "quote": "aligning **InsightSquared median 3.4×** posture ... **Forrester forecast-accuracy priority** narratives (78% leaders cite accuracy top-three priority) ... bottom quartile ~1.9×",
+      "severity": "major",
+      "suggested_fix": "Remove the figures, or add verifiable references and label them as external context."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "Several troubleshooting bullets refer to commands and constructs the SPL does not use (mvfind, dc(eval()), fill_null) or to unrelated tools. They are written as keyword strings rather than actionable sentences.",
+      "field": "detailedImplementation",
+      "quote": "• `mvfind` misses `IsClosed` boolean synonyms ... • `stats` `dc(eval(...))` returns zero — `fill_null` `Id` upstream ... • `Salesloft` `cadence` overlays triple `events`",
+      "severity": "major",
+      "suggested_fix": "Keep the troubleshooting items tied to this SPL (missing quota rows, fiscal versus calendar quarter, duplicate snapshots, ForecastCategoryName translations) and write each as a cause and fix sentence."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The Anaplan Integration API v2 path is `/2/0/workspaces/{workspaceId}/models/{modelId}/...`, and `imports` load data into Anaplan; extracting quota would use `exports`. The Clari endpoint path could not be confirmed.",
+      "field": "detailedImplementation",
+      "quote": "**`GET https://api.clari.com/v4/forecasts`** ... poll **`POST https://api.anaplan.com/2/{workspace}/modules/{module}/imports`** bulk pushes (`anaplan:spm_event`)",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Anaplan Integration API v2 and Clari API documentation and use the export endpoints and real paths."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "In the SPL, stuck_flag means 'LastModifiedDate older than 90 days', not stage dwell. Any field edit resets it, so it cannot be validated against stage history.",
+      "field": "detailedImplementation",
+      "quote": "Validate `stuck_flag` picks against `OpportunityHistory` `StageName` dwell",
+      "severity": "minor",
+      "suggested_fix": "Describe stuck_flag as 'no modification in 90 days', or change the validation step accordingly."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "Several references point at vendor home pages (gong.io, xactlycorp.com) rather than the API documentation their titles promise.",
+      "field": "references",
+      "quote": "\"title\": \"Gong Developer Portal — Gong API overview\", \"url\": \"https://gong.io/\"",
+      "severity": "minor",
+      "suggested_fix": "Link to the actual developer documentation pages, or drop optional vendors the SPL does not use."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "120 days of incremental Opportunity snapshots are summed without `dedup Id` or `latest() by Id`, so every modification of an open opportunity adds its Amount again. open_pipeline_fq, coverage_ratio and attainment_fcst_pct are therefore overstated.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`sort fiscal_segment rep_tier - closed_won_cq` followed by `streamstats ... by fiscal_segment` accumulates in rep_tier order, not by descending bookings, so cumulative_book_pct is not a Pareto curve. rep_book_pct is a share of the org total, so the cumulative value within a segment never reaches 100%, and the `HiPo_band` cut-off (≥12% and cumulative ≤78%) is arbitrary.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "The rep_quota_forecast.csv lookup is keyed on OwnerId only, while the narrative keys quota by OwnerId + fiscal_segment and ForecastingQuota stores monthly rows. Without a period key the lookup returns an arbitrary quota row.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0015-UC-23.2.8",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The coverage and attainment math is a reasonable design, but the UC builds quota on a Salesforce object and fields that do not exist, misdescribes OpportunityHistory, cites the Webtools add-on as the Salesforce TA, and says outputcsv writes to an index. It also leans on unsourced benchmark statistics and generic troubleshooting bullets, and the SPL counts every snapshot of an opportunity.",
+  "tier": "deep",
+  "uc_id": "UC-23.2.8",
+  "verdict": "incorrect"
+}

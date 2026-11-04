@@ -1,0 +1,133 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "751086ab56de5bdabfafd3f5d2c99e4cffb4baa8e0206bfb361cab98778021c4",
+  "file": "content/cat-03-containers-orchestration/UC-3.2.3.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/main/pkg/stanza/docs/operators/filter.md",
+      "explanation": "The stanza operator is named `filter`, not `expr_filter`, and it drops entries that match `expr`. Corrected only by name, this config would discard exactly the lease audit lines the UC needs and keep everything else.",
+      "field": "detailedImplementation",
+      "quote": "- type: expr_filter\n        expr: 'attributes.objectRef.apiGroup == \"coordination.k8s.io\" && attributes.objectRef.resource == \"leases\"'",
+      "severity": "blocker",
+      "suggested_fix": "Use `type: filter` with the negated expression, e.g. expr: 'attributes.objectRef.apiGroup != \"coordination.k8s.io\" or attributes.objectRef.resource != \"leases\"', so only lease events are kept."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "detailedImplementation, visualization and grandmaExplanation all describe time_in_notready_s as how long the node has been NotReady, but the SPL computes now() minus the most recent NotReady sample. For a node that stays NotReady and keeps being scraped every 15–30 s, this value stays near the scrape interval and never crosses 300 s.",
+      "field": "cross_field",
+      "quote": "computes time_in_notready_s from the latest NotReady-tagged timestamp",
+      "severity": "major",
+      "suggested_fix": "Describe and compute dwell as now() minus the earliest NotReady sample since the last Ready sample (or use kube_node_status_condition transitions), and keep the prose aligned with that."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/common-information-model/8.5/data-models/application-state-deprecated",
+      "explanation": "Application_State has been deprecated since CIM 4.12.0 and models host process, service and port inventory. It does not model Kubernetes node Ready conditions, and the main SPL does not use either model.",
+      "field": "cimModels",
+      "quote": "\"Application_State\",\n    \"Performance\"",
+      "severity": "blocker",
+      "suggested_fix": "Remove Application_State; leave cimModels empty or keep only Performance if a node-host saturation overlay is genuinely part of the detection."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "explanation": "The repository guide names the Splunk OpenTelemetry Collector for Kubernetes helm chart as the collector and documents no 'Splunk Add-on for Kubernetes'. This docs page could not be confirmed to exist, and the same link is repeated in references.",
+      "field": "app",
+      "quote": "[Splunk Add-on for Kubernetes documentation](https://docs.splunk.com/Documentation/AddOns/released/Kubernetes/About)",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm the URL resolves to a real Splunk add-on page; otherwise link the splunk-otel-collector-chart repository named in the guide."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "explanation": "Splunk Connect for Kubernetes is a deprecated Fluentd-based helm deployment, not a modular input or scripted poll. The sentence also contradicts the same field's statement that the OTel Collector delivers the data.",
+      "field": "dataSources",
+      "quote": "Collected via Splunk Connect for Kubernetes (Splunkbase 5167) modular input or scripted poll into the index named in the SPL.",
+      "severity": "major",
+      "suggested_fix": "Drop the sentence or say that legacy Splunk Connect for Kubernetes 1.5.x (deprecated) can supply kube:events and metrics, as the guide states."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "Neither the SPL nor any data source uses SNMP or UPS telemetry; the snmp equipment tag and snmp_ups model look like template residue.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_ups\"",
+      "severity": "minor",
+      "suggested_fix": "Remove snmp_ups (and the snmp equipment tag) unless UPS power correlation is actually added."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "The link points to the workload metrics directory; node metrics are documented under the cluster metrics docs.",
+      "field": "references",
+      "quote": "\"title\": \"kube-state-metrics — Node metrics\",\n      \"url\": \"https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the kube-state-metrics node-metrics page directly (docs/metrics/cluster/node-metrics.md)."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "kube_pod_status_phase carries no node label, so those rows are discarded by the len(node)>0 filter. Every remaining kube_pod_info row passes regardless of phase, so Succeeded and Failed pods are counted too.",
+      "field": "detailedImplementation",
+      "quote": "counts distinct pods colocated on the node while phase is Running or unstated",
+      "severity": "minor",
+      "suggested_fix": "State that the count comes from kube_pod_info and includes completed pods, or describe joining kube_pod_status_phase{phase=\"Running\"} to kube_pod_info on namespace and pod."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified under a generic reviewer handle, yet the dwell math, the eval field references and the collector filter could not have passed the kubelet-pause validation described in Step 4.",
+      "field": "cross_field",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until the SPL and the collector config are run against a lab cluster, and record the SME reviewer."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "time_in_notready_s = now() - latest(NotReady _time). For a node that stays NotReady, the latest sample is always recent, so the >300 s critical/high branches almost never fire during the outage; they fire only after samples stop. In addition, `mvcount(signal_axes)>0` is always true, and ready_state is then forced to \"NotReady\", so nodes with only NodeReady (Recovered) events or lease rows are reported as NotReady.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/search-commands/eval",
+      "field": "spl",
+      "issue": "In eval, unquoted involvedObject.name and involvedObject.kind are parsed with '.' as the string-concatenation operator, so the kube:events arm never matches ik=\"node\". Dotted field names must be single-quoted ('involvedObject.kind').",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The opening tstats ... BY cluster requires cluster to be an indexed field in k8s_metrics. That holds only if HEC sends it as an indexed field; otherwise tstats returns nothing and the inner join empties the whole result. Confirm that cluster is indexed or replace this gate.",
+      "severity": "needs_verification"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/common-information-model/8.5/data-models/application-state-deprecated",
+      "field": "cimSpl",
+      "issue": "It references Application_State.state, Application_State.info and Application_State.app with nodename=Application_State. The deprecated model's root dataset is All_Application_State and defines no state, info or app fields, so the tstats returns nothing.",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0050-UC-3.2.3",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The Node NotReady axis, its sibling boundaries and the validation drills are well thought out. But the dwell-time math in the SPL measures time since the last NotReady sample rather than time spent NotReady, so ongoing outages never reach the 300-second severity gate. The collector example uses an OTel stanza operator that does not exist and whose real equivalent would drop the lease events it means to keep. The CIM overlay uses a deprecated model with fields that do not exist.",
+  "tier": "deep",
+  "uc_id": "UC-3.2.3",
+  "verdict": "incorrect"
+}

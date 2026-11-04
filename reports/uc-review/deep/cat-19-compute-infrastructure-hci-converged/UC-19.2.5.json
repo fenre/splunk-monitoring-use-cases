@@ -1,0 +1,159 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "887a31e8b6fa46bda9db63ed17c7e94b6bd614039cbbd9bd0d1da7a2a353ec13",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.2.5.json",
+  "findings": [
+    {
+      "confidence": 0.97,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/api/v1/app/5380/",
+      "explanation": "Splunkbase 5380 is 'Mattermost Alerts', and no 'Splunk Add-on for VMware vSphere Forwarder' exists. The vCenter collector is 'Splunk Add-on for VMware' (3215), and vCenter logs come from 'Splunk Add-on for vCenter Logs' (5601). The wrong ID is repeated in dataSources, detailedImplementation (1C) and references.",
+      "field": "app",
+      "quote": "`Splunk Add-on for VMware vSphere` Forwarder 5380",
+      "severity": "blocker",
+      "suggested_fix": "Cite Splunk Add-on for VMware (Splunkbase 3215) everywhere, and drop the 5380 reference entry."
+    },
+    {
+      "confidence": 0.97,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/api/v1/app/5076/",
+      "explanation": "Splunkbase 5076 is 'Fix hostnames on UFs' (rectify_hostname). Nutanix's add-ons are 'TA for Nutanix Prism' (3103) and 'TA for Nutanix Prism Central' (8349); no Splunk_TA_nutanix exists. The references entry 'Splunk Add-on for Nutanix Prism (Splunkbase 5076)' is wrong too.",
+      "field": "app",
+      "quote": "`Splunk_TA_nutanix` 5076 on a collector and Search Heads",
+      "severity": "blocker",
+      "suggested_fix": "Name TA for Nutanix Prism (3103) or TA for Nutanix Prism Central (8349). Then confirm the sourcetypes those add-ons emit before keeping nutanix:cluster:disks and nutanix:cluster:alerts."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.broadcom.com/xapis/vsan-management-api/latest",
+      "explanation": "The vSphere Automation REST API has no /api/vcenter/vsan/cluster/{cluster}/disks or /health endpoint. vSAN disk and health queries go through the SOAP vSAN Management API on the vCenter /vsanHealth endpoint (VsanVcDiskManagementSystem, VsanVcClusterHealthSystem). The Python poller in Step 1A would get 404s.",
+      "field": "dataSources",
+      "quote": "custom HEC line emitted by a Python 3 poller of vCenter REST GET /api/vcenter/vsan/cluster/{cluster}/disks (vSphere 7.0+)",
+      "severity": "blocker",
+      "suggested_fix": "Rebuild the poller on pyVmomi with the vSAN Management SDK: VsanVcDiskManagementSystem.QueryDiskMappings or QueryVsanManagedDisks for disks, and VsanVcClusterHealthSystem.VsanQueryVcClusterHealthSummary for health. Or use PowerCLI Get-VsanDisk / Test-VsanClusterHealth. Update the health.state values and test IDs from that API's data objects."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/vmware-vsphere.md",
+      "explanation": "The Splunk Add-on for VMware indexes vCenter events as sourcetype `vmware:events`, not `vmware:vc:event`.",
+      "field": "dataSources",
+      "quote": "vSAN vSphere events: `vmware:vc:event` from the Splunk Add-on for VMware vSphere Forwarder",
+      "severity": "blocker",
+      "suggested_fix": "Use `vmware:events`. Confirm the vSAN disk event names you match against (the text uses LostStorageEvent, DegradedHostStorageEvent, vsan.host.diskFailed) in the vSphere event reference and the esx.problem.vob.vsan.* event IDs."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-unix-and-linux/Sourcetypes/",
+      "explanation": "Splunk_TA_nix has no SMART scripted input and no `nix:smart` sourcetype; its published sourcetypes stop at cpu, df, hardware, iostat, vmstat and similar. Step 1G ('enable the smart scripted input') cannot be followed.",
+      "field": "dataSources",
+      "quote": "Optional SMART overlay: `nix:smart` from `Splunk_TA_nix` ([Splunkbase 833](https://splunkbase.splunk.com/app/833)) for `Reallocated_Sector_Ct`",
+      "severity": "blocker",
+      "suggested_fix": "Describe this as a custom scripted input (smartctl -j wrapped as JSON) with a customer-owned sourcetype, or drop the overlay."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "These enum values and the HyperFlex 'healthState 1/2/3' mapping are given without a source. The Prism v2 disk entity reports disk_status values such as NORMAL / MARKED_FOR_REMOVAL_BUT_NOT_DETACHABLE / DETACHABLE, and online/offline separately.",
+      "field": "detailedImplementation",
+      "quote": "Nutanix uses `kNormal`, `kPredictiveFailure` for early SMART-like trips, `kMarkedForRemoval` when a disk is in or awaiting a planned pull, and `kOffline`",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Prism v2.0 /disks response schema and the HX Connect REST disk schema, and replace the enums with the documented values."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The SPL uses `join type=left max=0 cluster_name [| inputlookup disk_owner ...]`, not the lookup command. It also joins on cluster_name only, while the walkthrough says the key is cluster_name and vendor.",
+      "field": "detailedImplementation",
+      "quote": "The `inputlookup` equivalent is implemented as a `lookup` to `disk_owner` on the rolled-up stats row so you do not have to re-run the subsearch.",
+      "severity": "major",
+      "suggested_fix": "Describe the actual join (left join on cluster_name via inputlookup subsearch). Or note that a `| lookup disk_owner cluster_name` would be the cheaper equivalent."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The scenarios are template filler and name no real cause of a false disk-failure alert.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `cluster_name`, `vendor`** — Health checks in `vmware` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List real causes. Planned disk evacuation or decommission (kMarkedForRemoval / mfr=1 is counted as a failure). Disk-add or rebalance events matched by the is_fail regex. Repeated polls of one already-known failed disk inflating failure counts. A CMDB expected_disk_count that is stale after RMA or shelf expansion."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "The troubleshooting list skips item b, mixes plain and backticked labels, and has a stray backtick in Step 4 ('`two` unhealthy disks on the same host`'). Step 1D shows a HEC token stanza `[http://NUTANIX-PRISM-JSON]` as the way to 'enable the modular input families'.",
+      "field": "detailedImplementation",
+      "quote": "a. Empty `table` after upgrade ... c. `current_disk_count` is zero ... `g.` `worst_wear_pct` is null",
+      "severity": "minor",
+      "suggested_fix": "Renumber the cases, fix the backticks, and show the add-on's real modular-input stanza or say that the HEC token is for a custom poller."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "UPS SNMP models, plus the pagerduty, servicenow and snmp equipment tags, are not data sources for HCI disk failure. Nutanix and HyperFlex models are missing.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_ups\"",
+      "severity": "minor",
+      "suggested_fix": "Remove snmp_ups, pagerduty, servicenow and snmp. Add nutanix_prism_element and a HyperFlex model if the catalogue has one."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "Invented REST endpoints, a non-existent sourcetype and wrong Splunkbase IDs show that nobody ran the UC against real data.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until the collection path has been rebuilt and tested."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The history arm sums is_fail per event. Inventory sourcetypes (vmware:vsan:diskgroup, nutanix:cluster:disks, cisco:hyperflex:disk) are re-polled every few minutes, so one unhealthy disk adds 1 per poll to failures_1h/24h/7d. A single bad disk reaches 'critical' (failures_7d>3, or failures_1h>1) within a few polls. Count distinct dkey for failures, for example dc(eval(if(is_fail=1,dkey,null()))).",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The history arm includes vmware:vsan:diskgroup without the object_kind/api_path filter the inventory arm applies, so disk-group records are also scored. is_fail also treats kMarkedForRemoval / marked_for_removal=1 (planned evacuation) as a failure, not just a predictive or planned state.",
+      "severity": "major"
+    },
+    {
+      "evidence_ref": "docs/guides/vmware-vsphere.md",
+      "field": "spl",
+      "issue": "It searches sourcetype=\"vmware:vc:event\", which the Splunk Add-on for VMware does not emit (vCenter events are vmware:events).",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-unix-and-linux/Sourcetypes/",
+      "field": "spl",
+      "issue": "It searches sourcetype=\"nix:smart\", which Splunk_TA_nix does not provide.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "is_pred flags hxi=3 (HyperFlex 'critical' as the UC describes it) as predictive, while is_fail uses hxi>2, so the same disk lands in both buckets. The lookup join ignores vendor, so mixed-vendor clusters with the same name collide.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0074-UC-19.2.5",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 5,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The operational reasoning is good: per-disk failure, predictive failure and silent drop in disk count, with a CMDB expected count. But the data-collection layer rests on invented facts. Both Splunkbase IDs belong to unrelated apps, the vSAN REST endpoints the poller calls do not exist, the VMware sourcetype is wrong, and there is no nix:smart input in Splunk_TA_nix. The SPL also counts every poll of the same bad disk as a separate failure.",
+  "tier": "deep",
+  "uc_id": "UC-19.2.5",
+  "verdict": "incorrect"
+}

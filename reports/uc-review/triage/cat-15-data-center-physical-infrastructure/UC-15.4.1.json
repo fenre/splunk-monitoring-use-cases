@@ -1,0 +1,99 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "85aa39bc86dfa631bcc48a4f8aa66500e82eb286ed0665995cb0d2b640b6d5b3",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.4.1.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "description says the search groups by `entity` and outputs `count`, but the SPL has no stats, no `entity` field and no count; it lists every raw poll below 8 minutes (description vs spl).",
+      "field": "cross_field",
+      "quote": "grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `runtime_min` < 8.",
+      "severity": "major",
+      "suggested_fix": "Describe the real output: one row per poll where runtime remaining is under 8 minutes, with ups_name, host, runtime_min and load_pct; or have the SPL aggregate per UPS if per-UPS rows are intended."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "Not actionable: no OID or MIB is named (UPS-MIB RFC 1628 versus APC PowerNet-MIB), no poll interval, and the 8-minute threshold in the SPL is not mentioned or justified.",
+      "field": "implementation",
+      "quote": "(1) Poll UPS-MIB runtime remaining. (2) Set threshold to site generator profile. (3) Page datacenter lead.",
+      "severity": "major",
+      "suggested_fix": "Name the exact objects used (upsEstimatedMinutesRemaining from UPS-MIB and/or the PowerNet-MIB runtime object), state the 8-minute default and how to size it to generator start plus transfer time, and say which SNMP profile or input polls them."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "Two different collectors are named as one add-on, the Universal Forwarder is not a Splunkbase app, and 617 is not in the cached catalog. Neither SC4SNMP nor the SNMP Modular Input is known to emit sourcetype `snmp:apc:ups` or fields like `ups_name` without custom props/transforms. 'AirIR-MIB' may be a PowerNet-MIB object group rather than a separate MIB.",
+      "field": "app",
+      "quote": "Splunk Connect for SNMP (SC4SNMP) or SNMP Modular Input; APC PowerNet-MIB / AirIR-MIB field extractions — Universal Forwarder (Splunkbase 617)",
+      "severity": "needs_verification",
+      "suggested_fix": "Check what 617 really is; name the single supported collector (SC4SNMP or SNMP Modular Input), its real sourcetype/index, and where `snmp:apc:ups` and `ups_name` come from. Check whether SC4SNMP is distributed via Splunkbase at all."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "clarity",
+      "explanation": "A pipe-separated list is not a valid index specification and the SPL uses only `index=power`.",
+      "field": "dataSources",
+      "quote": "`index=power|cooling|environment`",
+      "severity": "minor",
+      "suggested_fix": "State `index=power` for this UC (or note that the index name is site-defined)."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The SPL carries `earliest=-1h`, so the scheduling advice contradicts the search window.",
+      "field": "detailedImplementation",
+      "quote": "Schedule the SPL with earliest=-24h@h",
+      "severity": "minor",
+      "suggested_fix": "Align the schedule/lookback with the SPL (for example every 5-15 minutes over the last hour)."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "Status is `verified` with reviewer `catalog-team` but there is no evidence of SME sign-off or of testing against real APC data, while field names and sourcetype are unconfirmed.",
+      "field": "status",
+      "quote": "verified",
+      "severity": "major",
+      "suggested_fix": "Set status to a non-verified value until an SME confirms OIDs, units and sourcetype."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "specificity",
+      "explanation": "The APC link is a PDU product category, not UPS or PowerNet-MIB documentation; the Splunk Connect for SNMP link is a Splunkbase search URL, not a documentation page.",
+      "field": "references",
+      "quote": "https://www.se.com/ww/en/product-category/3100-2000-pdu/",
+      "severity": "minor",
+      "suggested_fix": "Link the APC PowerNet-MIB / UPS SNMP documentation and the SC4SNMP or SNMP Modular Input documentation page."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "Unit mismatch risk: `coalesce(upsAdvBatteryRunTimeRemaining, upsEstimatedMinutesRemaining, ...)` is treated as minutes, but the APC runtime object is believed to be in TimeTicks (1/100 s) while the UPS-MIB object is in minutes. Check each object's SYNTAX/units before comparing against 8.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "No per-UPS dedup or on-battery context; a UPS recharging after an outage legitimately reports low runtime and will page repeatedly.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:53:11Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0013-UC-15.4.1",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 2,
+    "overclaiming": 2,
+    "specificity": 1
+  },
+  "summary": "Prose describes a grouped count that the SPL does not compute, and the implementation is three fragments with no OIDs, units or threshold rationale. Add-on and sourcetype claims cannot be verified from the grounding.",
+  "tier": "triage",
+  "uc_id": "UC-15.4.1",
+  "verdict": "rewrite"
+}

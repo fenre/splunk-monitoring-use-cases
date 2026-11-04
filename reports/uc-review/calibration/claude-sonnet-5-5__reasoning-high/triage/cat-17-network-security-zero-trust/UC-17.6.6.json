@@ -1,0 +1,153 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "3cdf23f88d59003fcfe232cb5f8a94d1e2a8aa642a90b43ae8b3bf74b1d6118c",
+  "file": "content/cat-17-network-security-zero-trust/UC-17.6.6.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "description, knownFalsePositives and controlTest talk about `count`, `span=1h` and a '-24h' threshold. The SPL outputs only `first_seen` per `edge` and has no count, no span and no threshold. The prose does not describe the detection that is shipped.",
+      "field": "cross_field",
+      "quote": "Outputs `count` each `the scheduled window`; alert when -24h.",
+      "severity": "major",
+      "suggested_fix": "Rewrite description, knownFalsePositives and controlTest around the real output: a process-level edge (source asset::process -> destination asset:port) that was not seen before the current window."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The detailedImplementation search uses a 31d-to-1d baseline via `join`, `→` and `:` separators, and enriches with process_path and risk. The `spl` field uses `->`, `::`, `tostring(dst_port)` and has no baseline. The two searches do not define 'new edge' the same way, so alert results will differ from the walkthrough.",
+      "field": "cross_field",
+      "quote": "| eval edge=src_asset.\"::\".process_name.\"→\".dst_asset.\":\".dst_port",
+      "severity": "major",
+      "suggested_fix": "Align the walkthrough search and the `spl` field on one edge definition and one baseline window, and say which one is the scheduled alert."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "explanation": "The regex is unanchored, so the `sh` alternative matches any process name containing 'sh' (sshd, dash, publisher, etc.). It will mark many benign processes HIGH and triggers the 'alert immediately for HIGH' step. 'cmd' has the same substring problem.",
+      "field": "detailedImplementation",
+      "quote": "match(process_name, \"(?i)cmd|powershell|bash|sh|wscript|cscript|mshta|certutil|bitsadmin\")",
+      "severity": "major",
+      "suggested_fix": "Anchor the alternation on the whole name, for example `^(?i)(cmd|powershell|pwsh|bash|sh|wscript|cscript|mshta|certutil|bitsadmin)(\\.exe)?$`."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "A `join` with a 30-day subsearch will hit subsearch row and runtime limits on a high-volume flow feed and silently drop the baseline. That makes more edges look new.",
+      "field": "detailedImplementation",
+      "quote": "| join type=left edge [\n    search index=microseg sourcetype=\"guardicore:network\" earliest=-31d latest=-1d",
+      "severity": "minor",
+      "suggested_fix": "Use a single `stats earliest(_time)` over 31d, or a baseline lookup, instead of `join`. Mention the subsearch limits if `join` stays."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The prerequisite says 7 days, but the search compares against a 30-day baseline and troubleshooting suggests extending it to 60 days.",
+      "field": "detailedImplementation",
+      "quote": "At least 7 days of historical data to build a process-level communication baseline.",
+      "severity": "minor",
+      "suggested_fix": "State the real minimum (about 30 days of history for the shipped search)."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "The prerequisites say process-level visibility is 'default on supported OSes', while troubleshooting says it is a setting to check. The agent version number and the Centra menu path are not in the grounding.",
+      "field": "detailedImplementation",
+      "quote": "Process visibility requires agent version 4.x+ and is not supported on all OS versions. Check Centra > Agent Configuration > Process Visibility setting.",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Akamai Guardicore Centra docs for the process-visibility prerequisite, agent version and UI path, then state them once and consistently."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "These field names, and the 'v3.x' add-on version, are not confirmed by the grounding. The guide shows the flow sourcetype as `guardicore:network:flow`, and the add-on is described as a syslog integration, so extracted field names may differ.",
+      "field": "detailedImplementation",
+      "quote": "Key fields: `src_asset`, `dst_asset`, `process_name`, `process_path`, `process_user`, `dst_port`, `src_segment`, `dst_segment`.",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the field names and sourcetype in the Splunkbase 7426 add-on's props/transforms and sample events, and correct the key-fields list."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "consistency",
+      "explanation": "The guide configures the Guardicore index as `guardicore` and uses sourcetype `guardicore:network:flow` for network flows. This UC uses `index=microseg` and `guardicore:network` without saying where the index is defined.",
+      "field": "dataSources",
+      "quote": "index=microseg sourcetype=\"guardicore:network\"",
+      "severity": "needs_verification",
+      "suggested_fix": "Check which sourcetype and index the Splunkbase 7426 add-on produces, and either match the guide or state in the implementation that `microseg` is a site-chosen index."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "Generic text that would fit any Guardicore UC. It does not name the index or sourcetype, the process-visibility prerequisite, the baseline, or the schedule and alert logic. The guide describes a syslog integration for this subcategory, so 'API polling' is also unclear.",
+      "field": "implementation",
+      "quote": "Install the add-on, configure API polling intervals appropriate to API limits, and map assets to CMDB for enrichment lookups.",
+      "severity": "major",
+      "suggested_fix": "Summarise the real steps: enable process visibility, ingest guardicore:network into the chosen index, build a 30-day edge baseline, schedule the search, and alert on HIGH-risk new edges."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The `m365` equipment tag has nothing to do with Guardicore process-communication data. Nothing in the UC mentions Microsoft 365.",
+      "field": "equipment",
+      "quote": "\"guardicore\",\n    \"m365\"",
+      "severity": "major",
+      "suggested_fix": "Remove `m365` and keep only the Guardicore equipment slug."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "overclaiming",
+      "explanation": "The status is `verified` with a generic reviewer 'catalog-team'. The Guardicore field names, version and UI paths above are unconfirmed and there is no SME sign-off evidence.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "minor",
+      "suggested_fix": "Use a lower status until a named SME validates the field names, version and UI paths."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "This is a marketing-style claim with no supporting evidence. A first-seen-edge detection still produces many false positives on new software deployments, as the runbook itself admits.",
+      "field": "detailedImplementation",
+      "quote": "dramatically reducing false positives",
+      "severity": "minor",
+      "suggested_fix": "Say that process context makes triage easier and drop the quantitative claim."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "specificity",
+      "explanation": "This is a marketing page, not product documentation for process communication maps. The Splunk Search Reference URL contains an apostrophe ('What'sInThisManual'), and the guide's bibliography uses 'WhatsInThisManual'.",
+      "field": "references",
+      "quote": "https://www.akamai.com/products/guardicore",
+      "severity": "minor",
+      "suggested_fix": "Cite Guardicore Centra documentation for process visibility and use the canonical Splunk Search Reference URL."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The search looks only at earliest=-24h and keeps edges where first_seen > now-1d. Every edge in the window satisfies that, so every edge is returned and nothing is compared against history. The new-edge detection in the title and description is not implemented in `spl`, unlike the baseline in the detailedImplementation search.",
+      "severity": "major"
+    },
+    {
+      "field": "cimSpl",
+      "issue": "The tstats search on Network_Traffic.All_Traffic groups by user, action, src and dest and cannot show process-level edges. It does not match the process-communication-change signal, and `cimModels` is empty (already recorded). Check whether Guardicore flow events map to Network_Traffic at all.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0051-UC-17.6.6",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The detailedImplementation is substantive and the LOLBin-risk idea is sound, but the short fields (description, KFPs, implementation, equipment) are templated, and they describe a different search (count, span=1h, 30-day baseline) than the shipped SPL, which is itself flawed.",
+  "tier": "triage",
+  "uc_id": "UC-17.6.6",
+  "verdict": "rewrite"
+}

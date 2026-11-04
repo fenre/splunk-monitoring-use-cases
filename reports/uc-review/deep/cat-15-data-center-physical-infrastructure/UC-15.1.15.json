@@ -1,0 +1,115 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "59416e779fd1bef273237bb98269d02f1113b51f99af7f915e9f44ffd628f14f",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.1.15.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The SPL divides total_facility_kw by it_load_kw, but implementation and the detailedImplementation prerequisites tell the reader to populate facility_kw. dataSources mentions aliasing facility_kw to total_facility_kw only in passing, so a reader who follows the implementation text gets a null pue on every event.",
+      "field": "cross_field",
+      "quote": "Normalize facility_kw, it_load_kw, and pue_design via props.conf on index=power",
+      "severity": "major",
+      "suggested_fix": "Use one field name, total_facility_kw, in dataSources, implementation and detailedImplementation, or state clearly that a FIELDALIAS facility_kw AS total_facility_kw is mandatory before the search will return anything."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "dataSources describes pue_design as an extracted field on the power:aggregate events, while implementation and detailedImplementation describe it as a lookup. The SPL has no lookup command, so if pue_design lives in a lookup, the pue_design * 1.1 branch never evaluates and only the fixed 1.6 guardrail fires.",
+      "field": "cross_field",
+      "quote": "Publish pue_design from the same DCIM-aligned workbook ... using a nightly KV Store or CSV lookup refresh",
+      "severity": "major",
+      "suggested_fix": "Pick one source for pue_design. If it is a lookup, name the lookup file and key (for example site_id) and say that a lookup step is needed before the where clause. If it is an event field, remove the lookup language."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The SPL has no entity or site split: timechart span=1h avg(pue) gives one series across all sites. The where clause also includes pue > pue_design * 1.1, which the description leaves out, so the description misstates both the grain and the threshold.",
+      "field": "description",
+      "quote": "Pipeline aggregates `live_pue` by `entity` over `1h`. Alert logic enforces `pue` > 1.6.",
+      "severity": "major",
+      "suggested_fix": "Describe the real logic: hourly average PUE (total_facility_kw / it_load_kw) for events where PUE is more than 10% above the design target or above 1.6. If per-site tracking is intended, say that a site_id split is needed."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunk.github.io/splunk-connect-for-snmp/main/",
+      "explanation": "Splunk Connect for SNMP is a containerized, edge-deployed collector (microk8s or Docker Compose) that sends to Splunk over HEC and is configured through its own values/inventory files, not through inputs.conf stanzas on a heavy forwarder. Only the SNMP Modular Input (1537) uses inputs.conf on a forwarder.",
+      "field": "detailedImplementation",
+      "quote": "deploy collectors consistent with Splunk Connect for SNMP (Splunkbase app 6266) or SNMP Modular Input (Splunkbase app 1537) on a Heavy Forwarder, binding UDP/162 trap or UDP/161 poll stanzas inside inputs.conf",
+      "severity": "blocker",
+      "suggested_fix": "Split the two paths. SNMP Modular Input (1537) uses [snmp://...] stanzas in inputs.conf on a heavy forwarder. Splunk Connect for SNMP (6266) is deployed as a container stack per its documentation and forwards over HEC; give its default index and sourcetype and how to remap them to index=power."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The scenarios are generic templates (synthetic probes, batch avg, onboarding bursts) keyed on host, which the SPL never groups on. None of them names a real cause of a false PUE breach.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `host`** — Health checks in `power` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List PUE-specific causes: low IT load during migrations or decommissions, which inflates the ratio; numerator and denominator meters sampled at different times; missing or zero it_load_kw samples; chiller staging or hot-weather peaks against a fixed design target; and DR exercises that move IT load off-site."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/datacenter-physical.md",
+      "explanation": "The repository has no docs/runbooks/ directory, and Pivot works on data models, not on this raw power:aggregate search.",
+      "field": "detailedImplementation",
+      "quote": "route breaches through email or webhook actions documented in docs/runbooks/ ... export CSV evidence through Pivot or outputlookup",
+      "severity": "minor",
+      "suggested_fix": "Remove the docs/runbooks/ pointer or replace it with a real runbook location, and suggest exporting the report results (outputcsv or scheduled report CSV export) instead of Pivot."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "consistency",
+      "explanation": "PUE comes from aggregated, polled or BMS-pushed kilowatt readings. SNMP traps do not provide the continuous numerator and denominator this search needs.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_trap\"",
+      "severity": "minor",
+      "suggested_fix": "Drop snmp_trap or replace it with the polled meter, BMS or PDU equipment models that actually supply facility and IT load readings."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "This names data producers, not a Splunk app or add-on. The reader learns nothing about which TA or input collects the data.",
+      "field": "app",
+      "quote": "BMS + IT load meters",
+      "severity": "minor",
+      "suggested_fix": "Name the ingestion mechanism, for example SNMP Modular Input (1537) or HEC from the BMS historian, and keep the BMS and meter wording in dataSources."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "The references are generic Splunk manuals and do not cite a definition of PUE or of the measurement method behind the 1.6 guardrail.",
+      "field": "references",
+      "quote": "Splunk Documentation — Visualization manual (dashboards & charts)",
+      "severity": "minor",
+      "suggested_fix": "Add a PUE definition reference, such as ISO/IEC 30134-2 or The Green Grid PUE white paper, and note that a kW ratio is a point-in-time proxy for energy-based annual PUE."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The where filter runs before timechart, so live_pue averages only the breaching samples. Hours without a breach are empty and the series overstates PUE, so the search cannot track efficiency against the target as the title promises. There is also no guard for it_load_kw=0 or null, and pue_design must already be on the event because no lookup is applied.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0007-UC-15.1.15",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The PUE idea is sound, but the prose disagrees with the SPL on the numerator field name, on where pue_design comes from and on the grouping dimension, the false positives are generic, and the implementation describes Splunk Connect for SNMP as an inputs.conf stanza on a heavy forwarder, which is not how that product is deployed.",
+  "tier": "deep",
+  "uc_id": "UC-15.1.15",
+  "verdict": "incorrect"
+}

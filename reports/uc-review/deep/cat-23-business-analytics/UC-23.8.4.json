@@ -1,0 +1,144 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "154db7415cc5b59455ec62fc99411de2f7e0025a5d4e56a61be8df6d28a33eae",
+  "file": "content/cat-23-business-analytics/UC-23.8.4.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://www.bvp.com/atlas/scaling-to-100-million",
+      "explanation": "Bessemer defines its efficiency score as net new ARR ÷ net burn for companies under about $30M ARR, and as ARR YoY growth + FCF margin above that. It is not Magic Number + NDR/100 + Rule of 40/100. The implementation alert ('efficiency_score slips below two point zero') inherits the invented scale.",
+      "field": "detailedImplementation",
+      "quote": "Footnote captions restating **Bessemer Efficiency Score** math (**Magic Number + Net Dollar Retention/100 + Rule of 40/100**)",
+      "severity": "blocker",
+      "suggested_fix": "Use Bessemer's published definition (net new ARR / net burn, or ARR growth + FCF margin of ARR), or rename the composite to an internal score and stop attributing it to Bessemer; restate the alert threshold on the corrected scale."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://dev.chartmogul.com/reference/metrics/all/",
+      "explanation": "ChartMogul's GET /v1/metrics/all returns MRR, ARR, customer and MRR churn rates, LTV, customers, ASP and ARPA. It does not return net dollar retention or cohort data.",
+      "field": "dataSources",
+      "quote": "**chartmogul:metric_event** via ChartMogul `/v1/metrics/all` cohort bridges chartmogul_net_dollar_retention",
+      "severity": "blocker",
+      "suggested_fix": "Derive NDR from the MRR endpoint's expansion, contraction, churn and reactivation components (GET /v1/metrics/mrr), or from ChartMogul's Net MRR Retention report export; name the resulting field and map it to `ndr_pct` in the SPL."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/DBX/latest/DeployDBX/AboutSplunkDBConnect",
+      "explanation": "DB Connect queries relational databases over JDBC and cannot call REST or OData APIs. The `app` field repeats the claim for netsuite:saved_search, which dataSources itself describes as a REST pull.",
+      "field": "dataSources",
+      "quote": "through Splunk DB Connect (Splunkbase 2686) mirrors of SAP Analytics Cloud OData `/api/v1/odata/PrEntityAccountAssignment`, Sage Intacct `/api/3.0/objects`",
+      "severity": "blocker",
+      "suggested_fix": "Have DB Connect read only warehouse or ERP replica tables. REST/OData sources (NetSuite, SAP Analytics Cloud, Sage Intacct) need a scripted or modular input posting to HEC."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "None of these paths could be confirmed. NetSuite's REST record service does not expose saved searches as a record type (SuiteQL or RESTlets are the usual route), Public Comps has no documented public API, OpenView has wound down and has no percentile API, and cloudindex.bvp.com is a website rather than an API.",
+      "field": "dataSources",
+      "quote": "Mosaic.tech REST `/api/v1/metrics/{metricId}` ... Public Comps `/api/v1/companies` ... NetSuite REST `/services/rest/record/v1/savedSearch/{id}` ... OpenView percentile endpoints",
+      "severity": "needs_verification",
+      "suggested_fix": "Check each vendor's developer docs and replace guessed paths with documented endpoints, or describe them generically (for example, 'export from Public Comps' or 'NetSuite SuiteQL via REST')."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The SPL lookup outputs `bench_ro40_top_quartile` and `hype_discount_pct`. Neither column is in this schema, and the documented `openview_ro40_top_quartile` is never used.",
+      "field": "detailedImplementation",
+      "quote": "**saas_public_benchmarks.csv** (ticker_peer, **peer_ev_rev_ntm**, **cloud_index_med_ev_rev**, **openview_ro40_top_quartile**, **effective_as_of**)",
+      "severity": "major",
+      "suggested_fix": "Align the documented lookup columns with the SPL: ticker_peer, peer_ev_rev_ntm, cloud_index_med_ev_rev, hype_discount_pct, bench_ro40_top_quartile, effective_as_of."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL searches only mosaic, chartmogul, zuora and publiccomps sourcetypes, so Stripe and Chargebee data never reaches the Quick Ratio. The netsuite/sap/intacct corroboration sourcetypes are not searched either.",
+      "field": "dataSources",
+      "quote": "**zuora:subscription_event** plus **stripe:billing_event** and **chargebee:subscription_event** for expansion/churn/downgrade dollars powering Quick Ratio denominators",
+      "severity": "major",
+      "suggested_fix": "Either state that Stripe/Chargebee and the ERP sourcetypes are optional and need SPL changes, or list only the four sourcetypes the SPL uses."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "Large parts of the text (the 'Add-on depth', 'Governance reviewers' and 'Stretch-readiness appendix' paragraphs) are jargon-dense and give no actionable step a reader could follow.",
+      "field": "detailedImplementation",
+      "quote": "Splunk admins should snapshot ingest lag dashboards beside `_indextime` minus `_time` deltas whenever Mosaic CFO instrumentation commentary cites instrumentation maturity thresholds referenced during SaaS CFO surveys.",
+      "severity": "major",
+      "suggested_fix": "Cut the appendix paragraphs, keep the concrete steps (lookups, ingest paths, validation tie-outs, scheduling), and write the remaining steps as plain sentences."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "The SaaS Magic Number is usually credited to Scale Venture Partners / Omniture-era practitioners. Attributing it to Mamoon Hamid looks doubtful.",
+      "field": "detailedImplementation",
+      "quote": "Mamoon Hamid Magic Number publications",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm the attribution or drop the named lineage."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The scenarios (maintenance windows, synthetic probes, 48h onboarding baselines, minute-level schedule checks) do not apply to a monthly investor-metric scorecard. The real causes are in Step 5: metric-basis collisions, billing-retry churn, FX lag, and stale Cloud Index quotes.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `ym`, `ticker_peer`** — Health checks in `business` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "Rewrite the KFPs from the Step 5 troubleshooting causes (GAAP vs adjusted blends, ChartMogul retry churn, fx_policy_monthly lag, ADR ticker collisions, usage-pricing expansion spikes)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The only reviewer is an automated agent, and nothing records SME validation. The SPL produces null Quick Ratio values and the efficiency score uses an invented formula.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until a finance SME validates the formulas against FP&A workbooks."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval",
+      "field": "spl",
+      "issue": "`churn_usd` is never assigned or coalesced, so `denom_quick=churn_usd + downgrade_usd + 1` is null whenever the raw field is absent, and `quick_ratio_calc` is null. The `+1` fudge also distorts small denominators. Add `eval churn_usd=tonumber(coalesce(churn_arr_usd,churn_mrr_usd,0))` (with MRR annualisation) and guard division by zero explicitly.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://www.bvp.com/atlas/scaling-to-100-million",
+      "field": "spl",
+      "issue": "`efficiency_score` is computed as mn + ndr/100 + ro40/100, which is not the Bessemer Efficiency Score (net new ARR ÷ net burn, or ARR growth + FCF margin). `burn_multiple_recalc` (nb/nna) is the inverse of the early-stage Bessemer score, so that score could be computed directly as nna/nb.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`latest(ndr_pct)` relies on a raw `ndr_pct` field, but dataSources names `chartmogul_net_dollar_retention` and ChartMogul does not emit NDR directly. Add a coalesce or derivation, otherwise ndr is always null and efficiency_score silently defaults NDR to 100.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`sum(net_new_arr_usd)` and `sum(net_burn_cash_usd)` by month will double-count when Mosaic/ChartMogul emit repeated snapshots of the same month; use latest() per source, or dedup on metric id and period, before summing.",
+      "severity": "major"
+    },
+    {
+      "field": "title",
+      "issue": "The title packs six metrics plus the undefined phrase 'Hype-to-Reality Forward Multiples' and is hard to scan; consider 'SaaS Investor Scorecard: Rule of 40, Magic Number, Burn Multiple, NDR, Quick Ratio vs Public Peers'.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0050-UC-23.8.4",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The UC misdefines the Bessemer Efficiency Score, attributes NDR to a ChartMogul endpoint that does not return it, and has DB Connect calling REST/OData APIs. Its SPL leaves churn_usd undefined, so Quick Ratio is null. Much of the detailedImplementation is dense jargon with several unverifiable vendor API paths.",
+  "tier": "deep",
+  "uc_id": "UC-23.8.4",
+  "verdict": "incorrect"
+}

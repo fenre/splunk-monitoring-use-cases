@@ -1,0 +1,82 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "0df55a6daf4c944ffc09247733bb11b7a69c168df0aae129b1f7ab6202cc1c5c",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.1.25.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/datacenter-physical.md",
+      "evidence_url": "https://www.splunk.com/en_us/download/universal-forwarder.html",
+      "explanation": "The Universal Forwarder is downloaded from splunk.com, not Splunkbase (splunkbase.splunk.com/app/617 returns 404), and it cannot read a generator controller or BMS on its own. The reader is given no real collection path.",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+      "severity": "blocker",
+      "suggested_fix": "Name the real path: SNMP polling of the generator controller or its gateway through Splunk Connect for SNMP (Splunkbase 6266) or SNMP Modular Input (Splunkbase 1537), a BMS/BACnet export (the guide lists BACnet IP via Edge Hub), or a CMMS/DB Connect feed for the maintenance schedule. Correct `app` and `detailedImplementation` to match."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The `dataSources` field lists a last-maintenance date and a next-due value, but the SPL only uses numeric `run_hours` and `maintenance_due_hrs`. Generators are usually also serviced on a calendar interval (for example, annually) regardless of hours, and no date logic exists, so a low-use standby generator past its calendar service date is never flagged. Generator controllers also rarely expose 'maintenance due hours'; it normally comes from a CMMS.",
+      "field": "cross_field",
+      "quote": "Run hours, last maintenance date, next due",
+      "severity": "major",
+      "suggested_fix": "List the fields the SPL actually uses (`generator_id`, `run_hours` from the controller, `maintenance_due_hrs` from a CMMS lookup or the controller's service-interval counter). Either state that calendar-based due dates are out of scope or describe a date check, and ask a human to add it to the SPL."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/datacenter-physical.md",
+      "explanation": "The SPL uses `index=physical`, which is not among the guide's indexes (power, cooling, dc_environmental, physical_security, dcim). The generator siblings land on `index=power` (UC-15.1.12 `generator:telemetry`, UC-15.1.18 `generator:events`), while this UC invents a third sourcetype, `generator:status`, on a different index.",
+      "field": "dataSources",
+      "quote": "into the index named in the SPL.",
+      "severity": "major",
+      "suggested_fix": "Name the index and sourcetype explicitly and align with the guide and siblings (`index=power`, reusing `generator:telemetry` where run hours already land), or state why a separate feed is needed."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "This is a generator UC, yet validation points to a PDU UI. 'Step 4 — Operationalize' is repeated four times, and the full Step 1–5 block is duplicated with HEC/vendor-API 401/429 troubleshooting. 'Configure data collection' contains the alert rule instead of collection steps.",
+      "field": "detailedImplementation",
+      "quote": "Compare with the PDU UI or SNMP poll for the same devices, readings, and time range.",
+      "severity": "major",
+      "suggested_fix": "Rewrite as one sequence. Ingest the controller's hour meter, join the service interval from the CMMS or a maintenance lookup, validate against the controller display/service log, and route alerts to facilities with lead time for scheduling a contractor."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The equipment tag is 'splunk', but the monitored equipment is a standby generator controller.",
+      "field": "equipment",
+      "quote": "\"splunk\"",
+      "severity": "minor",
+      "suggested_fix": "Use the generator/BMS equipment slug from the equipment list (check data/equipment-app-map.json for the matching slug)."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "The SPL produces only a current snapshot per generator. Overdue units appear as negative `remaining_hrs`, which the text never explains, and there is no trend output.",
+      "field": "implementation",
+      "quote": "Report on run hour trend and overdue maintenance.",
+      "severity": "minor",
+      "suggested_fix": "Say that a negative `remaining_hrs` means overdue, and describe the run-hour trend as a separate dashboard panel (for example, timechart of latest run_hours by generator_id)."
+    }
+  ],
+  "firewalled_field_flags": [],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0018-UC-15.1.25",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The SPL logic (hours until the next service is under 100) is simple and readable. The data sources, however, describe date-based maintenance fields the SPL never uses, the index disagrees with the repository guide and with the generator siblings, and the collection path cites a non-existent Universal Forwarder Splunkbase entry. The implementation text is duplicated template material that refers to PDUs.",
+  "tier": "deep",
+  "uc_id": "UC-15.1.25",
+  "verdict": "incorrect"
+}

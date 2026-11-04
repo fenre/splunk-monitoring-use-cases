@@ -1,0 +1,107 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "df748c0c03627cd116e2e21c981bff18db505ca45834b7b2edbca48a7a4f7915",
+  "file": "content/cat-23-business-analytics/UC-23.5.2.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/DBX/latest/DeployDBX/Createandmanagedatabaseinputs",
+      "explanation": "In DB Connect, batch mode re-reads the full result set on every run and rising mode uses a checkpoint column to emit only changed rows; one input cannot be both. If rising mode is used, as implementation and Step 1 also suggest ('rising watermark', 'WHERE last_updated > ?'), a SKU sitting at zero with no movement produces no new row. With the SPL's earliest=-24h@h window, that stockout vanishes from the alert after 24 hours. This is the opposite of Step 3's claim that stale snapshots 'remain visible until investigations conclude'.",
+      "field": "dataSources",
+      "quote": "emitted from a thirty-minute batch rising-column poll (`interval = 1800`, `mode = batch`)",
+      "severity": "blocker",
+      "suggested_fix": "Specify batch mode (a full snapshot every 30 minutes, with _time set to the snapshot time) for this stock-level UC. Or keep rising mode and maintain current state in a KV Store or summary lookup that the alert reads. Remove 'rising' from the batch description."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "After a UC-specific Step 1–5, the field repeats a second, generic Step 1–5 block. It contradicts the 1800-second DB Connect interval, talks about vendor APIs, HEC tokens and HTTP 401/429 that do not apply to JDBC, suggests validating with '| tstats count ... against the vendor admin UI', and routes to the 'platform on-call channel' instead of procurement.",
+      "field": "detailedImplementation",
+      "quote": "Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.",
+      "severity": "major",
+      "suggested_fix": "Delete the second 'Step 1 — Configure data collection' through 'Step 5 — Troubleshooting' boilerplate block. Keep the first, UC-specific sequence."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "SAP valuation master data (MBEW standard or moving-average price), which the SPL coalesces as unit_price, holds inventory cost, not selling price. revenue_at_risk is therefore cost-at-risk unless a price-list feed is added.",
+      "field": "detailedImplementation",
+      "quote": "Finance prefers multiplying average selling prices sourced from valuation masters",
+      "severity": "minor",
+      "suggested_fix": "Either source a selling-price field (for example a pricing-condition or list-price extract) for unit_price, or rename the measure in prose to 'inventory cost at risk' and state that it uses valuation price."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/DBX/latest/DeployDBX/Configurationfilereference",
+      "explanation": "DB Connect 3.x db_inputs.conf stanzas are `[<input_name>]` with a separate `connection =` key. The `db://hana/...` form is not valid.",
+      "field": "detailedImplementation",
+      "quote": "representative stanza naming `[db://hana/rs_inventory_snapshot]`",
+      "severity": "minor",
+      "suggested_fix": "Use `[rs_inventory_snapshot]` with `connection = hana_ro`, `mode = batch`, `interval = 1800`, `index = business`, `sourcetype = dbx:inventory`."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The Oracle table cited, MTL_ONHAND_QUANTITIES_DETAIL, is the Oracle E-Business Suite on-hand table. Fusion SCM Cloud uses INV_ONHAND_QUANTITIES_DETAIL and is not reachable by direct JDBC. The SAP reference title names MB52/MMBE/MB5B but links the S/4HANA Cloud root page.",
+      "field": "references",
+      "quote": "\"title\": \"Oracle SCM Cloud — Overview of Inventory Management\"",
+      "severity": "minor",
+      "suggested_fix": "Say whether the Oracle path is EBS (direct JDBC to MTL_ONHAND_QUANTITIES_DETAIL) or Fusion (BICC/BIP extract to a warehouse), and link the matching documentation. Point the SAP reference at the specific stock-overview documentation."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "clarity",
+      "explanation": "The text never comes back to Phoenix or Atlanta segmentation, and several Step 3 sentences ('ERP simultaneously raises inbound ASN optimism elsewhere') are padded and hard to act on.",
+      "field": "detailedImplementation",
+      "quote": "grouping strictly by SKU plus warehouse identifiers reflecting Phoenix versus Atlanta segmentation discussed later",
+      "severity": "minor",
+      "suggested_fix": "Remove the dangling reference and tighten Step 3 into one short sentence per SPL stage."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The status says verified, but the reviewer is an agent, and the ingestion-mode contradiction shows no SME ran this against a real ERP feed.",
+      "field": "status",
+      "quote": "\"status\": \"verified\", ... \"reviewer\": \"agent-handcraft-2026-04-27\"",
+      "severity": "major",
+      "suggested_fix": "Set the status to draft or community until a supply-chain SME validates it."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`qty_raw=tonumber(coalesce(qty_on_hand, on_hand_qty, quantity_on_hand, \"0\"))` turns any row missing a quantity column into qty 0, which the first case branch classifies as STOCKOUT. Partial or malformed JDBC rows, such as the 'costing reruns blank fields' scenario in Step 5, therefore page as stockouts. Default to null() and drop or flag rows with no quantity.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Sort",
+      "field": "spl",
+      "issue": "`sort - revenue_at_risk sku_key` without a count returns at most 10,000 rows. For large SKU×warehouse estates the exception table is silently truncated, although portfolio_at_risk is computed before the sort and stays correct. Use `sort 0 - revenue_at_risk sku_key`.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "OVERSTOCK rows survive `where status!=\"HEALTHY\"`, so the hourly alert in implementation step (4) also pages on overstock, which the prose says should go to a weekly digest. Filter to STOCKOUT/CRITICAL_BELOW_LEAD/REORDER_NOW in the alert variant. Also, CRITICAL_BELOW_LEAD revenue_at_risk uses the full lead time even when some cover remains; `(lead_time_days-doc_safe)` would be more accurate.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0030-UC-23.5.2",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The stockout logic (safety-stock-adjusted days of cover against lead time) is sound, and the SAP/Oracle validation steps are concrete and accurate (MB52/MMBE/MB5B, LABST, INSME/SPEME). But the ingestion design contradicts itself: a 'batch rising-column' input over a 24-hour search window makes stuck stockouts silently drop out. Missing quantities default to zero and raise false STOCKOUTs. detailedImplementation ends with a second, generic Step 1–5 block that contradicts the first.",
+  "tier": "deep",
+  "uc_id": "UC-23.5.2",
+  "verdict": "incorrect"
+}

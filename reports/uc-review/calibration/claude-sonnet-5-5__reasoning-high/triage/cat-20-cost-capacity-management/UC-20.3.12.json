@@ -1,0 +1,94 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "5eee63e29c38ed66deff7ff4452e49cf98c2cdc03f8e4439a971ea0a39e43e08",
+  "file": "content/cat-20-cost-capacity-management/UC-20.3.12.json",
+  "findings": [
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The search only compares daily indexed volume with a quota lookup; it never reads license warning or violation messages, so 'Stack Warnings' is not delivered. The description and value text also never mention warnings.",
+      "field": "title",
+      "quote": "Splunk Enterprise License Pool Usage and Stack Warnings",
+      "severity": "major",
+      "suggested_fix": "Either add a license-warning source to the detection or rename the UC to pool usage against quota and describe warnings as out of scope."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "clarity",
+      "explanation": "'configured sourcetype' is a leaked placeholder (also 'target_sourcetype' in controlTest and 'configured_sourcetype' in knownFalsePositives, and 'sourcetype=see SPL' in detailedImplementation). The search actually reads `source=*license_usage.log*` `type=Usage` events in `_internal`.",
+      "field": "description",
+      "quote": "sourcetype `configured sourcetype`, grouped by `_time`, `pool`, `stack`",
+      "severity": "major",
+      "suggested_fix": "Name the real feed: `index=_internal source=*license_usage.log* type=Usage` (sourcetype splunkd per the guide) and remove placeholder wording."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL flags any day above 85% and has no consecutive-day logic, so the stated alert rule is not what the search does. Also `daily_total` is computed by eventstats and never used.",
+      "field": "implementation",
+      "quote": "(2) Alert at eighty-five percent for two consecutive days.",
+      "severity": "major",
+      "suggested_fix": "Either describe the single-day 85% trigger or add the consecutive-day condition; remove or use daily_total."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The search uses neither tstats nor mstats and cimModels is empty with acceleration 'Not applicable'; the implementation step 'Pair with `data model` acceleration' is likewise irrelevant to license_usage.log.",
+      "field": "detailedImplementation",
+      "quote": "Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.",
+      "severity": "major",
+      "suggested_fix": "Delete the data model acceleration advice; suggest a per-sourcetype/per-index volume breakdown from the same log instead."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "explanation": "License pool usage should be validated against Settings > Licensing or the Monitoring Console license usage panels, not a cloud billing console. The appended generic block also says to 'Enable the modular input or HEC token that writes sourcetype=see SPL into _internal' and to install a Universal Forwarder 'add-on (Splunkbase 617)', contradicting 'Splunk internal telemetry (no TA)'; license_usage.log is already in _internal.",
+      "field": "detailedImplementation",
+      "quote": "Step 3 — Validate\ncompare with the cloud billing console for the same scope, accounts, and time range.",
+      "severity": "major",
+      "suggested_fix": "Validate against the Licensing page / Monitoring Console license usage and remove the modular input, HEC and Universal Forwarder instructions."
+    },
+    {
+      "confidence": 0.45,
+      "dimension": "correctness",
+      "explanation": "The SPL groups by `pool` and `stack`, but type=Usage events normally carry `pool` and `poolsz` while `stack` is on rollover summary events; the guide's sample uses `license_pool` and `stack_id`. Confirm the field names present on your license manager, and that the search runs where license_usage.log is searchable (it is not on every search head tier, and workload-priced Splunk Cloud has no GB pools).",
+      "field": "dataSources",
+      "quote": "`index=_internal` `source=*license_usage.log*` `type=Usage`",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the actual field names in `index=_internal source=*license_usage.log* type=Usage | head 5` and adapt the search and quota lookup; note the Splunk Cloud workload-pricing exception."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "specificity",
+      "explanation": "Template scenarios do not fit license usage; real causes are a one-off data backfill or reindex, onboarding of a new source, and day boundaries that differ between the license manager's timezone and the search head.",
+      "field": "knownFalsePositives",
+      "quote": "Scheduled automation elevates `pool` without crossing `util_pct` > 85 for UC-20.3.12.",
+      "severity": "major",
+      "suggested_fix": "Name those causes and how to check them (sourcetype volume breakdown for the spike day)."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`bin _time span=1d` uses the search head timezone whereas license days roll over at midnight on the license manager, so bucketed usage can differ from the licensing page; the `daily_total` eventstats is unused; `stack` may not be present on Usage events.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0030-UC-20.3.12",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The core idea (daily indexed GB per license pool against a quota lookup) is sound, but the title promises stack warnings the search never reads, the text carries leaked placeholders and cloud-billing boilerplate, and the 'two consecutive days' rule and data-model advice do not match the SPL.",
+  "tier": "triage",
+  "uc_id": "UC-20.3.12",
+  "verdict": "rewrite"
+}

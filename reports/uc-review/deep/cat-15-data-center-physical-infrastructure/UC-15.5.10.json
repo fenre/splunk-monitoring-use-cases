@@ -1,0 +1,100 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "7e20bafab48f6a1cef4a6c0b9f86877229067f36cc405f49bf6b9aaf7351b638",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.5.10.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The core comparison named in the title is left undefined. No sunset or twilight lookup is named, no site-to-camera mapping or latitude/longitude field is listed, and the SPL never joins against one, so a reader cannot build the comparison.",
+      "field": "implementation",
+      "quote": "(2) Compare to astronomical twilight table.",
+      "severity": "major",
+      "suggested_fix": "Name the lookup (for example a per-site, per-date sunrise/sunset CSV with `site`, `date`, `sunset_epoch`, `sunrise_epoch`) and how it is produced (for example an NOAA solar calculator export). List the `camera_id`→`site` mapping, and give the comparison (activation time minus sunset, flagged beyond N minutes)."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The data sources do not name the fields the SPL needs (`mode`, `camera_id`) or the vendor event that reports a day/night or IR-cut filter change. Sibling UCs use `cctv:analytics` for people counting and ANPR, not device day/night state, so the sourcetype choice is unexplained.",
+      "field": "dataSources",
+      "quote": "`index=physical` · `sourcetype=\"cctv:analytics\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll",
+      "severity": "major",
+      "suggested_fix": "Name the source event, for example the ONVIF imaging or IR-cut state change, or the Hikvision ISAPI day/night switch setting. List the extracted fields (`camera_id`, `mode`, camera `site`), or move the feed to the device-diagnostic sourcetype the siblings use for camera state."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by `catalog-team`, but its description, false positives, evidence, exclusions and detailed implementation are template text, and its title's sunset comparison is not implemented. That does not reflect SME sign-off.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Change the status to draft or unverified until an SME has reviewed a working sunset-comparison implementation."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "None of the listed causes would make a camera switch to IR early or late. The obvious data-center case is missing: indoor cameras switch on room lighting, not sunset, so the sunset comparison is meaningless for them.",
+      "field": "knownFalsePositives",
+      "quote": "Synthetic probe on `camera_id`, `hour`** — Health checks in `physical` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List real causes: indoor hall or cage cameras where IR follows the light schedule; overcast or storm conditions triggering early IR; floodlights or vehicle headlights delaying or reversing IR; cameras set to a fixed schedule rather than auto light-sensor mode; and hysteresis that makes a camera flap between modes at dusk. Exclude indoor cameras by lookup."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The steps are a generic skeleton that disagrees with this UC. The SPL hard-codes `earliest=-7d`; \"route critical severity to the platform on-call\" contradicts `criticality: low`; and a 7-day hourly heatmap is a report, not a paging alert. There is no step covering the sunset lookup or the timezone.",
+      "field": "detailedImplementation",
+      "quote": "Schedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages.",
+      "severity": "major",
+      "suggested_fix": "Rewrite the steps as a weekly report: ingest mode-change events, build and maintain the sunset lookup, convert `_time` to site-local time, compute the activation offset from sunset per camera and day, and review outliers. Drop the paging and throttling text."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_ref": "AGENTS.md",
+      "explanation": "The Search Reference landing page URL has no apostrophe. The canonical path is `.../SearchReference/WhatsInThisManual`.",
+      "field": "references",
+      "quote": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "severity": "minor",
+      "suggested_fix": "Use https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/WhatsInThisManual and add a reference for the sunrise/sunset data source."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "specificity",
+      "explanation": "The heatmap shows when IR is active but not how far activation is from sunset, which is the stated point of the UC.",
+      "field": "visualization",
+      "quote": "Heatmap hour × camera.",
+      "severity": "minor",
+      "suggested_fix": "Add a per-camera chart or table of the activation offset from sunset (minutes) over time, with the heatmap as context."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "title",
+      "issue": "The title promises a comparison against the local sunset window, but the SPL never references sunset, site location or local time. Either the SPL must add a sunset lookup join or the title should be narrowed to \"CCTV IR Night Mode Activation by Hour\".",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`strftime(_time,\"%H\")` renders the hour in the search user's timezone, not the camera site's local time, so hourly buckets are skewed for multi-timezone estates. The regex `ir|night|mono` also matches any mode string containing \"ir\" (for example IR-cut filter state values), so the mode literals should be anchored.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0095-UC-15.5.10",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 1,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The UC promises to compare infrared night-mode activation with each site's local sunset, but nothing in the text or the SPL provides sunset data, site location or timezone handling. The search only counts night-mode events per camera per hour. Nearly every prose field is template text, yet the UC is marked `verified`.",
+  "tier": "deep",
+  "uc_id": "UC-15.5.10",
+  "verdict": "rewrite"
+}

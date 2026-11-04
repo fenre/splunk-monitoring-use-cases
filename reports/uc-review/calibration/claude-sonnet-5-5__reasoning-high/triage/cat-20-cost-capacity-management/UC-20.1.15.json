@@ -1,0 +1,77 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "c4acdb5315df10396cd0cad0f594ad58092cffb171f17c3a4203201eaab5d44b",
+  "file": "content/cat-20-cost-capacity-management/UC-20.1.15.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL is a ranked attribution report with no threshold or alert condition, and the filter string is truncated. The description also does not say that only the Application user tag is used and only EC2 data transfer is included.",
+      "field": "description",
+      "quote": "Outputs `xfer_cost` each `the scheduled window`; alert when configured threshold. Filter chain includes filter `lineItem_ProductCode=\"AmazonEC2\" (lineItem_UsageType=\"*DataT`.",
+      "severity": "major",
+      "suggested_fix": "Describe it as a report of data-transfer cost per Application tag and usage type for EC2; if an alert is wanted, state the dollar threshold."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/activating-tags.html",
+      "explanation": "Resource tags only appear in the CUR if the tag keys have been activated as cost allocation tags in AWS Billing, and some transfer line items (for example inter-AZ or NAT gateway processing) cannot be attributed to the tagged resource that caused them. Without activation every row lands in 'untagged'.",
+      "field": "implementation",
+      "quote": "Requires tags on resources generating egress; untagged flows appear as `untagged`.",
+      "severity": "major",
+      "suggested_fix": "Add the step to activate the `Application` user-defined cost allocation tag in the Billing console, note the up-to-24-hour delay, and describe which transfer lines cannot be attributed."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "specificity",
+      "explanation": "The title is general but the search only covers AmazonEC2 product lines; data transfer also appears under S3, RDS, CloudFront and other products, and the tag key is hard-coded to Application.",
+      "field": "title",
+      "quote": "Data Transfer Cost Attribution by Tag",
+      "severity": "minor",
+      "suggested_fix": "Either widen the product filter or state the EC2-only and single-tag scope in description and implementation."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "After the real steps, a generic Steps 1-5 block (poll interval, `list_inputs`, `app, lineItem_UsageType` field spot-check, HTTP 401/429) is appended, and Step 1 'Configure data collection' contains only the tag remark.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=aws:billing:cur into cloud_billing. Default poll interval 300–900 seconds",
+      "severity": "major",
+      "suggested_fix": "Replace with CUR-specific collection steps (S3 CUR input, resource IDs and tags enabled in the report definition) and a validation against Cost Explorer filtered by usage type."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "Template text; real causes are one-off migrations or backups, restated CUR lines, and data transfer attributed to shared resources.",
+      "field": "knownFalsePositives",
+      "quote": "Scheduled automation elevates `lineItem_UsageType` without crossing configured threshold for UC-20.1.15.",
+      "severity": "major",
+      "suggested_fix": "List those real causes and what to check."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`sum(cost)` per event can double-count CUR lines re-delivered in restated month-to-date files; `*Bytes*` also matches non-transfer usage types such as NAT gateway processing and EBS lines on AmazonEC2; the resource tag field name `resourceTags_user_Application` depends on how the add-on renames the CUR column.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0029-UC-20.1.2",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 2,
+    "overclaiming": 4,
+    "specificity": 2
+  },
+  "summary": "A usable top-N report of EC2 data transfer cost by Application tag, but it is described as an alert with a configured threshold, restricted to EC2 despite the general title, and silent on the cost-allocation-tag activation that tag attribution depends on.",
+  "tier": "triage",
+  "uc_id": "UC-20.1.15",
+  "verdict": "rewrite"
+}

@@ -1,0 +1,91 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "fd8f06f7213cc8457c532e454057ed2a8f9bc6db26cc8a071d9cd320c1b1ab24",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.3.14.json",
+  "findings": [
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "explanation": "Tailgate and anti-passback violation events are alarm or policy events from a door controller, not authentication outcomes. The accompanying dataModelAcceleration admits they would need FIELDALIAS mapping to fit (badge_holder to user, action inferred) and that the subsets are sparse. The Authentication model does not clearly fit the signal.",
+      "field": "cimModels",
+      "quote": "\"cimModels\": [\n    \"Authentication\"\n  ]",
+      "severity": "needs_verification",
+      "suggested_fix": "Check whether the Splunk CIM Authentication dataset is a valid fit. If it is not, set cimModels to an empty list and keep the raw-index search. If it is kept, the mapping must carry the tailgate/APB event_subtype."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The description and implementation talk about alert thresholds per door and a scheduled window. The SPL has no threshold. Any tailgate or APB event in the window is returned as a row, with count only as a column. The sentence is also truncated ('alert when configured threshold').",
+      "field": "description",
+      "quote": "Outputs `count` each `the scheduled window`; alert when configured threshold.",
+      "severity": "major",
+      "suggested_fix": "State that every tailgate or anti-passback event in the window is counted per door, badge_holder and reader_id, and say whether alerts fire on any row or on a count above a stated value that is added to the SPL."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "consistency",
+      "explanation": "The monitoring type is Security and the physical-security audience is described elsewhere, but the description frames it as an Operations workflow.",
+      "field": "description",
+      "quote": "Purpose-built for 'Badge Tailgating and Anti-Passback Violations' in Operations workflows.",
+      "severity": "minor",
+      "suggested_fix": "Say it supports physical-security operations or SOC review, matching the monitoringType."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The scenarios (CMDB changes, batch jobs, synthetic probes) do not describe how badge tailgate/APB alarms are falsely raised. Real causes are missing: legitimate escorted entry, a person holding the door for a wheelchair user or deliveries, reader resets after a power loss that clear passback state, and mantrap or APB zone misconfiguration.",
+      "field": "knownFalsePositives",
+      "quote": "Health checks in `physical` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.",
+      "severity": "major",
+      "suggested_fix": "List real access-control causes such as authorised escorts, delivery doors held open, anti-passback state not reset after a reader reboot, and doors outside the anti-passback zone."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "The sub-second alignment (and the 'indexed-time skew under one second' in detailedImplementation) is an unsupported precision target. Syslog and HTTPS pipelines do not guarantee it, and the SPL only counts rows without time correlation.",
+      "field": "implementation",
+      "quote": "forward with sub-second clock alignment to the controller",
+      "severity": "minor",
+      "suggested_fix": "Require NTP-synchronised controllers and readers and state that second-level accuracy is enough, since the search does not correlate events by time."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "specificity",
+      "explanation": "No access-control product is named, and the guide lists Lenel, CCURE and AMAG sourcetypes. The access_control sourcetype and event_subtype values are normalised by the implementer, but the text implies controllers emit them directly. Many controllers do not natively log tailgating, which is usually inferred from video or door-sensor correlation.",
+      "field": "dataSources",
+      "quote": "from the Access control system where Splunk extracts `event_subtype` (for example tailgate or apb_violation)",
+      "severity": "minor",
+      "suggested_fix": "Say that tailgate/APB subtypes exist only where the controller or a correlation layer raises them. Name example products and the native event or alarm names to map."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "cimSpl",
+      "issue": "The tstats search counts all Authentication events by user, action and src with no filter for tailgate or anti-passback events. It would not reproduce the detection in the main SPL and is mismatched with it. It also depends on the Authentication mapping noted above.",
+      "severity": "major"
+    },
+    {
+      "field": "mitreAttack",
+      "issue": "T1078 (Valid Accounts) is an Enterprise ATT&CK technique for logical account abuse. Badge tailgating and passback are physical-access events, and the link to T1078 is tenuous. Check whether a mapping is appropriate.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0072-UC-15.3.4",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 1,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The detection and its implementation guidance are reasonable. The CIM Authentication mapping does not fit tailgating or anti-passback violation events, and the prose refers to a threshold that the SPL lacks. The grandma text is a generic subcategory sentence.",
+  "tier": "triage",
+  "uc_id": "UC-15.3.14",
+  "verdict": "rewrite"
+}

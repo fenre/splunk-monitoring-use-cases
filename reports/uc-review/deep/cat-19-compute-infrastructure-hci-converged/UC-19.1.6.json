@@ -1,0 +1,102 @@
+{
+  "confidence": 0.82,
+  "content_sha256": "d0ff17042eded50c56b50cf508c0e890a0c2ad8c682138f273b745bb0aa3ac89",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.1.6.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/",
+      "explanation": "The Splunk Add-on for Cisco UCS assigns all collected data the sourcetype cisco:ucs and sets source to cisco:ucs:<classId> (for example cisco:ucs:equipmentPsuStats); collection is configured with templates of classIds attached to a Cisco UCS input, not a separate 'Cisco UCS statistics' input. The same false sourcetype appears in dataSources, implementation and exclusions.",
+      "field": "detailedImplementation",
+      "quote": "keep the add-on’s default sourcetype for statistics, which is `cisco:ucs:stats` — this is the only sourcetype this UC targets.",
+      "severity": "blocker",
+      "suggested_fix": "Describe creating a template with the environmental classIds (equipmentPsuStats, equipmentChassisStats, processorEnvStats, computeMbTempStats, ...) and attaching it to a Cisco UCS input; search sourcetype=cisco:ucs with source=cisco:ucs:<classId>, or document the custom sourcetype if one is set on the input."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "For every thermal and watt row the two numbers sit in the crit_low and crit_high columns, so the SPL treats any reading below 33 C (or below 900 W per PSU, below 80 C per CPU socket, etc.) as Critical. A reader pasting this 'literal copy' CSV gets a fleet of red rows for healthy hardware, contradicting the note that 'thermals and watts use high-side warn/crit'.",
+      "field": "detailedImplementation",
+      "quote": "class_id,metric,warn_low,warn_high,crit_low,crit_high,unit,notes\nequipmentChassisStats,chassis_ambient,,,33,40,C,",
+      "severity": "blocker",
+      "suggested_fix": "Move the values to warn_high/crit_high for thermal and power rows (for example `equipmentChassisStats,chassis_ambient,,33,,40,C,...`), keep low-side columns for fans and the 12 V rail, and correct the row count (13 rows, not 12)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL groups `stats ... by dn, classId, metric, chassis_num, fi_side`; stats drops events whose BY fields are null, so chassis rows (no fi_side) and FI rows (no chassis_num) are both removed. The troubleshooting text promises rows the search can never return.",
+      "field": "detailedImplementation",
+      "quote": "`chassis_num` is empty on some DNs — expected for some FI-only or IOM paths; the dn is still valid. Do not filter those rows out",
+      "severity": "major",
+      "suggested_fix": "Once the SPL is fixed (fillnull on chassis_num/fi_side before stats), keep this note; until then state that rows without both fields are excluded."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "The attribute mapping is guessed (long coalesce lists such as ambientTemp/frontTemp on equipmentChassisStats, a '12V rail' on computeMbPowerStats). In the UCSM object model computeMbPowerStats reports consumed power and input voltage/current and computeMbTempStats uses fmTempSen* attributes, and stats DNs do not contain 'front'/'rear', so the mb_temp_front/rear branches may never match.",
+      "field": "dataSources",
+      "quote": "Power, cooling, and fan readings appear as statistics events for `equipmentChassisStats`, ... `computeMbTempStats`, `computeMbPowerStats`",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the UCS Manager XML API object reference for each class and list the real attribute names (for example equipmentChassisStats inputPower/outputPower, computeMbPowerStats consumedPower/inputVoltage); rename the rail_12v metric accordingly."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL computes no count and has no -24h threshold; it takes the latest value per sensor and rates it against warn/crit bounds from ucs_environmental_thresholds. The description never says what makes a row Critical or Warn.",
+      "field": "description",
+      "quote": "Threshold bundle: -24h; aggregation grain: `dn`, `classId`, `metric`, `chassis_num`; metrics: `count`.",
+      "severity": "major",
+      "suggested_fix": "Say: latest reading per sensor dn over 24 h (chassis/PSU power, PSU/CPU/board/IOM temperatures, fan RPM) compared with per-class bounds in ucs_environmental_thresholds; Critical/Warn when outside crit/warn bounds, NoBaseline when no lookup row exists."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "The title names a specific API reference but the URL is the cisco.com home page.",
+      "field": "references",
+      "quote": "\"title\": \"Cisco UCS Manager XML API Reference, Release 4.2 (MO and statistics model)\",\n      \"url\": \"https://www.cisco.com/c/en/us/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the UCS Manager XML API Programmer's Guide / object model reference for the release in scope, and add the add-on's Sources page (splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/)."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "overclaiming",
+      "explanation": "Marked verified while the sourcetype, lookup and BY-clause problems mean the search returns nothing or false Criticals on a standard install.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "minor",
+      "suggested_fix": "Set to draft until validated against real Splunk_TA_cisco_ucs data."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/",
+      "field": "spl",
+      "issue": "All three searches filter sourcetype=\"cisco:ucs:stats\", which the add-on does not emit (it uses sourcetype cisco:ucs with source cisco:ucs:<classId>), so a default install returns no rows.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats",
+      "field": "spl",
+      "issue": "`stats latest(_time) ... by dn, classId, metric, chassis_num, fi_side` discards any result where a BY field is null; chassis/blade DNs never contain switch-A|B and FI DNs never contain chassis-N, so almost every row is dropped. Add `fillnull value=\"-\" chassis_num fi_side` before stats (rex max_match=0 also makes these multivalue; drop max_match=0).",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0044-UC-19.1.6",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 5,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The implementation walk-through is detailed and specific to UCS environmental MOs, but it hard-codes a 'cisco:ucs:stats' sourcetype and 'statistics modular input' the add-on does not have, the shipped threshold CSV puts the high-side limits in the crit_low column so normal readings rate Critical, and the SPL's stats BY clause drops every row lacking chassis_num or fi_side. Description, value, KFP and controlTest are template residue.",
+  "tier": "deep",
+  "uc_id": "UC-19.1.6",
+  "verdict": "incorrect"
+}

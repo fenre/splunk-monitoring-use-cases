@@ -1,0 +1,163 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "323b1d6c310d59aeea6a7d2d8e8a1ffe8d3a1a79f3e79eb8e64e736370121723",
+  "file": "content/cat-03-containers-orchestration/UC-3.2.6.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/data-management/common-information-model/6.4/data-models/application-state-deprecated",
+      "explanation": "Application_State has been deprecated since CIM 4.12. Its root is All_Application_State and it has no `state` or `app` fields. Change is used only as a constant-key tstats tick that is dropped straight away. The detailedImplementation rationale ('a Deployment is an application-level availability object' mapped to Application_State) therefore misleads auditors. The real detection is plain kube-state-metrics plus kube:events.",
+      "field": "cimModels",
+      "quote": "\"Application_State\",\n    \"Change\"",
+      "severity": "blocker",
+      "suggested_fix": "Mark the UC as non-CIM, or list Change only as an optional audit overlay sourced from kube-apiserver audit events. Remove Application_State and rewrite the CIM paragraph and dataModelAcceleration to match."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "`description`, `value` and `controlTest` highlight `rs_thrash_dc` and `cluster_worst_rollout_min`, but the SPL's final `fields -` removes both. They also repeat `gen_lag > 0` four times and say the detection runs 'on datamodel `Change`'. The real gate is a disjunction of deadline_breach, availability_breach, gen_lag>0, rs_thrash_dc>=6, SLA breach, or stuck_signal with rollout age >= 5 minutes, followed by a nine-step severity ladder.",
+      "field": "cross_field",
+      "quote": "Summarises `rs_thrash_dc`, `cluster_worst_rollout_min` grouped by `cluster`, `namespace`, `deployment`, `]` across `the scheduled window` before applying `gen_lag` > 0, `gen_lag` > 0, `gen_lag` > 0, or `gen_lag` > 0.",
+      "severity": "major",
+      "suggested_fix": "Describe each row as one Deployment showing ProgressDeadlineExceeded, Available=false, generation lag, partial replica convergence for at least 5 minutes, at least 6 distinct ReplicaSets in 90 minutes, or a rollout SLA breach from deployment_inventory.csv. List the severity ladder and name the columns the table actually outputs."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/search-commands/multisearch",
+      "explanation": "The join is on a constant key against an unfiltered Change count, and `change_correlation_tick` is removed in the very next command. It correlates nothing and cannot justify a CIM mapping to auditors. The same step says 'multisearch fans nine metric arms so one silent kube-state-metrics family cannot zero the entire detection', but the multisearch as written does not run.",
+      "field": "detailedImplementation",
+      "quote": "join with tstats against Change provides a CIM-aligned correlation tick count that helps justify dual-model mapping during audits",
+      "severity": "major",
+      "suggested_fix": "Delete the Change-join justification. Explain instead that the arms are combined with `append` or one base search with conditional evals, and that audit attribution comes from an optional kube-apiserver audit join keyed on objectRef.namespace and objectRef.name."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "Step 1 contains a single paragraph of about 50 run-on 'verify ...' clauses (product management digests, architecture review board, Unicode normalisation, vendor tickets). It is followed by generic 'alignment' notes and a Step 5 run of 'note' paragraphs (operator wellbeing, executive storytelling). Every step also ends with a 'Closing ... checklist' that describes the document's own structure ('twelve cases present with exact Case N — formatting'). This is generator residue that buries the useful Deployment-specific guidance.",
+      "field": "detailedImplementation",
+      "quote": "Platform onboarding checklist for new clusters: verify kube-state-metrics version, verify Splunk OTel chart version, verify HEC endpoint health, verify deployment_inventory.csv includes every production namespace",
+      "severity": "major",
+      "suggested_fix": "Keep the sibling boundaries, the metric families, the inventory schema, the collector YAML, the lab tests and the 12 cases. Cut the verify list to 5–8 rollout-specific checks and delete the alignment notes, the generic notes and the closing checklists."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "evidence_url": "https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/deployment-metrics.md",
+      "explanation": "The templated scenarios miss the real false positives. When no ProgressDeadlineExceeded event exists, rollout_age_minutes defaults to the 5-minute gate, so every in-flight RollingUpdate (updated, available or ready below desired) and every HPA scale-up immediately passes the alert predicate. A brief generation>observedGeneration during routine reconcile pages prod rows at high severity. Deliberately paused rollouts (`kubectl rollout pause`), Argo Rollouts or Flagger canaries, and maxSurge or scale-to-zero windows also fire. detailedImplementation mentions pause_expected and progressive_delivery_tool columns, but the SPL never reads them.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `cluster`, `namespace`, `deployment`, `]`** — Health checks in `k8s_metrics` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List normal rolling updates and HPA scale events, transient generation lag, paused Deployments (spec.paused / kube_deployment_spec_paused), progressive-delivery canaries and blue-green cutovers. Say how to suppress each, for example by requiring partial_stuck for a real soak and by honouring pause_expected from the lookup."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/search-commands/multisearch",
+      "explanation": "The Step 4 metric-presence check nests an extra bracket around the subsearches and puts `stats` inside multisearch subsearches. Multisearch allows only streaming commands there, so this validation search errors instead of proving that the data is present.",
+      "field": "detailedImplementation",
+      "quote": "| multisearch [\n    [ search index=k8s_metrics earliest=-30m latest=now kube_deployment_status_condition | stats count ]\n    [ search index=k8s_metrics earliest=-30m latest=now kube_deployment_spec_replicas | stats count ]\n  ]",
+      "severity": "major",
+      "suggested_fix": "Use `index=k8s_metrics earliest=-30m (kube_deployment_status_condition OR kube_deployment_spec_replicas) | stats count BY metric_name`, or `tstats count WHERE index=k8s_metrics BY sourcetype`."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/deployment-metrics.md",
+      "explanation": "The current kube-state-metrics deployment metrics reference lists `kube_deployment_status_replicas_ready` but no `kube_deployment_status_ready_replicas`. The same alternative is repeated in detailedImplementation. dataSources also cites `kube_deployment_status_condition` 'for Progressing and Available types'. The metric emits one series per status value (true, false and unknown), and only the series with value 1 is current, so the text should say so.",
+      "field": "dataSources",
+      "quote": "kube_deployment_status_replicas_ready or kube_deployment_status_ready_replicas per exporter version",
+      "severity": "minor",
+      "suggested_fix": "Name `kube_deployment_status_replicas_ready` only, unless a specific older version is cited. State that condition rows must be filtered to value 1 to read the current status."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/signalfx/splunk-otel-collector-chart/blob/main/helm-charts/splunk-otel-collector/templates/config/_otel-k8s-cluster-receiver-config.tpl",
+      "explanation": "I could not confirm that this add-on page exists. The collection path described is the Splunk OpenTelemetry Collector chart, and `app` likewise refers to 'Splunk HEC endpoints per Splunk Add-on for Kubernetes guidance'. That chart emits kube:events with attributes such as `k8s.object.name`, `k8s.namespace.name` and `k8s.event.reason`, not the `involvedObject.*` and `metadata.namespace` names the text and drilldown assume.",
+      "field": "references",
+      "quote": "\"title\": \"Splunk Docs — Splunk Add-on for Kubernetes\",\n      \"url\": \"https://docs.splunk.com/Documentation/AddOns/released/Kubernetes/About\"",
+      "severity": "needs_verification",
+      "suggested_fix": "Cite the splunk-otel-collector-chart documentation. Check the kube:events field names in a live index and document them in Step 2 and in the drilldown search."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "clarity",
+      "explanation": "'PassDoNotAlert' is not a Splunk or Kubernetes term and reads as generator residue in Case 2.",
+      "field": "detailedImplementation",
+      "quote": "PassDoNotAlert for known change windows when the pause annotation is deliberate.",
+      "severity": "minor",
+      "suggested_fix": "Replace with 'suppress the row via the pause_expected lookup column during the approved change window'."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified even though its SPL fails to parse, one of its arms is dead, and its CIM mapping is deprecated. There is no SME evidence of the Step 4 lab drills having been run.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set the status to draft until the lab ProgressDeadlineExceeded and negative tests have actually passed."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/search-commands/multisearch",
+      "field": "spl",
+      "issue": "`| multisearch` appears after eval, join and fields rather than as the first command. It wraps its arms in an extra `[ ... ]`, and every arm ends in `stats`, which is non-streaming and not allowed inside multisearch subsearches. The search will not parse.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/?resourceId=Splunk_SearchReference_Eval",
+      "field": "spl",
+      "issue": "The kube:events join uses `coalesce(involvedObject.kind, `involvedObject.kind`, \"\")`. The backticks are expanded as a macro call, so the search fails on an undefined macro. The unquoted `involvedObject.name` and `metadata.namespace` are parsed with `.` as the concatenation operator. Dotted field names in eval need single quotes.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/?resourceId=Splunk_SearchReference_Eval",
+      "field": "spl",
+      "issue": "`where like(_raw, \"owner_kind=\\\"Deployment\\\"\")` has no `%` wildcards, so like() requires the whole _raw to equal that string and never matches. rs_thrash_dc is therefore always 0 and the ReplicaSet-churn arm is dead. The `like(_raw, \"kube_deployment_spec_replicas\")` fallbacks have the same flaw.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/deployment-metrics.md",
+      "field": "spl",
+      "issue": "The condition arms take `latest(cond_status)` over every kube_deployment_status_condition series. kube-state-metrics emits one series each for status=true, false and unknown, and only the series with value 1 is current. Without filtering on the sample value, progress_condition and available_condition are arbitrary and can be 'false' for a healthy Deployment, which triggers critical availability_breach.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "When there is no deadline event, rollout_age_minutes defaults to rollout_stuck_min_gate (5). `stuck_signal=1 AND rollout_age_minutes>=5` is then true at once, so any partial_stuck row (a normal rolling update or HPA scale-up) passes the predicate with no real soak. When a deadline event exists, the age is measured from the first ProgressDeadlineExceeded event in the 4-hour window rather than from rollout start.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/change",
+      "field": "spl",
+      "issue": "The leading `join type=left join_key [| tstats count ... FROM datamodel=Change WHERE nodename=Change ...]` joins on a constant key, and its output is dropped by the next `fields -`, so it is a no-op residue. The Change root dataset is All_Changes, not Change.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/data-management/common-information-model/6.4/data-models/application-state-deprecated",
+      "field": "cimSpl",
+      "issue": "`nodename=Change ... BY Change.user Change.object` uses the wrong root dataset: it should be All_Changes and `All_Changes.user`/`All_Changes.object`. `datamodel=Application_State ... Application_State.state Application_State.app` targets a deprecated model whose root is All_Application_State and which has no state or app fields. The search also joins change actor (a user) to Application_State.dest (a host), which is semantically meaningless.",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0069-UC-3.2.6",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 5,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The rollout-failure intent is sound and correctly uses kube-state-metrics Deployment families, Progressing and Available conditions, generation lag and ProgressDeadlineExceeded. However, the SPL cannot parse (multisearch is misplaced, its subsearches contain stats, and eval uses backtick field names). Its condition arms read status without checking the series value, and the ReplicaSet-churn filter can never match. The text also overclaims a CIM Change and Application_State mapping that is deprecated or a no-op. The detailed implementation is swamped by a run-on 'verify' checklist and generic notes.",
+  "tier": "deep",
+  "uc_id": "UC-3.2.6",
+  "verdict": "incorrect"
+}

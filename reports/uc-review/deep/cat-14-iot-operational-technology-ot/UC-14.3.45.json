@@ -1,0 +1,125 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "22d08c466407d99366147790339309143aff1be27714e7a36bd51e8f05d85a06",
+  "file": "content/cat-14-iot-operational-technology-ot/UC-14.3.45.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Edge/2.2.0/Admin/Setup",
+      "explanation": "Splunk Edge Hub OS sends its data directly to the Splunk platform over an HTTP Event Collector token set up during registration with the Splunk App for Edge Hub. No Universal Forwarder or modular input is involved. Splunkbase app 617 also does not exist (the Splunkbase API returns 'App was not found').",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+      "severity": "blocker",
+      "suggested_fix": "Say the Edge Hub (and its people-counting container) sends events to Splunk over HEC, using the index names entered at device registration through the Splunk App for Edge Hub. Remove the Universal Forwarder and Splunkbase 617 references here and in `app`."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/splunk-edge-hub-os/administer-splunk-edge-hub-os/2.1/get-started/create-indexes-for-splunk-edge-hub-os",
+      "explanation": "Current Splunk docs list the default Edge Hub index names with underscores (edge_hub_logs, edge_hub_data). `people_count_event` and `occupancy_count` are not documented Edge Hub outputs: a custom container emits whatever names its author chooses.",
+      "field": "dataSources",
+      "quote": "`index=edge-hub-logs` sourcetype=splunk_edge_hub_log people_count_event, `index=edge-hub-data` metric_name=occupancy_count",
+      "severity": "needs_verification",
+      "suggested_fix": "Note that index names are set at registration (defaults edge_hub_logs / edge_hub_data). State that `people_count_event`, the count field and the metric name are defined by the custom container, and check them against the container's actual output."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The `implementation` field says the container emits `people_count`. `dataSources` names `occupancy_count`, and the SPL reads `people_detected`. A reader cannot tell which field the container must produce.",
+      "field": "cross_field",
+      "quote": "outputs people_count metric to MQTT and event logs",
+      "severity": "major",
+      "suggested_fix": "Use one field name in implementation, dataSources and detailedImplementation, matching what the SPL reads (people_detected), or record that the SPL must be changed to match."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The final SPL output is grouped by location only, and peak_occupancy is dropped. The thresholds are per-location safe and emergency limits from a capacity table, not one 'configured threshold'. No filter exists, so NORMAL locations are returned too.",
+      "field": "description",
+      "quote": "Pipeline aggregates `peak_occupancy`, `avg_occ` by `location`, `camera_id` over `the scheduled window`. Alert logic enforces configured threshold.",
+      "severity": "major",
+      "suggested_fix": "Describe the real logic: take the latest people count per camera, compare it with each location's max_occupancy_safe and max_occupancy_emergency, and label the location NORMAL, OVERCROWDED or EMERGENCY_EXCEEDED. Say an alert should fire only on the non-NORMAL statuses."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "The text never says where the per-location limits live. The SPL expects a table with location, max_occupancy_safe and max_occupancy_emergency. It also never says how a location with several cameras is handled; the SPL compares each camera's count with the whole-location limit.",
+      "field": "detailedImplementation",
+      "quote": "Set safe + emergency capacity thresholds per location.",
+      "severity": "major",
+      "suggested_fix": "Describe the capacity reference table (a CSV lookup with location, max_occupancy_safe and max_occupancy_emergency, kept by facilities) and how camera_id maps to location. Explain whether counts from overlapping cameras are summed or deduplicated before comparison."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/ot-intelligence/administer-splunk-edge-hub-os/2.4/configure-advanced-settings/use-docker-containers-with-splunk-edge-hub-os",
+      "explanation": "Splunk documents a ready-made NPU People Detection container (npu_object_detection_zeromq, SSD MobileNet v2, Edge Hub OS 2.2.0+). The NPU supports only TensorFlow Lite and serves one container at a time. Both points matter when deciding whether to build a custom container.",
+      "field": "implementation",
+      "quote": "Build custom ARM64 container using TensorFlow Lite + OpenCV for person detection + counting (YOLO or MobileNet models work well).",
+      "severity": "minor",
+      "suggested_fix": "Mention the Splunk-provided NPU People Detection container as the starting point. Note the TensorFlow Lite-only and one-NPU-container limits, and that a custom container is still needed to forward counts to Splunk if the sample does not."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The scenarios are template text and name no real cause of false occupancy alerts from camera people counting.",
+      "field": "knownFalsePositives",
+      "quote": "Batch `max` on `splunk_edge_hub_log` — Scheduled automation elevates `camera_id` without crossing configured threshold",
+      "severity": "major",
+      "suggested_fix": "List real causes: overlapping camera views double-counting people, detections of posters, mannequins or reflections, a frozen or low-frame-rate stream holding a stale high count, and planned events with an approved temporary capacity."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "overclaiming",
+      "explanation": "Splunk Edge Hub is a hardware device with a free companion app, not a premium Splunk app, and the SPL needs no premium app.",
+      "field": "premiumApps",
+      "quote": "\"Splunk Edge Hub\"",
+      "severity": "minor",
+      "suggested_fix": "Remove premiumApps, or move the Edge Hub hardware requirement to prerequisites."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "The references are generic Splunk configuration docs; nothing covers Edge Hub containers, USB device access or the NPU.",
+      "field": "references",
+      "quote": "Splunk inputs.conf reference",
+      "severity": "minor",
+      "suggested_fix": "Add the Splunk docs page 'Use Docker containers with Splunk Edge Hub OS' and the Edge Hub index setup page."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`| rest /services/data-model/indexes/facility_capacity_limits` is not a Splunk REST endpoint that returns lookup rows, so the join returns nothing and every location ends up NORMAL. Capacity limits should come from `| inputlookup facility_capacity_limits` or a `lookup` command.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "Each camera's occupancy is compared with the whole-location limit. The final stats then averages per-camera latest values with no _time, so latest(capacity_status) is arbitrary and peak_occupancy is discarded. There is no `where status!=\"NORMAL\"` for alerting.",
+      "severity": "major"
+    },
+    {
+      "field": "difficulty",
+      "issue": "difficulty 'expert' (a custom ML container on the NPU) conflicts with wave 'crawl'.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0087-UC-14.3.45",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The implementation paragraph is the only UC-specific text, and its Edge Hub facts (USB passthrough and NPU from OS 2.1, TensorFlow Lite) check out. The rest is template residue: a wrong collection path (Universal Forwarder and a non-existent Splunkbase ID, where Edge Hub actually sends over HEC), three different names for the people-count field, and a description that claims grouping and alerting the SPL does not do.",
+  "tier": "deep",
+  "uc_id": "UC-14.3.45",
+  "verdict": "incorrect"
+}

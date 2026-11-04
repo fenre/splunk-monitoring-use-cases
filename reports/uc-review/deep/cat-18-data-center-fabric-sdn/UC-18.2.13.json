@@ -1,0 +1,178 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "b84ae963cf17c825acf24d12de9423a14497442f6156e7786d862edc78c614f7",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.2.13.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/4856",
+      "explanation": "Splunkbase 4856 is the community 'Metrics Add-on for Infrastructure' and 1810 (cited for Splunk_TA_vmware) is 'Hunk App for MongoDB'. The VMware NSX-T Splunk App is 4241 and the Splunk Add-on for VMware is 3215. The wrong IDs repeat in dataSources, detailedImplementation and references, and the repository guide makes the same error.",
+      "field": "app",
+      "quote": "**`Splunk_TA_vmware-nsxt`** ([Splunkbase 4856](https://splunkbase.splunk.com/app/4856), VMware NSX 4.x / NSX-T 3.2.x alignment)",
+      "severity": "blocker",
+      "suggested_fix": "Use Splunkbase 4241 for the NSX-T app and 3215 for Splunk_TA_vmware everywhere, and correct docs/guides/datacenter-fabric-sdn.md."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.broadcom.com/xapis/nsx-t-data-center-rest-api/latest/system_administration_configuration.html",
+      "explanation": "The NSX API reference documents GET /api/v1/cluster/status, GET /api/v1/cluster/nodes and GET /api/v1/cluster/nodes/{node-id}/status, and per-node services under /api/v1/cluster/{cluster-node-id}/node/services/... . I found no /policy/api/v1/cluster/* variants, no 'runtime/info' path and no /cluster/nodes/<id>/services/<svc>/status path. The same list repeats in detailedImplementation Step 1 and in the implementation quick win.",
+      "field": "dataSources",
+      "quote": "**`GET /policy/api/v1/cluster/status`**, **`GET /policy/api/v1/cluster/nodes`**, **`GET /policy/api/v1/cluster/restore/status`**, **`GET /api/v1/cluster/nodes/<id>/runtime/info`**, **`GET /api/v1/cluster/nodes/<id>/services/<svc>/status`**",
+      "severity": "needs_verification",
+      "suggested_fix": "Check each path in the NSX 4.2 API reference and replace it with the documented /api/v1/cluster/status, /api/v1/cluster/nodes/{node-id}/status and /api/v1/cluster/{node-id}/node/services/{service}/status routes."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_url": "https://knowledge.broadcom.com/external/article/345832/gm-to-lm-data-synchronization-warning-al.html",
+      "explanation": "The Async Replicator (ASYNC_REPLICATOR group) is the NSX Federation GM-to-LM replication service. Its documented health checks are service status (GET /api/v1/node/services/async_replicator/status) and sync alarms, not a lag-in-seconds metric. The aggregation-service statistics endpoint and the claim that it yields ARS lag could not be confirmed, so asr_lag_seconds (the main numeric threshold) may have no real source.",
+      "field": "detailedImplementation",
+      "quote": "Capture **GET /api/v1/aggregation-service/cluster-statistics** payloads so Aggregation backlog proxies flatten into numeric **asr_lag_seconds** columns",
+      "severity": "needs_verification",
+      "suggested_fix": "Name a documented source for replication lag (for example the Federation GM–LM sync status API) or drop the lag thresholds. Also state that ARS applies only to NSX Federation deployments."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "evidence_url": "https://fdlsistemi.com/2025/04/exploring-nsx-building-blocks-part-3/",
+      "explanation": "NSX cluster group status is reported as STABLE, DEGRADED or UNAVAILABLE (members UP/DOWN). DATASTORE (Corfu) becomes UNAVAILABLE when two of three members are down. LOST_QUORUM and NO_QUORUM are not NSX values, and the SPL never checks UNAVAILABLE, so a real quorum loss would not match.",
+      "field": "detailedImplementation",
+      "quote": "Quorum loss: correlate DOWN or LOST_QUORUM strings with counts of healthy nodes",
+      "severity": "major",
+      "suggested_fix": "Describe quorum loss as the DATASTORE group (or overall mgmt_cluster_status) reporting UNAVAILABLE, and request an SPL change to match STABLE/DEGRADED/UNAVAILABLE."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/datacenter-fabric-sdn.md",
+      "explanation": "This contradicts the 'least-privilege identities' prerequisite in the same field and the grounding guide, which says the read-only Auditor role is enough for collectors.",
+      "field": "detailedImplementation",
+      "quote": "Collector identities often possess Enterprise Admin scopes",
+      "severity": "major",
+      "suggested_fix": "Tell readers to use the NSX Auditor role for collectors and never Enterprise Admin."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "'set cluster restore' is not a documented NSX CLI command. Recovery from loss of quorum is normally done with 'deactivate cluster' on the surviving node, followed by re-deploying members. The 'five-second' heartbeat claim and the 'etcd_status' field (NSX uses Corfu, not etcd) are also unsupported.",
+      "field": "detailedImplementation",
+      "quote": "Follow Manager cluster restore workflows referencing **set cluster restore**",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the NSX 4.2 'Recover from loss of quorum' procedure and quote the real CLI. Remove etcd_status and the heartbeat figure unless a source is cited."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL's real triggers are cluster status DOWN/DEGRADED/UNKNOWN, asr_pk > 90, vip_moves > 0, service splits or quorum hints. 'asr_lag_seconds > 60' applies only together with a non-UP cluster, and ars_hot (> 120) no longer exists after stats, so it never fires. The prose turns three overlapping lag numbers into an OR list. The same list appears in controlTest.",
+      "field": "description",
+      "quote": "thresholds `asr_lag_seconds` > 120, `asr_lag_seconds` > 60, `asr_pk` > 90, or `vip_moves` > 0",
+      "severity": "major",
+      "suggested_fix": "List the actual output conditions from the final where clause in plain words, with one lag threshold."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The SPL aggregates by cluster_id and _time only and outputs no node_id, so no per-node matrix can be built from it. Panel 4 also charts corfu_layout_state 'versions', which the SPL upper-cases as a string.",
+      "field": "visualization",
+      "quote": "(2) Matrix panel of Manager vs Policy vs Search vs CCP status tiles keyed by node_id.",
+      "severity": "minor",
+      "suggested_fix": "Describe panels the SPL output supports (per-cluster status tiles), or note that a separate per-node search is needed."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "Microsoft 365 has nothing to do with NSX Manager cluster health, and PagerDuty is only an alert destination, not a monitored system.",
+      "field": "equipment",
+      "quote": "\"m365\",\n    \"nsx\",\n    \"pagerduty\"",
+      "severity": "minor",
+      "suggested_fix": "Remove m365 and pagerduty from equipment."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
+      "explanation": "Cluster-group health and replication status fit neither the CIM Performance datasets (CPU, Memory, Storage, Network, OS) nor Inventory well, and the SPL uses no datamodel.",
+      "field": "cimModels",
+      "quote": "\"Inventory\",\n    \"Performance\"",
+      "severity": "major",
+      "suggested_fix": "Leave cimModels empty (raw NSX REST data), or keep Inventory only if Manager nodes are actually mapped as inventory entities."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "grandma_fidelity",
+      "explanation": "The text uses jargon (NSX Manager, VIP) and puzzling metaphors that a non-technical reader cannot decode. The UC also watches a three-node cluster of appliances, not a 'trio folded into each box'.",
+      "field": "grandmaExplanation",
+      "quote": "We mind the trio folded into each NSX Manager box—intent ledger, policy planner, fast finder—and whether their shared journal stays mirrored plus who fronts the VIP.",
+      "severity": "major",
+      "suggested_fix": "Say plainly: 'NSX's control software runs on three cooperating servers. We check that they stay in agreement, that their shared records stay in sync, and that the front-door address does not keep jumping between them, and we warn the team before network changes stop working.'"
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "The reviewer is an agent, the add-on IDs are wrong, the API paths are unconfirmed and the SPL has parse errors. There is no evidence of SME validation.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft until an NSX SME has validated the collectors and the search."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "The link goes to the generic NSX 4.2 landing page, not a Corfu page. A second reference points to the Broadcom techdocs root, which helps no one.",
+      "field": "references",
+      "quote": "\"title\": \"VMware NSX Corfu Documentation Hub (architecture context)\",\n      \"url\": \"https://techdocs.broadcom.com/us/en/vmware-cis/nsx/vmware-nsx/4-2.html\"",
+      "severity": "minor",
+      "suggested_fix": "Link the NSX 4.2 'Troubleshoot NSX Manager Cluster' / cluster status API pages instead."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Search",
+      "field": "spl",
+      "issue": "The base search uses match(lower(_raw), ...) before the first pipe. The search command does not evaluate eval functions, so the syslog branch does not filter as written.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/ConditionalFunctions",
+      "field": "spl",
+      "issue": "quorum_hint=case(..., null()) and svc_split=case(..., null()) end with a lone null() and so have an odd number of arguments. case() needs condition/value pairs, so the eval fails. Drop the trailing null(), since case() already returns null when nothing matches.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats",
+      "field": "spl",
+      "issue": "streamstats window=3 latest(vip_owner) runs with the default current=t, so vip_prev includes the current event and equals vip_owner, and vip_flap is effectively always 0. The preceding sort by cluster_id node_id _time also interleaves nodes, so even with current=f the comparison would mix different nodes' views.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://fdlsistemi.com/2025/04/exploring-nsx-building-blocks-part-3/",
+      "field": "spl",
+      "issue": "Status matching uses UP/DOWN/LOST_QUORUM/NO_QUORUM, but NSX cluster groups report STABLE/DEGRADED/UNAVAILABLE. UNAVAILABLE, the real quorum-loss value, is never matched. ars_hot is referenced after stats but is not carried through, so that condition never fires.",
+      "severity": "major"
+    },
+    {
+      "field": "mitreAttack",
+      "issue": "T1499.004 (Endpoint DoS: Application or System Exploitation) does not fit a management-plane health UC. The SPL detects no adversary behaviour, so the tag overclaims security coverage.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0027-UC-18.2.13",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 2,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The UC targets a real need (NSX Manager cluster group health, VIP ownership, Corfu quorum). However, the Splunkbase IDs are wrong, several API paths and fields (Policy-prefixed cluster status, runtime/info, ARS lag seconds, aggregation-service statistics) do not match the documented NSX API, and the SPL has parse and logic errors. It also expects UP/DOWN/LOST_QUORUM status strings that NSX does not emit.",
+  "tier": "deep",
+  "uc_id": "UC-18.2.13",
+  "verdict": "incorrect"
+}

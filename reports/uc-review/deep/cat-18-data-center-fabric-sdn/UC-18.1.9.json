@@ -1,0 +1,118 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "3183226f0e23f8fd99755f7d5cc3f5d97297b17dbf7969aea24d46b3d52d2d0a",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.1.9.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://community.cisco.com/t5/application-centric-infrastructure/unable-to-see-aci-contract-hit-counts/td-p/4757957",
+      "explanation": "actrlRuleHit5min objects live under leaf-local zoning-rule DNs of the form sys/actrl/scope-<vrfVnid>/rule-<scope>-s-<sPcTag>-d-<dPcTag>-f-<fltId>/CDactrlRuleHit5min. These contain only numeric scope, pcTag and filter IDs, not tn-/brc-/subj-/flt- names. Mapping a rule to a tenant or contract requires resolving the relations (vzRuleOwner / actrlRsToEpgConn) or pcTag lookups.",
+      "field": "dataSources",
+      "quote": "parent **`actrlRule`** Distinguished Names embedding **tn-{tenant}**, **brc-{contract}**, **subj-{subject}**, **flt-{filter}** segments",
+      "severity": "blocker",
+      "suggested_fix": "Explain that tenant and contract attribution needs a lookup built from vzRuleOwner/vzObservableRuleOwner (or pcTag→EPG and scope→VRF maps), and drop the claim that the DN carries the names."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://www.cisco.com/c/dam/en/us/td/docs/switches/datacenter/aci/apic/sw/1-x/syslog/ACI_Syslog_Reference.pdf",
+      "explanation": "F1394 is fltEthpmIfPortDownFabric (fabric port down). F0467 is fltFvNwIssuesConfig-failed (EPG VLAN/path deployment failure). F0952 is fltFvRsCtxResolveFail (BD-to-VRF relation not resolved). The documented contract TCAM programming failure is F3545. F2301 is unconfirmed. Routing F0952 to fabric infrastructure as 'TCAM exhaustion' sends responders the wrong way.",
+      "field": "detailedImplementation",
+      "quote": "**F1394** (contract-deny threshold), **F0467** (config-mismatch), **F2301** (EPG binding failure), **F0952** (TCAM programming failure)",
+      "severity": "blocker",
+      "suggested_fix": "Use F3545 (zoning-rule programming failure) for TCAM exhaustion, describe F0467 correctly, and remove F1394 and F0952 from the contract fault set unless there is a specific reason to keep them."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/aci/apic/sw/all/syslog/guide/b_ACI_System_Messages_Guide/m-aci-f9x-messages.html",
+      "explanation": "actrlRuleHit5min exposes packet counters only (ingrPktsCum/egrPktsCum/pktsCum and the *Last variants), with no byte counters. The permit or deny action is the 'action' property of the parent actrlRule, not an 'actEntry' attribute on the stats object.",
+      "field": "dataSources",
+      "quote": "**`actrlRuleHit5min`** JSON carrying per-compiled-rule five-minute hardware counters (**ingrPkts**, **egrPkts**, **ingrBytes**, **egrBytes**) ... plus **actEntry** (permit/deny)",
+      "severity": "blocker",
+      "suggested_fix": "List the real attributes (ingrPktsLast/egrPktsLast or the Cum counters), drop the byte counters, and say that the action must be joined from actrlRule.action."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase 4022 is the Metricator Nmon HEC add-on. The ACI add-on is TA_cisco-ACI (1897, deprecated), and its successor is Cisco DC Networking (7777). The '2.0.x current in 2026' version claim is unsupported.",
+      "field": "app",
+      "quote": "**Splunk_TA_cisco-aci** ([Splunkbase **4022**](https://splunkbase.splunk.com/app/4022), package **`Splunk_TA_cisco-aci`**, versions **2.0.x** current in 2026)",
+      "severity": "blocker",
+      "suggested_fix": "Reference Cisco DC Networking (7777), with TA_cisco-ACI 1897 noted as legacy, and remove 4022 and the version claim everywhere."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "I could not confirm a statsEnabled attribute on vzBrCP or vzSubj. Rule-hit statistics are normally collected by default, and enabling policy compression is the documented reason they disappear. The text also contradicts itself, saying 'on each vzSubj' while posting to vzBrCP.",
+      "field": "detailedImplementation",
+      "quote": "Set **statsEnabled=true** on each target **vzSubj** via REST `POST /api/mo/uni/tn-{tenant}/brc-{contract}.json` with `{\"vzBrCP\":{\"attributes\":{\"statsEnabled\":\"true\"}}}`. Without this flag **actrlRuleHit5min** counters remain zero",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the attribute in the APIC MIM. If it does not exist, replace this step with 'ensure policy compression is disabled on the subject/filter and the leaf is below the rule-hit stats scale limit'."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "Per-rule counters keyed by pcTags are not flow events. Mapping src_pctag to src and dst_pctag to dest would fill CIM src/dest with 16-bit class IDs instead of IP addresses. Change is fed only by config snapshots, not by change events.",
+      "field": "cimModels",
+      "quote": "\"Network_Traffic\",\n    \"Change\"",
+      "severity": "major",
+      "suggested_fix": "Map only the acllog flow records (sIp/dIp) to Network_Traffic and drop the pcTag aliasing, or remove Network_Traffic. Use aaaModLR (not snapshots) if Change is kept."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "This names a saved search that does not ship with the catalogue, using a 'uc1819' identifier, instead of describing the evidence an auditor would keep.",
+      "field": "evidence",
+      "quote": "Saved search **`aci_uc1819_contract_ratio`**",
+      "severity": "minor",
+      "suggested_fix": "Describe the retained output (per 15-minute window and contract path: ratio, permit and deny totals, implicit-deny flag)."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "This is a placeholder link to the Cisco home page.",
+      "field": "references",
+      "quote": "\"title\": \"Cisco APIC Basic Configuration Guide — Contracts and Filters (Release 6.0(x))\",\n      \"url\": \"https://www.cisco.com/c/en/us/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the APIC 6.0(x) basic configuration guide contracts chapter."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats",
+      "field": "spl",
+      "issue": "tenant_tag, contract_tag and subject_tag come from rex on DN segments (tn-, brc-, subj-) that actrlRule / actrlRuleHit5min DNs do not contain. They are null for all stats rows, and stats ... by win15 tenant_tag contract_tag subject_tag drops rows with null by-fields, so the counter lane never reaches the output.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The case() for rule_class tests 'match(act_raw,\"^permit\")' before the lane==\"flow\" branches, so flow_permit and flow_deny can never be assigned. pkts_deny falls back to ingrPkts, and the fault regex treats F1394 (fabric port down) and F0952 (BD-VRF resolve failure) as contract signals.",
+      "severity": "major"
+    },
+    {
+      "field": "title",
+      "issue": "The title is a 40-word list of feature phrases ('Filter Entry Effectiveness Scoring, acllog Flow Forensics') that is not a readable title. The SPL implements neither filter effectiveness scoring nor EPG-pair coverage gaps.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0022-UC-18.1.9",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 4,
+    "consistency": 3,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "This is the strongest ACI contract UC in the set: clear ratio logic, a good implicit-versus-explicit deny explanation and useful validation steps. However, it assumes actrlRule DNs contain tenant, contract, subject and filter names (they do not), gives wrong meanings for four fault codes, and cites the wrong add-on ID.",
+  "tier": "deep",
+  "uc_id": "UC-18.1.9",
+  "verdict": "incorrect"
+}

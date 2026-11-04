@@ -1,0 +1,116 @@
+{
+  "confidence": 0.7,
+  "content_sha256": "a5526086b85958ac50f3657be8b3331039f7448052cd27bb2a7b2a6783d9c545",
+  "file": "content/cat-17-network-security-zero-trust/UC-17.4.6.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The title and the detailed text describe an error rate, but the spl field only counts 5xx events per status code in 15-minute buckets, without any denominator or rate. The description pages on any 5xx, the detailed search filters hosts above 1%, and the alert text says to trigger above 5% over 15 minutes 'on any zone', while both searches group by ClientRequestHost. The three thresholds disagree, and the description also calls the UC 'the canonical signal'.",
+      "field": "cross_field",
+      "quote": "Rolls up `count` by `OriginResponseStatus` across `15m` and pages when `OriginResponseStatus` >= 500.",
+      "severity": "major",
+      "suggested_fix": "Pick one definition of the detection, the origin 5xx percentage per host or zone over a stated window, and give a single alert threshold. State clearly if the shipped spl is only a status-code count and the rate search lives in the detailed steps."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "Origin 5xx errors behind a CDN are an availability and performance signal. Unauthorized access, segmentation drift and NAC policy failures are leftover wording from the network access control UCs and have nothing to do with this detection.",
+      "field": "value",
+      "quote": "lowering unauthorized access, segmentation drift, and NAC policy failures",
+      "severity": "major",
+      "suggested_fix": "State the real benefit: detecting origin failures that users see, and telling a Cloudflare-wide problem from an origin or regional-path problem."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "evidence_url": "https://developers.cloudflare.com/logs/reference/log-fields/zone/http_requests/",
+      "explanation": "In Cloudflare HTTP requests logs, as I recall, OriginResponseStatus is 0 for requests that never reached the origin, and not null. If that is right, `where isnotnull(OriginResponseStatus)` keeps cache hits, the denominator in error_rate is inflated, and the rate is understated. The Step 5 note that the field is 'always null' for fully cached traffic would also be wrong.",
+      "field": "detailedImplementation",
+      "quote": "Rows with `CacheCacheStatus=hit` should NOT have an `OriginResponseStatus`",
+      "severity": "needs_verification",
+      "suggested_fix": "Check a sample event for a cache hit in the Logpush output. If the value is 0, filter on OriginResponseStatus>0 and update Steps 1 and 5."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "Cloudflare's proxy read timeout is 100 seconds by default and Cloudflare reports a slow origin as error 524, while 15 seconds is the connect timeout that leads to error 522. Cloudflare-generated 52x errors appear in EdgeResponseStatus, not in the origin's own status. The claim that retries are logged as separate Logpush entries is also unconfirmed.",
+      "field": "detailedImplementation",
+      "quote": "Origin did not respond within Cloudflare's timeout (100s default for Enterprise, 15s for other plans)",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Cloudflare 5xx error documentation and correct the runbook. Separate origin-returned 5xx (OriginResponseStatus) from Cloudflare-generated 52x errors (EdgeResponseStatus), and state the right timeout values per plan."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/edge-security-microsegmentation.md",
+      "explanation": "The grounding guide sets up Cloudflare Logpush into index=cloudflare with sourcetype cloudflare:json. This UC uses index=cdn, and the guide does not define that index. Readers who follow the guide setup will find no data.",
+      "field": "detailedImplementation",
+      "quote": "Data routed to `index=cdn` with `sourcetype=cloudflare:json`.",
+      "severity": "minor",
+      "suggested_fix": "Use the guide's index, or say that index=cdn is a site-specific name that must match the HEC or Logpush destination index."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "The signal depends on OriginResponseStatus, which has no CIM Web field, because Web.status normally holds the client-facing response code, which in Cloudflare is EdgeResponseStatus. The SPL does not use the Web model and the cimSpl does not look at status.",
+      "field": "cimModels",
+      "quote": "\"Web\"",
+      "severity": "needs_verification",
+      "suggested_fix": "Document which Cloudflare fields are mapped to Web and keep the model only if origin errors are separately preserved. Otherwise remove the CIM claim for this UC."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/WhatsInThisManual",
+      "explanation": "The URL contains an apostrophe that the real page name does not have. There is also no reference for the Cloudflare http_requests log fields or the 5xx error codes that the runbook relies on.",
+      "field": "references",
+      "quote": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "severity": "minor",
+      "suggested_fix": "Use https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/WhatsInThisManual and add the Cloudflare http_requests log-field reference and the 5xx error documentation."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "The reviewer is the generic 'catalog-team'. No SME sign-off is shown, and the OriginResponseStatus behaviour and timeout facts above are unverified.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to a non-verified value until a Cloudflare SME confirms the fields and runbook details against real Logpush data."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "cimSpl",
+      "issue": "The tstats search counts by Web.user, Web.url and Web.http_method, with no status or error filter, so it cannot measure origin 5xx. It also writes `summariesonly` as a macro instead of summariesonly=t, which needs checking.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The search counts 5xx events by status with no rate, no host or zone split and no comparison against total origin requests, even though the title says 'Error Rate'. It also relies on OriginResponseStatus being absent for cache hits, which is unverified.",
+      "severity": "major"
+    },
+    {
+      "field": "title",
+      "issue": "The title embeds the sourcetype in backticks, '(`cloudflare:json`)', which is template residue and reads as code formatting in a human-facing title.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0050-UC-17.4.6",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The detailed Cloudflare walkthrough is concrete and uses real Logpush field names. The short fields describe a different detection from the SPL, with no rate and thresholds that disagree. The value text is leftover NAC wording, and a few Cloudflare facts about null origin status and timeouts need checking.",
+  "tier": "triage",
+  "uc_id": "UC-17.4.6",
+  "verdict": "rewrite"
+}

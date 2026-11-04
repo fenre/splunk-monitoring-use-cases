@@ -1,0 +1,80 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "7807376d8995a075e556546af7d22649c4182bd0da5f651ec150aace56debbab",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.1.23.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/datacenter-physical.md",
+      "evidence_url": "https://www.splunk.com/en_us/download/universal-forwarder.html",
+      "explanation": "The Universal Forwarder is downloaded from splunk.com, not Splunkbase (splunkbase.splunk.com/app/617 returns 404), and it has no SNMP poller. The repository guide installs an SNMP add-on on a heavy forwarder to poll PDUs.",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+      "severity": "blocker",
+      "suggested_fix": "Name Splunk Connect for SNMP (Splunkbase 6266) or the SNMP Modular Input add-on (Splunkbase 1537) on a heavy forwarder, or the specific vendor PDU API add-on if one is used. Correct `app` ('SNMP TA, smart PDU API — Universal Forwarder (Splunkbase 617)') and `detailedImplementation` to match."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/datacenter-physical.md",
+      "explanation": "The SPL needs `power_watts` and `rack_id`, but neither is documented. PDU SNMP data does not carry a rack identifier natively, and the guide's PDU field dictionary uses `outlet_power_kw` / `pdu_total_kw` instead. A reader cannot produce the fields this search groups on.",
+      "field": "dataSources",
+      "quote": "Smart PDU metrics (per-outlet, per-circuit power)",
+      "severity": "major",
+      "suggested_fix": "List `power_watts` with its source OID or conversion (for example, from the guide's `pdu_total_kw` × 1000) and explain that `rack_id` comes from a PDU-to-rack lookup (DCIM export or CSV keyed on PDU host/name)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The `implementation` field promises spike/drop alerts, and the `description` field claims a 'Threshold bundle: configured threshold'. The SPL only plots an hourly average and a forecast; it contains no threshold, no comparison with the prediction bands, and nothing that would produce an alert row.",
+      "field": "cross_field",
+      "quote": "Alert on unusual spikes (potential hardware issue) or drops (server failure).",
+      "severity": "major",
+      "suggested_fix": "Describe this as a trending/forecast report (hourly average watts per rack, forecast 30 hours ahead), or define the alert rule (for example, actual outside the predict upper/lower bound, or more than X% change from a 7-day baseline) and ask a human to add it to the SPL."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "A 30-period forecast from 24 hours of hourly data is not a meaningful trend for capacity planning, and 'throttle per entity' does not apply to a report with no alert condition. The section also repeats 'Step 4 — Operationalize' four times and duplicates the whole Step 1–5 block with HEC and vendor-API 401/429 troubleshooting.",
+      "field": "detailedImplementation",
+      "quote": "Schedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages.",
+      "severity": "major",
+      "suggested_fix": "Recommend a time range that fits trending (for example, 30–90 days with span=1h or 1d) and state that the output is a dashboard/report. Collapse the duplicated steps, and replace the HEC/API text with SNMP polling and PDU-to-rack lookup checks."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "overclaiming",
+      "explanation": "PDU readings give only the IT-load denominator of PUE. Without total facility power this UC cannot compute PUE, which siblings UC-15.1.5 and UC-15.1.15 cover.",
+      "field": "implementation",
+      "quote": "Use for PUE calculation.",
+      "severity": "minor",
+      "suggested_fix": "Say the per-rack totals can feed the IT-load side of PUE in UC-15.1.5 / UC-15.1.15."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Timechart",
+      "field": "spl",
+      "issue": "`timechart ... avg(power_watts) as avg_power by rack_id` names its output columns after the rack_id values, not `avg_power`, so `predict avg_power` has no input field (see the timechart docs at https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Timechart). Either drop the split-by for a site total, or predict each rack column explicitly / per-rack via a different approach.",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0016-UC-15.1.23",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "A capacity-trending UC whose prose promises spike/drop alerting and thresholds the SPL does not have. The SPL's `predict avg_power` after a split-by `timechart` will not find an `avg_power` column, and the collection path cites a non-existent Universal Forwarder Splunkbase entry. The `rack_id` and `power_watts` fields are never sourced.",
+  "tier": "deep",
+  "uc_id": "UC-15.1.23",
+  "verdict": "incorrect"
+}

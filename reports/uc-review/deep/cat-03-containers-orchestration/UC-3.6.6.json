@@ -1,0 +1,162 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "b3952557d8f2a177231f6f4beb82872012a23917b7fa7ba40f8eef624f599854",
+  "file": "content/cat-03-containers-orchestration/UC-3.6.6.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The `log-format-upstream` ConfigMap in detailedImplementation emits `body_bytes_sent` and `remote_addr`. The `spl` instead sums `bytes_sent` and counts `dc(client_ip)`, and Step 3(b) expects `bytes_sent` to be populated. A reader who deploys the documented format gets null `total_gb` and zero `unique_clients`.",
+      "field": "cross_field",
+      "quote": "table host status request_time bytes_sent ingress_name service_name",
+      "severity": "blocker",
+      "suggested_fix": "Align the names: either emit `\"bytes_sent\":$bytes_sent` and `\"client_ip\":$remote_addr` in the ConfigMap, or state that the SPL must read `body_bytes_sent` and `remote_addr`. Update Step 3(b) to match."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "evidence_url": "https://istio.io/latest/docs/tasks/observability/logs/access-log/",
+      "explanation": "detailedImplementation lists Istio's field names, but the `spl` reads only `status` and `request_time`. Istio events therefore all fall into status_class \"other\" and contribute no latency. Envoy `%DURATION%` is in milliseconds, while NGINX `request_time` is in seconds.",
+      "field": "cross_field",
+      "quote": "Key **Envoy access log** fields: `authority` (equivalent to Host header), `response_code`, `duration`, `bytes_sent`, `upstream_cluster`, `response_flags`",
+      "severity": "major",
+      "suggested_fix": "Tell readers to normalise Istio fields first (status=response_code, request_time=duration/1000), for example with a field alias or calculated field on the Istio sourcetype. Alternatively, note that the SPL as written only supports NGINX."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/manage-knowledge-objects/knowledge-management-manual/10.4/fields-and-field-extractions/use-default-fields",
+      "explanation": "`host` is a Splunk default field present on every event, so `coalesce(host, server_name, authority, \"unknown\")` can never return \"unknown\". Instead it returns the Splunk metadata host (the node or forwarder) whenever the JSON `host` key does not override it. This troubleshooting entry describes a symptom that cannot happen and hides the real one.",
+      "field": "detailedImplementation",
+      "quote": "**Host header is always \"unknown\"**",
+      "severity": "major",
+      "suggested_fix": "Rename the JSON key to something like `http_host` or `vhost` in the ingress-nginx log format, and replace this entry with guidance to check that host_header shows virtual-host names rather than node names."
+    },
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/splunk/splunk-connect-for-kubernetes/blob/develop/README.md",
+      "explanation": "Splunk Connect for Kubernetes is a Helm/fluentd deployment, not a modular input or scripted poll. It reached End of Support on 1 January 2024 and its repository is archived.",
+      "field": "dataSources",
+      "quote": "Collected via Splunk Connect for Kubernetes (Splunkbase 5167) modular input or scripted poll into the index named in the SPL.",
+      "severity": "blocker",
+      "suggested_fix": "Name the Splunk OpenTelemetry Collector for Kubernetes as the collector for ingress-controller pod logs. Mark SCK as legacy and unsupported, and remove the 'modular input or scripted poll' wording."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/splunk/splunk-connect-for-kubernetes/blob/develop/helm-chart/splunk-connect-for-kubernetes/charts/splunk-kubernetes-logging/templates/configMap.yaml",
+      "explanation": "Both SCK and the Splunk OTel Collector chart give container logs the sourcetype `kube:container:<container_name>` by default. The UC never says how to get `nginx:ingress:access` or `istio:accesslog` (e.g. the `splunk.com/sourcetype` pod annotation), so the SPL's sourcetype filter matches nothing out of the box.",
+      "field": "detailedImplementation",
+      "quote": "configured to collect access logs from ingress controller pods and index them as **`sourcetype=nginx:ingress:access`** or **`sourcetype=istio:accesslog`**",
+      "severity": "major",
+      "suggested_fix": "Add a step that annotates the ingress-nginx controller and istio-ingressgateway pods with `splunk.com/sourcetype` (or uses an OTel transform) to set the custom sourcetypes, or adapt the search to `kube:container:controller` / `kube:container:istio-proxy`."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/container-platforms-docker-openshift.md",
+      "explanation": "The SPL reads only `nginx:ingress:access` and `istio:accesslog`, so the other three sourcetypes are not required. `kube:pod:status` is not a sourcetype either collector produces. The Istio sourcetype also differs from the `istio:envoy:access` name in the category guide.",
+      "field": "dataSources",
+      "quote": "`index=containers` requiring five distinct sourcetypes",
+      "severity": "major",
+      "suggested_fix": "List the two access-log sourcetypes as required and move metrics and pod-status correlation to an optional note. Align the Istio sourcetype name with the guide, or update the guide."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "Network_Traffic models flow and firewall connection records. HTTP ingress access logs map to the Web data model, which is already listed.",
+      "field": "cimModels",
+      "quote": "Network_Traffic",
+      "severity": "major",
+      "suggested_fix": "Keep `Web` and remove `Network_Traffic`."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "These are the bounds the SPL uses to bucket status codes into classes, not alert conditions. The actual alert logic is SURGE (daily_rps > 2× sma_7d_rps AND > 10) and DROP (< 0.3× sma_7d_rps AND sma_7d_rps > 5). As written, every successful request would 'alert'.",
+      "field": "description",
+      "quote": "alert when `status` >= 200, `status` < 300, `status` >= 300, or `status` < 400",
+      "severity": "major",
+      "suggested_fix": "Describe the SURGE and DROP rules on daily RPS against the 7-day SMA, and the per-host breakdown."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified, but the only reviewer listed is an automated agent, and the field-name mismatches above show the SPL was never run against the documented log format.",
+      "field": "status",
+      "quote": "verified",
+      "severity": "major",
+      "suggested_fix": "Set the status to draft or community until a human SME has validated the SPL against real ingress logs."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The scenarios refer to a placeholder sourcetype and to thresholds that are not alert conditions. None names a real cause of a traffic surge or drop.",
+      "field": "knownFalsePositives",
+      "quote": "2. **Batch `sum` on `configured_sourcetype`** — Scheduled automation elevates `host_header` without crossing `status` >= 200 for UC-3.6.6.",
+      "severity": "major",
+      "suggested_fix": "List real causes: planned load tests, marketing launches or seasonal peaks, bot or crawler bursts, load-balancer health checks hitting the ingress, CDN cache-policy changes that shift hit ratio, DNS or traffic cut-overs between clusters, and holiday or weekend troughs that trip DROP."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "`predict` forecasts with Kalman-filter-based algorithms (LL, LLT, LLP and so on), not linear regression.",
+      "field": "detailedImplementation",
+      "quote": "Add a **30-day linear regression** (`predict` command)",
+      "severity": "minor",
+      "suggested_fix": "Say 'add a 30-day forecast with `predict`', or for a true linear fit use `| fit LinearRegression` (AI Toolkit) or a `trendline`/`streamstats` slope calculation."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The SPL has three variants; the hourly peak-RPS capacity search is left out.",
+      "field": "implementation",
+      "quote": "Build two search variants",
+      "severity": "minor",
+      "suggested_fix": "Say three variants and describe the hourly peak-RPS / capacity_ratio search."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/manage-knowledge-objects/knowledge-management-manual/10.4/fields-and-field-extractions/use-default-fields",
+      "field": "spl",
+      "issue": "`coalesce(host, server_name, authority, \"unknown\")` always returns `host`, because `host` is a default field on every Splunk event. For Istio events (and NGINX events where the JSON `host` key does not override the metadata host), host_header is the node or forwarder name, not the HTTP authority. Use a non-colliding key such as `http_host`, then coalesce `http_host`, `authority`, `server_name`.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://istio.io/latest/docs/tasks/observability/logs/access-log/",
+      "field": "spl",
+      "issue": "The SPL reads `status`, `request_time`, `bytes_sent` and `client_ip`. Istio access logs carry `response_code`, `duration` (milliseconds) and `bytes_sent`. The documented ingress-nginx format emits `body_bytes_sent` and `remote_addr`. As a result Istio rows are all status_class \"other\" with no latency, and NGINX rows have no bytes and no client IP.",
+      "severity": "major"
+    },
+    {
+      "evidence_ref": "docs/guides/container-platforms-docker-openshift.md",
+      "field": "spl",
+      "issue": "`sourcetype IN (\"nginx:ingress:access\", \"istio:accesslog\")` are non-default sourcetypes. Container logs arrive as `kube:container:<name>` unless they are overridden. The Istio name also differs from `istio:envoy:access` in the category guide.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "`trendline sma7` includes the current day in the average, so SURGE (> 2× SMA) really needs about 2.4× the prior six-day baseline and DROP about < 0.27×. Consider comparing with the previous seven days via `streamstats window=7 current=f avg(daily_rps)`.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0122-UC-3.6.6",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 5,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The detailedImplementation is detailed and mostly accurate about ingress-nginx and Istio configuration. However, the JSON log format it tells readers to deploy emits different field names from the ones the SPL reads, and the SPL ignores Istio's field names entirely. The host-header logic is defeated by Splunk's default `host` field. The collector guidance relies on the end-of-support Splunk Connect for Kubernetes and on custom sourcetypes without saying how to assign them.",
+  "tier": "deep",
+  "uc_id": "UC-3.6.6",
+  "verdict": "incorrect"
+}

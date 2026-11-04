@@ -1,0 +1,96 @@
+{
+  "confidence": 0.7,
+  "content_sha256": "647b9887445084c39e1510bbec0ee7ffee7529e707a96873d41d59ecfa761cee",
+  "file": "content/cat-02-virtualization/UC-2.4.4.json",
+  "findings": [
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/hypervisors-non-vmware.md",
+      "explanation": "`Splunk_TA_vmware` is the Splunk Add-on for VMware, which the guide lists as Splunkbase 3215. 3684 (Splunk Add-on for VMware ESXi Logs) is a different add-on for ESXi syslog and is not in the cached catalog. The vCenter `vmware:events` data this SPL searches does not come from the ESXi Logs add-on. The reference list repeats the wrong 3684 link.",
+      "field": "app",
+      "quote": "`Splunk_TA_vmware`, ITSM TA — Splunk Add-on for VMware ESXi Logs (Splunkbase 3684)",
+      "severity": "blocker",
+      "suggested_fix": "Use the Splunk Add-on for VMware (Splunk_TA_vmware, Splunkbase 3215) for vCenter events, and name the actual ITSM add-on, for example Splunk Add-on for ServiceNow. Replace the 'Splunkbase app 3684' reference."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The scenarios are about Linux patching, backup I/O load and Nagios probes. None of them can change VM create-to-power-on times. 'Unstable first 48h after UF deploy' also does not apply to vCenter events. The description's 'Linux workflows' and the value's 'patch regressions' show the same wrong-domain residue.",
+      "field": "knownFalsePositives",
+      "quote": "Patch Tuesday on `vmware` — Package managers spike `datacenter` metrics for 'VM Provisioning Time Tracking'. Correlate with apt/yum logs",
+      "severity": "major",
+      "suggested_fix": "List real causes: VMs created from template but powered on later by design, clones and templates, cancelled or failed deployments, VM re-creation with the same name, approval wait that is not part of the measured time."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/hypervisors-non-vmware.md",
+      "explanation": "The implementation and dataSources promise ITSM request correlation and SLA alerting, and the cross-platform guide describes this UC as joining an ITSM ticket to the hypervisor creation event. The SPL uses only vCenter create and power-on events, has no ITSM data, and its only condition is `provision_minutes > 0`, which is true for nearly every VM, so there is no SLA threshold.",
+      "field": "cross_field",
+      "quote": "Calculate time from request → approval → creation → power-on. Set SLA targets and alert when provisioning exceeds them.",
+      "severity": "major",
+      "suggested_fix": "Either state that the UC measures vCenter creation to first power-on only, with a tunable SLA threshold, or document the ITSM add-on, its fields and the join key used for request time."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The alert condition is not a real threshold, since the search outputs per-datacenter averages for every VM that powered on after creation. The 'Linux workflows' wording is wrong for a vCenter UC in a virtualization subcategory.",
+      "field": "description",
+      "quote": "alert when `provision_minutes` > 0. Primary focus: Time Tracking. Purpose-built for 'VM Provisioning Time Tracking' in Linux workflows.",
+      "severity": "major",
+      "suggested_fix": "Describe the output as per-datacenter average, median and maximum minutes from VM creation to first power-on, with an optional SLA threshold on the average or maximum."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "A second boilerplate Step 1-5 block is appended after the UC-specific steps. It talks about vendor API rate limits, 'joins/lookups enrich owner', throttling per entity and HTTP 401/429 errors. None of this fits a search with no per-entity alert, and the 24-hour window would miss VMs whose creation and power-on straddle the boundary.",
+      "field": "detailedImplementation",
+      "quote": "Compare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%).",
+      "severity": "major",
+      "suggested_fix": "Keep one set of steps. Validate by creating a test VM in vCenter and checking its create and power-on events and the computed minutes. Use a time range longer than the longest expected provisioning time."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "grandma_fidelity",
+      "explanation": "The sentence never says what is measured (how long a new virtual machine takes from creation to switch-on) and mentions an alarm that the UC does not raise. The capital T is a spelling slip.",
+      "field": "grandmaExplanation",
+      "quote": "We keep an eye on provisioning Time and raise the alarm before it drags down real work or real outages start.",
+      "severity": "minor",
+      "suggested_fix": "Say that we time how long it takes to get a new virtual machine from being created to being switched on, so slow hand-offs are noticed."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "The SPL relies on `vmware:events` with fields `event_type`, `vm_name` and `datacenter`. Check in the Splunk Add-on for VMware documentation whether these exact event and field names exist and whether event types such as VmClonedEvent or VmDeployedEvent also need to be counted.",
+      "field": "dataSources",
+      "quote": "vCenter events, ITSM request logs",
+      "severity": "needs_verification",
+      "suggested_fix": "Name the sourcetype and fields as documented by the add-on, and list the event types that represent creation, clone and deploy."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`join max=1 vm_name` keeps only one VmPoweredOnEvent per VM name, with no ordering, so repeated power-ons or reused names give the wrong delta, and join subsearch limits can silently drop rows. Creation by clone or deploy is not covered by VmCreatedEvent. `where provision_minutes > 0` is not an SLA test.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0086-UC-2.4.4",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 3,
+    "overclaiming": 4,
+    "specificity": 1
+  },
+  "summary": "The vCenter create-to-power-on measurement is a reasonable idea, but the app field points at the wrong VMware add-on, the false-positive and value text is copied from a Linux patching template, and the ITSM and SLA parts promised by the prose are not in the search.",
+  "tier": "triage",
+  "uc_id": "UC-2.4.4",
+  "verdict": "incorrect"
+}

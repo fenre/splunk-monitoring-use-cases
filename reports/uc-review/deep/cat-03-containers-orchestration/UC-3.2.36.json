@@ -1,0 +1,175 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "ad23d0203dd77498601f0412a63e3a690ebc12588be301dd69432ff09bbbb905",
+  "file": "content/cat-03-containers-orchestration/UC-3.2.36.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/5167",
+      "explanation": "Splunkbase app 5167 is 'Upgrade Universal Forwarder (Windows)', not Splunk Connect for Kubernetes. The repository's Splunkbase catalogue lists Splunk OpenTelemetry Collector for Kubernetes as app 6264, and the guide names that collector as the primary collection plane.",
+      "field": "app",
+      "quote": "— Splunk Connect for Kubernetes (Splunkbase 5167)",
+      "severity": "blocker",
+      "suggested_fix": "Drop the 5167 reference. Name the Splunk OpenTelemetry Collector for Kubernetes (Splunkbase 6264, Helm chart splunk-otel-collector) as the collection app."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "evidence_url": "https://github.com/splunk/splunk-connect-for-kubernetes",
+      "explanation": "The same field first says the data comes from Splunk OpenTelemetry Collector scrapes, then credits Splunk Connect for Kubernetes. SCK is a Helm-deployed Fluentd chart, not a modular input or scripted poll, and it reached end of support on 1 January 2024.",
+      "field": "dataSources",
+      "quote": "Collected via Splunk Connect for Kubernetes (Splunkbase 5167) modular input or scripted poll into the index named in the SPL.",
+      "severity": "major",
+      "suggested_fix": "Delete the trailing SCK sentence. State that kube-state-metrics series and audit logs are shipped by the Splunk OpenTelemetry Collector for Kubernetes to HEC."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://kubernetes.io/docs/concepts/policy/limit-range/",
+      "explanation": "LimitRange is checked only when a Pod is admitted. Adding or tightening a LimitRange does not change pods that already exist, so live limits above max are the normal result of a policy tightened after those pods started, not evidence of a bypass. Responders following this text would chase phantom bypasses.",
+      "field": "detailedImplementation",
+      "quote": "When live limits exceed LimitRange max, that is normally impossible through standard validation unless someone used nonstandard create paths or stale clients; treat it as drift or measurement mismatch until proven otherwise.",
+      "severity": "blocker",
+      "suggested_fix": "Explain that over_max rows usually mean the LimitRange was added or tightened after the pod was created, and that the pods comply again once they are recreated. Treat a bypass only as a remaining hypothesis after ruling out policy timing and unit mismatch."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://kubernetes.io/docs/concepts/policy/limit-range/",
+      "explanation": "No kubectl or client flag skips LimitRanger admission, so this validation step cannot be carried out. A pod that violates an existing LimitRange is rejected with 403 Forbidden.",
+      "field": "detailedImplementation",
+      "quote": "use a client flag that forces validation relaxation only under change-control, confirm kube_pod_container_resource_limits exceeds kube_limitrange max",
+      "severity": "blocker",
+      "suggested_fix": "Rewrite the lab step: create the pod with a high limit first, then apply or tighten a LimitRange whose max is below that limit. The existing pod stays unchanged and should produce over_max=1."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://kubernetes.io/docs/reference/using-api/api-concepts/#dry-run",
+      "explanation": "dryRun, server-side apply and fieldManager are normal API features. Dry-run requests still pass through admission, and none of these features skips LimitRanger, so labelling them a 'bypass hint' is misleading.",
+      "field": "detailedImplementation",
+      "quote": "whether kube-apiserver audit Pod CREATE traffic shows nonstandard validation paths that deserve manual review",
+      "severity": "major",
+      "suggested_fix": "Describe the audit arm as context only (who created the pod and when). Remove the claim that dryRun, fieldManager or server-side apply mean LimitRange was bypassed."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/6.2/data-models/application-state-deprecated",
+      "explanation": "Application_State has been deprecated since CIM 4.12. It models process, service and port inventory, which does not fit kube-state-metrics LimitRange gauges. Change is used only in a tstats join whose result is discarded. The dataModelAcceleration text repeats the same mapping.",
+      "field": "cimModels",
+      "quote": "\"Application_State\",\n    \"Change\"",
+      "severity": "blocker",
+      "suggested_fix": "Remove Application_State. Either declare no CIM model, because this is a metrics-based policy comparison, or map only the audit Pod-create arm to Change, and update dataModelAcceleration to match."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL never reads PVC request series such as kube_persistentvolumeclaim_resource_requests_storage_bytes. The PVC arm is joined to per-container requests and limits by Resource, which has no storage values for claims, so this PVC check (and the Step 4 'PVC storage gap' test) is not implemented.",
+      "field": "detailedImplementation",
+      "quote": "whether PVC storage ceilings are absent on claims when a PVC-type LimitRange exists",
+      "severity": "major",
+      "suggested_fix": "Either remove the PVC storage claims from description and validation, or ask the SPL owner to add a PVC request arm keyed on persistentvolumeclaim."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "These entries are generic, and none names a real LimitRange false-positive cause. Synthetic probes do not create kube_limitrange series.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `cluster`, `namespace`, `Type`, `Resource`** — Health checks in `k8s_metrics` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List real causes: LimitRange added or tightened after pods were admitted; unit mismatch (cores vs millicores, bytes vs MiB) after relabelling; several LimitRange objects in one namespace, where Kubernetes picks defaults nondeterministically; pods with no request because they predate defaultRequest; init or sidecar containers measured separately."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "UPS SNMP equipment, and the 'snmp' equipment tag, have nothing to do with Kubernetes LimitRange compliance and would mis-route the equipment picker.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_ups\"",
+      "severity": "major",
+      "suggested_fix": "Keep kubernetes_k8s only, and remove snmp from equipment."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified, but its SPL cannot run (multisearch in mid-pipeline, like() without wildcards) and its validation steps cannot be executed. There is no evidence of SME sign-off.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status to draft or community until the SPL has been tested in a lab and reviewed by an SME."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/AddOns/released/Kubernetes/About",
+      "explanation": "The Splunk Add-on for Kubernetes was deprecated in March 2019, declares no CIM support and only packaged knowledge objects for SCK. It is not a current source of normalization patterns, and the references entry points to the same deprecated page.",
+      "field": "app",
+      "quote": "Splunk Add-on for Kubernetes documentation for HEC field normalization patterns",
+      "severity": "minor",
+      "suggested_fix": "Remove the add-on from app and references, or label it as deprecated historical context."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The closing table command in the SPL lists 25 columns, not nineteen.",
+      "field": "detailedImplementation",
+      "quote": "The closing table lists nineteen analyst columns including audit and bypass metadata.",
+      "severity": "minor",
+      "suggested_fix": "Say the table has 25 columns, or drop the count."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The SPL subsearches use latest=@m, not latest=now.",
+      "field": "implementation",
+      "quote": "every five minutes with earliest=-4h@h latest=now",
+      "severity": "minor",
+      "suggested_fix": "Align the implementation text with the SPL time bounds (earliest=-4h@h latest=@m)."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/9.4/search-commands/multisearch",
+      "field": "spl",
+      "issue": "multisearch is a generating command and must be the first command in a search. Here it follows the comment macro, eval, join and fields, and it wraps its subsearches in an extra pair of brackets ('multisearch [ [ search ...] [ search ...] ]'). The search also starts with '| eval' and no event source, so it fails to parse or returns nothing.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/9.4/evaluation-functions/comparison-and-conditional-functions",
+      "field": "spl",
+      "issue": "Both LimitRange arms filter with like(_raw, \"type=\\\"Container\\\"\") and like(_raw, \"PersistentVolumeClaim\") without % wildcards. like() then requires an exact match of the whole _raw value, so every kube_limitrange event is dropped.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "Dead or misleading logic. The tstats Change join result (change_lane_rows) is computed and then dropped by 'fields -'. audit_bypass_mv tags dryRun, fieldManager and server-side apply as 'nonstandard_validation_path' although these do not bypass admission. Unquoted objectRef.resource in eval is parsed as string concatenation.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/6.2/data-models/application-state-deprecated",
+      "field": "cimSpl",
+      "issue": "Application_State is deprecated (CIM 4.12+), and its root dataset is All_Application_State. 'nodename=Application_State' and the fields Application_State.app and Application_State.info do not exist, so the tstats returns nothing. The model also does not fit LimitRange metrics.",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0057-UC-3.2.36",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The detailedImplementation explains LimitRange concepts at length, but it misstates how LimitRange enforcement works: it calls over-max pods a bypass signal and prescribes a lab step that cannot be done. The add-on attribution is wrong (Splunkbase 5167 is an unrelated app), the CIM mapping does not fit the signal, and the SPL cannot run as written.",
+  "tier": "deep",
+  "uc_id": "UC-3.2.36",
+  "verdict": "incorrect"
+}

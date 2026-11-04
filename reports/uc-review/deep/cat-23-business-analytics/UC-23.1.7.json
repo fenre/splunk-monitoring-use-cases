@@ -1,0 +1,127 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "181a861b88369825812fc9079d640525df06cb4d788001ba5ab104b22a59aa73",
+  "file": "content/cat-23-business-analytics/UC-23.1.7.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.apple.com/documentation/appstoreconnectapi/generating-tokens-for-api-requests",
+      "explanation": "App Store Connect API JWTs use `aud: appstoreconnect-v1` (`https://appleid.apple.com` is the Sign in with Apple audience). The signed JWT is sent directly as `Authorization: Bearer`, with no token exchange. The list endpoint is `GET /v1/apps/{id}/customerReviews`, not `/v1/customerReviews?filter[app]=`. A collector built from this text fails authentication and calls the wrong path; the same `aud` error is repeated in Prerequisites.",
+      "field": "detailedImplementation",
+      "quote": "Mint short-lived JWT assertions (**alg** ES256, **iss** Issuer ID, **exp** ≤ twenty minutes, **aud** `https://appleid.apple.com`) then exchange them for bearer tokens hitting `GET https://api.appstoreconnect.apple.com/v1/customerReviews?filter[app]={appId}`",
+      "severity": "blocker",
+      "suggested_fix": "Use `aud=appstoreconnect-v1`, send the signed JWT as the bearer token, and call `GET /v1/apps/{id}/customerReviews?sort=-createdDate&limit=200&include=response`, following `links.next` until a review is older than the checkpoint."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.apple.com/documentation/appstoreconnectapi/identifying-rate-limits",
+      "explanation": "Apple documents App Store Connect API limits per API key per rolling hour, reported in the `X-Rate-Limit` header (e.g. `user-hour-lim:3600`), not 50 requests per second per team. The figure is repeated in Prerequisites and Troubleshooting.",
+      "field": "implementation",
+      "quote": "capped **50 req/sec/team**",
+      "severity": "needs_verification",
+      "suggested_fix": "Replace with Apple's hourly per-key limit and tell readers to read `X-Rate-Limit` and honour 429/`Retry-After`."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://developers.google.com/android-publisher/reply-to-reviews",
+      "explanation": "The Play `reviews.list` API returns only reviews created or modified in roughly the last week, and only reviews with text. A 90-day search therefore depends on continuous polling from day one; it cannot backfill. `lastModified` is a Timestamp object (`seconds`/`nanos`), not the ISO string the SPL and props `TIME_FORMAT` parse, nor 'millis' as stated later.",
+      "field": "dataSources",
+      "quote": "**`googleplay:user_review`** — Android Publisher **`reviews.list`** JSON (`comments[].userComment.text`, `userComment.starRating`, `userComment.lastModified`, `developerComment.text`).",
+      "severity": "major",
+      "suggested_fix": "State the one-week window and the need for continuous polling (or Play Console bulk review CSV exports in Cloud Storage for history), and parse `lastModified.seconds` as epoch."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "No public Google Play endpoint `play/v1/statistics/aggregations` is known. Daily uninstall counts normally come from Play Console statistics CSV exports in the developer's Cloud Storage bucket (installs reports), and the Play Developer Reporting API covers vitals, not uninstalls.",
+      "field": "dataSources",
+      "quote": "**`googleplay:statistics_aggregation`** — retention/uninstall proxies vs acquisition dimensions (`play/v1/statistics/aggregations`).",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm the endpoint; if it does not exist, describe the Cloud Storage installs-report export (Daily User Uninstalls column) as the uninstall source."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The SPL writes nothing to `notable` (which implies Enterprise Security), computes no topic-share shift, and its σ test runs on daily review volume rather than ratings. The saved-search run stats are invented.",
+      "field": "evidence",
+      "quote": "emits per-app rating-drift findings written to `notable` with severity tied to z-score on 90-day baseline plus topic-share shift.",
+      "severity": "major",
+      "suggested_fix": "Describe the actual output: daily per-topic review volume, negative/positive counts, net sentiment versus its 28-day rolling baseline, response rate, and app-wide uninstall overlay, archived per run."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "Unsourced benchmark figures, in a UC that itself says 'never invent percentages absent publisher tables'.",
+      "field": "detailedImplementation",
+      "quote": "AppFollow cites ~96h median / ~27h top-quartile reply delays directionally only.",
+      "severity": "minor",
+      "suggested_fix": "Cite the specific AppFollow report or remove the figures."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "Public store reviews expose only a nickname, not identity, so an HRIS allow-list cannot be matched. The SPL also applies no exclusion filters.",
+      "field": "exclusions",
+      "quote": "employee-submitted reviews (cross-check via HRIS allow-list)",
+      "severity": "minor",
+      "suggested_fix": "Drop the HRIS cross-check or describe a realistic signal; say that exclusions must be added to the search by the implementer."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "Verified by an automated agent with no SME sign-off despite wrong API authentication facts.",
+      "field": "status",
+      "quote": "\"status\": \"verified\", ... \"reviewer\": \"agent-handcraft-uc-23.1.7-2026-04-28\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade to draft/community pending SME review."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "grandma_fidelity",
+      "explanation": "The SPL overlays only app-wide uninstall counts; it does not join paid or organic attribution, so the 'ad traffic' claim goes beyond what the search does.",
+      "field": "grandmaExplanation",
+      "quote": "We connect those complaint waves to phones being uninstalled or ad traffic that brought the wrong audience",
+      "severity": "minor",
+      "suggested_fix": "Limit the explanation to rating and complaint waves by topic, compared with daily uninstall counts."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval",
+      "field": "spl",
+      "issue": "`dc(eval(if(isnotnull(developer_reply_ms),\"review_id\",null())))` counts distinct values of the string literal \"review_id\", so `responded_reviews` is at most 1 per day/topic. `review_response_rate_pct` is therefore near zero and `review_response_rate_pct < 30` marks almost every row `investigate`. It should reference the field `review_id` (unquoted or single-quoted).",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats",
+      "field": "spl",
+      "issue": "`net_sentiment_score` is on a −100…+100 scale, but `aspect_sentiment_drift < -0.3` uses a fractional threshold, so any tiny dip triggers. `streamstats window=28` includes the current day in its own baseline. Field names `attributes_rating` and `userComment_starRating` assume underscore flattening, while the props example uses `KV_MODE=json`, which yields `attributes.rating` and `comments{}.userComment.starRating`, so `rating` can be null for every event.",
+      "severity": "major"
+    },
+    {
+      "field": "title",
+      "issue": "'Review-Sentiment Topic Modelling' overstates the SPL, which does no topic modelling; it consumes externally assigned `aspect_topic` labels.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0006-UC-23.1.7",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 3,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "Well scoped against its siblings, but the App Store Connect auth and endpoint facts are wrong (JWT audience, token exchange, list path, rate limit), Google Play's one-week review window is not mentioned, and the SPL's response-rate and drift logic flag nearly every row for investigation.",
+  "tier": "deep",
+  "uc_id": "UC-23.1.7",
+  "verdict": "incorrect"
+}

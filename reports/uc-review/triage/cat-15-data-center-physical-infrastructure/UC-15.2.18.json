@@ -1,0 +1,136 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "c9081231148bbaedf91a6e1373e983a14863e8688afd816dd5901d30edb113a5",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.2.18.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "Template placeholders are shown as if they were real values; the same `target_index` / `configured_sourcetype` placeholders recur in controlTest and knownFalsePositives, while the SPL uses mstats on a metrics index and the data source names index=edge-hub-data.",
+      "field": "description",
+      "quote": "`index=target_index` sourcetype `configured sourcetype`",
+      "severity": "major",
+      "suggested_fix": "Use the actual metrics index and metric names (or edge-hub-data / edge_hub) consistently in description, controlTest and knownFalsePositives."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The SPL alerts when temp <= dew_point (CRITICAL) or when the margin temp - dew_point is below 2 (HIGH); it is not an absolute dew point under 2, and the unit of the margin is not stated.",
+      "field": "description",
+      "quote": "thresholds `dew_point` < 2",
+      "severity": "major",
+      "suggested_fix": "Say: alert when air temperature is within 2 degrees (state the unit) of the calculated dew point, critical when at or below it."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The data source describes tagged events in an events index, but the SPL is an mstats query on metrics (Humidity, Temperature) with no index or metric-name filter, so the two cannot describe the same feed.",
+      "field": "dataSources",
+      "quote": "`index=edge-hub-data` tag=humidity tag=temperature, `sourcetype=edge_hub`",
+      "severity": "major",
+      "suggested_fix": "Document the metrics index and exact metric names the Edge Hub writes, and add them to the SPL's WHERE clause; check the Edge Hub documentation for the metric names and their casing."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "Edge Hub is a hardware device with its own data path into Splunk; a Universal Forwarder / Splunkbase 617 add-on is not obviously part of that path, and the combination reads as boilerplate.",
+      "field": "app",
+      "quote": "Splunk Edge Hub (humidity + temperature sensors), Splunk OT Intelligence — Universal Forwarder (Splunkbase 617)",
+      "severity": "needs_verification",
+      "suggested_fix": "Verify how Edge Hub delivers data (for example HEC) and name the real configuration step instead of a Universal Forwarder."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The SPL needs only mstats on Edge Hub metrics; listing a premium app as required overstates the prerequisites.",
+      "field": "premiumApps",
+      "quote": "Splunk OT Intelligence",
+      "severity": "major",
+      "suggested_fix": "Remove it from premiumApps unless the data actually depends on it, and verify the product name if it stays."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The Edge Hub UI path, the 30-second sensor interval setting and the SQLite backlog are not grounded; 'ensure no readings are lost' is also an absolute claim.",
+      "field": "implementation",
+      "quote": "Configure Advanced Settings → Sensor Polling interval to 30 seconds for real-time dew point calculation. Use local SQLite backlog to ensure no readings are lost during Splunk connectivity outages.",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Splunk Edge Hub documentation for the actual setting names and buffering behaviour; soften the guarantee."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "Appended boilerplate contains a placeholder sourcetype and the index main, contradicting the data source (index edge-hub-data, sourcetype edge_hub) and the metrics-based SPL.",
+      "field": "detailedImplementation",
+      "quote": "writes sourcetype=see SPL into index=main",
+      "severity": "major",
+      "suggested_fix": "Replace with the real metrics index and remove the placeholder."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "Contradicts the implementation field, which sets a 30-second sensor polling interval for dew-point calculation, and Edge Hub is not a vendor API poller.",
+      "field": "detailedImplementation",
+      "quote": "Default poll interval 300–900 seconds unless the vendor API rate-limits lower.",
+      "severity": "major",
+      "suggested_fix": "Keep one polling interval and delete the generic boilerplate."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Mstats",
+      "explanation": "mstats reads metric indexes directly and does not use data model summaries; dataModelAcceleration for this UC is 'Not applicable' and no data model is referenced.",
+      "field": "detailedImplementation",
+      "quote": "Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above",
+      "severity": "major",
+      "suggested_fix": "Delete the data model acceleration sentence; keep only the requirement that the data lands in a metrics index."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "Step 4 is repeated four times and Step 3 says 'Compare with the BMS console', which does not apply to an Edge Hub sensor.",
+      "field": "detailedImplementation",
+      "quote": "Step 4 — Operationalize\nStep 4 — Operationalize",
+      "severity": "minor",
+      "suggested_fix": "Collapse duplicates and compare against the Edge Hub's own sensor readout."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "No real cause is named (sensor placed next to a vent or door, HVAC defrost cycle, sensor warm-up); span=1h is not in the SPL.",
+      "field": "knownFalsePositives",
+      "quote": "shifts `temp` over `span=1h` while `host` remains in-scope",
+      "severity": "minor",
+      "suggested_fix": "List physical causes of transient dew-point approach and per-host suppression."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "mstats names its output avg(Humidity), but the next eval reads a field called Humidity, which does not exist. dew_point is therefore null, case() falls through to NORMAL for every row, and the final where clause returns nothing, so the alert can never fire. Alias the aggregate (avg(Humidity) as Humidity) and add a WHERE index=/metric_name clause. See https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Mstats",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "The dew-point formula uses Magnus constants valid for degrees Celsius; confirm the Edge Hub temperature unit (or convert) and state the unit of the 2-degree margin.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:53:11Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0007-UC-15.2.17",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 1,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The SPL as written can never return a row because it references a field that mstats does not produce, and the prose is full of placeholders, a wrong threshold description, a premium app the search does not need, and contradictory ingestion advice.",
+  "tier": "triage",
+  "uc_id": "UC-15.2.18",
+  "verdict": "rewrite"
+}

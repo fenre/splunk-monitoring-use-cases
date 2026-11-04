@@ -1,0 +1,150 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "24bd4b24e1531c152b06bb87a77eda4889773caf862f5b29cdfffce8223fbb7f",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.2.11.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/AddOns/released/VMW/Sourcetypes",
+      "explanation": "No 'Splunk Add-on for VMware vSphere Forwarder' exists. The Splunk Add-on for VMware (Splunkbase 3215) writes host performance data to per-group sourcetypes: vmware:perf:disk, vmware:perf:net, vmware:perf:storageAdapter and so on. There is no bare vmware:perf, so the vSAN data contract described here (and in app, references and detailedImplementation) matches no events.",
+      "field": "dataSources",
+      "quote": "Splunk Add-on for VMware vSphere Forwarder sourcetype vmware:perf for host disk.queueLatency.average, disk.deviceLatency.average, disk.maxQueueDepth.latest, net.usage.average",
+      "severity": "blocker",
+      "suggested_fix": "Name the Splunk Add-on for VMware (Splunkbase 3215) and list the real sourcetypes, vmware:perf:disk, vmware:perf:net and vmware:perf:storageAdapter, with the counters this UC needs. Drop the 'vSphere Forwarder' name and the Splunkbase 5380 reference."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "The repository's Splunkbase catalogue lists Splunk Add-on for VMware ESXi Logs as id 5603, not 3684, and that add-on collects ESXi syslog, not performance counters or a modular-input poll. The Nutanix add-on is cited as Splunk_TA_nutanix / Splunkbase 5076, but the catalogue lists 'TA for Nutanix Prism' as 3103 (TA-nutanix).",
+      "field": "dataSources",
+      "quote": "Collected via Splunk Add-on for VMware ESXi Logs (Splunkbase 3684) modular input or scripted poll into the index named in the SPL.",
+      "severity": "major",
+      "suggested_fix": "Remove the ESXi Logs add-on from the collection path (performance comes from the VMware add-on 3215 or VMware Metrics 5089), and cite the Nutanix add-on by its catalogue id and folder."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.broadcom.com/powercli/latest/vmware.vimautomation.core/commands/get-vmhoststorage",
+      "explanation": "Get-VMHostStorage returns VMHostStorageInfo (SCSI LUN and file-system inventory, rescan options). It returns no outstanding-I/O or queue counters. Get-VMHostNetworkAdapter returns adapter configuration and link speed, not throughput. The controller_queue_depth source for vSAN therefore does not exist as described.",
+      "field": "dataSources",
+      "quote": "PowerCLI scheduled export sourcetypes vmware:vsphere:host:hba and vmware:vsphere:host:vmnic for Get-VMHostStorage outstanding I/O and Get-VMHostNetworkAdapter link capacity and throughput",
+      "severity": "major",
+      "suggested_fix": "Source outstanding I/O and queue depth from performance counters (Get-Stat on storageAdapter/disk counters, or the add-on's vmware:perf:storageAdapter), and throughput from net.* counters. Keep Get-VMHostNetworkAdapter only for link speed."
+    },
+    {
+      "confidence": 0.95,
+      "dimension": "clarity",
+      "explanation": "The same governance paragraph is pasted twelve times verbatim, followed by a roughly 20-sentence 'Extended notes' block of generic 'When X, do Y' lines (translating panel titles, zero-trust proxies, SOAR tickets) unrelated to this detection. It inflates length and buries the actual runbook.",
+      "field": "detailedImplementation",
+      "quote": "Supplement 01 — governance hygiene: keep hci_controller_owner.csv rows version-controlled with change tickets; ... Supplement 12 — governance hygiene: keep hci_controller_owner.csv rows version-controlled with change tickets;",
+      "severity": "major",
+      "suggested_fix": "Keep one governance paragraph, delete Supplements 02–12, and cut the Extended notes to the two or three items specific to this UC (retention shorter than the 25 h window, NVMe queue-depth sourcing, cluster_id site disambiguation)."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/compute-hci.md",
+      "explanation": "No Splunk-supported 'Splunk Add-on for Cisco HyperFlex' appears in the cached Splunkbase catalogue or in the compute-hci guide, which lists HyperFlex as 'Custom REST + Intersight TA'. The /rest/clusters/{cid}/nodes/stats path and field names such as controller_iops_max could not be confirmed. The Azure Stack HCI cmdlet Get-StorageBusBindingClient is likewise unconfirmed.",
+      "field": "detailedImplementation",
+      "quote": "HyperFlex path prefers Splunk Add-on for Cisco HyperFlex, otherwise HX Connect REST /rest/clusters/{cid}/nodes/stats",
+      "severity": "needs_verification",
+      "suggested_fix": "State that HyperFlex needs a custom REST poller or the Intersight add-on, verify the HX Connect stats endpoint and field names against the HX REST API reference, and confirm the Storage Bus cmdlet names against Microsoft Learn."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL has four multisearch arms. The fifth 'path' (SNMP) is optional corroboration that the search never reads, and detailedImplementation calls them 'Four explicit subsearches'.",
+      "field": "implementation",
+      "quote": "Deploy the five ingestion paths or a subset",
+      "severity": "minor",
+      "suggested_fix": "Say 'the four vendor ingestion paths (plus optional SNMP corroboration)'."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "The optional switch corroboration uses SNMP interface polling (ifHCInOctets and discards), not traps. The equipment list also tags hyperv and microsoft separately from azure for the one Azure Stack HCI arm.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_trap\"",
+      "severity": "minor",
+      "suggested_fix": "Drop snmp_trap (or replace it with the SNMP polling model), and keep the equipment tags to vendors with an actual SPL arm."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "This is on-premises HCI performance and capacity monitoring, not a cloud security detection.",
+      "field": "securityDomain",
+      "quote": "\"securityDomain\": \"cloud\"",
+      "severity": "minor",
+      "suggested_fix": "Use the infrastructure/endpoint domain the catalogue uses for sibling cat-19.2 UCs, or omit the field."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/AddOns/released/VMW/Sourcetypes",
+      "explanation": "The referenced product does not exist under that name. The HEC reference points at the generic Data/ index page rather than the HEC documentation.",
+      "field": "references",
+      "quote": "\"title\": \"Splunk Add-on for VMware vSphere Forwarder (Splunkbase 5380)\",\n      \"url\": \"https://splunkbase.splunk.com/app/5380\"",
+      "severity": "minor",
+      "suggested_fix": "Reference the Splunk Add-on for VMware source-types page and the Splunk HEC page (Data/UsetheHTTPEventCollector)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The search cannot parse (non-streaming commands inside multisearch), and the vSAN arm targets a sourcetype the add-on does not emit. No end-to-end verification can have happened.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade the status until the SPL and data contracts have been corrected and run against a lab cluster."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Multisearch",
+      "field": "spl",
+      "issue": "The vSAN multisearch arm contains `bin span=1m _time` and `stats max(...) BY cluster_id node_id vendor _time`. multisearch only accepts purely streaming subsearches, so the whole search fails. Move the 1-minute aggregation after the multisearch, or run the vSAN arm with append.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/AddOns/released/VMW/Sourcetypes",
+      "field": "spl",
+      "issue": "`sourcetype=\"vmware:perf\"` is an exact match. The Splunk Add-on for VMware emits vmware:perf:disk, vmware:perf:net, vmware:perf:storageAdapter and similar, so the vSAN arm returns nothing. Use sourcetype=\"vmware:perf:*\" or list the specific sourcetypes.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The default target_max_p99_latency_us is 1500000 µs (1.5 s). Critical requires p99 controller latency ≥ 1.5 s and high requires ≥ 1.275 s, so unless the lookup overrides it, those tiers practically never fire, and 'warning' only triggers on latency at ≥ 1.08 s. The default was probably meant to be about 1500 µs to 15000 µs.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/ConditionalFunctions",
+      "field": "spl",
+      "issue": "Missing queue-depth fields are coalesced to \"0\", and the Nutanix arm's queue fields are not in Prism v2 host stats. Queue utilisation is therefore 0 for those nodes, and the critical/high tiers, which AND queue, link and latency together, can never fire for them. The HyperFlex arm also divides queue depth by controller_iops_max (an IOPS ceiling, not a queue size), which yields a meaningless percentage. Leave missing values null and branch the severity logic on which signals are present.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/SplunkCloud/latest/Search/Comments",
+      "field": "spl",
+      "issue": "The search starts with a `comment(...)` macro before the generating `| multisearch`. Splunk warns that comments before a generating command can cause errors or incorrect results.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0047-UC-19.2.11",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The idea is good: per-node controller-queue and storage-link saturation, normalised across four HCI stacks and scored on percentiles. The text, however, names VMware add-ons and Splunkbase ids that do not exist and a 'vmware:perf' sourcetype the real add-on never emits. It also sources HBA outstanding I/O from a PowerCLI cmdlet that does not return it. The SPL cannot run (bin/stats inside multisearch), and its 1.5-second latency default makes critical and high nearly unreachable. detailedImplementation is padded with twelve verbatim copies of one 'Supplement' paragraph plus a long generic notes block.",
+  "tier": "deep",
+  "uc_id": "UC-19.2.11",
+  "verdict": "incorrect"
+}

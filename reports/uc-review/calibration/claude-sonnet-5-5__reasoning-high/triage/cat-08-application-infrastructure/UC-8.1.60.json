@@ -1,0 +1,114 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "9aab7e45e007bc3a07a4ab92c6d912b749a97b4fb36e413c977ed901e33644e8",
+  "file": "content/cat-08-application-infrastructure/UC-8.1.60.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "ZooKeeper `mntr` data comes from a four-letter-word command on the client port, not from a vendor REST API with tokens, a 'vendor admin UI inventory count' or HTTP 401/429 errors. None of the steps says how to run `mntr` or how to get its output into Splunk. The steps could fit any UC.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=zookeeper:mntr into infrastructure. ... inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.",
+      "severity": "major",
+      "suggested_fix": "Describe a scripted input that runs `echo mntr | nc <host> 2181` (or equivalent) per ensemble member and indexes it as `zookeeper:mntr`. Replace the vendor-API troubleshooting with ZooKeeper-specific checks."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "evidence_url": "https://zookeeper.apache.org/doc/current/zookeeperAdmin.html#sc_zkCommands",
+      "explanation": "On ZooKeeper 3.5 and later the `mntr` four-letter word has to be enabled in `4lw.commands.whitelist`, otherwise the collector gets no output. Check this and state the version requirement.",
+      "field": "implementation",
+      "quote": "Validate `zk_approximate_data_size` availability on your ZK release.",
+      "severity": "needs_verification",
+      "suggested_fix": "Add the whitelist step for `mntr` and the supported versions, with the link to the ZooKeeper admin guide section."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL outputs no `count` field. `node_growth` is the difference from a value 30 rows earlier, but no text says that growth is measured over a 30-day window. `detailedImplementation` says to schedule with `earliest=-24h@h`, which gives one daily row and so no growth baseline.",
+      "field": "cross_field",
+      "quote": "Outputs `count` each `1d`; alert when `node_growth` > 100000, or `approx_bytes` > 10737418240.",
+      "severity": "major",
+      "suggested_fix": "State that growth is the change in znode count against the value 30 daily rows earlier and that the search needs at least 30 days of history, and align the scheduling advice with that."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The SPL has no join, lookup or change-calendar step.",
+      "field": "implementation",
+      "quote": "Join with change calendar.",
+      "severity": "minor",
+      "suggested_fix": "Remove the sentence or say how to add a change-calendar lookup."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The Universal Forwarder is not a Splunkbase app and ID 617 is not in the cached catalog. The scripted input and sourcetype `zookeeper:mntr` are custom, so no add-on is named at all.",
+      "field": "app",
+      "quote": "`mntr` scripted input — Universal Forwarder (Splunkbase 617)",
+      "severity": "needs_verification",
+      "suggested_fix": "Say that this is a custom scripted input run by the Universal Forwarder and drop the Splunkbase ID, or name the real ZooKeeper add-on you use."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "The title says 'quotas', but the URL anchor `sc_zkCommands` is the four-letter-word commands section. The remaining three references are generic Splunk conf-file or HEC pages.",
+      "field": "references",
+      "quote": "ZooKeeper Admin — quotas",
+      "severity": "minor",
+      "suggested_fix": "Retitle the first reference to the four-letter-word commands (`mntr`) and add a reference on ZooKeeper data-tree size and snapshots."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "grandma_fidelity",
+      "explanation": "It uses jargon (JVM, snapshot and purge) and never says what is watched: the number of items ZooKeeper stores and the size of its data. It claims prevention, which an alert does not do.",
+      "field": "grandmaExplanation",
+      "quote": "prevent lengthy recovery and JVM pressure during snapshot and purge cycles",
+      "severity": "major",
+      "suggested_fix": "Say that the search watches how many items and how much data the coordination service keeps in memory and warns when this grows fast."
+    },
+    {
+      "confidence": 0.45,
+      "dimension": "overclaiming",
+      "explanation": "The 10 GiB data-size threshold in the description and SPL is stated without a source. ZooKeeper keeps its whole data tree in memory, and a healthy ensemble is usually far below that, so a 10 GiB alert may never fire.",
+      "field": "dataSources",
+      "quote": "`zk_approximate_data_size` ... 10737418240",
+      "severity": "needs_verification",
+      "suggested_fix": "Present 100000 znodes and 10 GiB as example values, or give a source; recommend setting them from the ensemble's own baseline."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`streamstats window=30 ... last(znodes)` includes the current row by default, so `last(znodes)` equals `znodes` and `node_growth` is always 0. The growth condition can never fire. A previous-value approach (for example `current=f` with `earliest(znodes)`) is needed.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The final `where` is joined to the previous `eval` line (`... _prev_node_growth| where ...`) without a line break, and there is no sort before `streamstats`, so the results depend on stats ordering.",
+      "severity": "minor"
+    },
+    {
+      "field": "id",
+      "issue": "ZooKeeper is placed in subcategory 8.1 (Web Servers & Reverse Proxies), whose guide covers Apache, NGINX, IIS and Traefik.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0064-UC-8.1.60",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 1
+  },
+  "summary": "The two monitored metrics (`zk_znode_count`, `zk_approximate_data_size` from `mntr`) are real, but the implementation text is generic collector boilerplate with nothing ZooKeeper-specific. The description, implementation and grandma text do not explain what is measured or how growth is defined.",
+  "tier": "triage",
+  "uc_id": "UC-8.1.60",
+  "verdict": "rewrite"
+}

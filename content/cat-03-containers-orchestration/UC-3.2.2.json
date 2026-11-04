@@ -14,7 +14,7 @@
   "evidence": "Saved search uc_3_2_2_scheduler_failed_scheduling with five-minute schedule; lookups/critical_namespaces.csv versioned in git; weekly CSV export of alert rows to a restricted evidence index with lookup commit hash for auditors.",
   "controlTest": {
     "positiveScenario": "UC-3.2.2 positive (Kubernetes, Pod, Pending, from, kube): ingest synthetic events into `index=k8s_metrics` sourcetype='prometheus:scrape:metrics' where `pend`, `fs_event_time`, `pending_soak_min` grouped by `cluster`, `namespace`, `pod`, `_time` satisfies `mv` > 0, `pend` > 0, `mv` > 0, or `pending_soak_min` >= 25 for 'Kubernetes Pod Pending from kube-scheduler FailedScheduling (Placement and Fit)'. Validate macro `involvedObject.kind`, filter `index=k8s_metrics sourcetype=\"prometheus:scrape:metrics\" ear`. Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-3.2.2 negative (and Fit)): ingest benign `k8s_metrics` / `prometheus:scrape:metrics` events where `cluster`, `namespace`, `pod`, `_time` stays below `mv` > 0, `pend` > 0, `mv` > 0, or `pending_soak_min` >= 25, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'Kubernetes Pod Pending from kube-scheduler FailedScheduling (Placement and Fit)'."
+    "negativeScenario": "UC-3.2.2 negative (and Fit)): ingest benign `k8s_metrics` / `prometheus:scrape:metrics` events where `cluster`, `namespace`, `pod`, `_time` stays below `mv` > 0, `pend` > 0, `mv` > 0, or `pending_soak_min` >= 25, or exclude the test entity via `ops_exception_register.csv`. Confirm zero alert rows for 'Kubernetes Pod Pending from kube-scheduler FailedScheduling (Placement and Fit)'."
   },
   "dataSources": "index=k8s_metrics sourcetype=prometheus:scrape:metrics from kube-state-metrics exposing kube_pod_status_phase, kube_pod_status_scheduled, and from kube-scheduler or aggregated scrapes exposing scheduler_pending_pods, scheduler_unschedulable_pods, scheduler_schedule_attempts_total; index=k8s or index=k8s_events sourcetype=kube:events for reason FailedScheduling on Pod involved objects; governance join via lookup critical_namespaces.csv for workload_tier and owner_team.",
   "app": "Splunk OpenTelemetry Collector for Kubernetes ([Splunk Add-on for Kubernetes documentation](https://docs.splunk.com/Documentation/AddOns/released/Kubernetes/About)) with prometheus receiver scraping kube-state-metrics and kube-scheduler metrics where permitted, k8s_events receiver for v1.Event streams, splunk_hec exporters; kube-prometheus-stack ServiceMonitor acceptable when label contracts match the SPL coalesce ladders; Splunk Enterprise 9.2+ or Splunk Cloud search tier for scheduled alerts.",
@@ -23,10 +23,7 @@
   "value": "UC-3.2.2 gives Operations teams earlier visibility into and Fit) through `prometheus:scrape:metrics` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Provision k8s_metrics and k8s (or k8s_events) with distinct HEC tokens; scrape kube-state-metrics for kube_pod_status_phase and kube_pod_status_scheduled and kube-scheduler gauges when policy allows; stream kube:events; publish lookups/critical_namespaces.csv; save uc_3_2_2_scheduler_failed_scheduling every five minutes with earliest=-45m@m latest=now; page gold namespaces when pending_soak_min crosses eight minutes with FailedScheduling text or elevated scheduler_unschedulable_pods; validate using a lab Deployment that over-requests CPU against a single-node pool.",
   "visualization": "Primary table mirroring the closing SPL projection; secondary single value for critical severity row count; timechart of pending_soak_min by namespace; drilldown to kube:events for the same pod.",
-  "cimModels": [
-    "Application_State",
-    "Performance"
-  ],
+  "cimModels": [],
   "cimSpl": "| tstats summariesonly=t latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State (Application_State.app=\"kubernetes\" OR Application_State.app=\"k8s\" OR like(Application_State.app, \"%kube%\")) earliest=-4h@h latest=@h BY Application_State.dest\n| rename Application_State.dest AS cim_host\n| join type=left max=0 cim_host [| tstats summariesonly=t avg(Performance.cpu_load_percent) AS cpu_load_pct FROM datamodel=Performance WHERE nodename=Performance.CPU earliest=-4h@h latest=@h BY Performance.host | rename Performance.host AS cim_host ]\n| table cim_host app_state app_info cpu_load_pct",
   "schema": "CIM",
   "dataModelAcceleration": "Accelerate Splunk CIM Application_State and Performance summaries on entities that represent Kubernetes nodes or worker hosts so tstats overlays stay warm when correlating scheduling failures with underlying saturation; retain at least thirty days for quarterly capacity reviews.",
@@ -104,7 +101,7 @@
   "equipmentModels": [
     "kubernetes_k8s"
   ],
-  "status": "verified",
+  "status": "draft",
   "lastReviewed": "2026-04-26",
   "splunkVersions": [
     "9.2+",

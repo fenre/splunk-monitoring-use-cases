@@ -1,0 +1,118 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "7cf6ec9a2953e8dc1f1ea263fa88212cdb4d968a2d5e82554a8b4b352d9de27a",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.2.6.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/4856",
+      "explanation": "Splunkbase 4856 is the community 'Metrics Add-on for Infrastructure', not an NSX add-on, and 1810 (cited for Splunk_TA_vmware) is 'Hunk App for MongoDB'; the Splunk Add-on for VMware is 3215. NSX integrations on Splunkbase are 4241 (VMware NSX-T Splunk App) and 6805 (TA-nsx). Repeated in dataSources, detailedImplementation and references.",
+      "field": "app",
+      "quote": "**`Splunk_TA_vmware-nsxt`** ([Splunkbase **4856**](https://splunkbase.splunk.com/app/4856)) parses **`vmware:nsxt:firewall`**, **`syslog`**, **`audit`**",
+      "severity": "blocker",
+      "suggested_fix": "Correct the IDs (3215 for Splunk Add-on for VMware; 4241/6805 or a custom input for NSX) and re-derive sourcetype names from the chosen add-on."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/AddOns/released/VMW/Sourcetypes",
+      "explanation": "The Splunk Add-on for VMware has no `vmware:vmware:vsphere:vcenter` sourcetype; ESXi host inventory is `vmware:inv:hostsystem`.",
+      "field": "detailedImplementation",
+      "quote": "only when vmware:vmware:vsphere:vcenter host labels must decode transport_node_id",
+      "severity": "blocker",
+      "suggested_fix": "Use `vmware:inv:hostsystem` (Splunk Add-on for VMware, Splunkbase 3215)."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "The Policy rule statistics API returns counters aggregated per enforcement point; it is not clear it returns a per-transport-node breakdown, yet the SPL baselines per `tn_key` and the visualisation heatmaps tn_key × ratio.",
+      "field": "dataSources",
+      "quote": "fields **`hit_count`**, **`packet_count`**, **`byte_count`**, **`session_count`**, **`rule_id`**, **`policy_path`**, **`section_id`**, **`domain_name`**, **`transport_node_id`**",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the NSX 4.2 `.../rules/{rule-id}/statistics` response schema; if no per-TN field exists, drop `transport_node_id` from requiredFields and the tn_key grain."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "evidence_url": "https://techdocs.broadcom.com/us/en/vmware-security-load-balancing/vdefend/vdefend-firewall/4-2/security-administration-guide/security/distributed-firewall/firewall-packet-logs.html",
+      "explanation": "detailedImplementation says flow logs fill gaps, but in the SPL flow-log rows have no hit_count (hit_abs=0, so day_delta is always 0), and RULE_TAG is only read when `policy_ref` is non-empty, which DFW packet logs never carry. NSX DFW logs identify rules as `<ruleset>/<rule-id>`, not a `seq|policy|rule` RULE_TAG.",
+      "field": "cross_field",
+      "quote": "**feed lanes** — api_stats carries official cumulative hit_count for delta math; flow_log fills RULE_TAG gaps when policy paths rename faster than pollers refresh.",
+      "severity": "major",
+      "suggested_fix": "Either count flow-log events per rule ID as their own daily metric or drop the flow_log lane from the description; parse the rule ID from the `ruleset/id` token."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "clarity",
+      "explanation": "`zero_day_activity` (meaning 'no hits today') reads as 'zero-day exploit activity' to security readers.",
+      "field": "detailedImplementation",
+      "quote": "**effectiveness_hint** — Maps to suspected_shadow_or_bypass, suspected_scan_or_new_workload, zero_day_activity, within_band",
+      "severity": "minor",
+      "suggested_fix": "Rename the label in documentation to something like `no_hits_today` (and request the matching SPL change)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "Hyper-V is unrelated to NSX DFW on ESXi.",
+      "field": "equipment",
+      "quote": "\"hyperv\",",
+      "severity": "minor",
+      "suggested_fix": "Remove `hyperv`."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The SPL scans 40 days of raw firewall and stats data with daily bins; running it hourly is costly and pointless for daily deltas, and detailedImplementation separately recommends a summary index.",
+      "field": "implementation",
+      "quote": "schedule the **`spl`** hourly",
+      "severity": "minor",
+      "suggested_fix": "Schedule daily after midnight UTC, or populate `summary_nsx_dfw_hits` hourly and run the baseline against the summary."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "Marked verified by an automated agent although the SPL has a syntax error and wrong add-on IDs.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until a human runs the search against live NSX statistics."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats",
+      "field": "spl",
+      "issue": "`streamstats window=1 current=f global=f BY feed rule_ref tn_key last(hit_eod) AS prev_hit` puts the BY clause before the aggregation; streamstats syntax requires `<stats-agg-term>... [BY <field-list>]`, so the search fails to parse. Write `streamstats window=1 current=f global=f last(hit_eod) AS prev_hit BY feed rule_ref tn_key`.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "`stale_flag` requires `_time < relative_time(now(),\"-30d@d\")` but the next command keeps only `_time >= -14d@d`, so stale_flag is always 0 in output and the 'Stale-Rule Scoring' promised by the title never surfaces.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`rex mode=sed \"s/^[^|]*|[^|]*|//\"` uses unescaped `|`, which is regex alternation, so it does not strip the first two pipe-delimited segments as intended.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0037-UC-18.2.6",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The baselining design (daily counter deltas, 7-day holdout, spike/drop ratios, stale-rule flag) and the Policy statistics API paths are sound, but the shipped SPL will not parse (BY clause before the streamstats function), the stale-rule flag is filtered out before output, flow-log rows never contribute counts, and the add-on IDs are wrong.",
+  "tier": "deep",
+  "uc_id": "UC-18.2.6",
+  "verdict": "incorrect"
+}

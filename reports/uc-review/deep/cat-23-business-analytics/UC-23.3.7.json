@@ -1,0 +1,135 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "730b1ae8a502e0875bbf217338e3a5645af8d1ae08d4012b50b6bf2c66f4bc7e",
+  "file": "content/cat-23-business-analytics/UC-23.3.7.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.aws.amazon.com/ses/latest/dg/faqs-enforcement.html",
+      "explanation": "5% bounce and 0.1% complaint are the thresholds at which SES places an account under review. Sending may be paused at 10% bounce or 0.5% complaint. The UC's 'severe' tier and its alert routing are built on the wrong interpretation.",
+      "field": "detailedImplementation",
+      "quote": "AWS SES bounce>5% and complaint>0.1% automated pause thresholds",
+      "severity": "blocker",
+      "suggested_fix": "Say: 'SES places accounts under review at ≥5% bounce / ≥0.1% complaint and may pause sending at ≥10% / ≥0.5%; SES bounce rate counts only hard bounces to unverified domains.'"
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://www.twilio.com/docs/sendgrid/for-developers/tracking-events/event",
+      "explanation": "The SendGrid event value is `spamreport` (one word). detailedImplementation Step 1 repeats `spam_report`.",
+      "field": "dataSources",
+      "quote": "(`processed`, `deferred`, `delivered`, `bounce`, `dropped`, `spam_report`, `unsubscribe`)",
+      "severity": "minor",
+      "suggested_fix": "Use `spamreport` in both places."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "These precise figures drive the SPL's 71 / 83.6 inbox-placement alarm cut-offs, but no source is cited in references (the Validity reference is the vendor homepage). They may be generated.",
+      "field": "detailedImplementation",
+      "quote": "Validity **2024 State of Email Deliverability** (global inbox placement mean 83.6%, top-quartile near 95%, bottom-quartile near 71%); Sender Score reputation benchmark (~84 ESP IP average with >90 as top-decile band)",
+      "severity": "needs_verification",
+      "suggested_fix": "Cite the exact Validity report and page for each number, or present them as illustrative thresholds to be tuned locally."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "Sender Score is offered as a web lookup; a documented public REST API is doubtful. Litmus is primarily an email rendering and testing product, so a seed-based inbox-placement API at `/v2/results` needs confirmation. Mailgun's API also uses API-key basic auth, not the 'OAuth pollers' stated in dataSources.",
+      "field": "detailedImplementation",
+      "quote": "Poll Validity Sender Score REST lookups (`senderscore.com` documented endpoints) … Land Litmus `/v2/results` exports",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm each vendor's API and auth model. Where no API exists, describe a CSV/export workflow instead."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The description presents trivial non-zero counts as alert conditions. The real logic is the four-tier deliverability_alarm (severe/elevated/watch/steady) combining bounce, complaint, sender score and inbox placement, with alerts on 'severe' per detailedImplementation. The description also names only `sendgrid:event_webhook`, although the search unions eight sourcetypes.",
+      "field": "cross_field",
+      "quote": "alert when `denom` > 0, `delivered` > 0, `bounce_rate_pct` > 5, or `complaint_rate_pct` > 0.1",
+      "severity": "major",
+      "suggested_fix": "Describe the per-sending-domain 30-day rollup and the severe/elevated/watch tiers with their thresholds, across all listed ESP, DMARC and reputation feeds."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "These are generic IT-ops scenarios. The real false-alarm causes are already listed in detailedImplementation Step 5: IP warm-up, DMARC report batching lag, SNS duplicate deliveries, DKIM selector rotation, and shared-pool reputation bleed.",
+      "field": "knownFalsePositives",
+      "quote": "Synthetic probe on `sending_domain`** — Health checks in `business` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "Move the Step 5 causes into knownFalsePositives, each with its mitigation."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "The Splunk Add-on for Cisco ESA uses `cisco:esa:textmail` (and related `cisco:esa:*`) sourcetypes, not `ironport:mail_logs`.",
+      "field": "dataSources",
+      "quote": "Cisco **IronPort ESA**) → **`syslog:mail`** / **`ironport:mail_logs`**",
+      "severity": "minor",
+      "suggested_fix": "Reference `cisco:esa:textmail` via the Splunk Add-on for Cisco ESA."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The URL is the generic Google support root, and the Validity reference is the vendor homepage. Neither points at the cited material.",
+      "field": "references",
+      "quote": "\"title\": \"Google Postmaster Tools — Help Center\", \"url\": \"https://support.google.com\"",
+      "severity": "minor",
+      "suggested_fix": "Link the Postmaster Tools help page and Google's email sender guidelines (spam rate <0.10%, never ≥0.30%), plus the specific Validity report."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified with an agent as reviewer, yet the SPL cannot process the primary SendGrid feed correctly.",
+      "field": "status",
+      "quote": "\"status\": \"verified\" … \"reviewer\": \"agent-handcraft-2026-04-28\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until it has been tested against real ESP webhook data."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://www.twilio.com/docs/sendgrid/for-developers/tracking-events/event",
+      "field": "spl",
+      "issue": "SendGrid Event Webhook payloads carry the event name in `event`, which is missing from `coalesce(event_type,eventType,notification_type,ses_event_type,messaging_event_type,type,\"\")`. processed and delivered events therefore get evt=\"\". Only bounce events match, via their `type` field (bounce/blocked). The result is sends=delivered=0, denom=bounces, and a 100% bounce_rate_pct ('severe') for every SendGrid domain. Add `event` to the coalesce.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The `delivered_evt` regex `delivered|delivery` also matches SES `DeliveryDelay` (lowercased 'deliverydelay'), which `defer_evt` (`deferred|delayed`) misses. Delayed SES mail is therefore counted as delivered. SES bounce events of bounceType Transient are counted as bounces, unlike SES's own hard-bounce-only rate.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`sort + deliverability_alarm` sorts the tier labels alphabetically (elevated, severe, steady, watch), so 'severe' rows are not first. Map the tiers to a numeric rank before sorting.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "Sender Score rows are keyed by `published_ip`, and Postmaster/DMARC rows use their own domain fields that are not all in the sending_domain coalesce. Reputation and placement averages can land in a `sending_domain=\"\"` bucket instead of joining the ESP rows. `dmarc_pass_share` also averages a count field (`count_dmarc_pass`) together with percentages.",
+      "severity": "major"
+    },
+    {
+      "field": "criticality",
+      "issue": "'critical' is high for a 30-day marketing deliverability rollup; 'high' would match the sibling UC-23.3.3.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0021-UC-23.3.7",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The detailedImplementation is unusually specific and its Step 5 troubleshooting is genuinely useful. However, the SPL never reads SendGrid's `event` field, which drives SendGrid bounce rates to 100%. The SES pause thresholds are misstated, several benchmark and API claims are unverified, and the description and false positives remain template text.",
+  "tier": "deep",
+  "uc_id": "UC-23.3.7",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,138 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "5c8e89cc9514005c39f8c7063c12fc981335dc4c6410d00434654a08c208cae0",
+  "file": "content/cat-03-containers-orchestration/UC-3.5.1.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://raw.githubusercontent.com/splunk/splunk-connect-for-kubernetes/main/README.md",
+      "explanation": "Splunk Connect for Kubernetes reached End of Support on 1 January 2024 and Splunk directs users to the Splunk OpenTelemetry Collector for Kubernetes, which already collects Kubernetes events and container stdout logs; the OTel chart is Splunkbase 6264 in the cached catalogue.",
+      "field": "app",
+      "quote": "complement with **Splunk Connect for Kubernetes** for `kube:events` collection and Envoy access log forwarding. — Splunk Connect for Kubernetes (Splunkbase 5167)",
+      "severity": "blocker",
+      "suggested_fix": "Name only the Splunk OpenTelemetry Collector for Kubernetes (Splunkbase 6264) with its prometheus receiver, k8s_events/k8sobjects receiver and filelog receiver; drop SCK or mark it as a legacy path."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/signalfx/splunk-otel-collector-chart/blob/main/helm-charts/splunk-otel-collector/values.yaml",
+      "explanation": "The Splunk OTel Collector chart sends metrics to a Splunk metric-type index (`splunkPlatform.metricsIndex`) and the metrics sourcetype defaults to `httpevent` unless `metricsSourcetype` is set; `otel:metrics` in an event index is not what the chart produces, and metric-index data is not reachable with an event search.",
+      "field": "dataSources",
+      "quote": "**`sourcetype=otel:metrics`** (Splunk OpenTelemetry Collector forwarding Prometheus-scraped Istio metrics via OTLP/HEC",
+      "severity": "blocker",
+      "suggested_fix": "State that Istio metrics land in a metrics index configured via `splunkPlatform.metricsIndex` (and optionally `metricsSourcetype`), and that they are queried with `mstats`; remove the claim that they arrive as `otel:metrics` events in `index=containers`."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/container-platforms-docker-openshift.md",
+      "explanation": "The grounding guide places Envoy access logs in `index=mesh` as `sourcetype=istio:envoy:access`, sibling UC-3.5.10 uses `envoy:accesslog`, and this UC invents `istio:accesslog`, `prometheus:istio` and `envoy:stats`; the SPL only reads the two metric sourcetypes, so 'requiring five' is false.",
+      "field": "dataSources",
+      "quote": "`index=containers` requiring five distinct sourcetypes: ... **`sourcetype=istio:accesslog`** ... **`sourcetype=envoy:stats`**",
+      "severity": "major",
+      "suggested_fix": "Align index and sourcetype names with the container-platforms guide (`index=mesh`, `istio:envoy:access`) and list only the source the SPL needs as required; mark access logs and kube events as optional enrichment."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://istio.io/latest/docs/ops/integrations/prometheus/",
+      "explanation": "With Istio's default metrics merging, the injected `prometheus.io` annotations point to the agent on port 15020 (`:15020/stats/prometheus`), not 15090; 15090 is the raw Envoy stats port exposed as `*-envoy-prom` for custom scrape jobs.",
+      "field": "detailedImplementation",
+      "quote": "Istio sidecars carry `prometheus.io/port: \"15090\"` and `prometheus.io/path: \"/stats/prometheus\"` annotations by default.",
+      "severity": "blocker",
+      "suggested_fix": "Say annotation-based discovery scrapes `:15020/stats/prometheus` (merged metrics), or, if metrics merging is disabled, add a scrape job keeping container ports named `.*-envoy-prom` (15090) with path `/stats/prometheus`."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "If retries are performed by the client (source) sidecar, each retry attempt reaches the destination, so the destination reporter sees more attempts, and the source reporter is the one that records the final outcome the caller experienced; the text (and Step 2's matching claim) contradicts its own premise.",
+      "field": "detailedImplementation",
+      "quote": "the destination reporter sees fewer attempts than the source reporter because retries are handled at the source sidecar. Prefer destination-side metrics for accuracy of final response codes.",
+      "severity": "major",
+      "suggested_fix": "Explain that `reporter=source` reflects the caller-visible final result after retries while `reporter=destination` counts every attempt; pick the reporter per goal and verify against Istio retry documentation."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The latency SPL has no 24-hour baseline and fires on `p99_ms > 500 OR p95_ms > 250`; the prose also says the search finds the 'smallest bucket' reaching the percentile while the SPL takes `max(...)` of qualifying buckets.",
+      "field": "implementation",
+      "quote": "alert when P99 exceeds **500ms** for any service that was below 200ms in the prior 24h rolling baseline",
+      "severity": "major",
+      "suggested_fix": "Describe the thresholds the SPL actually uses (P95 > 250 ms or P99 > 500 ms) or note that a baseline comparison must be added; describe the percentile as approximated from cumulative `le` buckets."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/NetworkTraffic",
+      "explanation": "Istio request counters and latency histograms are application-layer service metrics; Network_Traffic models flow/firewall sessions and Performance models host CPU/memory/storage, and the SPL uses no datamodel.",
+      "field": "cimModels",
+      "quote": "\"Network_Traffic\",\n    \"Performance\"",
+      "severity": "major",
+      "suggested_fix": "Leave `cimModels` empty for the metric search, or map only the optional Envoy access-log path to `Web` if field aliases are provided."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "`proxyStatsMatcher` controls which Envoy stats are emitted, not the label set of Istio standard metrics; label removal is configured through the Telemetry API (`tagOverrides`). Also 'older Istio versions use destination_service_name while newer prefer destination_canonical_service' appears inaccurate since both labels coexist.",
+      "field": "detailedImplementation",
+      "quote": "If `destination_service_name` is missing, check Istio's `meshConfig.defaultConfig.proxyStatsMatcher` for label filtering.",
+      "severity": "needs_verification",
+      "suggested_fix": "Verify against Istio Telemetry API / standard metrics docs and point to `Telemetry` `metrics.overrides.tagOverrides` for label customisation."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The stock nginx image is not a reliable source of `nc`, and a one-shot netcat listener serves a single connection, so the test is unlikely to produce sustained 5xx traffic.",
+      "field": "detailedImplementation",
+      "quote": "kubectl run fault-test --image=nginx --port=80 -- /bin/sh -c 'echo HTTP/1.1 500 | nc -l -p 80'",
+      "severity": "minor",
+      "suggested_fix": "Use Istio fault injection (VirtualService `fault.abort.httpStatus: 500`) or the httpbin sample's `/status/500` endpoint to generate errors."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The reviewer is an automated agent ('agent-handcraft-2026-04-30') and the content carries factual errors, so there is no evidence of SME sign-off.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft/community until a human SME validates the ingest path and SPL."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Mstats",
+      "field": "spl",
+      "issue": "The search reads OTel-collected Prometheus metrics with an event search (`index=containers ... | where like(metric_name, ...)`); metrics sent by the Splunk OTel chart land in a metrics index, which must be queried with `mstats`. Summing cumulative counter values (`sum(value)`) over the window also inflates totals instead of computing deltas/rates.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "Latency variant divides each cumulative `le` bucket by the sum of all buckets (`eventstats sum(bucket_count)`), which is not the request total (that is the `+Inf` bucket), and `max(eval(if(bucket_pct >= 95, le_val, null())))` picks the largest qualifying bucket rather than the smallest, so P95/P99 are wrong.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "Three independent searches are concatenated in one `spl` field separated by `comment` macros; this does not run as a single saved search.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0105-UC-3.5.1",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 5,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The implementation narrative is detailed and mostly mesh-aware, but the ingest story is built on a deprecated collector, an unverified Splunkbase ID and sourcetypes the Splunk OTel chart does not emit, the Istio scrape-port and retry/reporter explanations are wrong, and the CIM mapping does not fit request-level mesh metrics.",
+  "tier": "deep",
+  "uc_id": "UC-3.5.1",
+  "verdict": "incorrect"
+}

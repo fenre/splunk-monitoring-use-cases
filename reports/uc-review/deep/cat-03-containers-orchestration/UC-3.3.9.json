@@ -1,0 +1,133 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "6a50190be577abcd6c9a9a5a3b5c3d073b4ee34228ca5d47649df985fa1702f4",
+  "file": "content/cat-03-containers-orchestration/UC-3.3.9.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_url": "https://raw.githubusercontent.com/openshift/router/master/pkg/router/metrics/haproxy/haproxy.go",
+      "explanation": "In the OpenShift router exporter, haproxy_frontend_max_sessions and haproxy_backend_max_queue are the maximum observed values, not configured limits. The configured limit is haproxy_*_limit_sessions. A ratio of current to max_sessions measures closeness to the historical peak, not saturation, so the prose leads readers to the wrong denominator.",
+      "field": "detailedImplementation",
+      "quote": "Prometheus metrics exposed on the router stats port include families such as haproxy_frontend_current_sessions, haproxy_frontend_max_sessions or limit analogs your exporter version emits, haproxy_backend_current_queue, haproxy_backend_max_queue",
+      "severity": "blocker",
+      "suggested_fix": "State that the saturation denominator is haproxy_frontend_limit_sessions (or haproxy_server_limit_sessions for per-server maxconn), that *_max_sessions and *_max_queue are observed peaks, and that HAProxy has no backend queue limit metric."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://raw.githubusercontent.com/openshift/cluster-ingress-operator/master/pkg/operator/controller/names.go",
+      "explanation": "The ingress operator names the ServiceMonitor router-<ingresscontroller> (router-default) and exposes metrics via the router-internal-<name> Service. router-default is only the LoadBalancer Service, so `oc get servicemonitor routermonitor` and `oc get svc router-default` will fail or mislead on HostNetwork/NodePort clusters.",
+      "field": "detailedImplementation",
+      "quote": "The routermonitor ServiceMonitor in openshift-ingress namespaces scrapes these series from the router Service on port 1936",
+      "severity": "blocker",
+      "suggested_fix": "Use `oc -n openshift-ingress get servicemonitor router-default -o yaml` and `oc -n openshift-ingress get svc router-internal-default`; describe metrics as scraped from router-internal-default on port 1936."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The fenced SPL uses strcat(cluster,\"#\",...) for backend_key, while the spl field uses the . concatenation operator, so the two are not identical. The same section promises xx5_rate_hint in pager bodies, listener drop hints in case(), reload-burst percentiles in eventstats and nineteen output columns. None of these match the SPL, which has no xx5_rate_hint or listener arm and outputs 23 columns.",
+      "field": "detailedImplementation",
+      "quote": "Fenced SPL must match the spl JSON field exactly:",
+      "severity": "major",
+      "suggested_fix": "Paste the spl field verbatim into the fenced block. Remove references to xx5_rate_hint, listener drop hints and reload percentiles, or add them to the SPL through human review. Correct the column count."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/container-platforms-docker-openshift.md",
+      "explanation": "The app and dataSources fields say a Universal Forwarder modular input or scripted poll collects the data. The SPL needs Prometheus metrics in a metrics index, which the implementation and the grounding guide describe as Prometheus federation or the Splunk OpenTelemetry Collector for Kubernetes. Splunkbase app 617 returns 404, and the Universal Forwarder is not a Splunkbase app.",
+      "field": "cross_field",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+      "severity": "major",
+      "suggested_fix": "Set app and dataSources to the Splunk OpenTelemetry Collector for Kubernetes (Prometheus receiver or remote write into a metrics index), matching the guide, and drop the Splunkbase 617 reference."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web",
+      "explanation": "The detection runs entirely on mstats over haproxy_* metric series in a metrics index. CIM Web is an event datamodel for HTTP access logs, and Performance covers host CPU, memory and storage events, so neither describes the signal. The primary SPL uses no datamodel at all.",
+      "field": "cimModels",
+      "quote": "\"Performance\",\n    \"Web\"",
+      "severity": "major",
+      "suggested_fix": "Leave cimModels empty, or state that CIM does not apply to these Prometheus metrics. Mention Web only if router access logs (HAProxy syslog) are added as an optional event lane."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Route admission outcome is normally reported in Route status.ingress[].conditions (type Admitted, with reasons such as HostAlreadyClaimed), and router reloads appear in router Pod logs. Whether RouteAdmittedFailed and RouterReloaded are emitted as Kubernetes Event reasons is doubtful.",
+      "field": "dataSources",
+      "quote": "Route admission and router lifecycle signals including RouteAdmittedFailed, RouterReloaded, and template-router controller messages",
+      "severity": "needs_verification",
+      "suggested_fix": "Check openshift/router and cluster-ingress-operator for the event reasons they actually record. If none exist, source reload signals from router Pod logs and admission failures from Route status snapshots."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified, yet its SPL cannot execute (multisearch with non-streaming subsearches) and its saturation math uses the wrong metrics. No SME could have validated it against live data.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status to draft or community until a reviewer runs the corrected search against real router metrics."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Multisearch",
+      "field": "spl",
+      "issue": "multisearch allows only streaming commands in each subsearch, but every arm starts with mstats and uses join, stats, sort and streamstats. Splunk rejects the search, so the whole detection never runs.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://raw.githubusercontent.com/openshift/router/master/pkg/router/metrics/haproxy/haproxy.go",
+      "field": "spl",
+      "issue": "fe_sat_ratio divides haproxy_frontend_current_sessions by haproxy_frontend_max_sessions, which is the observed peak, not the configured limit (haproxy_frontend_limit_sessions). bk_queue_limit reads haproxy_backend_max_queue, which is also an observed maximum. Backend metrics carry only backend, namespace and route labels, so `BY ... server` and `BY ... proxy` group on dimensions that do not exist (the frontend label is `frontend`).",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats",
+      "field": "spl",
+      "issue": "Counters are treated as gauges. haproxy_backend_http_responses_total and haproxy_backend_response_errors_total are cumulative, so summing max(_value) across 120 one-minute spans inflates err_sum, and `err_sum>=500` pages on almost any busy backend. After `stats ... BY cluster pod backend route` there is no _time and only one row per group, so `streamstats window=2 current=t last(xx5_sum)` returns the row itself, xx5_delta is always 0, and the 5xx arm never fires.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://github.com/google/cadvisor/blob/master/docs/storage/prometheus.md",
+      "field": "spl",
+      "issue": "container_cpu_usage_seconds_total is a cumulative counter of CPU-seconds. Comparing avg(_value) to 0.85 means every long-running router Pod lands at warn. Use rate or per_second, divided by the CPU limit or core count.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "Each lane builds a different backend_key: cluster#proxy for the frontend lane and cluster#backend#server for the backend lane. The final stats BY cluster backend_key therefore never puts fe_sat_ratio and bk_queue_max on the same row, and the combined page conditions (fe_sat_ratio>=0.95 AND bk_queue_max>=50, xx5_window>=25 AND fe_sat_ratio>=0.75) can never be true.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "recommended_action mentions 'single_threaded_haproxy_hot_paths'. The OpenShift router runs HAProxy with multiple threads (IngressController spec.tuningOptions.threadCount, default 4).",
+      "severity": "minor"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
+      "field": "cimSpl",
+      "issue": "The CIM Performance datamodel's root dataset is All_Performance, with child datasets such as CPU (field All_Performance.CPU.cpu_load_percent). `nodename=Performance` and `Performance.cpu_load_percent` do not exist, so the tstats returns nothing. Joining host performance to Web.src does not measure router saturation either.",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0096-UC-3.3.9",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The detailed implementation contains real OpenShift router knowledge, but the SPL cannot run as written. multisearch wraps non-streaming subsearches, counters are treated as gauges, and the saturation ratio divides by an observed peak rather than a configured limit. The text also misnames the router ServiceMonitor, claims the fenced SPL matches the spl field when it does not, and maps HAProxy Prometheus metrics to CIM models that do not fit them.",
+  "tier": "deep",
+  "uc_id": "UC-3.3.9",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,131 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "db217c7bf1bd65f10133776d983791efaeb9c8acfa95f255f723aec106fa6878",
+  "file": "content/cat-03-containers-orchestration/UC-3.1.19.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.docker.com/reference/cli/docker/container/stats/",
+      "explanation": "docker stats reports CPU %, memory usage/limit, memory %, network I/O, block I/O and PIDs; it has no log-line rate. The write-rate severity (high_loglines_per_sec_above_2x_baseline), the drop-rate denominator and the baseline drift all depend on a metric no Docker interface emits.",
+      "field": "dataSources",
+      "quote": "sourcetype=docker:stats for per-container log-line write rate from docker stats style scripted or modular input with fields normalized through coalesce(loglines_per_sec, loglinesPerSec)",
+      "severity": "blocker",
+      "suggested_fix": "Name a real source for log-line rate, e.g. counting indexed events per container_id from the logging driver (Splunk logging driver / OTel filelog) per minute, or json-file byte growth under /var/lib/docker/containers/<id>/; otherwise drop the write-rate branch."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-unix-and-linux/Sourcetypes/",
+      "explanation": "Splunk_TA_nix ships no journald input or docker:journald / linux:journald:docker sourcetypes; its documented sourcetypes are cpu, vmstat, df, ps, top, etc. Journald is collected by the Splunk platform's native journald input (inputs.conf [journald://...]) on a universal forwarder. dataSources and implementation additionally call the collector 'Splunk Add-on for Linux', which is a different, collectd-based product (Splunkbase 3412).",
+      "field": "app",
+      "quote": "Splunk Add-on for Unix and Linux ([Splunkbase 833](https://splunkbase.splunk.com/app/833)) for journald and host scripted inputs",
+      "severity": "blocker",
+      "suggested_fix": "Say: collect docker.service journal entries with the Splunk forwarder's native journald input filtered to _SYSTEMD_UNIT=docker.service and assign sourcetype docker:journald; use Splunk_TA_nix df/df_metric (or a custom script) for the /var/lib/docker/containers filesystem."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/data-management/common-information-model/6.4/data-models/application-state-deprecated",
+      "explanation": "Application State has been deprecated since CIM 4.12.0 in favour of Endpoint, and it models process/service/port inventory, not log-driver delivery; the SPL uses no data model.",
+      "field": "cimModels",
+      "quote": "\"Application_State\",\n    \"Performance\"",
+      "severity": "major",
+      "suggested_fix": "Remove Application_State (and Performance unless the filesystem arm is CIM-mapped Storage); state the detection is raw-sourcetype only."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The SPL expects dockerd journal lines carrying a lines_dropped counter and 'rotating log' messages. dockerd typically logs 'Failed to log msg ... for logger' errors but json-file rotation is normally silent and non-blocking mode drops are not reported with a numeric counter, so dropped_count and rotation_cadence_per_hour may always be zero.",
+      "field": "dataSources",
+      "quote": "dockerd log-driver, rotation, and drop telemetry",
+      "severity": "needs_verification",
+      "suggested_fix": "Capture real dockerd journal samples for json-file rotation, ring-buffer overflow in mode=non-blocking and remote-driver failures, quote the exact message text in dataSources, and align the regex with it."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "'Splunk Connect for Containers' is not a Splunk product; the real names are Splunk Connect for Docker (4496) and Splunk Connect for Kubernetes. The same name appears twice in detailedImplementation.",
+      "field": "app",
+      "quote": "optional Splunk Connect for Containers or Splunk Connect for Docker",
+      "severity": "minor",
+      "suggested_fix": "Remove 'Splunk Connect for Containers' or replace it with the Splunk OpenTelemetry Collector."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "Template scenarios that do not explain how this SPL produces false rows; the real causes are buried in exclusions and Step 5.",
+      "field": "knownFalsePositives",
+      "quote": "Synthetic probe on `host_id`, `container_id`, `th`, `]` — Health checks in `oti_containers` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List concrete causes: planned fluentd/syslog collector restarts producing connection-refused lines; dockerd message text changes after upgrades; load tests generating deliberate log bursts; containers intentionally using the none driver; new images without a baseline row falling back to fleet p99."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "Generator checklist residue that is also false: equipment lists five items and equipmentModels is hashicorp_terraform, which has nothing to do with log-driver health. 'returns exactly the six mandated strings' is similar residue.",
+      "field": "detailedImplementation",
+      "quote": "Closing checklist: five step headers with plain em dashes, Step 3 fenced SPL matches spl field, monitoringType lists Reliability and Availability, cimModels include Application_State and Performance, equipment lists docker and linux, equipmentModels lists docker_engine and linux_journald",
+      "severity": "major",
+      "suggested_fix": "Delete the closing checklist and 'mandated' language; set equipmentModels to Docker Engine / journald models instead of hashicorp_terraform."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "overclaiming",
+      "explanation": "Unnamed literature is not evidence, and the moby issue's subject is unverified; Step 5 also claims weekly exports 'satisfy most HIPAA, SOC2 CC7.2, and PCI 10.7 discussions'. status 'verified' with a generic reviewer handle overstates validation.",
+      "field": "evidence",
+      "quote": "Pinterest-scale container logging engineering literature, and moby issue 45217 on non-blocking buffer behavior",
+      "severity": "minor",
+      "suggested_fix": "Cite specific documents only after confirming the moby issue title, change 'satisfy' to 'support', and set status to draft pending SME review."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Multisearch",
+      "field": "spl",
+      "issue": "Both multisearch arms contain stats (the journal arm has two); multisearch accepts only purely streaming subsearches, so the search fails. Move aggregation after the fan-in or use append.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The critical branch tests match(blocking_mode, \"(?i)blocking|unknown\"), which also matches 'non_blocking', so non-blocking containers raise critical_remote_driver_disconnected_blocking_mode, the opposite of the documented intent. 'timeout' also catches unrelated i/o timeout lines.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats",
+      "field": "spl",
+      "issue": "streamstats time_window=3600s runs after stats BY host_id, container_id, which removes _time, so driver_state_churn cannot be computed as a one-hour window.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.2/evaluation-functions/conversion-functions",
+      "field": "spl",
+      "issue": "toString() (camelCase) is used throughout; the Search Reference documents lowercase tostring() and states eval expressions are case-sensitive. Confirm it parses.",
+      "severity": "needs_verification"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/data-management/common-information-model/6.4/data-models/application-state-deprecated",
+      "field": "cimSpl",
+      "issue": "Uses Application_State.app and Application_State.info, which are not fields of the (deprecated) Application State model, so the tstats returns nothing.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0011-UC-3.1.19",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The log-driver delivery concept and the troubleshooting cases are useful, but the UC depends on a loglines_per_sec field that docker stats does not produce, credits the Unix and Linux add-on with journald collection, maps to the deprecated Application_State model with non-existent fields, and the SPL uses stats inside multisearch.",
+  "tier": "deep",
+  "uc_id": "UC-3.1.19",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,113 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "a1615029299018c9cb53d4f6817c151f90170326e958e7285ae9dc94ad9e2145",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.1.19.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/1897",
+      "explanation": "Splunkbase 4022 is 'Technical Addon for the Metricator application for Nmon (HEC)'. The Cisco ACI add-on was TA_cisco-ACI (1897), now archived in favour of Cisco DC Networking (7777). The wrong ID also appears in implementation, detailedImplementation and references.",
+      "field": "app",
+      "quote": "**Splunk_TA_cisco-aci** (**Splunkbase** **4022**)",
+      "severity": "blocker",
+      "suggested_fix": "Point to Cisco DC Networking (cisco_dc_networking_app_for_splunk, Splunkbase 7777) for APIC API collection, note TA_cisco-ACI (1897) as deprecated, and remove the 4022 references."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "evidence_url": "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/aci/apic/sw/all/faults/guide/b_APIC_Faults_Errors/b_IFC_Faults_Errors_chapter_011.html",
+      "explanation": "APIC faultInst carries its own `domain` attribute (Cisco's examples show `access` and `infra`; a node-unreachable fault under topology/ is domain `infra`, not `fabric`). The SPL prefers the vendor value when it is present and falls back to these DN-regex labels otherwise, so 'fabric' and 'mgmt' buckets can sit beside vendor values such as 'infra' and 'management' for the same kind of fault.",
+      "field": "detailedImplementation",
+      "quote": "`case` mirrors **APIC** fault domains: `tenant` when **`dn`** references `/tn-`, `fabric` for `topology/` / routing classes, `access` for `phys` / port classes, `infra` for `infra/` / policy plumbing, `mgmt` for aaa users",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the APIC MIM enumeration for faultInst.domain and make the fallback labels use exactly the vendor vocabulary. Drop the claim that the regex 'mirrors APIC fault domains' unless they match."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "evidence_url": "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/aci/apic/sw/all/faults/guide/b_APIC_Faults_Errors/b_IFC_Faults_Errors_chapter_01.html",
+      "explanation": "Cisco models delegates as a separate class (faultDelegate, a copy of faultInst attached to a more visible MO), not as faultInst rows carrying a 'delegated' flag. If faultDelegate is pulled into the same sourcetype, as dataSources allows, the filter keeps those rows because `delegated_f` defaults to 'no'.",
+      "field": "detailedImplementation",
+      "quote": "the **`delegated`** filter drops parent bubble rows that would double-count fabric defects",
+      "severity": "needs_verification",
+      "suggested_fix": "Check whether the collected JSON has a `delegated` attribute. If it does not, dedupe by excluding the faultDelegate class (via a class or moClass field) instead of a delegated flag."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The alert condition contains a broken field name ('af fected_mos') and refers to `health_feed_ok`, which the SPL never produces (it outputs health_feed_alive). The 25 and 40 thresholds appear nowhere in the SPL, description or implementation, and implementation says 'hourly rollups' while this section schedules every 15 minutes.",
+      "field": "detailedImplementation",
+      "quote": "custom condition `search af fected_mos > 25 AND sev IN (\"critical\",\"major\") AND fault_domain!=\"unknown\"` for sev-2, tighten to >40 for sev-1 ... `health_feed_ok`",
+      "severity": "major",
+      "suggested_fix": "Write the condition as `affected_mos > 25 AND sev IN (\"critical\",\"major\") AND fault_domain!=\"unknown\"`, use health_feed_alive, and state one schedule and one set of thresholds in implementation, description and detailedImplementation."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The left joins only set `*_feed_alive=1` when a feed returns an event. A dead feed leaves the field null, never 0, so a panel looking for 0 will not light up.",
+      "field": "detailedImplementation",
+      "quote": "a 0 tells you the rollup may be blind due to collector outages",
+      "severity": "minor",
+      "suggested_fix": "Say that the flag is blank or null for a silent feed, or tell the reader to add `fillnull value=0` on the four flags."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "The 'Faults, Events, and System Messages Management Guide' and 'Object Model Reference — faultInst' entries link to the cisco.com and developer.cisco.com home pages, not to the named documents.",
+      "field": "references",
+      "quote": "\"url\": \"https://www.cisco.com/c/en/us/\"",
+      "severity": "major",
+      "suggested_fix": "Link the faults guide at https://www.cisco.com/c/en/us/td/docs/switches/datacenter/aci/apic/sw/all/faults/guide/b_APIC_Faults_Errors/b_IFC_Faults_Errors_chapter_01.html and the APIC MIM faultInst page for the release in use."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The SPL never counts or correlates aaaModLR change records. The audit sourcetype only sets a feed-alive flag, so the Change model claim is not supported by the detection.",
+      "field": "cimModels",
+      "quote": "\"Change\"",
+      "severity": "minor",
+      "suggested_fix": "Keep Alerts and drop Change, or describe Change as an optional enrichment that is not part of the shipped search."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "An automated agent did the review ('agent-handcraft-2026-04-29'), and the UC still has a wrong add-on ID and placeholder references, so the verified status is not supported.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until an SME validates the add-on, the fields and the domain mapping."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats",
+      "field": "spl",
+      "issue": "`stats ... max(len(code_u)) as code_width` is invalid. stats aggregations accept a field name or an `eval(...)` expression, so this needs `max(eval(len(code_u)))`, or a prior `eval code_len=len(code_u)`. As written the search errors out. code_width is also never used in the final table.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "`sort fault_domain -affected_mos -sev` sorts severity alphabetically (warning > minor > major > critical), not by severity rank. Add a numeric severity rank if the ordering is meant to be meaningful.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0010-UC-18.1.19",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The fault-domain rollup idea and the lifecycle and delegation reasoning are sound, but the add-on ID is wrong, the SPL contains an invalid stats aggregation, and the domain buckets, feed-alive semantics and alert thresholds in the prose do not match the search. Two of the references are bare vendor landing URLs.",
+  "tier": "deep",
+  "uc_id": "UC-18.1.19",
+  "verdict": "incorrect"
+}

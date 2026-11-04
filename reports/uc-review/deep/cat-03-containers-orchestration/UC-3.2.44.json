@@ -1,0 +1,155 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "3a60934c250758d1183b1378d5666eb6f1bc81be318008b08195e92814b140b7",
+  "file": "content/cat-03-containers-orchestration/UC-3.2.44.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.aws.amazon.com/eks/latest/APIReference/API_Operations.html",
+      "explanation": "The EKS API has no RecycleNode action, so no CloudTrail eventName=RecycleNode exists. EKS managed node group auto repair replaces nodes through the managed Auto Scaling group, which appears as EC2/Auto Scaling termination events. The same claim is repeated in detailedImplementation (Step 2 validation searches and Step 4 positive test A).",
+      "field": "dataSources",
+      "quote": "sourcetype=aws:cloudtrail for Amazon EKS managed node group RecycleNode, autoscaling EC2 termination, and InstanceUnhealthy style narratives",
+      "severity": "blocker",
+      "suggested_fix": "Describe EKS repair evidence as EC2 TerminateInstances / Auto Scaling termination events tagged with eks:nodegroup-name, made by the EKS service-linked role. Remove RecycleNode throughout."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/azure.md",
+      "evidence_url": "https://learn.microsoft.com/en-us/azure/aks/node-auto-repair",
+      "explanation": "Microsoft documents AKS node auto-repair as Kubernetes events from source `aks-auto-repair` (reasons NodeRebootStart/End, NodeReimageStart/End, NodeRedeployStart/End, *Error), initiated by the aks-remediator user. It does not document the named operations. The repository Azure guide also lands Activity Log as `mscs:azure:activity`, not `azure:auditlogs`.",
+      "field": "dataSources",
+      "quote": "sourcetype=azure:auditlogs for AKS CloudProvisioningServices.RepairNode and AKS_MaintenanceUnscheduled style operations",
+      "severity": "blocker",
+      "suggested_fix": "Source AKS repairs from kube:events with the aks-auto-repair reasons, and optionally from Activity Log in `mscs:azure:activity`. Remove the invented operation names."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/cloud-monitoring.md",
+      "evidence_url": "https://cloud.google.com/kubernetes-engine/docs/how-to/node-auto-repair",
+      "explanation": "Google documents auto-repair as GKE container operations whose operationReason is, for example, AUTO_REPAIR_LONG_UNHEALTHY, and says the node name is preserved. I found no source for a NODE_AUTO_REPAIR marker on compute delete records. The repository guide lists `google:gcp:pubsub:audit`, not `google:gcp:audit`.",
+      "field": "dataSources",
+      "quote": "sourcetype=google:gcp:audit for GKE node auto-repair correlated compute.instance.delete or compute.googleapis.com/instance.deleted records carrying NODE_AUTO_REPAIR semantics",
+      "severity": "needs_verification",
+      "suggested_fix": "Check which audit entries GKE writes for repair operations (container.googleapis.com operation logs and operationReason) and the sourcetype your GCP add-on assigns. Update the field and string references to match."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "`dataSources` and `app` claim the AWS add-on collects everything, including GCP, Azure and Karpenter data, and detailedImplementation suggests landing CloudTrail through Splunk Connect for Syslog, which is not a CloudTrail delivery path. Readers get no clear per-source collection method.",
+      "field": "cross_field",
+      "quote": "Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
+      "severity": "major",
+      "suggested_fix": "List one collector per source: the AWS add-on for CloudTrail, the GCP add-on (Pub/Sub) for Cloud Audit Logs, the Microsoft Cloud Services add-on (Event Hub) or kube:events for AKS, and the OTel chart for Karpenter logs and kube-state-metrics. Drop SC4S."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "clarity",
+      "explanation": "The description lists a bracket character and an internal subsearch variable as grouping keys, includes a truncated SPL fragment, and claims the UC works 'in datamodel Change' when Change is only a constant-count join. A reader cannot tell what produces a row.",
+      "field": "description",
+      "quote": "Pipeline aggregates `kube_pool_live_nodes` by `cluster`, `node_pool`, `]`, `nn` over `the scheduled window`. ... SPL signature: filter `index=k8s_metrics sourcetype=\"prometheus:scrape:metrics\" ear`.",
+      "severity": "major",
+      "suggested_fix": "Explain that each row is one repair or replacement event per cluster and node pool, flagged as a storm when there are at least 5 in a rolling hour, as premature when the node is under one hour old, and as elevated at 12 or more per day."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "explanation": "The savedsearches.conf stanza for uc_3_2_44_managed_node_auto_repair_storm sets its own search to `| savedsearch` of itself, a recursive reference that cannot work as written.",
+      "field": "detailedImplementation",
+      "quote": "search = | savedsearch uc_3_2_44_managed_node_auto_repair_storm | where repair_storm_flag>0 OR match(severity,\"^high_\")",
+      "severity": "major",
+      "suggested_fix": "Put the full SPL in the base stanza. Create a separate paging stanza that runs `| savedsearch <base>` and then applies the filter."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/data-management/common-information-model/6.4/data-models/application-state-deprecated",
+      "explanation": "Application State has been deprecated since CIM 4.12.0 and describes host process, service and port inventory, not node repair. Change is used only as an unfiltered count. Neither model represents the provider repair signal.",
+      "field": "cimModels",
+      "quote": "\"Change\",\n    \"Application_State\"",
+      "severity": "blocker",
+      "suggested_fix": "Drop Application_State. If CIM applies at all, use Change (All_Changes, for example action=deleted on cloud instances by the provider service principal) with an explicit filter. Otherwise mark the UC as raw-sourcetype."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "This is generator-contract residue, followed by generic 'alignment' paragraphs (FinOps, Security, Operations) that do not help implement the detection.",
+      "field": "detailedImplementation",
+      "quote": "Closing checklist: five em-dash step headers appear exactly as required; Step 3 includes fenced SPL identical to the spl JSON field; Step 5 lists twelve case lines",
+      "severity": "major",
+      "suggested_fix": "Remove the checklist and the generic alignment paragraphs."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The scenarios are field-name templates, including the stray `]`. They omit the real false-positive causes the body already knows about: node pool upgrades and surge replacements, Spot interruptions, Karpenter Drift or consolidation, and AZ rebalance.",
+      "field": "knownFalsePositives",
+      "quote": "Synthetic probe on `cluster`, `node_pool`, `]`, `nn`** — Health checks in `aws` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List concrete benign causes: managed node group version upgrades, Spot or capacity-rebalance terminations, Karpenter Drift/Underutilized consolidation after an AMI bump, and AZRebalance."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "explanation": "The 'Automatically repair AKS nodes' reference points at the AKS landing page, and the SC4S sources link is unrelated to cloud repair telemetry.",
+      "field": "references",
+      "quote": "\"url\": \"https://learn.microsoft.com/en-us/azure/aks/\"",
+      "severity": "minor",
+      "suggested_fix": "Use https://learn.microsoft.com/en-us/azure/aks/node-auto-repair and https://docs.aws.amazon.com/eks/latest/userguide/node-health.html, and drop the SC4S link."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified even though its cloud event names do not exist and its SPL cannot compute the rolling window. There is no SME evidence.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set the status to draft until each cloud arm has been tested against real repair events."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/search-commands/streamstats",
+      "field": "spl",
+      "issue": "`sort 0 cluster, node_pool, + _time` followed by `streamstats time_window=3600s` means events are not in global time order. time_window requires events sorted ascending or descending by _time, so the rolling-hour storm count fails or is wrong.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://learn.microsoft.com/en-us/azure/aks/node-auto-repair",
+      "field": "spl",
+      "issue": "The AWS arm keys on `ev=\"recyclenode\"`, and the Azure arm matches `repairnode`/`aks_maintenanceunscheduled` in `azure:auditlogs`. Neither is a documented signal (no RecycleNode EKS action; AKS repair is emitted as aks-auto-repair Kubernetes events), so these arms are largely dead.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/change",
+      "field": "spl",
+      "issue": "The Change `tstats` join on the constant `dm_key` attaches a global event count to every row, which is template residue and not a change-window correlation. `nodename=Change` is also not a dataset; the root is All_Changes.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/data-management/common-information-model/6.4/data-models/application-state-deprecated",
+      "field": "cimSpl",
+      "issue": "Uses `Change.*` field prefixes with `nodename=Change`, but the root dataset is All_Changes (`All_Changes.action`, `All_Changes.user`). It also references `Application_State.state`, `.info` and `.app`, which do not exist in the deprecated Application State model (root All_Application_State).",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0066-UC-3.2.44",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 5,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The repair-storm concept and sibling boundaries are useful, but the cloud signals it depends on are largely invented: there is no EKS RecycleNode API, AKS auto-repair surfaces as Kubernetes events rather than azure:auditlogs operations, and the Azure sourcetype is wrong. The SPL's streamstats time_window also breaks because events are not in time order.",
+  "tier": "deep",
+  "uc_id": "UC-3.2.44",
+  "verdict": "incorrect"
+}

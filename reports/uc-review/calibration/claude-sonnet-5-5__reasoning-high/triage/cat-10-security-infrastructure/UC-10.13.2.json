@@ -1,0 +1,109 @@
+{
+  "confidence": 0.7,
+  "content_sha256": "7d231ebfc36d9ba4034b425dfd83dd553ffb4adea080663cf217b09fca7f51a3",
+  "file": "content/cat-10-security-infrastructure/UC-10.13.2.json",
+  "findings": [
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "No add-on is named, and Splunkbase 617 is not in the cached catalog. A Universal Forwarder is not an add-on. Check what 617 is, and name the real TAs, such as the Splunk Add-on for Microsoft Windows (Splunkbase 742, used by sibling UC-10.13.1) and the IdP add-ons.",
+      "field": "app",
+      "quote": "AD, IdP TAs → CIM Authentication — Universal Forwarder (Splunkbase 617)",
+      "severity": "needs_verification",
+      "suggested_fix": "List concrete CIM-mapped add-ons (for example Splunk Add-on for Microsoft Windows, Splunkbase 742, and the Okta or Entra add-on in use) and remove the Splunkbase 617 reference unless verified."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "implementation describes alerting on new signature values and NTLM surges, and description says 'compares against configured threshold'. The SPL is a plain count by signature and app with no baseline, threshold, new-value logic or NTLM filter, so it produces a report, not an alert.",
+      "field": "cross_field",
+      "quote": "Baseline per business unit; alert on new `signature` values or surges in `NTLM` where Kerberos is expected.",
+      "severity": "major",
+      "suggested_fix": "Describe it as a distribution report, or add the baseline comparison and NTLM-share logic to the documented SPL before describing alerts."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "explanation": "In CIM Authentication, `signature` is the event description and `app` is the application involved. The CIM field for the method (Kerberos, NTLM, SAML) is `authentication_method`, and Windows events carry it as Authentication_Package or similar. Check that the add-ons actually populate signature or app with the mechanism, because for most sources they will not.",
+      "field": "dataSources",
+      "quote": "IdP logs with `signature` or `app` denoting mechanism",
+      "severity": "needs_verification",
+      "suggested_fix": "Name the field that holds the authentication mechanism for each source (for example authentication_method, or Authentication_Package for Windows 4624 events) and use it in the search."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "clarity",
+      "explanation": "The text contains unfilled placeholders ('the scheduled window', 'configured sourcetype') and says 'anomalies' although the search only counts rows. A reader cannot tell what produces a result row: one row per signature and app combination with its event count.",
+      "field": "description",
+      "quote": "Detects Type Distribution anomalies for UC-10.13.2 with window `the scheduled window` on `index=security` sourcetype `configured sourcetype`.",
+      "severity": "major",
+      "suggested_fix": "Say that each row is an authentication signature and app combination with the number of events, used to see the mix of authentication mechanisms. Remove the placeholders."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The SPL does not use timechart and returns no time column, so a time-based bar chart cannot be drawn from its output.",
+      "field": "visualization",
+      "quote": "Bar chart (over time via `timechart`).",
+      "severity": "minor",
+      "suggested_fix": "Use a pie or bar chart on the stats output, or add a timechart variant for the over-time view."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "None of the scenarios names a real cause of a misleading mechanism mix. Real causes are legacy applications that legitimately use NTLM, access by IP address that forces NTLM instead of Kerberos, and service accounts.",
+      "field": "knownFalsePositives",
+      "quote": "Health checks in `security` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.",
+      "severity": "major",
+      "suggested_fix": "List real causes: legacy apps and file servers using NTLM, IP-based connections that force NTLM fallback, and newly onboarded sources that change the mix."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "The second Step 1 is generic. It includes the literal 'sourcetype=see SPL', refers to a modular input, HEC and vendor API that do not apply to a CIM search, and omits the real prerequisite: authentication sources tagged and normalized into CIM Authentication.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=see SPL into security. Default poll interval 300–900 seconds unless the vendor API rate-limits lower.",
+      "severity": "major",
+      "suggested_fix": "Replace with the CIM-specific prerequisites: install the CIM-mapped TAs, confirm the authentication tag, index=security access and the authentication_method (or equivalent) field extraction."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "grandma_fidelity",
+      "explanation": "It never says what is measured: the different ways people prove who they are when signing in. It is circular, quoting the title, and does not match the technical purpose of spotting downgrade or legacy protocols.",
+      "field": "grandmaExplanation",
+      "quote": "We use the same kind of check described for \"Authentication Type Distribution\" once our data is shaped in a common, repeatable way across products.",
+      "severity": "major",
+      "suggested_fix": "Explain plainly: 'We count which kinds of sign-in methods people use, so we can notice when old, weaker methods start to appear or grow.'"
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The search uses `index=security tag=authentication` and groups by signature and app. It does not extract or group by the authentication method, so it cannot show the Kerberos versus NTLM versus SAML split the UC promises. Check which CIM field holds the mechanism.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "monitoringType",
+      "issue": "Only Compliance is declared, but the UC is about detecting downgrade attacks and legacy protocol use, which is a security signal.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0014-UC-10.13.2",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The UC is a simple Authentication distribution report, but the prose presents it as an anomaly alert with thresholds, a NTLM-surge rule and a timechart that the SPL lacks. The app field names no add-on, and the CIM field choice for the 'mechanism' needs checking.",
+  "tier": "triage",
+  "uc_id": "UC-10.13.2",
+  "verdict": "rewrite"
+}

@@ -1,0 +1,96 @@
+{
+  "confidence": 0.65,
+  "content_sha256": "7ce23a8cd786250c853a24cba79ad0174072ee9d1480348924c954749a9078e1",
+  "file": "content/cat-07-database-data-platforms/UC-7.3.13.json",
+  "findings": [
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/nosql-cloud-databases.md",
+      "explanation": "The Windows-guide-style grounding for this subcategory lists Splunkbase 3088 alongside the AWS (1876) and Microsoft Cloud Services (3110) add-ons as the cloud-DB add-on set, and 3088 is the Splunk Add-on for Google Cloud Platform. ID 3084 is not in the cached catalog. The same wrong ID is used in dataSources and references ('Splunkbase app 3084'), so a reader would link to the wrong app.",
+      "field": "app",
+      "quote": "GCP audit logs, Cloud SQL Admin API events — Splunk Add-on for Google Cloud Platform (Splunkbase 3084)",
+      "severity": "blocker",
+      "suggested_fix": "Replace 3084 with the Splunk Add-on for Google Cloud Platform's correct Splunkbase ID (3088) in app, dataSources and the reference link. Confirm in data/splunkbase-catalog.json."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The title, description and grandma text refer to automatic storage growth. The SPL lists admin API patch calls that carry settings.dataDiskSizeGb, which are operator-initiated resizes with a principalEmail. Storage auto-increase is performed by the platform and I do not know that it appears as such a patch call, so the search may never fire for true auto-grow.",
+      "field": "cross_field",
+      "quote": "protoPayload.methodName=\"*.sql.instances.patch\" ... | where isnotnull(new_disk_gb)",
+      "severity": "major",
+      "suggested_fix": "Decide which event is meant. For manual resizes, retitle the UC and say so. For auto-increase, document the actual audit or operation log entry that records it, or use the disk-utilization metric to infer growth."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL has no count, per-instance grouping or weekly window; it returns every matching patch event. Nothing in the UC collects disk_utilization metrics or explains how to forecast from them. The description says 'grouped by entity' and 'alert when configured threshold', which also does not exist.",
+      "field": "implementation",
+      "quote": "Alert when more than one resize per week per instance. Forecast disk from `disk_utilization` metrics.",
+      "severity": "major",
+      "suggested_fix": "Add a stats count by resourceName over 7 days with where count>1, or remove the weekly condition. Document the Cloud Monitoring metric (database/disk/utilization) as a separate optional input."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The prerequisite points to MySQL tooling, but Cloud SQL runs MySQL, PostgreSQL and SQL Server, and this UC is about the Cloud SQL instance's disk, not a database engine. Step 3 then lists validation tools for ten unrelated databases without mentioning the Cloud SQL console or Logs Explorer.",
+      "field": "detailedImplementation",
+      "quote": "In operations we confirm in MySQL Workbench, Percona tools, or the managed MySQL console.",
+      "severity": "major",
+      "suggested_fix": "Validate against Cloud Console > SQL > instance > Overview or Logs Explorer for the same cloudsql_database resource, and confirm that new_disk_gb equals the new size shown."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "`storageResize` is not a field or method the SPL uses and is not an audit log field I can identify. The data-source text names neither the audit log type (Admin Activity), the sourcetype, nor the fields used (protoPayload.methodName, protoPayload.request.settings.dataDiskSizeGb, resourceName).",
+      "field": "dataSources",
+      "quote": "`storageResize`, disk size change operations",
+      "severity": "major",
+      "suggested_fix": "List the Cloud Audit Logs Admin Activity feed, the sourcetype it lands in, and the exact fields the SPL reads. Remove `storageResize` unless it is verified."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/nosql-cloud-databases.md",
+      "explanation": "Cloud Audit Logs reach Splunk through a Cloud Logging sink and Pub/Sub, which is a pull or streaming subscription and not a vendor API poll with a rate limit. The guide documents the sink to Pub/Sub path. The text is generic boilerplate.",
+      "field": "detailedImplementation",
+      "quote": "Default poll interval 300–900 seconds unless the vendor API rate-limits lower.",
+      "severity": "minor",
+      "suggested_fix": "Describe the log sink with the filter resource.type=\"cloudsql_database\", a Pub/Sub subscription, and the add-on Pub/Sub input."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "grandma_fidelity",
+      "explanation": "'Auto-grow events' is unexplained jargon, and the claim differs from the SPL, which catches manual resizes.",
+      "field": "grandmaExplanation",
+      "quote": "We watch managed cloud SQL storage auto-grow events so we can align billing and catch runaway growth",
+      "severity": "minor",
+      "suggested_fix": "For example: 'We notice when the disk of a cloud database is made bigger, so surprise cost or fast data growth gets looked at early.' Align it with whichever event the UC actually detects."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "Two things need checking. (1) `sourcetype=\"gcp:audit\"` is not a documented sourcetype of the Google Cloud add-on; the guide lists `google:gcp:cloudsql:event` and other google:gcp:* types, and Pub/Sub logs often arrive as google:gcp:pubsub:message. (2) The wildcard `\"*.sql.instances.patch\"` may not match the real Cloud SQL audit methodName (for example `cloudsql.instances.update` or `google.cloud.sql.v1beta4.SqlInstancesService.Patch`), and it begins with a wildcard, so it cannot use the index efficiently.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0078-UC-7.3.13",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 3,
+    "overclaiming": 4,
+    "specificity": 2
+  },
+  "summary": "The UC says it detects Cloud SQL storage auto-grow events, but the SPL only finds admin patch calls that set a disk size, which are manual resizes. The add-on ID does not match the grounding, the sourcetype is not a documented one, and the implementation text refers to MySQL tools and a weekly threshold the SPL does not apply.",
+  "tier": "triage",
+  "uc_id": "UC-7.3.13",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,97 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "3b8ac22ab4b32a17ff1dd959c452e2839d5b221ab8a04002465330735958a814",
+  "file": "content/cat-08-application-infrastructure/UC-8.2.1.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/2647",
+      "explanation": "Splunkbase 617 does not exist; JMX polling is done by the Splunk Add-on for Java Management Extensions (Splunk_TA_jmx, Splunkbase 2647) on a heavy forwarder, which is not a Universal Forwarder add-on.",
+      "field": "app",
+      "quote": "`TA-jmx`, OpenTelemetry — Universal Forwarder (Splunkbase 617)",
+      "severity": "blocker",
+      "suggested_fix": "Splunk Add-on for Java Management Extensions (Splunk_TA_jmx, Splunkbase 2647) on a heavy forwarder; optionally Splunk OpenTelemetry Collector JMX receiver for metrics."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The Prometheus JMX exporter produces Prometheus metrics (e.g. jvm_memory_bytes_used{area=\"heap\"}) for a metrics index, not jmx:memory events with HeapMemoryUsage fields, so the SPL would not work on that source; the 617/Universal Forwarder clause is also wrong.",
+      "field": "dataSources",
+      "quote": "JMX MBeans (`java.lang:type=Memory`), Prometheus JMX exporter Collected via Universal Forwarder (Splunkbase 617)",
+      "severity": "major",
+      "suggested_fix": "JMX MBean java.lang:type=Memory attribute HeapMemoryUsage (used, committed, max) polled by Splunk_TA_jmx. If Prometheus/OTel metrics are offered as an alternative, give a separate mstats search."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The two step blocks contradict each other (60 s vs 300-900 s, which is coarser than the 5-minute timechart span), steps 1-4 are duplicated, and the second block's HEC token / vendor API 401/429 troubleshooting does not apply to a JMX poller.",
+      "field": "detailedImplementation",
+      "quote": "Poll memory MBeans every minute. ... Default poll interval 300–900 seconds unless the vendor API rate-limits lower.",
+      "severity": "major",
+      "suggested_fix": "Keep one step sequence: Splunk_TA_jmx on a heavy forwarder, JMX remote enabled with authentication/SSL on each JVM, 60 s polling of java.lang:type=Memory; troubleshoot JMX connection refused/authentication failures in the TA's logs under index=_internal."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "Template filler. The real false positive for raw heap % is normal GC sawtooth: many collectors (G1, Parallel) let heap climb above 85% before a collection, so a high reading alone is not a leak.",
+      "field": "knownFalsePositives",
+      "quote": "Synthetic probe on `host` — Health checks in `jmx` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "Describe GC sawtooth peaks before collection, batch jobs and cache warm-up after deploys, and JVMs with -Xmx sized close to working set by design; recommend using post-GC occupancy (MemoryPool CollectionUsage) or sustained floor growth to confirm."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "grandma_fidelity",
+      "explanation": "Jargon (JVM, heap, OutOfMemoryError) and an ungrammatical claim; it does not say what is measured.",
+      "field": "grandmaExplanation",
+      "quote": "We watch for signs that JVM heap exhaustion causes OutOfMemoryError, crashing the application.",
+      "severity": "major",
+      "suggested_fix": "Many of our business applications run inside Java, which has a fixed amount of working memory. We check how full that memory is every few minutes and warn when it stays above 85%, so we can act before the application runs out and crashes."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "The SPL reads JMX events; the listed equipment omits the JVM/application servers and lists Prometheus, which the search does not use.",
+      "field": "equipment",
+      "quote": "\"opentelemetry\", \"prometheus\"",
+      "severity": "minor",
+      "suggested_fix": "List the JVM application server slugs (e.g. Tomcat, JBoss/WildFly) that exist in the equipment taxonomy; drop prometheus unless a metrics variant is added."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`timechart ... avg(heap_pct) as heap_usage by host` produces one column per host value, so no `heap_usage` field exists afterwards and `where heap_usage > 85` returns nothing. Use `bin _time span=5m | stats avg(heap_pct) as heap_usage by _time, host | where heap_usage > 85`.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "In eval, unquoted `HeapMemoryUsage.used` is parsed with `.` as the concatenation operator; dotted field names must be single-quoted ('HeapMemoryUsage.used'). Also verify the add-on's actual flattened field names for the composite attribute, and guard against HeapMemoryUsage.max = -1 (undefined max).",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "Splunk Add-on for JMX documentation states all ingested events are sourcetype=jmx; `jmx:memory` only exists if a custom sourcetype is configured. The repository guide uses index=jvm while the SPL uses index=jmx. Verify both against the deployment.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0053-UC-8.2.1",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The intent (heap used/max per JVM, leak detection by rising post-GC floor) is right, but the SPL cannot return rows as written, the collection text cites a non-existent Splunkbase app instead of Splunk Add-on for JMX (2647), lists a Prometheus exporter the search cannot read, and the implementation contradicts itself on poll interval.",
+  "tier": "deep",
+  "uc_id": "UC-8.2.1",
+  "verdict": "incorrect"
+}

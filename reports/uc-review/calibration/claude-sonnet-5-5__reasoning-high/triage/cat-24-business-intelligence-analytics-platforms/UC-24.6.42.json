@@ -1,0 +1,86 @@
+{
+  "confidence": 0.7,
+  "content_sha256": "a30239603c3389410e179f03bbf730f821a4bfe25bccf0d75d8062481b560baf",
+  "file": "content/cat-24-business-intelligence-analytics-platforms/UC-24.6.42.json",
+  "findings": [
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The sentence gives two ingestion paths: HEC (push from SAS) and a Universal Forwarder. The detailedImplementation adds a third, a 'modular input' with a 300-900 second poll interval and vendor API rate limits, which does not apply to HEC. 'Splunkbase 617' is not in the cached catalog and is not a SAS add-on, so no real add-on is named.",
+      "field": "app",
+      "quote": "SAS Viya audit and job-execution logs via the SAS Logging service to HEC. — Universal Forwarder (Splunkbase 617)",
+      "severity": "major",
+      "suggested_fix": "Pick the actual path (for example SAS Viya log forwarding to a Splunk HEC token) and document the HEC token, index and sourcetype `sas:viya:audit`. Remove the Universal Forwarder, the modular input and the 617 reference unless they are verified."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL measures idle time as now minus the newest event it can see. With a 24-hour window no account can appear more than a day idle, so the `days_idle>60` filter returns nothing. The implementation says 'schedule monthly', a conflicting cadence. The generic text about throttling per entity, KPI tiles, on-call routing and 'joins/lookups enrich owner' does not match a monthly report with no joins.",
+      "field": "detailedImplementation",
+      "quote": "Schedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages.",
+      "severity": "major",
+      "suggested_fix": "Specify a lookback longer than the threshold (for example earliest=-180d) and a monthly schedule. State that accounts with no events in the lookback do not appear, and add a lookup of all provisioned accounts to find them."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "evidence_url": "https://documentation.sas.com/doc/en/sasadmincdc/default/calauditlog/titlepage.htm",
+      "explanation": "The idle-days logic is only valid if the audit feed records every kind of account activity, including sign-in and report viewing. SAS audit logs may cover only selected administrative and security events. `sas:viya:audit` and the `user` field are also not documented sourcetype or field names.",
+      "field": "dataSources",
+      "quote": "SAS Viya audit/job events (`sas:viya:audit`)",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the SAS Viya audit documentation for which activity types are logged and which attribute carries the user identity. State whether sign-in events are included and name the field that maps to `user`."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "overclaiming",
+      "explanation": "SAS Viya is typically licensed by capacity or site agreements rather than strictly per user account, so removing an idle account may not free any licence. The claim should be checked against the customer's SAS licence model.",
+      "field": "grandmaExplanation",
+      "quote": "so their licences can be freed",
+      "severity": "needs_verification",
+      "suggested_fix": "Check how SAS Viya is licensed. If it is not per user, reword to 'review and remove access that is no longer needed'."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "specificity",
+      "explanation": "No scenario describes real causes of a wrongly idle account, such as service or batch identities that only run scheduled jobs, users who are on long leave, seasonal analysts (for example quarter-end reporting), or accounts used only through an application that logs under a different identity.",
+      "field": "knownFalsePositives",
+      "quote": "Synthetic probe on `user`",
+      "severity": "minor",
+      "suggested_fix": "List these causes and suggest excluding service accounts and applying a longer threshold for seasonal users."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "clarity",
+      "explanation": "The text does not explain that the list contains only users with prior activity, how to treat accounts that never logged in, or what the owners should do with the result. It also does not mention the 60-day threshold.",
+      "field": "implementation",
+      "quote": "Ingest SAS Viya activity events; schedule monthly and route the idle-account list to identity/license owners.",
+      "severity": "minor",
+      "suggested_fix": "State the 60-day threshold, the lookback needed, and what review step the identity owner performs before disabling an account."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "Idle time is computed only from events inside the search window, so users who never appeared are missing and the result is valid only when the time range is longer than 60 days. No list of provisioned accounts is joined.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0090-UC-24.6.42",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 3,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The inactive-account idea is clear, but the text contradicts itself on how the data arrives (HEC versus Universal Forwarder versus polling) and on the lookback window. The generic boilerplate steps ignore how an idle-days search needs a long time range. Licence and audit-coverage claims are unverified.",
+  "tier": "triage",
+  "uc_id": "UC-24.6.42",
+  "verdict": "rewrite"
+}

@@ -1,0 +1,144 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "591f344c2f30ff5f096cb716c0e40daaf28f025e7e22b3e32a5afd6b5649845e",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.2.16.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/5380",
+      "explanation": "Splunkbase 5380 is 'Mattermost Alerts'. The Splunk Add-on for VMware is Splunkbase 3215. The same wrong ID appears in dataSources, detailedImplementation and references.",
+      "field": "app",
+      "quote": "Splunk Add-on for VMware ([Splunkbase 5380](https://splunkbase.splunk.com/app/5380))",
+      "severity": "blocker",
+      "suggested_fix": "Replace 5380 with 3215 (Splunk Add-on for VMware, splunk_TA_vmware) everywhere."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/5076",
+      "explanation": "Splunkbase 5076 is 'Fix hostnames on UFs'. The Nutanix Prism add-on in the catalogue is 'TA for Nutanix Prism' (TA-nutanix, 3103), with 'TA for Nutanix Prism Central' at 8349; no `Splunk_TA_nutanix` exists. The wrong ID repeats in dataSources, detailedImplementation and references.",
+      "field": "app",
+      "quote": "`Splunk_TA_nutanix` ([Splunkbase 5076](https://splunkbase.splunk.com/app/5076))",
+      "severity": "blocker",
+      "suggested_fix": "Cite TA for Nutanix Prism (3103) / Prism Central TA (8349) and use the sourcetypes those add-ons actually create, or state that Nutanix data comes from a custom poller."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/AddOns/released/VMW/Sourcetypes",
+      "explanation": "The Splunk Add-on for VMware writes vCenter events as `sourcetype=vmware:events` (index vmware-taskevent); `vmware:vc:event` is not one of its sourcetypes, so the DRS join will always be empty.",
+      "field": "dataSources",
+      "quote": "`sourcetype=vmware:vc:event` (Splunk Add-on for VMware, Splunkbase 5380) for DRS/anti-affinity and related placement events",
+      "severity": "blocker",
+      "suggested_fix": "Use `sourcetype=vmware:events` (and the add-on's default index `vmware-taskevent`) in dataSources and detailedImplementation."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "vSAN cluster state is normally exposed through the vSAN Management SDK (vmodl, e.g. VsanVcClusterHealthSystem / VsanObjectSystem), not a vSphere Automation REST path under /api/vcenter/vsan; this path and field list look guessed.",
+      "field": "dataSources",
+      "quote": "HEC from vSphere REST `GET /api/vcenter/vsan/cluster/{cluster}/runtime-info`: map response fields to `current_fault_tolerance`, `expected_fault_tolerance`, `policy_pftt`, `fault_domain_count`, `host_count`",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm the endpoint in the vSphere Automation API and vSAN Management API references; if absent, describe a pyVmomi/vSAN SDK or PowerCLI (Get-VsanFaultDomain, Get-VsanClusterConfiguration) poller and the fields it really returns."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "These alert names, the `nutanix:cluster:hosts` / `nutanix:cluster:alerts` sourcetypes and the `domain_awareness_level` {NODE, BLOCK, RACK} field are presented as facts but are not traceable to the Nutanix TA or Prism API reference.",
+      "field": "dataSources",
+      "quote": "`RackAwarenessNonCompliant` / `BlockAwarenessNonCompliant` alerts",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Prism v2/v4 cluster schema (fault tolerance domain fields) and the actual Nutanix alert titles/IDs for block/rack fault-tolerance violations, and the sourcetypes the chosen Nutanix TA emits."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "This is generation-prompt residue (an authoring requirement), and the twelve 'Long-form supplement (n)' paragraphs plus 'Boolean filters ... use uppercase AND' are padding that does not help implement the detection.",
+      "field": "detailedImplementation",
+      "quote": "The `inputlookup` subsearch is how we satisfy the requirement to use `inputlookup fault_domain_owner` explicitly",
+      "severity": "major",
+      "suggested_fix": "Remove the requirement wording, the uppercase-AND remarks and the numbered supplements; keep only the steps a reader needs."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "description states alert conditions that the spl never tests; the spl assigns severity from current_fault_tolerance=0, ft_drift, domain-awareness mismatch, PFTT breach and alert counts, and never filters rows.",
+      "field": "cross_field",
+      "quote": "alerting when `expected_ft_api` > 0, `vms_largest_fd` > 0, `fault_domain_count` > 0, or `host_count` > 0",
+      "severity": "major",
+      "suggested_fix": "Describe the real severity ladder (critical: FT=0 or no awareness where RACK/DC expected; high: FT below expected or awareness mismatch; medium: PFTT breach, Nutanix awareness alerts, DRS rule events; freeze demotion)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "Wrong Splunkbase IDs and a nonexistent sourcetype show the UC has not been validated by an SME against live data.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until the add-on, sourcetypes and API fields are confirmed."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "UPS SNMP data plays no part in this detection; equipment also lists pagerduty, servicenow, snmp and itsi, which are alert destinations rather than monitored equipment. securityDomain 'cloud' does not fit on-prem HCI topology either.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_ups\"",
+      "severity": "minor",
+      "suggested_fix": "Limit equipment/equipmentModels to vmware, nutanix, cisco hyperflex and azure stack hci platform models."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "The spl computes round(100*host_count/fault_domain_count), which is hosts-per-domain times 100, not a percentage of the cluster.",
+      "field": "detailedImplementation",
+      "quote": "else a rough percent proxy from `host_count` and `fault_domain_count`",
+      "severity": "minor",
+      "suggested_fix": "Describe it as hosts per fault domain, or compute 100/fault_domain_count for the share of the cluster in one domain."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/AddOns/released/VMW/Sourcetypes",
+      "field": "spl",
+      "issue": "The DRS join searches `sourcetype=\"vmware:vc:event\"`, which the Splunk Add-on for VMware does not produce (it uses `vmware:events`), so drs_violation_count is always 0.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/ConditionalFunctions",
+      "field": "spl",
+      "issue": "`cft=tonumber(coalesce(current_fault_tolerance, ..., \"0\"))` defaults missing FT to 0, and the base search includes vmware:vsan:health, cisco:hyperflex:cluster and azure_stack_hci:cluster rows that carry no current_fault_tolerance; `latest(cft)` then often yields 0 and the first case branch marks the cluster critical. Default to null and take FT only from sourcetypes that carry it.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Sort",
+      "field": "spl",
+      "issue": "`sort 0 - severity_bucket` sorts strings in descending lexical order (ok, medium, low, high, critical), so critical rows sort last; there is also no `where` filter, so ok clusters are returned and any results-based alert trigger fires every run.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The comment macro text ('uppercase AND in combined predicates') is authoring residue.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0050-UC-19.2.16",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The concept (configured fault-domain posture versus policy, before a failure) is well explained, but the add-on IDs and the vCenter event sourcetype are wrong, several vendor API paths look invented, and the SPL defaults missing fault-tolerance fields to 0, which makes most rows critical.",
+  "tier": "deep",
+  "uc_id": "UC-19.2.16",
+  "verdict": "incorrect"
+}

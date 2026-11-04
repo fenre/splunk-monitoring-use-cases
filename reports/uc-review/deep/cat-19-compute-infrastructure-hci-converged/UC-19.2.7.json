@@ -1,0 +1,121 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "e46cb5d725204fca2cc7053f0c5f3865fdaa93c590b4fa344e59cb706925204d",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.2.7.json",
+  "findings": [
+    {
+      "confidence": 0.97,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/api/v1/app/5076/",
+      "explanation": "Splunkbase 5076 is 'Fix hostnames on UFs' (rectify_hostname). Nutanix's add-ons are 'TA for Nutanix Prism' (TA-nutanix, 3103) and 'TA for Nutanix Prism Central' (TA-nutanix-PC, 8349); no Splunk_TA_nutanix folder exists. The same ID is repeated in exclusions, evidence, dataSources, detailedImplementation and references.",
+      "field": "app",
+      "quote": "Install the add-on folder `Splunk_TA_nutanix` ([Splunkbase 5076](https://splunkbase.splunk.com/app/5076))",
+      "severity": "blocker",
+      "suggested_fix": "Cite TA for Nutanix Prism (Splunkbase 3103) and its real folder name TA-nutanix. Then confirm from that add-on's inputs and props whether it emits per-CVM service status at all, and under which sourcetype."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://hyperhci.com/what-is-nutanix-degraded-node-forwarding-state/",
+      "explanation": "Nutanix puts Cassandra in forwarding mode on a degraded node or a node being detached from the metadata ring. Prism raises 'Cassandra on CVM <ip> is running in forwarding mode' as an alert. Treating it as healthy suppresses exactly the CVM condition this UC should catch.",
+      "field": "detailedImplementation",
+      "quote": "A second line for the same CVM at the same poll might show `service_name=Cassandra` with `service_status=kForwarding`, which the alert treats as healthy for Cassandra only.",
+      "severity": "blocker",
+      "suggested_fix": "Treat Cassandra forwarding as at least high severity (degraded node / metadata ring detach), and say so in dataSources and Step 3(5). Cross-check with the NCC degraded_node_check and cassandra_status_check."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "overclaiming",
+      "explanation": "The UC states as fact that the Nutanix add-on emits nutanix:cluster:services_status with these fields, and the exclusions say 'nutanix:cvm' is fiction, yet the add-on itself is misidentified. Prism REST has no documented per-CVM Genesis service-status endpoint; `cluster status` / `genesis status` is a CLI output.",
+      "field": "dataSources",
+      "quote": "with sourcetype `nutanix:cluster:services_status`: one row per `(cluster_name, cvm_ip, service_name)` with `service_status` in {`UP`, `DOWN`, `NA`, `kStarting`, `kStopping`, `kForwarding`}",
+      "severity": "needs_verification",
+      "suggested_fix": "Check TA-nutanix (3103) default/inputs.conf and props.conf for a services-status input. If there is none, document a custom SSH or `cluster status` scripted collector with a customer-owned sourcetype, and soften the 'real feed' language in exclusions and evidence."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "Per-service up/down state of a storage controller VM is not inventory data. No cimSpl uses the Inventory model, and nothing maps services_status fields to Inventory datasets.",
+      "field": "cimModels",
+      "quote": "\"cimModels\": [\n    \"Inventory\"\n  ]",
+      "severity": "major",
+      "suggested_fix": "Set cimModels to [] (no CIM model fits per-CVM service liveness), or justify a specific dataset and field mapping."
+    },
+    {
+      "confidence": 0.95,
+      "dimension": "consistency",
+      "explanation": "description, controlTest and knownFalsePositives all name an index called 'if'. It was parsed from the comment text 'Replace index= if your deployment differs', while the SPL and dataSources use (index=hci OR index=nutanix).",
+      "field": "cross_field",
+      "quote": "using `index=if` sourcetype `nutanix:cluster:services_status`",
+      "severity": "major",
+      "suggested_fix": "Use `(index=hci OR index=nutanix)` in description, controlTest and knownFalsePositives."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "These are template filler, not real CVM false-positive causes.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `cluster_name`, `cvm_ip`, `skey`, `]`** — Health checks in `if` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List real causes. Rolling AOS/LCM upgrades that restart services node by node without host maintenance mode set. kStarting/kStopping during a planned CVM reboot. Acropolis 'NA' on ESXi or Hyper-V clusters. Collector lag that leaves a stale DOWN as the latest status."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "Exclusions should say what the UC does not detect. This sentence is an authoring note about a rejected sourcetype.",
+      "field": "exclusions",
+      "quote": "Not covered here: the template-style sourcetype string `nutanix:cvm` is not something `Splunk_TA_nutanix` from Splunkbase 5076 publishes",
+      "severity": "minor",
+      "suggested_fix": "Remove the sourcetype note from exclusions. Keep only the scope boundaries (UC-19.2.25 cluster score, UC-19.2.14 CVM resources, UC-19.2.12 Prism Central)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "Apache Cassandra, Microsoft 365, SNMP and snmp_ups are not monitored here. Nutanix's internal Cassandra service is not the Apache Cassandra equipment family.",
+      "field": "equipment",
+      "quote": "\"cassandra\",\n    \"m365\"",
+      "severity": "minor",
+      "suggested_fix": "Keep only nutanix and the Prism equipmentModels."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "A wrong Splunkbase ID, an unverified sourcetype and the Cassandra misclassification show the UC was not SME-verified against a live Nutanix estate.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until the collector and state semantics have been confirmed."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://hyperhci.com/what-is-nutanix-degraded-node-forwarding-state/",
+      "field": "spl",
+      "issue": "bad_cas excludes 'kforwarding', so a Cassandra service in forwarding mode (Nutanix's degraded-node / ring-detach state) never raises a row.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "sevord=case(cvm_severity=\"critical\",3, cvm_severity=\"high\",2, 1, 1) uses the bare literal 1 as a condition, where the catalogue elsewhere uses 1=1 or true(). It may fail type-checking. Also, the u and l evals before the first stats are wasted, because they are recomputed after it.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0076-UC-19.2.7",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 5,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The per-CVM Stargate/Cassandra/Genesis design is coherent and the validation steps are practical. But the add-on is cited by an unrelated Splunkbase ID and a name that does not exist, and the UC asserts unverified sourcetypes as fact. Worse, it treats Cassandra 'kForwarding' as healthy, when forwarding mode is Nutanix's degraded-node state.",
+  "tier": "deep",
+  "uc_id": "UC-19.2.7",
+  "verdict": "incorrect"
+}

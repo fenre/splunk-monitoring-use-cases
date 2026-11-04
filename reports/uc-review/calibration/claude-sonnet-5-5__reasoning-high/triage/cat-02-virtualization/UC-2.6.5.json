@@ -1,0 +1,94 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "fc6a3fdf20f01546bc10547d61a17a0ff5925f3f584098de9f19d57417263c1e",
+  "file": "content/cat-02-virtualization/UC-2.6.5.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "False positives are Linux boilerplate (apt/yum, cron backups, Nagios load probes) applied to a Windows service-state detection; none names a real cause of a spurious Citrix service-stopped alert such as planned maintenance, service restarts after patching, or a Broker restart during a controlled failover.",
+      "field": "knownFalsePositives",
+      "quote": "Correlate with apt/yum logs in the same `WinEventLog:System` window.",
+      "severity": "major",
+      "suggested_fix": "Replace with real causes: Windows patch/reboot window, planned controller maintenance or upgrade, scheduled service restarts, and a service stopped intentionally by an administrator. Name the suppression key as host plus service_name."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "Evidence and exclusions refer to a `linux_` saved-search name, a Linux panel and `linux_capacity_exceptions.csv` for a Windows-hosted Citrix controller; the 'capacity exceptions' lookup is unrelated to service availability.",
+      "field": "evidence",
+      "quote": "SOC dashboard panel \"Linux — Citrix Delivery Controller Service Health\"",
+      "severity": "major",
+      "suggested_fix": "Name the real saved search and a Citrix/Windows-specific exceptions lookup (host, service_name, valid_until), and describe evidence a Citrix admin would keep, such as the stopped-service event and the service recovery action."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "Splunk_TA_windows does not obviously extract `service_name` or `service_state` from WinEventLog:System 7036 events (the service name and state are in the `Message` text), and the SPL parses state from `Message` rather than using `service_state`. Check whether these fields exist in the add-on field extractions.",
+      "field": "dataSources",
+      "quote": "fields `EventCode`, `service_name`, `service_state`, `host`",
+      "severity": "needs_verification",
+      "suggested_fix": "Verify the fields against a real 7036 event and Splunk_TA_windows props/transforms; if absent, document how service_name is extracted from Message or rewrite the data source list to the fields actually used."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "Event 7036 reports the service display name, which is written with spaces for the other services in the same list; `CitrixMachineCreationService` looks like the short service name, so the clause may never match. `Citrix Storefront*` also describes StoreFront, which is not a Delivery Controller service.",
+      "field": "cross_field",
+      "quote": "service_name=\"CitrixMachineCreationService\"",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the display names in services.msc on a controller (for example 'Citrix Machine Creation Service') and decide whether StoreFront belongs in a Delivery Controller UC; align SPL, description and implementation."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The implementation tells the reader to monitor event IDs 7031 and 7034 and to escalate when the Broker Service stops on all controllers, but the SPL only searches EventCode=7036 and has no cross-controller aggregation.",
+      "field": "cross_field",
+      "quote": "Also monitor Event IDs 7031 (service crash) and 7034 (unexpected termination).",
+      "severity": "major",
+      "suggested_fix": "Either extend the SPL to include 7031/7034 and a controller-count escalation, or drop these claims from implementation and detailedImplementation."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "Windows event logs are collected by a Universal Forwarder WinEventLog input (as the first paragraph says), not a modular input or HEC token; the second copy of Steps 1-5 is generic boilerplate (API rate limits, vendor endpoint 401/429) that does not apply to this data source.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=WinEventLog:System into xd_winevents.",
+      "severity": "major",
+      "suggested_fix": "Remove the duplicated generic steps and describe the `[WinEventLog://System]` input in inputs.conf with index=xd_winevents."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "grandma_fidelity",
+      "explanation": "Title words pasted into a sentence with odd capitalisation; it never says that the programs which hand out Citrix desktops have stopped running.",
+      "field": "grandmaExplanation",
+      "quote": "We keep an eye on delivery Controller Service Health and raise the alarm",
+      "severity": "major",
+      "suggested_fix": "Say in plain words that the servers that connect people to their virtual desktops are watched and that an alarm rings if their key programs stop."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`eval status=if(match(Message, \"running\"), \"Running\", \"Stopped\")` treats every non-'running' message (for example paused or pending states) as Stopped, and `service_name` is not a verified extracted field.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0002-UC-2.6.5",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 2,
+    "overclaiming": 4,
+    "specificity": 2
+  },
+  "summary": "The SPL and the implementation paragraph are sensible for Citrix Delivery Controller service stops, but the surrounding prose is generic template text carrying Linux wording and Linux false positives. Several fields named in the data sources, the service name list and the 7031/7034 advice are not reflected in or verified against the SPL.",
+  "tier": "triage",
+  "uc_id": "UC-2.6.5",
+  "verdict": "rewrite"
+}

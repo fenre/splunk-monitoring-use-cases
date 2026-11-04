@@ -1,0 +1,92 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "fb5984ca6c0e2b2cc7621d3c17b847aa06f5d0e6ccac5f272e01950b8d396f07",
+  "file": "content/cat-06-storage-backup/UC-6.3.24.json",
+  "findings": [
+    {
+      "dimension": "grandma_fidelity",
+      "explanation": "The UC is about tape library slots filling up and tape cartridges reaching expiry. Snapshots do not exist on a tape library, and the explanation never mentions tapes or expiring media.",
+      "field": "grandmaExplanation",
+      "quote": "We watch how full your storage is getting and give you time to add space or clean up snapshots and old data before an application or job suddenly stops working.",
+      "severity": "major",
+      "suggested_fix": "Explain that a tape library has a fixed number of slots for tape cartridges. We warn you when it is nearly full, or when tapes are about to expire, so backups do not fail for lack of a place to write."
+    },
+    {
+      "dimension": "consistency",
+      "explanation": "The example stanza contradicts the UC. The SPL reads `index=backup sourcetype=\"tape_library:capacity\"`, and the same text says to poll every 1–4 hours, not every 300 seconds. A reader who copies this stanza gets data the search never finds.",
+      "field": "detailedImplementation",
+      "quote": "[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main",
+      "severity": "major",
+      "suggested_fix": "Use `index = backup`, `sourcetype = tape_library:capacity` and an `interval` of 3600–14400 seconds. Show an example output line with `library_name`, `slots_used`, `total_slots` and (per cartridge) `media_expiration_days`."
+    },
+    {
+      "dimension": "consistency",
+      "explanation": "`implementation` and the SPL depend on `media_expiration_days`, but `dataSources` lists only the tape library management interface (SNMP/API). Library slot and element inventory reports occupancy and barcodes. Retention or expiry dates belong to the backup application's media catalog, which is not named.",
+      "field": "cross_field",
+      "quote": "Collect total_slots, slots_used, and optionally media expiration dates.",
+      "severity": "major",
+      "suggested_fix": "Add the backup application's media inventory (for example, the NetBackup or Veeam tape media list joined on barcode) to `dataSources`, or drop the expiry clause. Confirm with the vendor which source exposes expiry for the deployed product."
+    },
+    {
+      "dimension": "specificity",
+      "explanation": "The Windows add-on plays no part in polling a tape library through SNMP or a vendor API. The references cite no tape-library MIB or vendor documentation.",
+      "field": "references",
+      "quote": "\"title\": \"Splunk Add-on for Microsoft Windows\", \"url\": \"https://splunkbase.splunk.com/app/742\"",
+      "severity": "major",
+      "suggested_fix": "Replace it with the tape library vendor's SNMP MIB or management API reference for slot and element status, and with the Splunk SNMP or scripted-input documentation used for collection."
+    },
+    {
+      "dimension": "specificity",
+      "explanation": "The SPL has no `span=1h`, and none of the scenarios names a real tape cause. Real causes include cleaning cartridges or import/export (mail) slots counted as used, logical library partitions sharing a frame, and bulk tape vaulting or offsite rotation.",
+      "field": "knownFalsePositives",
+      "quote": "Planned work for 'Tape Library Slot Utilization' shifts `expiring_soon` over `span=1h`",
+      "severity": "major",
+      "suggested_fix": "List tape-specific false positives: cleaning tapes and mailslot elements counted in `slots_used`, partitioned libraries reporting per partition, and planned offsite rotation creating a temporary expiry spike."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "CIM `Performance.Storage` models filesystem and volume space (`storage_used_percent`). Tape slot occupancy is not a byte-capacity metric, so aliasing slots to that field is a loose fit and drops the media-expiry signal.",
+      "field": "cimModels",
+      "quote": "\"cimModels\": [\"Performance\"]",
+      "severity": "minor",
+      "suggested_fix": "Leave `cimModels` empty and state that the UC is a raw-sourcetype search, or explicitly document that slot percentage is aliased to `storage_used_percent` as an approximation."
+    },
+    {
+      "dimension": "consistency",
+      "explanation": "The implementation polls slot counts with SNMP GET or a vendor API on a schedule. It does not use SNMP traps.",
+      "field": "equipmentModels",
+      "quote": "\"equipmentModels\": [\"snmp_trap\"]",
+      "severity": "minor",
+      "suggested_fix": "Use an SNMP polling equipment model, or name the tape library vendor if a matching slug exists."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "cimSpl",
+      "issue": "The `cimSpl` threshold `used_pct > 80` disagrees with the primary SPL and the prose (85%), and the CIM variant drops the media-expiry condition entirely.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`sum(media_expiring_30d)` across the whole search window counts the same cartridge once per poll, so `expiring_soon` scales with polling frequency. Use `dc(barcode)` over cartridges with `media_expiration_days<=30` from the latest poll.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0045-UC-6.3.24",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The core idea is clear and the implementation prose matches the SPL thresholds (85% slots, media expiring within 30 days). Several fields contradict each other, though: the generic scripted-input stanza, an irrelevant Windows add-on reference, and a plain-language explanation about disk snapshots. The UC also does not say that media expiration comes from the backup application, not the tape library.",
+  "tier": "deep",
+  "uc_id": "UC-6.3.24",
+  "verdict": "rewrite"
+}

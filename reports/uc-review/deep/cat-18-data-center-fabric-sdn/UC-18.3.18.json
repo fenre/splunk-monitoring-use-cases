@@ -1,0 +1,203 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "e0f8850e404c43415e8d4bdde6528aedbf8fd5c3d5f3bbebd2cd29a1799a25a2",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.3.18.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase 2846 is the Fortinet FortiGate Add-On for Splunk (Splunk_TA_fortinet_fortigate), not a Cisco IOS/NX-OS add-on. The same wrong ID appears again in implementation and detailedImplementation.",
+      "field": "app",
+      "quote": "**Splunk Add-on for Cisco IOS/NX-OS** ([Splunkbase **2846**](https://splunkbase.splunk.com/app/2846))",
+      "severity": "blocker",
+      "suggested_fix": "Replace it with the Cisco add-on the guide actually documents for NX-OS syslog/NX-API, after confirming that add-on's Splunkbase ID, and fix the ID everywhere it appears."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase 1918 is 'Arista Networks Telemetry For Splunk', an app published by aristanetworks. It is not a Splunk-supported 'Add-on for Arista EOS', and nothing shows it parses an `arista:eos:bgp_evpn` sourcetype.",
+      "field": "app",
+      "quote": "**Splunk Add-on for Arista EOS** ([Splunkbase 1918](https://splunkbase.splunk.com/app/1918))",
+      "severity": "major",
+      "suggested_fix": "Use the real listing name ('Arista Networks Telemetry For Splunk'), or point to the community Arista add-on the guide mentions, and state which sourcetypes it really produces."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/NetworkTraffic",
+      "explanation": "Network_Traffic models flow and session records (src, dest, bytes, packets, action). BGP UPDATE withdrawals are control-plane events, and nothing in this search fills Network_Traffic fields. The schema text even admits these are 'routing-performance proxies'.",
+      "field": "cimModels",
+      "quote": "\"Network_Traffic\",",
+      "severity": "blocker",
+      "suggested_fix": "Drop Network_Traffic. Leave cimModels empty, or keep only Alerts and say it applies only once alert actions write to it."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Knowledge/Addaliasestofields",
+      "explanation": "FIELDALIAS only renames a field. It cannot compute minute-over-minute deltas. If `wdr_recv_count` is a cumulative counter, as the text implies, aliasing it into `wdr_count` makes the SPL sum the running totals, so withdrawn_volume grows huge and storms fire falsely.",
+      "field": "implementation",
+      "quote": "with **`FIELDALIAS`** mapping **`wdr_recv_count`** deltas into **`wdr_count`**",
+      "severity": "major",
+      "suggested_fix": "Compute deltas in the collector, or in SPL with streamstats/delta per peer_ip before summing. Describe FIELDALIAS as a rename only."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "BGP-5-ADJCHANGE is a real NX-OS mnemonic, but no NX-OS documentation was found for WITHDRAW, WITHDRAW_BATCH or RT_FILTER_ERROR, and NX-OS does not log per-prefix withdrawals by default. The Arista (BGP-3-PREFIX-CHANGE) and Junos (RPD_PREFIX_THRESHOLD_EXCEEDED; Junos documents BGP_PREFIX_THRESH_EXCEEDED) names look equally doubtful.",
+      "field": "dataSources",
+      "quote": "**`BGP-5-WITHDRAW_BATCH`**, **`BGP-3-RT_FILTER_ERROR`**, **`BGP-5-WITHDRAW`**",
+      "severity": "needs_verification",
+      "suggested_fix": "Check each mnemonic against the Cisco NX-OS system message guide, the Arista EOS syslog reference and the Junos System Log Explorer. Remove any that do not exist."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "'ipv4-mvpn' is a different address family from l2vpn evpn, so that command looks invalid. The 'statistics' commands and the `wdr_recv_count`/`wdr_sent_count` fields were not confirmed for NX-OS, EOS or FRR. Junos uses `show route receive-protocol bgp <peer> table bgp.evpn.0`, not a 'received-routes' option.",
+      "field": "app",
+      "quote": "NX-OS **`show bgp l2vpn evpn statistics`**, **`show bgp l2vpn evpn ipv4-mvpn neighbor`** received-route summaries",
+      "severity": "needs_verification",
+      "suggested_fix": "Swap in documented commands for each vendor (for example NX-OS `show bgp l2vpn evpn neighbors <ip>` message counters, FRR `show bgp l2vpn evpn summary json`) and their real output field names."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/datacenter-fabric-sdn.md",
+      "explanation": "The guide lists `cisco:nexus:syslog`, `arista:eos:syslog` and `juniper:junos:syslog`. These per-protocol sourcetypes are not produced by any of the listed add-ons and are not in the guide.",
+      "field": "dataSources",
+      "quote": "**`sourcetype=cisco:nxos:bgp`** ... **`sourcetype=arista:eos:bgp_evpn`** ... **`sourcetype=juniper:junos:bgp`**",
+      "severity": "major",
+      "suggested_fix": "Use the guide's sourcetypes and filter BGP messages by mnemonic, or clearly label the BGP-specific sourcetypes as custom re-routed lanes and give their props/transforms."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "If the aggregator already folds syslog hits into `bgp:evpn:withdraw_event`, a search that reads both the aggregator and the raw syslog lanes counts the same withdrawals twice.",
+      "field": "detailedImplementation",
+      "quote": "Fuse scripted deltas plus syslog hits into `bgp:evpn:withdraw_event` so `storm_flag` SPL consumes unified `withdrawn_volume` math irrespective of ingestion lane",
+      "severity": "major",
+      "suggested_fix": "Either search only the fused aggregator lane, or keep the raw lanes and drop syslog from the aggregator. Say which one is authoritative."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "The SPL never reads route_target_changed, firmware_upgrade_window, gr_helper_marker_walkthrough or any suppression lookup. These suppressions are described as if they already exist.",
+      "field": "detailedImplementation",
+      "quote": "Feed **`mso_route_target_changeover`** **`CHANGE`** identifiers through **`route_target_changed`** booleans preventing **`type5_storm`** escalations",
+      "severity": "major",
+      "suggested_fix": "Add the lookup/where clauses to the search, or reword these lines as optional extensions that are not implemented."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats",
+      "explanation": "ecmp_shrink_pct is always null for a different reason: `stats` drops ecmp_paths_before/after (and event_time) because they are neither aggregated nor BY fields. So the troubleshooting tip, the gauge panel and the 'ECMP set shrinkage' cues can never work, whatever the collector sends.",
+      "field": "detailedImplementation",
+      "quote": "• **`ecmp_shrink_pct` always null** — collectors omit **`ecmp_paths_before`** fields",
+      "severity": "major",
+      "suggested_fix": "Explain that the fields must be carried through stats (for example latest(ecmp_paths_before)). Otherwise remove the ECMP gauge and the troubleshooting tip."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "The implementation field calls `evpn_withdraw_velocity_core` a macro, the evidence field names the saved search `operations_bgp_evpn_route_withdrawal_rate_and_flap_storms`, and the unbalanced ** markup wraps text up to '`VTEP`**'. Other lines are word salad, such as 'join splunk_server lookups referencing cisco:ndi:*' and 'unrelated materially toward faults elsewhere noted faithfully'.",
+      "field": "detailedImplementation",
+      "quote": "Install saved search `evpn_withdraw_velocity_core` referencing the fenced SPL below with five-minute cron **`*/5` plus",
+      "severity": "minor",
+      "suggested_fix": "Use one saved-search name and one macro name, fix the bold markup, and describe the NDI correlation as a concrete time-window join or append."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "Splunk alert throttling suppresses by field values for a fixed period. It has no 'unless the value doubles' bypass.",
+      "field": "detailedImplementation",
+      "quote": "Throttle paging `peer_ip` plus `route_bucket` pairs for `30` minutes unless `withdrawn_volume` doubles",
+      "severity": "minor",
+      "suggested_fix": "Describe plain per-field throttling, or put the doubling logic in the SPL (for example compare against the last alerted value from a lookup)."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "The 'Cisco Nexus 9000 Series NX-OS BGP EVPN Configuration Guide' entry links to the Cisco home page, not to the guide.",
+      "field": "references",
+      "quote": "\"url\": \"https://www.cisco.com/c/en/us/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the actual Nexus 9000 VXLAN BGP EVPN configuration guide URL."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "grandma_fidelity",
+      "explanation": "This implies the UC catches problems before cabling faults appear, which is not what it does. It counts bursts of routes being withdrawn, which can come from cables, but also from configuration changes or failing switches.",
+      "field": "grandmaExplanation",
+      "quote": "so sharply that everyday programs stumble without warning long before anyone notices a loose cable or a flaky plug",
+      "severity": "minor",
+      "suggested_fix": "For example: 'We watch for moments when the network's switches suddenly forget large numbers of routes at once, which usually means something in the fabric is breaking and applications may lose their connections.'"
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The UC is about NX-OS, EOS, Junos and SONiC EVPN fabrics. Classic IOS does not take part, while Arista/Juniper models are missing.",
+      "field": "equipmentModels",
+      "quote": "\"cisco_ios\",",
+      "severity": "minor",
+      "suggested_fix": "Drop cisco_ios. Add model slugs for the platforms named in hardware if they exist in the equipment taxonomy."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "With a wrong add-on ID, unconfirmed mnemonics and SPL fields that are always null, this UC has not been checked against a working deployment.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "minor",
+      "suggested_fix": "Downgrade the status until the add-ons, mnemonics and SPL are confirmed against a live fabric."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats",
+      "field": "spl",
+      "issue": "Bursts with no history never alert. streamstats includes the current row by default (current=t), and rows exist only for minutes that had withdrawals. A peer/route_bucket with no earlier withdrawal rows in the 4h window gets baseline_avg = withdrawn_volume, so `withdrawn_volume > baseline_avg*3` is false. Both type2_velocity_burst and type2_sigma_burst then fail, even for a first-seen storm of tens of thousands of Type-2 withdrawals. Because zero minutes are missing, the baseline also averages the last 30 non-zero minutes rather than 30 minutes.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats",
+      "field": "spl",
+      "issue": "ecmp_paths_before, ecmp_paths_after and event_time are referenced after `stats`, but stats keeps only aggregates and BY fields. ecmp_shrink_pct is therefore always null and the event_time column is always empty.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "withdraw_hit matches the bare words 'withdraw|withdrawn' in _raw. Polled JSON snapshots that merely contain a `withdrawn` key with value 0 still pass, and with wdr_count=0 each one adds vol=1, so every poll inflates the withdrawal counts.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The production SPL has a trailing comma before BY (`values(prefix) AS sample_prefix,` then `BY`) and a blank line, and it omits route_family_mix, so it differs from the detailedImplementation copy. Confirm the stats clause parses. Also, dc(route_bucket) BY route_bucket in the copy is always 1.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "title",
+      "issue": "'Flap Storms' suggests BGP session flapping, but the search ignores session state (BGP-5-ADJCHANGE / RPD_BGP_NEIGHBOR_STATE_CHANGED events carry no 'withdraw' text and are filtered out). It measures only withdrawal volume.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0048-UC-18.3.18",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 3,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The idea of tracking EVPN withdrawal velocity per route type is sound, but the add-on list is wrong (2846 is the FortiGate add-on), the CIM mapping does not fit, and the implementation promises ECMP shrinkage, suppression and route-target handling that the SPL never delivers. Several vendor syslog mnemonics and CLI commands look invented.",
+  "tier": "deep",
+  "uc_id": "UC-18.3.18",
+  "verdict": "incorrect"
+}

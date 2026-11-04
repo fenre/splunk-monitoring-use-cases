@@ -1,0 +1,137 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "501b4d4fac0814c2501689d825bdd5d5aac0dfc714273b575e10300f5103f57a",
+  "file": "content/cat-03-containers-orchestration/UC-3.3.25.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "consistency",
+      "explanation": "The description and controlTest pair index=ocp_inventory with sourcetype kube:apiserver:audit. In the SPL, ocp_inventory carries only ocp_clusterresourcequota_snapshot and ocp_acrq_snapshot, and audit lives in ocp_audit/k8s_audit. The listed 'thresholds' (`total_hard_cpu_m` > 0 twice, `crq_status_used_cpu_m` > 0) are guard clauses, not the alert conditions. The real conditions are cpu_headroom_pct<=5, dom_ns_burn_pct>=50, denial_rate>=3/10, selector_gap, overlap_ns and unticketed audit changes.",
+      "field": "cross_field",
+      "quote": "on `index=ocp_inventory` sourcetype `kube:apiserver:audit`",
+      "severity": "major",
+      "suggested_fix": "Describe the four lanes with their real index and sourcetype pairs, and state the actual severity conditions from the case() block."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "Apart from the deterministic hits, the entries are generic and partly nonsensical: there is no `span=1h` in the SPL, a 'batch sum' does not elevate a name, and synthetic probes do not populate CRQ fields. The real false-positive sources are already listed in detailedImplementation's risk briefing.",
+      "field": "knownFalsePositives",
+      "quote": "Batch `sum` on `kube:apiserver:audit` — Scheduled automation elevates `crq_name` without crossing `crq_status_used_cpu_m` > 0",
+      "severity": "major",
+      "suggested_fix": "Replace with the concrete causes from the risk briefing: finance-approved quota raises missing from approved_quota_changes.csv, GitOps controllers rewriting CRQ objects (audit velocity from automation service accounts), intentional multi-CRQ overlap during phased migrations, pentest quota exhaustion, duplicate HEC shipments doubling denial counts (dedupe on auditID or involvedObject uid), and snapshot jobs that read CRQ and ACRQ objects at different seconds and so produce acrq_delta_hint."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The visualization and detailedImplementation Case 5 ('headroom under five percent on CPU or memory') promise memory headroom detection. The SPL computes total_used_mem_ki and total_hard_mem_ki but never derives a memory headroom or uses them in severity, and it does not table them. Only CPU headroom, CPU burn and CPU saturation are detected.",
+      "field": "cross_field",
+      "quote": "headroom gauges for cpu and memory totals",
+      "severity": "major",
+      "suggested_fix": "Limit the visualization and Case 5 to CPU, or note that memory, pods and storage dimensions need an SPL change before they can alert."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.openshift.com/container-platform/latest/applications/quotas/quotas-setting-across-multiple-projects.html",
+      "explanation": "An AppliedClusterResourceQuota is a read-only, per-namespace mirror of the whole parent ClusterResourceQuota. Its status.total equals the parent's total. A per-namespace share exists only under status.namespaces[].status.used. The text never says which value acrq_used_cpu_millicores must hold. If an exporter writes the ACRQ status.total, dom_ns_burn_pct becomes plain CRQ utilisation and acrq_delta_hint is always 0. Also, oc get appliedclusterresourcequota returns nothing for unselected namespaces, so selector_gap rows can only come from an exporter that also emits non-member namespaces.",
+      "field": "dataSources",
+      "quote": "sourcetype=ocp_acrq_snapshot for oc get appliedclusterresourcequota exports per namespace with parent totals",
+      "severity": "major",
+      "suggested_fix": "Specify that acrq_used_cpu_millicores = status.namespaces[name==this namespace].status.used cpu (converted to millicores), and that crq_total_used_cpu_millicores = status.total.used cpu. Also state that the exporter must emit a row for every namespace whose expect_crq_membership is true, even when no ACRQ exists."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "The Splunkbase catalogue lists no 'Splunk Add-on for Kubernetes' or Splunk_TA_kubernetes. Its Kubernetes and OpenShift entries are Splunk OpenTelemetry Collector for Kubernetes (6264), App For Kubernetes (8560) and the Outcold Monitoring Kubernetes/OpenShift apps (3743/3836). 'Splunk OpenShift Monitoring Add-on patterns' is not a product.",
+      "field": "app",
+      "quote": "Splunk OpenShift Monitoring Add-on patterns; Splunk Add-on for Kubernetes (`Splunk_TA_kubernetes`)",
+      "severity": "blocker",
+      "suggested_fix": "Name Splunk OpenTelemetry Collector for Kubernetes (Splunkbase 6264, Helm chart with distribution=openshift) for events and audit, plus the custom oc-based exporter for CRQ and ACRQ snapshots. Remove the invented add-on names."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "As far as I know, the admission plugin is named quota.openshift.io/ClusterResourceQuota. In OCP 4.x the cluster-quota-reconciliation controller runs in cluster-policy-controller, not openshift-controller-manager, so the controller-log lane may be pointed at the wrong component.",
+      "field": "detailedImplementation",
+      "quote": "must stay aligned with the quotaclusterresources admission plugin",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the OpenShift admission plugin list and the openshift/cluster-policy-controller repository. Correct the plugin name and the controller component the log lane should forward."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "UPS SNMP hardware (and the equipment slug snmp) has nothing to do with OpenShift quota objects.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_ups\"",
+      "severity": "minor",
+      "suggested_fix": "Remove snmp_ups and the snmp equipment slug."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "explanation": "CRQ used-versus-hard totals are quota accounting, not host CPU load. The CIM Performance CPU dataset (cpu_load_percent) does not model them. Only Change fits the audit-mutation lane.",
+      "field": "cimModels",
+      "quote": "\"Performance\"",
+      "severity": "major",
+      "suggested_fix": "Keep Change for the quota.openshift.io audit lane and drop Performance. The headroom analytics are non-CIM."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by a generic repository handle, yet it has an SPL that will not execute and template-residue text, so it shows no sign of SME sign-off.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "minor",
+      "suggested_fix": "Set status to draft or community until an SME has run the search on a cluster."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/splunk-enterprise/spl-search-reference/9.4/search-commands/multisearch",
+      "field": "spl",
+      "issue": "The fourth multisearch branch (audit lane) contains `| join type=left max=0 cluster crq_name [| inputlookup approved_quota_changes.csv ...]`. multisearch allows only streaming commands in each subsearch, and join is not one, so the whole search fails with 'Multisearch subsearches may only contain purely streaming operations'. Move the approved_quota_changes join after fan-in, or use `| lookup` (streaming), or switch to union.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/search-commands/streamstats",
+      "field": "spl",
+      "issue": "`sort 0 cluster crq_name _time` followed by `streamstats time_window=...` breaks the documented requirement that events be sorted in ascending or descending _time order for time_window. The rows are time-ordered only within each cluster and crq_name group, so the burn windows (and denial_rate) are unreliable or may error. Sort on _time only, and keep the BY clause for grouping.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The coalesce ladders include unquoted dotted names such as `objectRef.apigroup`, `objectRef.resource` and `objectRef.name`. In eval, `.` is the concatenation operator, so these concatenate the fields objectRef and apigroup rather than reading the dotted field. They are harmless dead terms, but misleading.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "The events lane regex `exceeded quota: <name>` also matches namespace-scoped ResourceQuota denials, so crq_admission_denial rows will include plain ResourceQuota hits (UC-3.2.4 territory) unless names are filtered against the CRQ inventory.",
+      "severity": "minor"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/change",
+      "field": "cimSpl",
+      "issue": "The Change data model's root dataset is All_Changes, and its fields are All_Changes.action, All_Changes.object, All_Changes.user and All_Changes.dest. `WHERE nodename=Change` and the `Change.action`/`Change.dest` fields do not exist, so the search returns nothing. The Performance subsearch likewise uses the non-existent `Performance.host`/`nodename=Performance.CPU` (root All_Performance, child All_Performance.CPU). It also joins node hosts to Change.dest, which share no values.",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0089-UC-3.3.25",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The detailedImplementation explains the ClusterResourceQuota and AppliedClusterResourceQuota problem space well, but the short fields are template residue that pair the wrong index with the wrong sourcetype. The SPL cannot run because a join sits inside a multisearch branch, the cimSpl uses non-existent CIM dataset and field names, and the app field names an add-on that does not appear to exist.",
+  "tier": "deep",
+  "uc_id": "UC-3.3.25",
+  "verdict": "incorrect"
+}

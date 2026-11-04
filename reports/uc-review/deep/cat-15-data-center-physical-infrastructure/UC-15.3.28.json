@@ -1,0 +1,87 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "2451916f4bc3bfbdb400c1f81088b1d383d490e96d3e277e65f9a2a35fa6deeb",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.3.28.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "scripts/_meraki_field_manifests.json",
+      "evidence_url": "https://docs.ansible.com/ansible/latest/collections/cisco/meraki/organizations_firmware_upgrades_info_module.html",
+      "explanation": "getOrganizationFirmwareUpgrades returns top-level upgradeId, upgradeBatchId, network{id,name}, status, time, completedAt, productTypes, toVersion{shortName, firmware, ...} and fromVersion. It has no 'upgrade.' wrapper and no 'productType' field, and the repository's field manifest for meraki:firmwareupgrades agrees.",
+      "field": "implementation",
+      "quote": "includes upgrade.toVersion.shortName, upgrade.time, productType for each scheduled or completed upgrade.",
+      "severity": "blocker",
+      "suggested_fix": "Document the fields as toVersion.shortName, fromVersion.shortName, time, completedAt, status, productTypes and network.name. Note that upgrade records are per network and product type, not per camera serial."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "evidence_url": "https://documentation.meraki.com/Platform_Management/Dashboard_Administration/Operate_and_Maintain/How-Tos/Cisco_Meraki_Add-on_for_Splunk",
+      "explanation": "The add-on's Devices input defaults to a daily interval, but the SPL searches meraki:devices over earliest=-1h. The text never asks the reader to shorten the interval or widen the search window, so most scheduled runs will see no inventory events.",
+      "field": "implementation",
+      "quote": "Enable the Devices and Firmware Upgrades inputs in Splunk_TA_cisco_meraki.",
+      "severity": "major",
+      "suggested_fix": "State the Devices input interval (daily by default) and require a search window that covers at least one poll (for example earliest=-25h), or a shorter input interval."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "clarity",
+      "explanation": "An exact string comparison flags cameras that are newer than the target (for example on a beta train) as non-compliant. The lookup also needs to use the same string format as the `firmware` field (for example 'camera-4-18').",
+      "field": "implementation",
+      "quote": "Trigger a Splunk alert on every camera whose current_fw drifts from recommended_fw.",
+      "severity": "minor",
+      "suggested_fix": "Specify that target_firmware must use the Devices `firmware` string format, and say how to treat cameras ahead of the target."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://documentation.meraki.com/Platform_Management/Dashboard_Administration/Operate_and_Maintain/How-Tos/Cisco_Meraki_Add-on_for_Splunk",
+      "explanation": "The Meraki add-on is Splunkbase 5580 (Splunk_TA_cisco_meraki). splunkbase.splunk.com/app/5631 returns 404 and is not in the cached catalogue.",
+      "field": "references",
+      "quote": "Splunk Add-on for Cisco Meraki (Splunkbase 5631)",
+      "severity": "blocker",
+      "suggested_fix": "Remove the 5631 reference. Retitle the 5580 entry 'Cisco Meraki Add-on for Splunk'."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "A generic Cisco Security support index is irrelevant to MV firmware management.",
+      "field": "references",
+      "quote": "Cisco Security documentation",
+      "severity": "minor",
+      "suggested_fix": "Cite the Meraki firmware-upgrades API page and Meraki MV firmware release documentation instead."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.ansible.com/ansible/latest/collections/cisco/meraki/organizations_firmware_upgrades_info_module.html",
+      "field": "spl",
+      "issue": "The append subsearch uses `upgrade.toVersion.shortName`, `upgrade.time`, `productType` and `product`, none of which exist in meraki:firmwareupgrades. The real fields are toVersion.shortName, time and productTypes (see https://docs.ansible.com/ansible/latest/collections/cisco/meraki/organizations_firmware_upgrades_info_module.html and scripts/_meraki_field_manifests.json). The subsearch therefore returns no rows. It also groups by the same field it aggregates, and the appended rows have no serial or model.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "`latest(network.name)` on meraki:devices is always null: that sourcetype has only a flat networkId, per scripts/_meraki_field_manifests.json. `earliest=-1h` against a daily Devices input usually returns nothing. Join network names from meraki:organizationsnetworks and widen the window to at least 25h.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0066-UC-15.3.28",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 1,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The approach (Devices inventory compared against a customer-maintained target-firmware lookup, plus upgrade history) is sound and specific. However, the implementation documents Firmware Upgrades field names that the Meraki API does not return. The SPL's 1-hour window against a daily input and its non-existent network.name field mean it will usually return nothing useful.",
+  "tier": "deep",
+  "uc_id": "UC-15.3.28",
+  "verdict": "incorrect"
+}

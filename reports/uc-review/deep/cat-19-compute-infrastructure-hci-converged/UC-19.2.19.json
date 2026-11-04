@@ -1,0 +1,113 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "ce0440d359934962cac7f6183cd02530d11d0fa27614f76c40952fad421ff4ff",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.2.19.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/5076",
+      "explanation": "Splunkbase 5076 is 'Fix hostnames on UFs'; there is no Splunk-built 'Splunk Add-on for Nutanix'. The Nutanix add-on in the catalogue is 'TA for Nutanix Prism' (TA-nutanix, 3103), with a Prism Central variant at 8349. The wrong name/ID repeats in app, references and detailedImplementation (including the `splunk_ta_nutanix*.log` path).",
+      "field": "dataSources",
+      "quote": "Splunk_TA_nutanix (Splunk Add-on for Nutanix, Splunkbase 5076)",
+      "severity": "blocker",
+      "suggested_fix": "Cite TA for Nutanix Prism (3103) or the Prism Central TA (8349), and list the sourcetypes and log file names that add-on actually creates; otherwise describe the custom HEC poller as primary."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "In Prism v2.0 the host CPU/memory PPM counters are normally under `stats` (stats.hypervisor_cpu_usage_ppm), while `usage_stats` holds storage counters; v2 hosts carry `cluster_uuid` rather than a cluster name. The UC's field paths (usage_stats.hypervisor_cpu_usage_ppm, memory_size_bytes on VMs) need checking.",
+      "field": "dataSources",
+      "quote": "per-host physical and usage metrics from `GET /PrismGateway/services/rest/v2.0/hosts/`",
+      "severity": "needs_verification",
+      "suggested_fix": "Check one real v2.0 /hosts and /vms response and document the exact JSON paths (stats.*, memory_mb, host_uuid, cluster_uuid) the search depends on."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "description states alert conditions that are just non-zero data checks; the spl actually pages critical on failed N-1 memory headroom or commit-policy breach, high above 92% CPU/memory, warning above 78/82% or memory commit >1.0.",
+      "field": "cross_field",
+      "quote": "alert when `hcpu` > 0, `hmem` > 0, `nthr` > 0, or `ncor` > 0",
+      "severity": "major",
+      "suggested_fix": "State the real severity tiers and the N-1 rule (cluster spare memory must be at least the largest host's memory)."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Prism Element shows CPU and memory usage as percentages; PPM is the raw API unit.",
+      "field": "detailedImplementation",
+      "quote": "Under Hardware, Hosts, pick one node and read hypervisor memory and CPU PPM",
+      "severity": "minor",
+      "suggested_fix": "Say to compare the Prism percentage with vcpu_pct_used / mem_pct_used (PPM / 10,000)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "A nonexistent TA and unverified field paths show no SME validation against live Prism data.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until the search is run against a real AHV cluster."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "exclusions explicitly rule out Nutanix on Hyper-V, yet hyperv (and generic linux) are tagged as equipment.",
+      "field": "equipment",
+      "quote": "\"hyperv\"",
+      "severity": "minor",
+      "suggested_fix": "Keep nutanix / nutanix_prism_element (and AHV) only."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "Malformed Search Reference URL (the page is WhatsInThisManual); the Nutanix reference is the nutanix.dev home page rather than the v2.0 hosts/vms API reference.",
+      "field": "references",
+      "quote": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "severity": "minor",
+      "suggested_fix": "Fix the URL and link the Prism v2.0 hosts and vms API pages."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval",
+      "field": "spl",
+      "issue": "`coalesce(usage_stats.hypervisor_cpu_usage_ppm, ...)` is not quoted, so eval treats `.` as string concatenation of two non-existent fields instead of reading the dotted field; dotted names must be wrapped in single quotes ('usage_stats.hypervisor_cpu_usage_ppm').",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eventstats",
+      "field": "spl",
+      "issue": "`cluster_name=coalesce(cluster_name, clusterName, name)` on host events falls back to the host's own `name`; the eventstats N-1 rollup then runs per host, where spare memory can never cover the largest host's memory, so n1_mem_ok=0 and every such host is critical. n1_mem_ok also defaults to 0 (critical) whenever any input is null, and a cluster-wide N-1 failure is stamped critical on every host in the cluster.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "A vCPU overcommit above the default 4.0 is treated as critical alongside N-1 failure; overcommit is a planning threshold, and paging P1 on it will be noisy.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "`vm_count_vs_max = vm_count/(lproc*2)` has no defined meaning, and the comment macro carries tunables/authoring notes.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0053-UC-19.2.19",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 5,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The capacity and N-1 reasoning is explained well, but it rests on a nonexistent 'Splunk_TA_nutanix' at a wrong Splunkbase ID, and the SPL has field-reference and grouping bugs that would mark most hosts critical.",
+  "tier": "deep",
+  "uc_id": "UC-19.2.19",
+  "verdict": "incorrect"
+}

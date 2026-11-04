@@ -1,0 +1,120 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "3a4af6942266e7a67ead630cce51867d87162248d59dc558fcab22769b254206",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.3.7.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://learn.microsoft.com/en-us/windows-hardware/drivers/storage/msft-storagereliabilitycounter",
+      "explanation": "MSFT_StorageReliabilityCounter, the object Get-StorageReliabilityCounter returns, exposes Wear, Temperature, Read/WriteErrors*, PowerOnHours and latency maxima only. PercentageUsed, AvailableSpare, AvailableSpareThreshold, CriticalWarning and MediaErrors are NVMe SMART log fields that this cmdlet does not return, so the spare and critical-warning logic can never populate.",
+      "field": "dataSources",
+      "quote": "**`s2d:reliability`** (**`Get-PhysicalDisk | Get-StorageReliabilityCounter`** with **`Wear`**, **`PercentageUsed`**, **`AvailableSpare`**, **`AvailableSpareThreshold`**, **`CriticalWarning`**, **`MediaErrors`**, **`ReadErrorsUncorrected`**, **`WriteErrorsUncorrected`**)",
+      "severity": "blocker",
+      "suggested_fix": "List only the real properties (Wear, Temperature, TemperatureMax, ReadErrorsUncorrected, WriteErrorsUncorrected, ReadLatencyMax, WriteLatencyMax, FlushLatencyMax, PowerOnHours). If NVMe AvailableSpare/CriticalWarning are needed, name a vendor tool or the NVMe SMART log page as a separate collector."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://learn.microsoft.com/en-us/windows-hardware/drivers/storage/msft-storagereliabilitycounter",
+      "explanation": "The validation step tells operators to read fields that Get-StorageReliabilityCounter does not return. The documented wear indicator is Wear, a percentage where 100 means the estimated wear limit.",
+      "field": "detailedImplementation",
+      "quote": "focusing on PercentageUsed nearing OEM replacement guidance (often 80%) and decode CriticalWarning bits (AvailableSpare below threshold, temperature excursions, read-only transitions, volatile backup failures)",
+      "severity": "blocker",
+      "suggested_fix": "Validate against Wear and the uncorrected-error counters, and state the wear threshold in terms of Wear."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "No source is given for these meanings. In the System log, Disk event 153 is 'The IO operation at logical block address ... was retried', not 'disk not ready'. The Storport 153/504/100 and StorageSpaces-Driver 304/305/306/207 meanings look guessed.",
+      "field": "dataSources",
+      "quote": "**`WinEventLog:Microsoft-Windows-StorageSpaces-Driver/Operational`** records **304** cache-bound, **305** cache-unbound, **306** cache-rebind, **207** disk-marked-failed ... **`WinEventLog:Microsoft-Windows-Storage-Storport/Admin`** captures **153** reset-bus, **504** unit-attention, **100** disk-error ... **`WinEventLog:System`** supplements ... **153** disk-not-ready",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm each ID and its provider and channel from Event Viewer on an S2D node or from Microsoft's S2D troubleshooting docs, and correct the descriptions."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "Azure Stack HCI 23H2 reached general availability in early 2024, and the product has since been renamed Azure Local. The date as written is wrong.",
+      "field": "dataSources",
+      "quote": "**Azure Stack HCI 23H2** (GA April 2026)",
+      "severity": "minor",
+      "suggested_fix": "Drop the GA date, or cite the Microsoft release-information page and use the Azure Local name."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "Microsoft 365 is unrelated to on-premises S2D cache drives.",
+      "field": "equipment",
+      "quote": "\"m365\"",
+      "severity": "minor",
+      "suggested_fix": "Remove m365."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "explanation": "A sourcetype filter is not a macro. The text inherits the SPL's backtick misuse.",
+      "field": "description",
+      "quote": "SPL signature: macro `sourcetype=\"WinEventLog:System\"`.",
+      "severity": "minor",
+      "suggested_fix": "Describe the sources plainly: StorageSpaces-Driver, Storport and System event logs plus the scripted s2d:* JSON."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by an automated agent. Its SPL does not parse and its key fields do not exist.",
+      "field": "cross_field",
+      "quote": "\"status\": \"verified\" ... \"reviewer\": \"agent-handcraft-2026-04-29\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft until validated on a real S2D cluster."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Knowledge/Usesearchmacros",
+      "field": "spl",
+      "issue": "`sourcetype=\"WinEventLog:...\"` terms wrapped in backticks are parsed as macro invocations, and the search errors because no such macros exist. Remove the backticks.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/spl-search-reference/10.4.2604/search-commands/eval",
+      "field": "spl",
+      "issue": "system_disk, spare_warn, critical_warn_low, uncorrected_io, wear_gate, health_pf, pd_journal_bad and pf_txt are all assigned Boolean expressions with eval, which is not allowed. Wrap each in if(...,1,0) and test with =1 in the where clause.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-microsoft-windows/UpgradeLegacy/",
+      "field": "spl",
+      "issue": "The WinEventLog:<channel> sourcetype filters do not match on Splunk_TA_windows 5.0+, which uses sourcetype WinEventLog/XmlWinEventLog with the channel in source.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://learn.microsoft.com/en-us/windows-hardware/drivers/storage/msft-storagereliabilitycounter",
+      "field": "spl",
+      "issue": "wear_pct reads PercentageUsed first, and the spare/uncorrected logic uses AvailableSpare, AvailableSpareThreshold and MediaErrors, none of which Get-StorageReliabilityCounter returns. Key on Wear instead.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "spaces_drv and storport_hit match event IDs regardless of channel, so System-log events with IDs 100, 153, 207 or 304 from unrelated providers feed the posture. Scope each by source/channel.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0086-UC-19.3.7",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The UC's core wear and spare signals rely on properties Get-StorageReliabilityCounter does not expose: PercentageUsed, AvailableSpare, AvailableSpareThreshold, CriticalWarning and MediaErrors. The SPL also fails to parse, because it wraps sourcetypes in macro backticks and assigns Boolean results with eval. Several event-ID meanings are unconfirmed.",
+  "tier": "deep",
+  "uc_id": "UC-19.3.7",
+  "verdict": "incorrect"
+}

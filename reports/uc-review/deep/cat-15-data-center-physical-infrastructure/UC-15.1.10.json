@@ -1,0 +1,97 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "0b4fd7dc8102d9e9e4b55b2e475cdfd4a011c8485d7f6b8a8a96b426baee6416",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.1.10.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The description (and the controlTest positiveScenario with the same wording) lists three independent OR conditions. The SPL alerts on `runtime_min < 10 OR (runtime_min < 20 AND load_pct > 70)`, so load above 70% alone never fires. A tester following the controlTest with load_pct=80 and runtime_min=40 would expect an alert that the search never produces.",
+      "field": "cross_field",
+      "quote": "alert when `runtime_min` < 10, `runtime_min` < 20, or `load_pct` > 70",
+      "severity": "blocker",
+      "suggested_fix": "State the real rule in description and controlTest: alert when runtime is below 10 minutes, or below 20 minutes while output load is above 70%. Build the positive test case from that compound condition."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-connect-for-snmp/main/configuration/splunk-configuration/",
+      "explanation": "Splunk Connect for SNMP is a containerized collector (Docker Compose or microk8s) that sends over HEC. It is not installed on a Heavy Forwarder. By default it writes polled numeric values to the netmetrics metrics index as sc4snmp:metric, so it does not produce `index=power sourcetype=snmp:ups` events without explicit overrides.",
+      "field": "detailedImplementation",
+      "quote": "using Splunk Connect for SNMP (Splunkbase app ID 6266) or SNMP Modular Input (Splunkbase app ID 1537) on a Heavy Forwarder",
+      "severity": "blocker",
+      "suggested_fix": "Keep the Heavy Forwarder instructions for SNMP Modular Input (1537) only. For SC4SNMP, describe the container deployment, HEC token, a UPS-MIB polling profile, and the index and sourcetype overrides (or mstats against the metrics index) needed for this SPL to match."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "evidence_url": "https://www.rfc-editor.org/rfc/rfc1628",
+      "explanation": "load_pct is half of the high-load branch, but no MIB object is named. In UPS-MIB, load is upsOutputPercentLoad in upsOutputTable, which has one row per output line. On three-phase UPS units the reader must choose an aggregation (usually the maximum line) or load_pct will be ambiguous.",
+      "field": "dataSources",
+      "quote": "related load percentages (load_pct)",
+      "severity": "major",
+      "suggested_fix": "Name UPS-MIB upsOutputPercentLoad (1.3.6.1.2.1.33.1.4.4.1.5), or the vendor equivalent such as APC upsAdvOutputLoad. Say that multi-phase units need the highest per-line value mapped to load_pct."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The scenarios ('batch count', `src`, 'synthetic probe') do not apply to a polled runtime gauge. The benign causes that actually trip this search are missing: short IT load spikes that lower the runtime estimate, low estimates while batteries recharge after an outage or self-test, and estimate jumps after a runtime calibration.",
+      "field": "knownFalsePositives",
+      "quote": "Scheduled automation elevates `src` without crossing `runtime_min` < 10",
+      "severity": "major",
+      "suggested_fix": "List UPS-specific causes (load spikes, post-discharge recharge, runtime calibration, units in bypass or maintenance). Explain how to tell each from a real battery problem, for example by comparing load_pct and charge percentage trends, or the time since the last on-battery event."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "Neither collector sets its polling interval with a cron expression. SNMP Modular Input uses an interval in seconds, and SC4SNMP profiles use a frequency in seconds. Cron applies only to the saved-search schedule.",
+      "field": "detailedImplementation",
+      "quote": "poll UPS-MIB upsEstimatedMinutesRemaining every one to five minutes (cron such as */5 * * * *)",
+      "severity": "minor",
+      "suggested_fix": "Express the poll interval as seconds in the collector (for example 60–300). Keep cron only for the alert schedule."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "This is not the name of any add-on. It mixes a generic label with a MIB object name.",
+      "field": "app",
+      "quote": "SNMP TA (UPS-MIB upsEstimatedMinutesRemaining)",
+      "severity": "minor",
+      "suggested_fix": "Use 'SNMP Modular Input (Splunkbase 1537) or Splunk Connect for SNMP (Splunkbase 6266)'."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "The UC uses only polled runtime and load gauges. No trap source is described anywhere.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_trap\"",
+      "severity": "minor",
+      "suggested_fix": "Remove snmp_trap, or add trap-based on-battery or low-battery alarms to the data sources."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The search has no per-UPS aggregation (for example stats latest() by ups_name), so every breaching poll in the window becomes its own alert row. battery_status is displayed but never evaluated.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0002-UC-15.1.10",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 1,
+    "overclaiming": 4,
+    "specificity": 2
+  },
+  "summary": "The SPL is a sensible two-tier runtime check, but the prose and control test restate its logic wrongly, the load source is never named, and the collector guidance places Splunk Connect for SNMP on a Heavy Forwarder. False-positive text is generic rather than about UPS runtime estimates.",
+  "tier": "deep",
+  "uc_id": "UC-15.1.10",
+  "verdict": "incorrect"
+}

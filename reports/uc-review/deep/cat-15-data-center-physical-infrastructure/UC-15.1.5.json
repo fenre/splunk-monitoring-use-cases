@@ -1,0 +1,96 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "755d191700af9ae37518a5f2eb8691dfcd10263ad8aafb072550d90dcfc6f102",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.1.5.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The SPL is `timechart span=1h` of facility and IT kW plus a PUE ratio. It has no `entity` split, no threshold and no alert condition, so nothing pages. Calling it 'the canonical signal' overstates a trend report.",
+      "field": "description",
+      "quote": "Rolls up `facility`, `it_load` by `entity` across `1h` and pages when configured threshold. ... Operations operators treat UC-15.1.5 as the canonical signal.",
+      "severity": "major",
+      "suggested_fix": "Describe it as an hourly PUE trend: average total facility kW divided by average IT load kW per hour from `power:aggregate`, used for efficiency reporting rather than alerting (alerting on PUE drift is UC-15.1.15)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "This does not name the sourcetype (`power:aggregate`), the fields the SPL reads (`total_facility_kw`, `it_load_kw`), or the measurement boundary. Total facility power must come from the utility or main switchgear meter (including cooling and lighting). IT load comes from UPS output or PDU totals. The implementation's 'from PDU/UPS/BMS data' leaves the reader free to sum IT-side meters for both terms and get a meaningless PUE near 1.0.",
+      "field": "dataSources",
+      "quote": "Total facility power, IT load power Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+      "severity": "major",
+      "suggested_fix": "State that `index=power sourcetype=power:aggregate` events carry `total_facility_kw` (utility/main-switchgear or BMS facility meter) and `it_load_kw` (sum of UPS output or PDU input kW), and name how they are produced (BMS export, scripted aggregation, or a summary search)."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/datacenter-physical.md",
+      "explanation": "Sibling UC-15.1.15 uses the same `power:aggregate` sourcetype with the field `facility_kw`, and the subcategory guide uses `facility_total_kw`. This UC's dataSources text should state which field name is canonical so the two PUE UCs share one feed definition.",
+      "field": "cross_field",
+      "quote": "avg(total_facility_kw) as facility, avg(it_load_kw) as it_load",
+      "severity": "minor",
+      "suggested_fix": "Align the dataSources description with UC-15.1.15 and either document `total_facility_kw` as the canonical field or describe a FIELDALIAS."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "evidence_url": "https://www.iso.org/standard/63451.html",
+      "explanation": "PUE is defined as total facility energy divided by IT equipment energy over the reporting period. Averaging hourly ratios is not the same as an energy-weighted monthly or annual PUE, especially when load varies.",
+      "field": "visualization",
+      "quote": "Single value (monthly average PUE), Bar chart (PUE by month)",
+      "severity": "minor",
+      "suggested_fix": "Compute monthly PUE as sum(facility kWh) / sum(IT kWh) over the month rather than avg(pue), and note that the hourly values are interim power-based readings."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "`host, user, action` are security-template fields and unrelated to a PUE feed. 'Throttle per entity to avoid duplicate pages' also does not fit a timechart with no entity and no alert.",
+      "field": "detailedImplementation",
+      "quote": "Spot-check two known entities for field presence (`host, user, action`).",
+      "severity": "major",
+      "suggested_fix": "Spot-check that `total_facility_kw` and `it_load_kw` are present and non-zero in every hour, and drop the throttling advice or tie it to a real PUE threshold alert."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "clarity",
+      "explanation": "Two templates are concatenated: Steps 1–4 appear twice and one heading repeats four times. Generic content (HEC token ACLs, vendor API 401/429, tstats ±5% inventory count, 'PDU UI' validation) gives no PUE-specific guidance.",
+      "field": "detailedImplementation",
+      "quote": "Step 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize",
+      "severity": "major",
+      "suggested_fix": "Collapse to one sequence: define the measurement points, build the `power:aggregate` feed, run the hourly trend, validate against the BMS or utility-meter PUE for the same period, and publish monthly energy-weighted PUE."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "None of the scenarios is a real cause of a misleading PUE value, and the SPL does not group on `host`.",
+      "field": "knownFalsePositives",
+      "quote": "Synthetic probe on `host` — Health checks in `power` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List real distortions: meter or BMS polling gaps that leave `it_load_kw` null or zero (ratio spikes or nulls), hours where only one of the two meters reported, IT-load meters that miss non-UPS loads, and seasonal free-cooling swings that are real but not faults."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The timechart averages every `power:aggregate` event together with no site or facility split, so multi-site data mixes into one PUE. Hours with missing IT load produce null or extreme ratios. Consider `by site` and a guard such as `where it_load>0`.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0027-UC-15.1.5",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 1,
+    "overclaiming": 3,
+    "specificity": 1
+  },
+  "summary": "The SPL is a simple hourly PUE trend, but the prose describes a per-entity paging detection that does not exist. Data sources and implementation never say where total facility power and IT load are measured, and detailedImplementation is a duplicated generic template with security-domain field names.",
+  "tier": "deep",
+  "uc_id": "UC-15.1.5",
+  "verdict": "rewrite"
+}

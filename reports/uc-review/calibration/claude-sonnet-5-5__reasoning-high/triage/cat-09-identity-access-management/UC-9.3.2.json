@@ -1,0 +1,111 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "d0223c99885a741c302576209bcdca28488aba4ff297c9f551df019887e26087",
+  "file": "content/cat-09-identity-access-management/UC-9.3.2.json",
+  "findings": [
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "The repository identifies the Okta add-on as Splunkbase 6553 (Splunk Add-on for Okta Identity Cloud), which this UC's own references link to. Splunkbase 617 is not in the catalog. Okta System Log events are pulled by the add-on's API input on a Heavy Forwarder or input host, not by a Universal Forwarder.",
+      "field": "app",
+      "quote": "`Splunk_TA_okta`, custom correlation — Universal Forwarder (Splunkbase 617)",
+      "severity": "blocker",
+      "suggested_fix": "Name the Splunk Add-on for Okta Identity Cloud (Splunkbase 6553) with its okta_organization API input, and remove the 'Universal Forwarder (Splunkbase 617)' wording."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "description and controlTest say the thresholds are alternatives ('or'), but the SPL and implementation require both (`distance_km > 500 AND time_diff_hr < 2`). A reader testing with only one condition true would expect an alert and get none.",
+      "field": "cross_field",
+      "quote": "Threshold bundle: `distance_km` > 500, or `time_diff_hr` < 2",
+      "severity": "major",
+      "suggested_fix": "Say 'distance_km greater than 500 and time_diff_hr less than 2' in description and controlTest, including the negative scenario where only one condition holds."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "clarity",
+      "explanation": "The description names a `count` metric that the SPL never computes, and a phrase 'enrichment path' for what is the event filter. It never says that each row is a pair of consecutive session starts for the same user from two distant locations.",
+      "field": "description",
+      "quote": "aggregation grain: `actor.alternateId`; metrics: `count`. Enrichment path: eventType `user.session.start`.",
+      "severity": "major",
+      "suggested_fix": "Describe the row: a user's session start whose geolocated IP is more than 500 km from the previous session start less than two hours earlier. Drop the non-existent `count` metric."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "500 km in 2 hours is about 250 km/h, which is achievable by air or high-speed rail, so the threshold is not 'impossible'. The value text also says travel 'strongly indicates credential compromise', which this detection cannot support. VPN, mobile carrier and cloud-proxy IPs cause the same pattern.",
+      "field": "implementation",
+      "quote": "Alert when distance/time ratio is impossible (>500km in <2 hours).",
+      "severity": "major",
+      "suggested_fix": "Describe it as 'implausible travel' with a tunable threshold, and say matches are leads for review rather than proof of compromise."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "The SPL has no lookup or exclusion for VPN exit IPs or approved travel. The instruction cannot be followed without extra SPL.",
+      "field": "implementation",
+      "quote": "Whitelist VPN exit IPs and known travel patterns.",
+      "severity": "minor",
+      "suggested_fix": "Add the lookup or exclusion step to the documented SPL, or tell the reader to add a lookup filter before the streamstats."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/identity-platforms-pam-sso.md",
+      "explanation": "The repository's Okta guide says the add-on polls about every minute using the System Log API. The generic second Step 1 gives 300-900 seconds, mentions HEC tokens, and omits the Okta API token with a read-only admin role that the guide describes.",
+      "field": "detailedImplementation",
+      "quote": "Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.",
+      "severity": "major",
+      "suggested_fix": "Replace with the Okta-specific steps: create a read-only API token, configure the okta_organization input (sourcetype OktaIM2:log, index okta), and keep one poll interval."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "None of the scenarios names a real cause of impossible-travel false positives. Real causes are corporate or consumer VPN exits, mobile carrier and proxy egress IPs, iplocation inaccuracy, and users on multiple devices.",
+      "field": "knownFalsePositives",
+      "quote": "Health checks in `okta` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.",
+      "severity": "major",
+      "suggested_fix": "List real causes: VPN or SASE egress changes, mobile carrier IPs geolocating far from the user, Okta sessions started from cloud-hosted proxies, and inaccurate GeoIP data."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "specificity",
+      "evidence_ref": "docs/guides/identity-platforms-pam-sso.md",
+      "explanation": "The geolocation is not in the source logs; the SPL derives lat and lon with iplocation. The source is the Okta System Log (eventType user.session.start, field client.ipAddress).",
+      "field": "dataSources",
+      "quote": "IdP sign-in logs with IP geolocation",
+      "severity": "minor",
+      "suggested_fix": "State: Okta System Log events (sourcetype OktaIM2:log, eventType user.session.start, client.ipAddress), geolocated at search time with iplocation."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "cimSpl",
+      "issue": "The CIM search counts distinct sources per user per hour (`src_count > 2`). It does not compute distance or time between logins, so it does not detect impossible travel. It also counts every successful authentication in the Authentication model, not just Okta session starts.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`sort actor.alternateId, _time` without a count limit truncates at 10,000 results, which silently drops sign-ins on busy tenants. The first event per user has prev values equal to itself, so it needs a null guard. Also confirm that streamstats earliest() with window=2 returns the previous event after an ascending sort.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0013-UC-9.3.2",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The geo-velocity idea for Okta session starts is reasonable, but the app field cites an unverified Splunkbase ID that conflicts with the Okta add-on ID used in references, and the prose says 'or' where the SPL requires both conditions. The CIM variant does not implement the same detection.",
+  "tier": "triage",
+  "uc_id": "UC-9.3.2",
+  "verdict": "incorrect"
+}

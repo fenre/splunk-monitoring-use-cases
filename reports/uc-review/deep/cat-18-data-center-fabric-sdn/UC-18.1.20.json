@@ -1,0 +1,124 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "9dc74e6a3121760ebd97f926523ba85b0e2d7b2f579d4a032f217e9da5ac7ee3",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.1.20.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://www.cisco.com/c/en/us/products/collateral/networking/cloud-networking/application-centric-infrastructure/contract-guide.html",
+      "explanation": "actrlRule objects are the zoning rules programmed on leaves, one table entry per rule. The implicit deny is a single 0→0 'implicit' deny,log rule per VRF, and the table does not change when traffic hits it. Polling these objects returns the same rows every interval, so a rise in matching rows reflects polling or configuration changes, not denied traffic. Actual drops show up in rule-hit statistics (actrlRuleHit5min) or deny logs (acllog).",
+      "field": "detailedImplementation",
+      "quote": "**actrlEntry** children are the source of truth for permit vs deny vs implicit catch-alls on leaf ASICs, so implicit spikes usually mean no contract currently grants the communicating **pcTags**",
+      "severity": "blocker",
+      "suggested_fix": "Base the burst on denied-packet counters (actrlRuleHit5min on the implicit-deny rule IDs) or on ACL deny logs, and describe actrlRule polls only as configuration context."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://www.cisco.com/c/en/us/support/docs/software/aci-data-center/220573-address-aci-fault-f1394-interface-physi.html",
+      "explanation": "F1394 is a fabric (leaf-to-spine) port going down, cause interface-physical-down, rule ethpm-if-port-down-fabric. It is not a policy-programming fault. The same mistake appears in Step 1 ('F1394 or F2301 triage') and Step 3.",
+      "field": "detailedImplementation",
+      "quote": "**F1394**/**F2301** programming faults align with rising implicit_slices",
+      "severity": "blocker",
+      "suggested_fix": "Remove F1394 from the policy-programming list, and look up the actual codes for zoning-rule or policy-CAM programming failures (for example, whatever fault is raised when actrlRule operStQual is hwprog-fail) in the APIC fault catalogue before citing them."
+    },
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/1897",
+      "explanation": "Splunkbase 4022 is 'Technical Addon for the Metricator application for Nmon (HEC)'. The Cisco ACI add-on was TA_cisco-ACI (1897), now archived in favour of Cisco DC Networking (7777). 4022 is repeated in implementation, detailedImplementation and references.",
+      "field": "app",
+      "quote": "**Splunk_TA_cisco-aci** ([Splunkbase **4022**](https://splunkbase.splunk.com/app/4022))",
+      "severity": "blocker",
+      "suggested_fix": "Make Cisco DC Networking (Splunkbase 7777) the APIC collection app, note TA_cisco-ACI (1897) as deprecated, and remove 4022."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Neither ID is in the cached Splunkbase catalogue, the SPL never touches VMware or NSX data, and equipment and equipmentModels add nsx, vmware and vmware_ta_vmware on the strength of this optional mention alone.",
+      "field": "app",
+      "quote": "optional **Splunk_TA_vmware-nsxt** ([Splunkbase **4856**](https://splunkbase.splunk.com/app/4856)) and **Splunk_TA_vmware** ([Splunkbase **1810**](https://splunkbase.splunk.com/app/1810))",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm the real Splunkbase IDs for the VMware and NSX add-ons, or drop the VMware/NSX add-ons and equipment tags because the detection does not use them."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The SPL needs implicit_slices>=25 AND ratio_i>=8 (or viol_slices>=15 AND ratio_v>=8, or burst_raw>=max(75,8*baseline)). The description joins them with OR and lists med_i>0 and med_v>0, which are not alert thresholds at all.",
+      "field": "description",
+      "quote": "with thresholds `med_i` > 0, `med_v` > 0, `implicit_slices` >= 25, or `ratio_i` >= 8",
+      "severity": "major",
+      "suggested_fix": "State the three alert branches exactly as the where clause defines them."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/datacenter-fabric-sdn.md",
+      "explanation": "The search counts zoning-rule configuration objects and has no src, dest, port or bytes fields, so Network_Traffic cannot be filled. The schema field itself admits it needs 'companion acllog feeds' that the UC does not ingest.",
+      "field": "cimModels",
+      "quote": "\"Network_Traffic\"",
+      "severity": "major",
+      "suggested_fix": "Drop Network_Traffic, or add an acllog deny-log lane that actually carries five-tuples and map that lane."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The lane flags are set to 1 only when the subsearch returns rows. A silent lane leaves them null, never zero, so 'colorized red when zero' will not trigger.",
+      "field": "detailedImplementation",
+      "quote": "zeroes mean blind analytics, not a calm cloth",
+      "severity": "minor",
+      "suggested_fix": "Tell readers to add `fillnull value=0 contract_lane_ok fault_lane_ok syslog_lane_ok audit_lane_ok`, or describe the flag as blank for a silent lane."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "explanation": "These are sourcetypes, so the check needs `| metadata type=sourcetypes`. type=sources lists source paths.",
+      "field": "detailedImplementation",
+      "quote": "Run **metadata** type=sources on **cisco_aci** for the day—verify **cisco:aci:actrl**, **cisco:aci:contract**",
+      "severity": "minor",
+      "suggested_fix": "Use `| metadata type=sourcetypes index=cisco_aci`."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "An automated agent reviewed the UC, and its core signal does not measure denied traffic, so the verified status is not supported.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until an ACI SME validates the signal source."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://www.cisco.com/c/en/us/products/collateral/networking/cloud-networking/application-centric-infrastructure/contract-guide.html",
+      "field": "spl",
+      "issue": "The search counts polled cisco:aci:actrl rows (actrlRule/actrlEntry) per 5-minute bucket. These are static zoning-rule entries, re-emitted on every poll, so implicit_slices and viol_slices track poll frequency and rule-table size, not deny events. `violation_hint` also fires on any DN matching 'actrlrule', which would flag every compiled rule. The detection needs a counter-based source (actrlRuleHit5min deltas on the implicit deny rule) or deny-log events.",
+      "severity": "blocker"
+    },
+    {
+      "field": "monitoringType",
+      "issue": "'Fault' is listed, but the SPL detects no faults. The fault lane only feeds a count joined by a constant key.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0012-UC-18.1.20",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 3,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The UC counts polled actrlRule configuration objects as if they were drop events, so its 'implicit deny bursts' measure how many rules were polled rather than traffic denied by policy. It also misattributes fault F1394, picks a CIM model the data cannot fill, cites the wrong Splunkbase ID, and describes AND thresholds as OR.",
+  "tier": "deep",
+  "uc_id": "UC-18.1.20",
+  "verdict": "incorrect"
+}

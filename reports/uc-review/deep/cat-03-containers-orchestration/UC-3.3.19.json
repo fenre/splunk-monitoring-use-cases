@@ -1,0 +1,121 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "d7c1e46079f45afb70e97baaaa4cb338dd40e1c0102257a29c40fccd2d01f7b4",
+  "file": "content/cat-03-containers-orchestration/UC-3.3.19.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/operator_apis/ingresscontroller-operator-openshift-io-v1",
+      "explanation": "LoadBalancerManaged is False whenever the publishing strategy does not need a service load balancer. DNSManaged is False whenever the platform, strategy or DNS zones do not support managed DNS. Both are expected states, not faults. Actual DNS or load balancer failures surface as DNSReady=False and LoadBalancerReady=False. Following the text, every bare-metal or vSphere HostNetwork controller would be treated as broken.",
+      "field": "detailedImplementation",
+      "quote": "DNSManaged=False often follows IAM or credential loss on cloud DNS integrations. LoadBalancerManaged=False can track cloud provider quota, subnet, or security group faults",
+      "severity": "blocker",
+      "suggested_fix": "Describe DNSManaged and LoadBalancerManaged as capability flags. Use DNSReady and LoadBalancerReady (evaluated only when the matching *Managed condition is True) as the failure signals, and update Case 3, Case 7, dataSources and the field-normalization list to match."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/operator_apis/ingresscontroller-operator-openshift-io-v1",
+      "explanation": "IngressController is a namespaced resource served at /apis/operator.openshift.io/v1/namespaces/{namespace}/ingresscontrollers. All instances live in openshift-ingress-operator.",
+      "field": "detailedImplementation",
+      "quote": "IngressController lives in group operator.openshift.io and is cluster-scoped.",
+      "severity": "blocker",
+      "suggested_fix": "State that IngressController objects are namespaced and live in openshift-ingress-operator, e.g. oc get ingresscontroller -n openshift-ingress-operator -o json."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/container-platforms-docker-openshift.md",
+      "explanation": "No Splunk-published 'Splunk Add-on for Kubernetes' (Splunk_TA_kubernetes) appears in the grounding. The subcategory guide uses the Splunk OpenTelemetry Collector for Kubernetes for events.",
+      "field": "app",
+      "quote": "Splunk OpenShift App patterns, Splunk Add-on for Kubernetes (`Splunk_TA_kubernetes`) for event routing",
+      "severity": "needs_verification",
+      "suggested_fix": "Replace with the Splunk OpenTelemetry Collector for Kubernetes (k8s events / k8sobjects receiver), or name a verifiable Splunkbase add-on."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/endpoint",
+      "explanation": "The Application_State data model has been deprecated since CIM 4.12.0 (replaced by Endpoint) and does not represent Kubernetes operator conditions. dataModelAcceleration repeats it.",
+      "field": "cimModels",
+      "quote": "\"Application_State\"",
+      "severity": "blocker",
+      "suggested_fix": "Remove Application_State and its acceleration text. Keep Change only for audit-log edits to IngressController and APIServer objects."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The description names prometheus:cluster_operator_up (an invented sourcetype from an optional lane) as the source. The SPL's primary signals come from ocp_ingresscontroller and ocp_clusteroperator snapshots. The quoted thresholds (cluster_canary_bad_cnt >= 2, prog_dwell >= 1) are also not the page conditions, which are Degraded, Available=False, DeploymentReplicasMinAvailable=False, and canary failure while Progressing.",
+      "field": "cross_field",
+      "quote": "sourced from `index=ocp_metrics` sourcetype `prometheus:cluster_operator_up`",
+      "severity": "major",
+      "suggested_fix": "Rewrite the description around the IngressController and ingress ClusterOperator condition snapshots and the actual page and warn conditions."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "The ingress-operator deployment lives in openshift-ingress-operator and runs a kube-rbac-proxy sidecar, so the command as written needs -n and usually -c.",
+      "field": "detailedImplementation",
+      "quote": "oc logs deployment ingress-operator",
+      "severity": "minor",
+      "suggested_fix": "Use oc logs -n openshift-ingress-operator deployment/ingress-operator -c ingress-operator."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by a generic repository handle, yet the SPL cannot execute and misinterprets core IngressController conditions.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until a named SME validates against live HostNetwork and LoadBalancerService clusters."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/search-commands/multisearch",
+      "field": "spl",
+      "issue": "All five multisearch arms end in stats, which is non-streaming. multisearch allows only streaming subsearches, so the search fails.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/operator_apis/ingresscontroller-operator-openshift-io-v1",
+      "field": "spl",
+      "issue": "dns_bad and lb_bad fire on DNSManaged=False and LoadBalancerManaged=False. Both are the normal state for HostNetwork, Private and NodePortService controllers and for platforms without DNS zones, so 'dns_bad==1 AND lb_bad==1' pages permanently on bare-metal and vSphere clusters. Use DNSReady and LoadBalancerReady, gated on the matching *Managed condition being True.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "wildcard_collision_hint matches 'wildcard', which matches both legal values (WildcardsAllowed and WildcardsDisallowed). tls_drift_hint matches every tlsSecurityProfile type (Old, Intermediate, Modern, Custom). Neither hint discriminates anything.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "streamstats window=4 current=t last(prog_bad) returns the current row's value, and it runs after a stats that leaves one row per cluster/ic_name. prev_prog therefore always equals prog_bad, so prog_dwell never measures dwell time.",
+      "severity": "minor"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/data-management/common-information-model/8.6/data-models/change",
+      "field": "cimSpl",
+      "issue": "Uses Change.* prefixes with nodename=Change, but the Change model's root dataset is All_Changes. Application_State is deprecated since CIM 4.12.0.",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0083-UC-3.3.19",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The detailed implementation shows real IngressController knowledge, but it misreads the DNSManaged and LoadBalancerManaged conditions as failure signals. Those conditions are False by design on HostNetwork, Private and NodePort controllers. The UC also calls IngressController cluster-scoped when it is namespaced, and its SPL cannot run because the multisearch arms contain non-streaming commands.",
+  "tier": "deep",
+  "uc_id": "UC-3.3.19",
+  "verdict": "incorrect"
+}

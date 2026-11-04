@@ -1,0 +1,80 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "812c66d93ab92aa48660eb26f1b4254f6c88d0de3fd94679e33d0fe0d7a5f429",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.1.24.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/datacenter-physical.md",
+      "evidence_url": "https://www.splunk.com/en_us/download/universal-forwarder.html",
+      "explanation": "The Universal Forwarder is downloaded from splunk.com, not Splunkbase (splunkbase.splunk.com/app/617 returns 404), and it has no SNMP or PDU API poller. The repository guide polls PDUs with an SNMP add-on on a heavy forwarder.",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+      "severity": "blocker",
+      "suggested_fix": "Name Splunk Connect for SNMP (Splunkbase 6266) or the SNMP Modular Input add-on (Splunkbase 1537) on a heavy forwarder, or the specific DCIM/vendor integration (for example DB Connect for Sunbird/nlyte as in the guide). Correct `app` and `detailedImplementation` Step 1 to match."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The `implementation` field describes an 80%-of-capacity rule, but the SPL sets `load` to `latest(kw)` and tests `load > 80`, which means 80 kW, not 80% of rating. Most rack PDUs never reach 80 kW, so the load condition effectively never fires. The `description` field repeats '`load` > 80' without units, and the 'imbalance > 10' threshold is in amps but is never stated as such.",
+      "field": "cross_field",
+      "quote": "Alert when load exceeds 80% or phase imbalance exceeds threshold.",
+      "severity": "major",
+      "suggested_fix": "State that load must be expressed as a percentage of the PDU/phase rated current (for example, `current_a / rated_a * 100`) and give the imbalance threshold with units (for example, more than 10 A from the PDU's per-phase mean). Ask a human to align the SPL."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/datacenter-physical.md",
+      "explanation": "The SPL reads `index=physical sourcetype=\"pdu:metrics\"` with `pdu_id`, `phase`, `current_a` and `kw`, none of which are named here. The repository guide places PDU data on `index=power` with `sourcetype=\"snmp:rpdu\"` / `snmp:pdu`, and every sibling 15.1 UC uses `index=power`. A reader following the guide gets zero results.",
+      "field": "dataSources",
+      "quote": "PDU current/load per phase, per outlet",
+      "severity": "major",
+      "suggested_fix": "Align with the guide (`index=power`, `sourcetype=\"snmp:rpdu\"`, bank/phase load fields), or state that `physical`/`pdu:metrics` is a custom landing point. List the required fields and their source OIDs."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The heading is repeated, and the full Step 1–5 sequence is duplicated with generic HEC and vendor-API HTTP 401/429 troubleshooting. The text never explains where the PDU's per-phase rated current comes from, even though an 80%-of-capacity rule depends on it.",
+      "field": "detailedImplementation",
+      "quote": "Step 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize",
+      "severity": "major",
+      "suggested_fix": "Collapse into one sequence. Name the per-phase current and rating OIDs for the supported PDU vendors, show how `phase` is derived (L1/L2/L3 or bank index), and validate against the PDU web UI's phase load page."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "The UC overlaps with UC-15.1.16 (Breaker Panel Load Balancing), UC-15.1.20 (PDU Branch Circuit Alerts) and UC-15.1.30 (APC Switched Rack PDU Phase Load Imbalance), and does not say how it differs.",
+      "field": "description",
+      "quote": "Primary focus: Phase Balance.",
+      "severity": "minor",
+      "suggested_fix": "State the scope that sets it apart (vendor-neutral rack PDU per-phase load) and cross-reference UC-15.1.30 for APC-specific OIDs."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/CommonEvalFunctions",
+      "field": "spl",
+      "issue": "`eval imbalance=abs(current - avg(current) over (partition by pdu_id))` is SQL window-function syntax, not SPL; eval has no `over (partition by ...)` clause, and avg() in eval is a multivalue/argument function, not a per-group aggregate (see https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/CommonEvalFunctions). Use `| eventstats avg(current) as phase_mean by pdu_id | eval imbalance=abs(current-phase_mean)`. Also, `latest(kw) as load` compared to 80 is kilowatts, not percent of capacity.",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0017-UC-15.1.24",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The UC promises '80% load' and phase-imbalance alerts, but the SPL compares raw kilowatts to 80 and uses SQL window syntax that SPL eval does not support. It also uses an index/sourcetype pair that disagrees with the repository guide and with sibling UCs, and its collection path cites a non-existent Universal Forwarder Splunkbase entry.",
+  "tier": "deep",
+  "uc_id": "UC-15.1.24",
+  "verdict": "incorrect"
+}

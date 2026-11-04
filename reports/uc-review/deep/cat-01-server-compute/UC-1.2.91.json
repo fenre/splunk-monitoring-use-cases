@@ -1,0 +1,80 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "b21ab8bb9cea08c4321c81c649d1f413b0ba4d8910ff7ef252ed9579a7a02142",
+  "file": "content/cat-01-server-compute/UC-1.2.91.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://learn.microsoft.com/en-us/windows-hardware/drivers/install/identifiers-generated-by-usbstor-sys",
+      "explanation": "On Windows, the DiskDrive-class node of a USB mass-storage device is created by USBSTOR.sys with a device ID of the form `USBSTOR\\...`. UASP drives appear under `SCSI\\Disk...`, as in Microsoft's own 6416 DiskDrive example. The `USB\\VID_...` node belongs to class `USB` (USB Mass Storage Device). The documented rule therefore labels real flash drives and external disks `usb_other` or `external_other`, and the storage-priority routing never fires for them.",
+      "field": "exclusions",
+      "quote": "The derived `usb_storage_or_portable` label requires a `USB\\` device-instance prefix plus `DiskDrive` or `WPD` class",
+      "severity": "blocker",
+      "suggested_fix": "Document a classification that matches real device paths: DiskDrive/WPD class with a DeviceId prefix of `USBSTOR\\`, `SCSI\\` (validated as USB-attached via LocationInformation or the parent), or `USB\\` (for WPD/MTP). Also treat a `USB\\` node with ClassName `USB` and a `USBSTOR` compatible ID as storage-related. Validate each on real hardware."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-6416",
+      "explanation": "The positive fixture pairs a `USB\\VID_` instance path with the DiskDrive class GUID, a combination Windows does not generate for USB mass storage. The test therefore validates the flawed rule instead of real data, and would pass while production USB disks are misclassified.",
+      "field": "controlTest",
+      "quote": "`DeviceId=USB\\\\VID_1234&PID_5678\\\\ABC001`, `DeviceDescription=Approved Lab USB Disk`, `ClassId={4D36E967-E325-11CE-BFC1-08002BE10318}`, `ClassName=DiskDrive`",
+      "severity": "blocker",
+      "suggested_fix": "Build fixtures from real 6416 XML. Use a `USBSTOR\\Disk&Ven_...&Prod_...\\<serial>&0` DiskDrive record, the companion `USB\\VID_...` class `USB` record, and Microsoft's documented `SCSI\\Disk&Ven_Seagate...` example, with the expected `device_scope` for each."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "This is an editorial instruction left in the implementation text. It contradicts the sidecar, which still carries ASD E8 E8.01 and IT-Grundschutz OPS.1.1.2 mappings with `mode: satisfies`. A reader cannot tell which is authoritative.",
+      "field": "detailedImplementation",
+      "quote": "Remove the prior unsupported compliance mappings; 6416 collection alone does not satisfy application control or ordered-operations obligations.",
+      "severity": "major",
+      "suggested_fix": "Remove the editorial sentence from detailedImplementation. Have a human either remove the compliance mappings or rewrite them with a defensible clause and assurance (see firewalled flag)."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "Given the prefix logic, the description overstates what the classifier achieves. Most USB storage lands in \"other USB\" or \"other external\".",
+      "field": "description",
+      "quote": "classifies it as USB storage/portable, other USB, or other external based only on the observed device instance path and class.",
+      "severity": "minor",
+      "suggested_fix": "Update once the classification is corrected, and state which DeviceId prefixes map to each scope."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://learn.microsoft.com/en-us/windows-hardware/drivers/install/identifiers-generated-by-usbstor-sys",
+      "field": "spl",
+      "issue": "`device_scope` requires `match(normalized_device_id,\"^usb\\\\\\\\\") AND in(normalized_class,\"diskdrive\",\"wpd\")`. USB disk DiskDrive nodes use `USBSTOR\\` (or `SCSI\\` for UASP), so `usb_storage_or_portable` essentially never matches real removable disks. The `^usb\\\\` branch also mislabels them as `usb_other`. Add `usbstor\\\\` (and validated `scsi\\\\`) prefixes for the storage classes (evidence: https://learn.microsoft.com/en-us/windows-hardware/drivers/install/identifiers-generated-by-usbstor-sys).",
+      "severity": "blocker"
+    },
+    {
+      "field": "compliance",
+      "issue": "ASD E8 E8.01 (application control) and IT-Grundschutz OPS.1.1.2 are mapped with `mode: satisfies`, while the UC's own implementation says 6416 collection does not satisfy these obligations and the mappings should be removed. The evidenceArtifact text is auto-drafted boilerplate. OPS.1.1.2 is \"Ordnungsgemäße IT-Administration\" (proper IT administration), not \"Ordered ICT operation\". Removable media sits closer to SYS.4.5. Remove the mappings or re-map with verified clauses and a weaker mode.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The search embeds `use_case=\"UC-1.2.91\"` as an output column (template residue).",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0005-UC-1.2.91",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 4,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 5,
+    "overclaiming": 3,
+    "specificity": 4
+  },
+  "summary": "The UC frames Event 6416 semantics and field names well, and is honest that the subject is usually SYSTEM. However, its headline storage classification requires a `USB\\` instance path on a DiskDrive/WPD device, which real USB disks (`USBSTOR\\...`, or `SCSI\\...` for UASP) do not have. The text also says the compliance mappings were removed while they remain.",
+  "tier": "deep",
+  "uc_id": "UC-1.2.91",
+  "verdict": "incorrect"
+}

@@ -1,11 +1,18 @@
 """Detect bulk-enricher template fingerprints in UC sidecars.
 
-Shared by ``audit-template-provenance`` and ``lift-validate --require-handcraft``.
-Fingerprints mirror strings emitted by:
+Shared by ``audit-template-provenance``, ``audit-text-quality`` and
+``lift-validate --require-handcraft``. Fingerprints mirror strings emitted by:
 
 * ``scripts/enrich_gold_v2_bulk.py`` (GENERIC_KFP, controlTest, exclusions, evidence)
 * ``scripts/enrich_gold_v1_backfill.py`` (visualization stub, DEFAULT_REFS)
 * ``scripts/uplift_remaining_compliance.py`` (compliance KFP skeleton)
+
+The v2 families (``detect_template_flags_v2``) cover the later generation of
+generated prose: self-referential UC IDs inside narrative fields, the
+"Variant N confirms" control-test skeleton, title-token lists, and the
+shared evidence / exclusions / value sentence skeletons. They are reported
+separately from the v1 flags so existing ``--max-any`` caps keep their
+meaning.
 """
 
 from __future__ import annotations
@@ -118,6 +125,132 @@ def detect_template_flags(uc: dict[str, Any]) -> list[str]:
         flags.add("generic_references")
 
     return sorted(flags)
+
+
+_UC_ID_RE = r"UC-\d+\.\d+\.\d+"
+
+V2_CONTROLTEST_VARIANT_RE = re.compile(r"\bVariant \d+ confirms\b")
+V2_CONTROLTEST_SKELETON_RE = re.compile(rf"^{_UC_ID_RE} (?:positive|negative) \(")
+V2_PURPOSE_BUILT_PHRASE = "Purpose-built for"
+V2_KFP_SELFREF_HEADING_RE = re.compile(
+    rf"\*\*[^*\n]*(?:\({_UC_ID_RE}\)|for {_UC_ID_RE})\*\*"
+)
+V2_EVIDENCE_SKELETON_RE = re.compile(
+    rf"^Saved search `[^`]+` \({_UC_ID_RE}\), SOC dashboard panel"
+)
+V2_EXCLUSIONS_SKELETON_RE = re.compile(
+    r"^(?:Covers the detection logic documented for '"
+    r"|Covers personal hobby monitoring for '.*' only\.)"
+)
+V2_TITLE_TOKEN_SALAD_RE = re.compile(
+    rf"{_UC_ID_RE} — (?:[A-Z][\w/+.&-]*, )+[A-Z][\w/+.&-]* —"
+)
+V2_EXCEPTION_REGISTER = "ops_exception_register.csv"
+V2_LANTERN_ROOT_URL = "https://lantern.splunk.com"
+
+#: v2 flag id -> (sidecar field the residue lives in, human description).
+V2_FAMILIES: dict[str, tuple[str, str]] = {
+    "v2_description_selfref": (
+        "description",
+        "description cites its own UC ID instead of describing the detection",
+    ),
+    "v2_description_purpose_built": (
+        "description",
+        "description carries the generated 'Purpose-built for ...' sentence",
+    ),
+    "v2_description_title_salad": (
+        "description",
+        "description lists title tokens ('UC-X — A, B, C —') instead of prose",
+    ),
+    "v2_value_selfref": (
+        "value",
+        "value statement cites its own UC ID (generated value skeleton)",
+    ),
+    "v2_controlTest_variant": (
+        "controlTest",
+        "control test carries the generated 'Variant N confirms' sentence",
+    ),
+    "v2_controlTest_skeleton": (
+        "controlTest",
+        "control test opens with the generated 'UC-X positive/negative (...)' skeleton",
+    ),
+    "v2_kfp_selfref_heading": (
+        "knownFalsePositives",
+        "false-positive headings cite the UC ID (generated KFP skeleton)",
+    ),
+    "v2_exception_register": (
+        "knownFalsePositives",
+        "generic ops_exception_register.csv suppression lookup",
+    ),
+    "v2_evidence_skeleton": (
+        "evidence",
+        "evidence uses the shared 'Saved search ... SOC dashboard panel' skeleton",
+    ),
+    "v2_exclusions_skeleton": (
+        "exclusions",
+        "exclusions use the shared 'Covers the detection logic documented for' skeleton",
+    ),
+    "v2_lantern_root_reference": (
+        "references",
+        "reference points at the Splunk Lantern home page, not a specific article",
+    ),
+}
+
+
+def _uc_id(uc: dict[str, Any]) -> str:
+    raw = _as_str(uc.get("id")).strip()
+    if not raw:
+        return ""
+    return raw if raw.startswith("UC-") else f"UC-{raw}"
+
+
+def detect_template_flags_v2(uc: dict[str, Any]) -> list[str]:
+    """Return sorted v2 template-family flag IDs (see ``V2_FAMILIES``)."""
+    flags: set[str] = set()
+    uc_id = _uc_id(uc)
+
+    description = _as_str(uc.get("description"))
+    if uc_id and uc_id in description:
+        flags.add("v2_description_selfref")
+    if V2_PURPOSE_BUILT_PHRASE in description:
+        flags.add("v2_description_purpose_built")
+    if V2_TITLE_TOKEN_SALAD_RE.search(description):
+        flags.add("v2_description_title_salad")
+
+    if uc_id and uc_id in _as_str(uc.get("value")):
+        flags.add("v2_value_selfref")
+
+    ct = uc.get("controlTest")
+    if isinstance(ct, dict):
+        pos = _as_str(ct.get("positiveScenario"))
+        neg = _as_str(ct.get("negativeScenario"))
+        if V2_CONTROLTEST_VARIANT_RE.search(pos) or V2_CONTROLTEST_VARIANT_RE.search(neg):
+            flags.add("v2_controlTest_variant")
+        if V2_CONTROLTEST_SKELETON_RE.search(pos) or V2_CONTROLTEST_SKELETON_RE.search(neg):
+            flags.add("v2_controlTest_skeleton")
+
+    kfp = _as_str(uc.get("knownFalsePositives"))
+    if V2_KFP_SELFREF_HEADING_RE.search(kfp):
+        flags.add("v2_kfp_selfref_heading")
+    if V2_EXCEPTION_REGISTER in kfp:
+        flags.add("v2_exception_register")
+
+    if V2_EVIDENCE_SKELETON_RE.search(_as_str(uc.get("evidence"))):
+        flags.add("v2_evidence_skeleton")
+    if V2_EXCLUSIONS_SKELETON_RE.search(_as_str(uc.get("exclusions"))):
+        flags.add("v2_exclusions_skeleton")
+
+    if any(
+        url.rstrip("/") == V2_LANTERN_ROOT_URL for url in _reference_urls(uc.get("references"))
+    ):
+        flags.add("v2_lantern_root_reference")
+
+    return sorted(flags)
+
+
+def v2_flags_in_fields(flags: list[str] | set[str], fields: set[str]) -> list[str]:
+    """Subset of v2 ``flags`` whose residue lives in one of ``fields``."""
+    return sorted(flag for flag in flags if V2_FAMILIES.get(flag, ("", ""))[0] in fields)
 
 
 def is_fully_templated_v2(flags: list[str] | set[str]) -> bool:

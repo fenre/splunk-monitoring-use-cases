@@ -1,0 +1,109 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "1a344e6351db7794b1952c6aa70d57ce0bf1e1407d323f6164920ef85e0d82e9",
+  "file": "content/cat-03-containers-orchestration/UC-3.6.3.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/5167",
+      "explanation": "Splunkbase 5167 is 'Upgrade Universal Forwarder (Windows)'; Splunk Connect for Kubernetes is an archived GitHub Helm chart that reached End of Support on 1 January 2024, yet it is named as the primary collector.",
+      "field": "app",
+      "quote": "Splunk Connect for Kubernetes (Splunkbase 5167)",
+      "severity": "blocker",
+      "suggested_fix": "Make the Splunk OpenTelemetry Collector for Kubernetes (Splunkbase 6264; k8s_events and k8sobjects receivers) the primary collector and drop SCK/5167 from app and dataSources."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/kubernetes/kubernetes/blob/master/pkg/controller/deployment/sync.go",
+      "explanation": "The deployment controller records ScalingReplicaSet events against the Deployment object itself (message 'Scaled up replica set <rs> to N'), so involvedObject.name is already the deployment name; stripping the last hyphen segment truncates names such as 'payments-api' to 'payments' and merges distinct deployments.",
+      "field": "detailedImplementation",
+      "quote": "These events carry `involvedObject.name` (the ReplicaSet name, from which the **deployment name** is derived by stripping the trailing hash).",
+      "severity": "blocker",
+      "suggested_fix": "State that involvedObject.kind=Deployment and involvedObject.name is the deployment name; only parse the ReplicaSet from the message if needed."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "ScalingReplicaSet is also emitted when an HPA or `kubectl scale` changes replicas, not only on rollouts, so autoscaling activity is counted as deployment velocity; the SURGE explanation even lists 'automated scaling events' as a cause. A rollout signal should key on new ReplicaSet creation / observedGeneration change.",
+      "field": "detailedImplementation",
+      "quote": "The primary SPL counts distinct deployments per day from **ScalingReplicaSet** events.",
+      "severity": "major",
+      "suggested_fix": "Count rollouts from audit events on deployments with a spec (image/template) change, or from k8sobjects observedGeneration increments, and note that pure scale events are excluded."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "NewReplicaSetAvailable and ProgressDeadlineExceeded are reasons on the Deployment's Progressing condition; it is not clear they are emitted as Event reasons, in which case kube:events will never contain them and the success/failure search loses its main rollout outcomes.",
+      "field": "detailedImplementation",
+      "quote": "**NewReplicaSetAvailable** (rollout complete), **ProgressDeadlineExceeded** (rollout failed — stuck or unhealthy)",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the deployment controller source / a live cluster; if they are condition reasons only, source them from kube:deployment:status (status.conditions[].reason) instead of kube:events."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The success numerator sums per-pod SuccessfulCreate and every ScalingReplicaSet event, while failures include per-pod BackOff from any crash-looping workload; the ratio is dominated by pod churn, not deployment outcomes, so the 90% threshold in implementation does not measure change failure rate.",
+      "field": "cross_field",
+      "quote": "A namespace with a `success_rate` below 90% likely has **broken CI/CD pipelines**",
+      "severity": "major",
+      "suggested_fix": "Define success/failure per rollout (one outcome per deployment generation) before computing success_rate, and describe that in implementation."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "Deployment change events fit Change (All_Changes); nothing maps to the host Performance model.",
+      "field": "cimModels",
+      "quote": "\"Performance\"",
+      "severity": "minor",
+      "suggested_fix": "Keep Change and drop Performance."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "Marked verified by an agent reviewer while the deployment-name derivation and eval field references would produce wrong results on real event data.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until validated by an SME on a live cluster."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval",
+      "field": "spl",
+      "issue": "`coalesce(..., involvedObject.namespace, ...)` and `coalesce(involvedObject.name, ...)` use unquoted dotted field names; in eval '.' is the concatenation operator, so these evaluate as involvedObject . name (null) and silently fall through. Dotted JSON fields must be single-quoted ('involvedObject.name').",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://github.com/kubernetes/kubernetes/blob/master/pkg/controller/deployment/sync.go",
+      "field": "spl",
+      "issue": "`mvindex(split(deployment, \"-\"), 0, mvcount(...)-2)` strips the last segment of the deployment name (involvedObject is the Deployment for ScalingReplicaSet), merging distinct deployments and returning a multivalue rather than a re-joined string; dc() then counts name fragments.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "Attribution search counts every create/update/patch on deployments, including controller-manager status-subresource updates and HPA scale-subresource patches; filter objectRef.subresource and exclude system:serviceaccount:kube-system:* users. `user.groups{}` is not a deployer identity and should not be a fallback.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0119-UC-3.6.3",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "A useful DORA-style velocity idea, but the deployment-name derivation rests on a wrong claim about ScalingReplicaSet events, the success/failure ratio mixes per-pod and per-rollout signals (and autoscaling), eval references to dotted field names are unquoted, and the collector/Splunkbase facts are wrong.",
+  "tier": "deep",
+  "uc_id": "UC-3.6.3",
+  "verdict": "incorrect"
+}

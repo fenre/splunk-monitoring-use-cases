@@ -1,0 +1,97 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "86646bf77f5c344900203836aa4b59c269da4c03c1bfc5fe6a2a67bd4d68c7e2",
+  "file": "content/cat-16-service-management-itsm/UC-16.1.20.json",
+  "findings": [
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://www.servicenow.com/docs/r/it-service-management/incident-management/view-major-info.html",
+      "explanation": "ServiceNow's Major Incident Management plugin (com.snc.incident.mim) marks major incidents with `major_incident_state` (Proposed, Accepted, Rejected, Canceled) and adds a Post Incident Report tab. There is no out-of-the-box `major_incident` field, and `u_major_incident` exists only as a site customisation. The text also never names the post-mortem fields or the sourcetype.",
+      "field": "dataSources",
+      "quote": "Incidents with `major_incident` or `u_major_incident`, post-mortem fields",
+      "severity": "blocker",
+      "suggested_fix": "Say: `index=itsm sourcetype=snow:incident` from Splunk_TA_snow, with major incidents identified by `major_incident_state=\"accepted\"` when MIM is active (or a site-specific `u_` flag otherwise). Name the post-incident-review completion field or the related task table used to track the review."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The post-mortem completion field has three different names. The implementation uses `u_post_mortem_complete`, while the SPL uses `post_mortem_completed` and `u_post_mortem_date`. The data sources also offer `major_incident`, which the SPL never uses (it filters on `u_major_incident`).",
+      "field": "cross_field",
+      "quote": "Align field names with your form (`u_post_mortem_complete`, tasks, etc.).",
+      "severity": "major",
+      "suggested_fix": "Choose one documented field set (for example the MIM `major_incident_state` plus one post-mortem completion field) and use the same names in implementation, data sources and detailed implementation. Flag the SPL so it matches as well."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified, but every compliance `evidenceArtifact` says \"Auto-drafted — SME review required\", most prose fields are template text, and the field names disagree across fields.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Change the status to draft or unverified until an SME confirms the field mapping and the compliance claims."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The text contains two concatenated copies of Steps 1 to 4, and the second is generic boilerplate. It contradicts the UC: the SPL uses `earliest=-90d` and the implementation asks for a weekly report, not paging. It also suggests a spot-check of `compliant`, a field the SPL computes and then never uses. Nothing explains how to join a post-mortem child task when the review is tracked as a separate record.",
+      "field": "detailedImplementation",
+      "quote": "Schedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages.",
+      "severity": "major",
+      "suggested_fix": "Keep one set of steps: ingest `incident` (and the post-mortem task table if one is used) with Splunk_TA_snow, take the latest event per `number`, run weekly over 90 days, and report the compliance percentage and overdue major incidents per assignment group."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The false positives (maintenance windows, synthetic probes, `host`) have nothing to do with post-mortem tracking.",
+      "field": "knownFalsePositives",
+      "quote": "Synthetic probe on `host`** — Health checks in `itsm` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List real causes: post-mortems recorded in a problem record, child task or external document rather than on the incident form; incidents demoted from major (`major_incident_state=canceled`) after closure; older snapshot events from before the post-mortem flag was set (Splunk_TA_snow indexes every update); policy waivers for duplicate or child major incidents; and reopened incidents whose `resolved_at` moved."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "evidence_ref": "docs/guides/service-management-itsm.md",
+      "explanation": "ServiceNow incident data is collected by Splunk_TA_snow (Splunkbase 1928) REST inputs on a heavy forwarder or search head, not by a Universal Forwarder modular input or scripted poll.",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll",
+      "severity": "minor",
+      "suggested_fix": "Say the data is collected by the Splunk_TA_snow `incident` table input (Splunkbase 1928) into `index=itsm`."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`state=\"closed\"` probably never matches. ServiceNow incident `state` is an integer choice (6 = Resolved, 7 = Closed), and the subcategory guide's own SPL filters on `state=6`. Resolved-but-not-yet-closed major incidents are also excluded. `resolved_at + 7*86400` assumes epoch seconds, but ServiceNow date-times usually arrive as strings and need `strptime`.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The `compliant` eval is computed but never used, and its OR with `isnotnull(u_post_mortem_date)` conflicts with the final `where post_mortem_completed=false`. There is no per-`number` latest reduction, so a stale pre-completion snapshot keeps flagging an incident that has since completed its post-mortem. Major incidents are identified by `u_major_incident` rather than the out-of-the-box `major_incident_state`.",
+      "severity": "major"
+    },
+    {
+      "field": "compliance",
+      "issue": "The entries are duplicated: APRA CPS 234 §23 and §36, MAS TRM §8.1.1 and UK NIS Reg.11 each appear twice, once under a slug regulation id and once under a display name. CPS 234 §36 and UK NIS Reg.11 are regulator-notification obligations, so post-mortem completion does not evidence timely notification; `mode: satisfies` overclaims for those clauses.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0097-UC-16.1.20",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The goal (closed major incidents with no post-mortem 7 days after resolution) is clear, but the major-incident and post-mortem fields are named differently in every field and do not match ServiceNow's out-of-the-box Major Incident Management fields. The detailed implementation and false positives are generic template text, and the UC is marked `verified` while its own compliance artefacts say \"SME review required\".",
+  "tier": "deep",
+  "uc_id": "UC-16.1.20",
+  "verdict": "incorrect"
+}

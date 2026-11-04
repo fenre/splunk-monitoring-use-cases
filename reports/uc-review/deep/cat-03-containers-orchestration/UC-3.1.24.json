@@ -1,0 +1,174 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "f687985261d6a2ff61cef691adfe001da727cb58d4f3a03997097e895f6ce11d",
+  "file": "content/cat-03-containers-orchestration/UC-3.1.24.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.docker.com/reference/cli/docker/system/events/",
+      "explanation": "Docker has no `exec` event type. exec_create, exec_start, exec_die and exec_detach are container-type events, so `docker events --filter type=exec` (also used in dataSources and Step 1/Step 2 of detailedImplementation) returns nothing or errors.",
+      "field": "dataSources",
+      "quote": "sourcetype=docker:events filtered to type=exec for the three Docker Engine exec lifecycle actions",
+      "severity": "blocker",
+      "suggested_fix": "Describe these as `Type=container` events with `Action` values beginning `exec_`. Use `docker events --filter type=container --filter event=exec_create --filter event=exec_start --filter event=exec_die --format '{{json .}}'`."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/splunk/docker-logging-plugin",
+      "explanation": "Splunk Connect for Docker is a Docker logging-driver plugin that ships container stdout/stderr to HEC. It has no Docker Events modular input and does not collect `docker events`. The same claim in `app` and `dataSources` sends readers to a tool that cannot supply this feed.",
+      "field": "detailedImplementation",
+      "quote": "With Splunk Connect for Docker, set the Docker Events modular input to subscribe at unix:///var/run/docker.sock with no type filter",
+      "severity": "blocker",
+      "suggested_fix": "Name a real collection path for engine events, such as a systemd-run `docker events --format '{{json .}}'` writer tailed by the UF, as the subcategory guide shows. Keep Splunk Connect for Docker only for container log collection."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-unix-and-linux/Sourcetypes/",
+      "explanation": "Neither Splunk add-on produces an `auditd:execve` sourcetype. The Splunk Add-on for Unix and Linux (833) uses `linux_audit` (or `auditd` via rlog.sh), and the separate Splunk Add-on for Linux uses `linux:audit`. The detailedImplementation statement 'Splunk Add-on for Linux maps audisp-json output to sourcetype auditd:execve' is invented. The `app` field also names a third product, 'Splunk Add-on for Unix and Linux'.",
+      "field": "dataSources",
+      "quote": "sourcetype=auditd:execve from Splunk Add-on for Linux capturing /var/log/audit/audit.log execve lines",
+      "severity": "blocker",
+      "suggested_fix": "Use `sourcetype=linux_audit` from Splunk Add-on for Unix and Linux (Splunkbase 833), or `linux:audit` if the Splunk Add-on for Linux is meant. Name one add-on consistently across `app`, `dataSources` and `detailedImplementation`."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "There appears to be no `docker_events` processor in the OpenTelemetry Collector or the Splunk distribution. The docker_stats receiver emits metrics, not engine events.",
+      "field": "detailedImplementation",
+      "quote": "With Splunk OpenTelemetry Collector for Docker, ensure the docker_events processor preserves Actor attribute keys for execID, name, and image.",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the opentelemetry-collector-contrib component list for any receiver that emits Docker engine events. If none exists, remove the OTel collection path from `app`, `dataSources` and Step 2."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "Docker exec events carry only the exec entrypoint and arguments plus execID, name and image. They contain no caller identity, and commands typed inside an interactive shell are never recorded. In the SPL, exec_user falls back to `unknown_principal` on the Docker lane. The `description`, `detailedImplementation` and `grandmaExplanation` ('who walked in, every thing they touched') all promise more than the detection sees.",
+      "field": "cross_field",
+      "quote": "it answers what real principal opened an interactive session inside a running production container, what command executed once the session opened",
+      "severity": "major",
+      "suggested_fix": "State that the UC records the initial exec command, container, image and session timing. Say that the human principal comes only from host audit records, and keystrokes inside a shell need separate tooling such as Falco spawned-process rules or tlog. Align the grandmaExplanation with this."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The auditd lane hard-codes `container_id=\"host_cli_session\"` and `exec_id=\"\"`, and the stats runs `BY host_id, container_id, exec_id`, so audit rows can never share a session_id with a Docker exec session. Path H (Falco) has the same problem because the Falco lane sets `exec_id=\"\"`. Both tests will fail as written.",
+      "field": "detailedImplementation",
+      "quote": "Positive path G — auditd correlation: from a shell account whose auid is recorded, run docker exec lab-app whoami; verify audit_correlate appears in lanes_seen for the same session_id.",
+      "severity": "blocker",
+      "suggested_fix": "Say that the auditd and Falco lanes appear as separate rows, or get the SPL changed to correlate on host plus time proximity, then rewrite paths G and H to match."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "`bash` matches the interactive_shell branch, not business_normal. The low tier requires `command_class=\"business_normal\"` AND `baseline_allows_class=1`, so this test returns no row. Interactive shells inside a change window match no severity and are filtered out. The negative path (mysqladmin ping) also expects a row and silently depends on business_normal being allow-listed in the baseline CSV.",
+      "field": "detailedImplementation",
+      "quote": "run docker exec -it lab-app bash, exit. Confirm low_business_normal_inside_change_window with change_id and approver populated.",
+      "severity": "blocker",
+      "suggested_fix": "Rewrite path A with a non-shell command and a baseline row that allows business_normal. State that sanctioned interactive shells produce no row. Relabel the mysqladmin case, since it expects output and so is not a negative test."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://kubernetes.io/docs/concepts/workloads/pods/ephemeral-containers/",
+      "explanation": "`kubectl debug` adds an ephemeral container (a container create/start, not an exec). Kubernetes removed dockershim in 1.24, so kubelet no longer drives dockerd on current clusters. The kubectl-debug clauses in `exclusions` and Case 9 of `detailedImplementation` describe behaviour that does not happen.",
+      "field": "cross_field",
+      "quote": "when Kubernetes wraps Docker and kubectl debug creates an ephemeral debug pod, Docker still emits exec_create and exec_start",
+      "severity": "blocker",
+      "suggested_fix": "Remove the kubectl-debug exclusion and Case 9, or limit it to legacy pre-1.24 clusters (or cri-dockerd) and describe it as a container start rather than an exec."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "evidence_url": "https://www.pcisecuritystandards.org/document_library/",
+      "explanation": "`detailedImplementation` says ten years and `evidence` says seven years. PCI DSS 4.0 Requirement 10.5.1 requires 12 months of audit log history with three months immediately available, not a seven- or ten-year hold.",
+      "field": "cross_field",
+      "quote": "align retention with PCI Requirement 10 ten-year forensic holds",
+      "severity": "major",
+      "suggested_fix": "State the PCI DSS 10.5.1 retention (12 months, 3 online) and present any longer retention as an organisational policy choice. Use one figure in both fields."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "Docker HEALTHCHECK probes run as execs and are widely reported to emit exec_create/exec_start/exec_die events every interval (for example `/bin/sh -c curl ...`). These would classify as interactive_shell or service_command and inflate volume well past ten per hour. Neither the volume claim nor the false-positive list mentions them.",
+      "field": "knownFalsePositives",
+      "quote": "docker:events type=exec is low volume (under ten exec sessions per host per hour)",
+      "severity": "needs_verification",
+      "suggested_fix": "Check whether the target Docker Engine version emits exec events for health checks. If it does, add HEALTHCHECK execs as a named false positive with an exclusion pattern and correct the volume estimate."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://falco.org/docs/reference/rules/default-rules/",
+      "explanation": "Only 'Terminal shell in container' is a real Falco rule. 'Launch suspicious shell in container' and 'Spawned process in container' do not appear in Falco's published default rules (stable, incubating or sandbox). The same invented names recur in `evidence` and `detailedImplementation`. The sourcetype `falco:alert` also differs from sibling UC-3.1.21, which uses `falco:json`.",
+      "field": "dataSources",
+      "quote": "Terminal shell in container, Launch suspicious shell in container, and Spawned process in container",
+      "severity": "blocker",
+      "suggested_fix": "Name real rules, for example 'Terminal shell in container' and 'Run shell untrusted' (stable). Use the same Falco sourcetype as UC-3.1.21."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified with a generic team handle as reviewer, yet it contains invented sourcetypes, a non-existent event filter and validation steps that cannot pass. This does not reflect SME sign-off.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set the status to draft or community until an SME has run the validation paths on a real Docker host."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "Asterisk (a VoIP PBX) has nothing to do with Docker exec auditing.",
+      "field": "equipment",
+      "quote": "\"asterisk\"",
+      "severity": "minor",
+      "suggested_fix": "Remove `asterisk` from equipment."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "Nothing in the SPL or cimSpl maps exec sessions to the Change datamodel. Only Endpoint.Processes is used.",
+      "field": "cimModels",
+      "quote": "\"Change\"",
+      "severity": "minor",
+      "suggested_fix": "Drop Change, or document which Change dataset and fields exec sessions populate."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval",
+      "field": "cimSpl",
+      "issue": "`where like(lower(Processes.process), ...)` is unquoted. In eval/where, `.` is the concatenation operator, so `Processes.process` evaluates as fields `Processes` and `process` joined, which gives null, and every row is dropped. The field must be written `'Processes.process'`. Also, `Processes.process=\"docker\"` compares the full command line, so `Processes.process_name=\"docker\"` is the intended field, and `nodename=Endpoint.Processes` should be checked against tstats syntax.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The auditd and Falco lanes force `container_id`/`exec_id` to constants or empty values, so they form separate stats rows and never enrich Docker exec sessions. The auditd lane also matches the SYSCALL record (comm/exe), which does not hold the argv; argv is in the separate EXECVE record. The 'three independent feeds per session' design therefore does not work. The `evt_type_lc=\"exec\"` clause is dead code because exec events have Type=container.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "An unsanctioned interactive shell on a production container that lasts under 120 s matches no severity branch and is dropped, as is any interactive shell inside a change window. A short `docker exec -it prod bash` therefore leaves no audit row, which works against the stated audit-trail purpose. `command_class` takes `mvindex(values(...),0)`, which is the alphabetically first class, not the most severe.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0017-UC-3.1.24",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 3,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The exec-session idea fits T1609, but the collection story is built on wrong product facts. There is no `type=exec` Docker event filter, Splunk Connect for Docker does not collect events, and `auditd:execve` is not a Splunk sourcetype. Several validation paths also describe results the SPL cannot produce.",
+  "tier": "deep",
+  "uc_id": "UC-3.1.24",
+  "verdict": "incorrect"
+}

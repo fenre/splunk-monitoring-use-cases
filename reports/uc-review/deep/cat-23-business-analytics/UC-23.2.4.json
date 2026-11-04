@@ -1,0 +1,125 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "4a41fc420f3cc20c9ea8480dbea06b7402e17cb002379df6461079c9db48ea14",
+  "file": "content/cat-23-business-analytics/UC-23.2.4.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.stripe.com/api/subscriptions/object",
+      "explanation": "The Stripe Subscription object has no `updated` attribute; it exposes `created`, `start_date`, `current_period_start`/`current_period_end`, `canceled_at` and similar. A poller keyed on `updated` will fail or fall back to index time.",
+      "field": "detailedImplementation",
+      "quote": "**`sourcetype=stripe:subscription`**, **`_time`** parsed from **`updated`** epoch seconds",
+      "severity": "blocker",
+      "suggested_fix": "Set _time from the poll time (snapshot semantics), or from the `created` time of the `customer.subscription.updated` webhook event when using webhooks."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Join",
+      "explanation": "`join max=0` only removes the per-row match cap. The subsearch is still bound by the subsearch result-count and runtime limits, so large usage or opportunity subsearches are silently truncated, which is the opposite of what the text claims.",
+      "field": "detailedImplementation",
+      "quote": "mirrors UC-23.2.3 **`join`** discipline so Splunk never truncates multi-thousand-account cardinality at default limits",
+      "severity": "blocker",
+      "suggested_fix": "State that join subsearches are limited by default, and recommend `stats`-based merges or pre-aggregated summary lookups for large customer counts."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL looks up `tier_label`, `urgent_days` and `tier_threshold_pct` but never uses them; the `case()` uses hard-coded 30/60/90-day and 40/50/80% thresholds. A reader tuning the lookup would see no effect.",
+      "field": "detailedImplementation",
+      "quote": "**Classification**: **`case()`** mixes **`days_to_renewal`** tiers with **`usage_pct`** thresholds informed by **`subscription_arr_targets`** lookup outputs.",
+      "severity": "major",
+      "suggested_fix": "Say the thresholds are hard-coded and the lookup is informational only, or describe how urgent_days and tier_threshold_pct should replace the literals."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The Zuora v1 REST API exposes subscriptions per account (`GET /v1/subscriptions/accounts/{account-key}`) or per subscription key. A bulk list endpoint at `/v1/subscriptions` is doubtful; bulk extraction usually goes through Data Query or AQuA exports. detailedImplementation also names fields `SubscriptionVersion` and `OriginalSubscriptionId`, while the Zuora Subscription object uses `Version` and `OriginalId`.",
+      "field": "dataSources",
+      "quote": "**Zuora** modular pulls of `/v1/subscriptions`",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Zuora API reference for the list or export method and the exact Subscription field names, and update both fields."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "clarity",
+      "explanation": "The SPL already removes `cancel_at_period_end=true` rows, so these rows cannot inflate URGENT cohorts. The troubleshooting text contradicts the search it is troubleshooting.",
+      "field": "detailedImplementation",
+      "quote": "simultaneously **`cancel_at_period_end=true`** keeps **`current_period_end`** inside guardrails despite impending churn — **`URGENT`** cohorts inflate falsely.",
+      "severity": "minor",
+      "suggested_fix": "Rewrite the paragraph to say that scheduled cancellations are excluded from the worklist and must be monitored in the separate scheduled-churn panel."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "UC-23.2.3 (the stated prerequisite) builds `customer_id_map.csv` keyed on `raw_customer_id`, while this UC's SPL looks up `raw_id`. A single shared lookup cannot satisfy both searches.",
+      "field": "dataSources",
+      "quote": "`customer_id_map.csv` (columns **`system`**, **`raw_id`**, **`canonical_customer_id`**) — same reconciliation pattern as UC-23.2.3",
+      "severity": "minor",
+      "suggested_fix": "Align the key column name across UC-23.2.3 and UC-23.2.4, or document the two lookup definitions separately."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "detailedImplementation schedules this clone at `0 */4 * * *` (every four hours), not hourly.",
+      "field": "implementation",
+      "quote": "Save the SPL as a daily dashboard panel plus hourly clone gated to **`days_to_renewal≤30`** during fiscal closes",
+      "severity": "minor",
+      "suggested_fix": "Pick one cadence and use it in both fields."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/create-dashboards-and-reports/dashboard-studio/10.3.2512/configuration-options-reference/visualization-configuration-options",
+      "explanation": "Dashboard Studio has no heatmap visualization type; the closest native options are `splunk.punchcard` or a `splunk.table` with heat-map cell coloring.",
+      "field": "visualization",
+      "quote": "**Heatmap**: **`renewal_signal`** × **`usage_pct`** bands",
+      "severity": "minor",
+      "suggested_fix": "Name `splunk.punchcard` or a table with color formatting, and list the bucketing SPL needed for usage_pct bands."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "clarity",
+      "explanation": "'Logrotate' is not an actionable monitoring step here; the intent is presumably to search ExecProcessor errors in `_internal`.",
+      "field": "detailedImplementation",
+      "quote": "Logrotate **`splunkd.log`** ExecProcessor errors (`requests.exceptions.HTTPError`) alongside Stripe **`429`** backoff counters.",
+      "severity": "minor",
+      "suggested_fix": "Replace it with a concrete search such as `index=_internal sourcetype=splunkd component=ExecProcessor stripe_subscriptions_poll`."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The search reads 24 hours of snapshot events without `dedup subscription_key` or `stats latest(...) by subscription_key`. With the documented 900-second Stripe poll, each subscription appears about 96 times, so the worklist repeats rows and every `sum(urgent_arr_weight)` alert built on it overstates ARR roughly 96-fold.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "days_to_renewal falls back to Stripe `current_period_end`, which is the end of the billing period, not the contract term. Every monthly-billed Stripe subscription therefore always falls within 30 days and is classified URGENT, and renewal urgency is not distinguished from routine invoicing.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`if(mrr>100000, mrr/100.0*12, mrr*12)` guesses currency units from magnitude: a real USD 150,000 MRR is divided by 100, and cent-denominated values below 100000 are not converted. Normalize units per source.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0012-UC-23.2.4",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The UC is rich in vendor-specific guidance, but it relies on a Stripe field that does not exist and claims join subsearches never truncate. The prose also says the tier lookup drives the classification when it does not, and the SPL multiplies ARR by every poll snapshot and treats every monthly Stripe billing cycle as an imminent renewal.",
+  "tier": "deep",
+  "uc_id": "UC-23.2.4",
+  "verdict": "incorrect"
+}

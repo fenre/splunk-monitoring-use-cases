@@ -1,0 +1,109 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "cf8fd5aea274dc7653faca5a6eb2dc58b763c29cf3a23b32f97ab6f0c3a8c8f6",
+  "file": "content/cat-03-containers-orchestration/UC-3.1.20.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-unix-and-linux/Sourcetypes/",
+      "explanation": "Splunk_TA_nix's df.sh emits sourcetype df (and df_metric), not linux:df; a reader enabling the TA input will get no linux:df events, so the disk arm and critical_mirror_disk_above_90pct never fire. app and Step 2 repeat the claim.",
+      "field": "dataSources",
+      "quote": "`sourcetype=linux:df` for mirror-side filesystem fill ratio from Splunk Add-on for Unix and Linux",
+      "severity": "blocker",
+      "suggested_fix": "Use sourcetype=df (or df_metric) from Splunk_TA_nix and its UsePct / MountedOn fields filtered to the blob-store mount, or state that linux:df is a renamed custom input."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The fenced SPL is introduced with 'must match the spl JSON field exactly' but uses delta() inside streamstats, whereas the spl field uses last(running_miss_ratio) plus an eval; delta is a separate command, not a streamstats function, so the documented variant does not run.",
+      "field": "detailedImplementation",
+      "quote": "| streamstats window=3 current=t global=f delta(running_miss_ratio) AS cache_miss_rate_delta BY mirror_hostname",
+      "severity": "major",
+      "suggested_fix": "Replace the fenced block with the exact spl field content, or drop the 'must match exactly' claim."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "evidence_ref": "content/cat-03-containers-orchestration/UC-3.1.20.json",
+      "explanation": "description lists unit-conversion and 5xx-classification guard clauses, not the SPL's alert thresholds: 5xx rate > 5%, blob disk > 90%, p99 > 5 s, cache hit < 60% / < 80%, or missing inventory metadata.",
+      "field": "cross_field",
+      "quote": "alert when `rt_num` <= 500, `status` >= 500, `status` < 600, or `http_req` > 0",
+      "severity": "major",
+      "suggested_fix": "Rewrite the description around the actual severity ladder and state it runs hourly per mirror_hostname across Harbor nginx, Artifactory and Nexus access logs, Harbor GC jobs and disk usage."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "The Splunk Add-on for NGINX (Splunkbase 3258) assigns its own nginx sourcetypes, not harbor:nginx:access, and the JFrog listing is 'JFrog Platform Log Analytics' (Splunkbase 5023), whose sourcetype names should be checked against artifactory:request.",
+      "field": "app",
+      "quote": "Splunk Add-on for Nginx or Harbor-specific ingress forwarding for harbor:nginx:access; ... JFrog Splunk App or HTTP Event Collector patterns for artifactory:request",
+      "severity": "minor",
+      "suggested_fix": "Give Splunkbase IDs (3258, 5023), and state that harbor:nginx:access / artifactory:request / nexus:access are site-assigned sourcetypes (or use the add-ons' native ones)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "Template scenarios; the real false-positive causes are in Step 5 (scanner probes inflating 5xx, low-volume denominators, mixed duration units, scheduled Harbor GC, canary mirrors).",
+      "field": "knownFalsePositives",
+      "quote": "Synthetic probe on `mirror_hostname`, `mirror_type` — Health checks in `oti_registry` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "Move those concrete causes into knownFalsePositives, plus expected cache-hit collapse after a base-image release and planned upstream Docker Hub outages."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "Blog narratives and vendor guides are background, not evidence that this control operates; status 'verified' with a generic reviewer handle overstates validation.",
+      "field": "evidence",
+      "quote": "Shopify engineering registry-and-proxy architecture narratives",
+      "severity": "minor",
+      "suggested_fix": "Limit evidence to saved-search exports, lookup versions and alert tickets; set status to draft until an SME validates the search."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "cache_miss matches the bare words 'upstream' and 'parent' and cache_hit matches '\\bhit\\b' anywhere in _raw; nginx/Harbor lines that log upstream addresses or URIs containing these words will be misclassified, so cache_hit_pct is not trustworthy. Key on an explicit cache-status field.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "response_time_ms treats any value <= 500 as seconds and multiplies by 1000; Artifactory/Nexus durations logged in milliseconds (e.g. 300 ms) become 300,000 ms, producing false high_mirror_p99_above_5s.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "streamstats last(running_miss_ratio) with current=t returns the current row's value, so cache_miss_rate_delta (and miss_delta_peak) is always 0.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "capacity_threshold_pct and expected_cache_hit_pct are loaded from the inventory lookup but the severity ladder uses hard-coded 90/60/80, contradicting dataSources and implementation that present them as per-mirror thresholds.",
+      "severity": "minor"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.2/evaluation-functions/conversion-functions",
+      "field": "spl",
+      "issue": "toString() (camelCase) is used throughout; the Search Reference documents lowercase tostring() and states eval expressions are case-sensitive. Confirm it parses.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0013-UC-3.1.20",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "A well-scoped server-side registry-mirror health detector with good operational narrative, but it attributes a linux:df sourcetype to the Unix and Linux add-on (which emits df), the fenced SPL in detailedImplementation differs from the spl field despite claiming to match, the description lists guard clauses instead of thresholds, and the cache-hit/latency heuristics in the SPL are unreliable.",
+  "tier": "deep",
+  "uc_id": "UC-3.1.20",
+  "verdict": "incorrect"
+}

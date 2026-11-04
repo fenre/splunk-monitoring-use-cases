@@ -1,0 +1,127 @@
+{
+  "confidence": 0.7,
+  "content_sha256": "d21c075f17e0eca630ffcd1721639d4a6995f727e3251cd9c6a00cfb842dd1e4",
+  "file": "content/cat-10-security-infrastructure/UC-10.12.57.json",
+  "findings": [
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The directory name splunk_ta_o365 belongs to the Splunk Add-on for Microsoft Office 365, while the Microsoft Cloud Services add-on uses a different folder name (splunk_ta_microsoft-cloudservices). The two products are mixed. It is also unclear which one offers a call records Graph input. The grounding siblings list the Office 365 add-on as a separate app.",
+      "field": "app",
+      "quote": "**Splunk Add-on for Microsoft Cloud Services** (`splunk_ta_o365` family) enabling **Microsoft Graph input**",
+      "severity": "needs_verification",
+      "suggested_fix": "Check on Splunkbase which add-on provides a Microsoft Graph callRecords input, then use that product's name, folder name and Splunkbase ID consistently in app, dataSources and detailedImplementation."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "No Splunkbase ID is given and the text itself hedges the package and folder name. I cannot confirm that a Splunk-built 'Splunk Add-on for Zoom' with these inputs exists, and the reference points only to the Splunkbase home page. The sourcetype zoom:meeting_quality and the 'Meetings Quality Metrics' input name are also unconfirmed.",
+      "field": "app",
+      "quote": "**Splunk Add-on for Zoom** installed on **heavy forwarder + search head** (`$SPLUNK_HOME/etc/apps/Splunk_TA_zoom/` typical naming varies by Splunkbase package naming—verify local)",
+      "severity": "needs_verification",
+      "suggested_fix": "Identify the actual Zoom add-on on Splunkbase (name, publisher, ID, folder name) and confirm its input and sourcetype names. Replace the hedged text with the verified values and link the app page."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "evidence_url": "https://learn.microsoft.com/graph/api/resources/callrecords-api-overview",
+      "explanation": "As I recall, the Zoom Dashboards API returns packet loss, jitter and latency per participant from the participants QoS endpoints, for example /metrics/meetings/{meetingId}/participants/qos. The meetings list returns meeting metadata. Dashboard endpoints also require a qualifying Zoom plan. On the Teams side, callRecords expose average jitter and round-trip time as ISO 8601 durations and packet loss as a fraction, not as jitter_ms or latency_ms numbers.",
+      "field": "dataSources",
+      "quote": "Zoom Admin REST** endpoints such as **`/v2/metrics/meetings`**, **`/v2/metrics/quality`**",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Zoom Dashboard QoS endpoints and the Graph callRecords media-stream properties (averageJitter, averageRoundTripTime, averagePacketLossRate). List the correct endpoints, the plan or licence requirement and the unit conversions."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "Step 1 maps source fields to packet_loss, avg_jitter and avg_latency, dataSources uses packet_loss_pct, jitter_ms and averageJitter_ms, the SPL reads packet_loss_pct, jitter_ms and latency_ms, and the visualization uses avg_latency_ms. The SPL says aliasing is assumed to be 'pre-harmonised' and contains no coalesce or conversion. Following the steps would leave the SPL with null averages.",
+      "field": "cross_field",
+      "quote": "Map JSON fields: `packet_loss`, `avg_jitter`, `avg_latency`, `participant.user_email`",
+      "severity": "major",
+      "suggested_fix": "Pick one canonical field set (packet_loss_pct, jitter_ms, latency_ms, user_email, user_location), say how each vendor field maps to it, and keep the visualization names equal to the SPL output names."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "consistency",
+      "explanation": "dataSources says values below 1 are scaled and Step 1 says 1 or below, so they disagree. A threshold-based guess also misreads a real loss of 1% or 0.5% as a fraction. Teams reports a fraction and Zoom a percentage, so the conversion should depend on the vendor, not the value.",
+      "field": "detailedImplementation",
+      "quote": "add a **`macro_collab_packet_loss_pct`** that multiplies fractional values (<=1) by 100 once",
+      "severity": "minor",
+      "suggested_fix": "Convert per sourcetype: multiply Teams averagePacketLossRate by 100 and leave Zoom unchanged, after checking the vendor's documented units."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "The SPL computes a meetings count but never uses it, so one bad call during the window can push a user over a threshold. The troubleshooting text also refers to meetings_duration_sec and event_id_primary, and to a room@sip exclusion, none of which appear in the SPL or the described fields.",
+      "field": "implementation",
+      "quote": "Sample daily baselines to avoid reacting to single meetings with bad Wi-Fi.",
+      "severity": "minor",
+      "suggested_fix": "State that the search needs a minimum meetings count or duration guard and name the fields that actually exist, or remove the guard and field references that the SPL does not support."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "clarity",
+      "explanation": "The Step 3 header is missing and its text runs into the Step 2 paragraph, which makes the implementation steps harder to follow. The Step 1 sentence describing the Teams input is also hard to parse.",
+      "field": "detailedImplementation",
+      "quote": "severity **informational** routed to Employee Experience mailbox. — Validate",
+      "severity": "minor",
+      "suggested_fix": "Insert a 'Step 3 — Validate' heading before the validation list and split the long sentences into short bullets."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "specificity",
+      "explanation": "Asterisk is an open-source PBX that this UC does not use. The UC is about Zoom and Teams quality data. Zoom has no tag.",
+      "field": "equipment",
+      "quote": "\"asterisk\",\n    \"azure\",\n    \"m365\"",
+      "severity": "minor",
+      "suggested_fix": "Replace the equipment tags with the real sources, Zoom and Microsoft Teams (m365), and remove asterisk."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "Several references carry titles that do not match their URLs. The callRecords entry, the Splunkbase add-on entry and the Lantern entry all point to landing pages and not to the named pages.",
+      "field": "references",
+      "quote": "\"title\": \"Microsoft Graph REST v1.0 — List callRecords\",\n      \"url\": \"https://learn.microsoft.com/graph/\"",
+      "severity": "minor",
+      "suggested_fix": "Replace each URL with the page that matches its title, for example the callRecords list API page and the Zoom add-on's own Splunkbase page."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified, but the sidecar names no reviewer and the add-on names, API endpoints and field units above are unconfirmed. Nothing shows SME sign-off.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to a non-verified value until a collaboration-platform SME confirms the add-ons, endpoints and fields on live Zoom and Teams data."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "stats ... by user_email user_location drops every event that lacks user_location. The Graph callRecords data has no native user location, and the implementation obtains location through an HR join that the SPL does not contain, so Teams rows would disappear. The SPL also gives no time window and applies no minimum meeting count or duration guard.",
+      "severity": "major"
+    },
+    {
+      "field": "id",
+      "issue": "A collaboration-quality UC for employee experience sits under 10.12 Industry-Specific Compliance & Fraud Detection, and the sidecar's splunkPillar is Observability. The placement looks wrong. Check whether a better subcategory exists.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0044-UC-10.12.57",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The implementation text is concrete about Zoom and Teams collection and shows good privacy awareness, but it names inconsistent add-ons and fields, and the SPL cannot run on the described data without extra mapping. Add-on names and API field facts need verification, and the UC is marked verified without sign-off.",
+  "tier": "triage",
+  "uc_id": "UC-10.12.57",
+  "verdict": "rewrite"
+}

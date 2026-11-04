@@ -1,0 +1,157 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "93813b428973bfbca4e77a7683d719c12d87d862b32be083f14c28f4074f89f6",
+  "file": "content/cat-03-containers-orchestration/UC-3.2.13.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/certificates",
+      "explanation": "Certificate expiry metadata (notAfter, subject, issuer, serial) maps to the CIM Certificates data model (All_Certificates / SSL dataset with ssl_end_time, ssl_subject, ssl_issuer, ssl_serial), not to Inventory, which describes hardware/OS assets. dataModelAcceleration repeats the same misfit.",
+      "field": "cimModels",
+      "quote": "\"cimModels\": [\n    \"Inventory\",\n    \"Change\"\n  ]",
+      "severity": "blocker",
+      "suggested_fix": "Map kube:certs:scan and kube:objects:certs to the Certificates data model (ssl_end_time, ssl_subject, ssl_issuer, ssl_serial, dest) and update cimModels and dataModelAcceleration accordingly; keep Change only if rotation events are actually normalized into Change."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "Those comparisons are epoch sanity guards and a rotation counter inside the SPL, not the alert logic. The real logic is days_to_expiry against 90/30/7/0-day horizons per cluster and cert_path, and the description never says that.",
+      "field": "description",
+      "quote": "Alert logic enforces `expiration_epoch_raw` > 1000000000, `pm_epoch` > 1000000000, `obj_epoch` > 1000000000, or `rot_epoch_dc` > 1.",
+      "severity": "major",
+      "suggested_fix": "Describe the detection as: per cluster and cert_path, compute days until notAfter from disk scans, cert-manager gauges and API object snapshots, and tier red (<=7 days or expired), amber (<=30), yellow (<=90), with rotation-in-flight and cloud-managed exceptions."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Strcat",
+      "explanation": "strcat is a search command, not an eval function, so the fenced SPL (and the alert wrapper's `eval it_summary=strcat(...)`) fails to parse. It also contradicts the claim that the fenced SPL matches the spl field exactly; the spl field uses the `.` concatenation operator.",
+      "field": "detailedImplementation",
+      "quote": "| eval cert_path=strcat(\"cert-manager/\",coalesce(cm_ns,\"-\"),\"/\",coalesce(cm_name,\"unknown\"))",
+      "severity": "blocker",
+      "suggested_fix": "Copy the spl field verbatim into Step 3 (using `.` concatenation) and rewrite the wrapper as `eval it_summary=cluster.\" \".cert_path.\" \".severity_tier`."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/FormateventsforHTTPEventCollector",
+      "explanation": "HEC reads index and sourcetype as top-level metadata keys beside `event`; placed inside the event object they are just payload fields, so events land in the token's default index and sourcetype and the search finds nothing.",
+      "field": "detailedImplementation",
+      "quote": "'{event: {cluster: $clu, cert_path: $cert, not_after: $na, subject: $sub, issuer: $iss, serial: $ser, sourcetype: \"kube:certs:scan\", index: \"k8s_compliance\"}}'",
+      "severity": "blocker",
+      "suggested_fix": "Emit `{\"index\":\"k8s_compliance\",\"sourcetype\":\"kube:certs:scan\",\"event\":{...}}` and drop `curl -k` in favour of a trusted CA bundle."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "explanation": "The filelog receiver tails files line by line, so this ships base64 PEM body lines with no notAfter/subject/issuer fields, which contradicts the 'never print PEM bodies' guidance and cannot feed the SPL. The glob also misses /etc/kubernetes/pki/etcd/*.crt, which the text says is in scope.",
+      "field": "detailedImplementation",
+      "quote": "filelog:\n    include:\n      - /etc/kubernetes/pki/*.crt\n      - /etc/kubernetes/pki/*.pem",
+      "severity": "major",
+      "suggested_fix": "Drop the filelog fragment or have it tail the JSON output of the openssl/kubeadm script instead of the certificate files; include the etcd/ subdirectory in the scan script."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/kubeadm-certs/",
+      "explanation": "The `alpha` subcommand is obsolete; current kubeadm uses `kubeadm certs renew` (and renews control-plane certs automatically during `kubeadm upgrade`).",
+      "field": "detailedImplementation",
+      "quote": "require explicit kubeadm alpha certs renew",
+      "severity": "minor",
+      "suggested_fix": "Replace with `kubeadm certs renew <cert|all>`."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "These are not alert-action settings; in savedsearches.conf every stanza is a saved search, so these become empty searches. The wrapper also filters on expected_path_present, which the base search drops in its final table, so that predicate never applies.",
+      "field": "detailedImplementation",
+      "quote": "[itsi_episode_action]\n# Route via Splunk ITSI Episode Analytics REST modular alert ...\n\n[pagerduty_v2]",
+      "severity": "major",
+      "suggested_fix": "Configure ITSI and PagerDuty as action.<name> keys inside the alert stanza (per the installed alert-action apps) and add expected_path_present to the base search's table, or remove the predicate."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "That annotation controls whether a temporary certificate is issued while the first issuance is pending; it probably does not force renewal of an existing certificate, so the rotation_in_flight test may never trigger.",
+      "field": "detailedImplementation",
+      "quote": "kubectl annotate certificate demo-tls -n default cert-manager.io/issue-temporary-certificate=true --overwrite",
+      "severity": "needs_verification",
+      "suggested_fix": "Check cert-manager docs; `cmctl renew demo-tls -n default` is the documented way to force a renewal."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "The link labels the OTel collector Helm chart as a 'Splunk Add-on for Kubernetes', a product that does not appear in the repository Splunkbase catalogue (the collector is Splunkbase 6264). The references list repeats the same link.",
+      "field": "app",
+      "quote": "Splunk OpenTelemetry Collector for Kubernetes ([Splunk Add-on for Kubernetes](https://docs.splunk.com/Documentation/AddOns/released/Kubernetes/About))",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm whether that docs page exists; otherwise link the splunk-otel-collector-chart GitHub repo / Splunkbase 6264 and drop 'Splunk Add-on for Kubernetes'."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "None of the scenarios names a real certificate false positive; maintenance windows, synthetic probes and onboarding bursts do not change a certificate's notAfter.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `cluster`, `subject_cn`, `cert_path`, `Inventory.dest`** — Health checks in `k8s_compliance` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List real causes: stale .crt backups left on disk after rotation (e.g. *.old), CA bundles that are copied to several paths, cloud-managed certs missing from disk, cert-manager gauges for deleted Certificates still in the 7-day window, and notAfter strings in unparsed formats that give 'unknown'."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The reviewer is a generic repository handle and the content has non-working snippets and a wrong datamodel, so nothing shows SME sign-off.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft/community until a named SME validates the search on a real cluster."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The main search drops inventory_projection_ts in its final table, and Inventory summaries keyed on host dest say nothing about certificate freshness.",
+      "field": "visualization",
+      "quote": "overlay of inventory_projection_ts from cimSpl to prove summary freshness",
+      "severity": "minor",
+      "suggested_fix": "Base the freshness tile on last_seen per lane (signal_lane) from the main search."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/inventory",
+      "field": "spl",
+      "issue": "`| tstats ... FROM datamodel=Inventory WHERE nodename=Inventory ... BY Inventory.dest` uses the wrong names: the CIM Inventory model's internal name is Compute_Inventory with root dataset All_Inventory (field All_Inventory.dest). Even if it were fixed, joining host dest onto cluster names produces nothing, and the joined field is dropped by the final table. Remove the join or use the Certificates model.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/certificates",
+      "field": "cimSpl",
+      "issue": "The query uses datamodel=Inventory with nodename=Inventory / Inventory.OperatingSystem and fields Inventory.os / Inventory.vendor_product. The model is Compute_Inventory, the datasets are All_Inventory and All_Inventory.OS, and Inventory is the wrong model for certificate expiry anyway. Replace with a Certificates tstats, e.g. `| tstats min(All_Certificates.SSL.ssl_end_time) FROM datamodel=Certificates.SSL BY All_Certificates.dest All_Certificates.SSL.ssl_subject`.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval",
+      "field": "spl",
+      "issue": "Function is written `toString(...)` throughout; the Splunk eval reference documents lowercase `tostring` and says eval expressions are case-sensitive. Run the search to confirm it parses.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0033-UC-3.2.13",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The detailed implementation has a sound idea (three collection lanes, inventory lookup, 90/30/7/0-day horizons), but the CIM choice is wrong for certificate data, the Inventory tstats uses a non-existent datamodel/dataset path, and several implementation snippets (strcat in eval, HEC payload metadata, PEM-tailing filelog) would not work as written. Description, value and false positives are template residue.",
+  "tier": "deep",
+  "uc_id": "UC-3.2.13",
+  "verdict": "incorrect"
+}

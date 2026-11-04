@@ -1,0 +1,115 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "4e7d6019f4af3124d5fd52b621cbee96a2ef8bd0724a8fb0939f2407ceb872d4",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.1.12.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase 4022 is 'Technical Addon for the Metricator application for Nmon (HEC)'. The Cisco ACI add-on is TA_cisco-ACI (Splunkbase 1897, deprecated in favour of Cisco DC Networking, Splunkbase 7777). The same ID appears in dataSources, implementation, detailedImplementation and references.",
+      "field": "app",
+      "quote": "**Splunk_TA_cisco-aci** (**Splunkbase** **4022**, install directory **Splunk_TA_cisco-aci**)",
+      "severity": "blocker",
+      "suggested_fix": "Name Cisco DC Networking (Splunkbase 7777) as the supported collector, with TA_cisco-ACI (1897, deprecated) as legacy, and remove every '4022' / 'Splunk_TA_cisco-aci' reference."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/aci/apic/sw/all/syslog/guide/b_ACI_System_Messages_Guide/m-aci-f0x-messages.html",
+      "explanation": "F0321 is fltInfraWiNodeHealth: an APIC controller reporting that the cluster's distributed data layer is not fully functional. It is not a fabric-node-unreachable fault that follows a leaf or spine removal. detailedImplementation repeats the claim ('F0321 node-unreachable codes', 'F0321 should lag inactive').",
+      "field": "dataSources",
+      "quote": "**`sourcetype=cisco:aci:fault`** (**faultInst** followers such as **F0321** after hard removal)",
+      "severity": "blocker",
+      "suggested_fix": "Remove F0321 as a removal follower. Look up the fault raised when a fabric node goes inactive or unreachable in the ACI System Messages Reference and use that code in dataSources and detailedImplementation."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "APIC syslog carries fault, event and audit records (for example '[F0xxx][raised]...' or event codes E4xxxx), not NX-OS-style FACILITY-SEV-MNEMONIC strings. This mnemonic looks invented, and the SPL matches on it.",
+      "field": "dataSources",
+      "quote": "**FABRICNODE-5-DECOMMISSION** mnemonics",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the ACI System Messages Reference for the event or audit record APIC emits on node decommission, and quote that code instead."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "This link points to the DevNet docs root, not the fabricNode class page. The 4022 reference links to an Nmon add-on.",
+      "field": "references",
+      "quote": "\"title\": \"Cisco APIC Object Model Reference — fabricNode\", \"url\": \"https://developer.cisco.com/docs/\"",
+      "severity": "major",
+      "suggested_fix": "Link the APIC MIM page for fabricNode, and replace the 4022 link with app 7777 or 1897."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL has no final where clause, so a 'results > 0' alert returns every node in a sink state or with any matched lane. The description and the runbook each describe a different alert condition, and neither is implemented.",
+      "field": "cross_field",
+      "quote": "description: \"Alert logic enforces `evidence_depth` >= 1\"; detailedImplementation: \"page when **unapproved_shape=1** and **capacity_risk>=5**\"",
+      "severity": "major",
+      "suggested_fix": "State one alert condition (for example unapproved_shape=1 AND capacity_risk>=5) and say the saved search must filter on it, or that the alert trigger condition applies it."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "In recent APIC releases the audit log is under System → History → Audit Log (or per-object History tabs), not Admin.",
+      "field": "detailedImplementation",
+      "quote": "Admin → Audit Log should show user equal to last_actor",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm the menu path in the APIC 6.0 GUI and correct it."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "An automated agent marked the UC verified, with no SME sign-off, while it still carries a wrong add-on ID, a misidentified fault code and SPL whose join cannot fire.",
+      "field": "status",
+      "quote": "\"status\": \"verified\", ... \"reviewer\": \"agent-handcraft-2026-04-29\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft/unverified until an SME validates it against a real decommission."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/ConditionalFunctions",
+      "field": "spl",
+      "issue": "`node_key=coalesce(trim(toString(coalesce(id,nodeId,fabricNodeId,\"\"))),node_dn)`: the inner coalesce defaults to the empty string, which is not null, so the node_dn fallback never applies. aaaModLR and fault records also carry their own `id` attribute (the record id). As a result, audit, syslog, fault and health rows group under different node_key values from the fabricNode inventory rows, evidence_depth stays 0 on inventory rows, and unapproved_shape cannot be 1.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/aci/apic/sw/all/syslog/guide/b_ACI_System_Messages_Guide/m-aci-f0x-messages.html",
+      "field": "spl",
+      "issue": "`fault_code=\"F0321\"` treats the APIC cluster data-layer fault as a node-removal follower.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The health_knock regex flags any health event whose raw text contains 'node' and 'score', which is nearly every fabric health event, so it adds noise instead of corroboration.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Tstats",
+      "field": "cimSpl",
+      "issue": "tstats over datamodel=Change.All_Changes must reference fields with the dataset prefix (All_Changes.object, All_Changes.command, All_Changes.user, All_Changes.src), and nodename should be All_Changes. `values(Change.object) ... by Change.user Change.src` resolves to null fields, so the cimSpl returns nothing. It also assumes aaaModLR is tagged into the Change datamodel, which the UC never describes.",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0003-UC-18.1.12",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The node-decommission narrative is useful, but the UC names the wrong Splunkbase add-on, uses F0321 (an APIC cluster data-layer fault) as a node-unreachable signal, and cites a syslog mnemonic that looks invented. In the SPL, corroborating events never join the inventory rows, so the unapproved-removal flag cannot fire.",
+  "tier": "deep",
+  "uc_id": "UC-18.1.12",
+  "verdict": "incorrect"
+}

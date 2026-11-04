@@ -1,0 +1,104 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "0b562ea50f97415aee10e10ac3a1dc68b80b93ab1eb4f5b20a7f8a94e160120f",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.1.41.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://bugzilla.redhat.com/show_bug.cgi?id=1524308",
+      "explanation": "engine.log lines start with the timestamp, for example `2017-12-11 09:16:38,776+02 ERROR [org.ovirt...] (default task-12) [70a80370] ...`. With the `^` anchor, `log_level` would capture the date, and the regex then fails because the next token is the time, not `[`. No `log_level`, `logger`, `thread`, `correlation_id` or `message` is extracted. The SPL's `search log_lvl IN (\"ERROR\",\"SEVERE\",\"FATAL\")` then matches nothing.",
+      "field": "detailedImplementation",
+      "quote": "EXTRACT-engine_line = ^(?<log_level>\\S+)\\s+\\[(?<logger>[^\\]]+)\\]\\s*\\((?<thread>[^\\)]*)\\)",
+      "severity": "blocker",
+      "suggested_fix": "Anchor past the timestamp, for example `^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2},\\d{3}(?:[+-]\\d{2,4}|Z)?\\s+(?<log_level>[A-Z]+)\\s+\\[(?<logger>[^\\]]+)\\]\\s+\\((?<thread>[^)]*)\\)\\s+\\[(?<correlation_id>[^\\]]*)\\]\\s*(?<message>.*)`. Validate it against real lines."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "explanation": "`crcSalt = <SOURCE>` adds the file path to the CRC. Splunk documents that this should not be used for rolling log files because it stops Splunk from recognising a file across a roll or rename and causes re-indexing. It does not prevent duplicates. Troubleshooting item (3) repeats the wrong claim.",
+      "field": "detailedImplementation",
+      "quote": "The `crcSalt` line prevents duplicate re-indexing of the same file when logrotate creates a new inode",
+      "severity": "major",
+      "suggested_fix": "Remove `crcSalt = <SOURCE>`, or explain that it is only for files whose first 256 bytes are identical. Leave rotation handling to Splunk's default CRC and seek pointer, and monitor only `engine.log`, not the rotated `engine.log-*` files."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://bugzilla.redhat.com/show_bug.cgi?id=2064380",
+      "explanation": "engine.log always prints an offset right after the milliseconds, in the form `+02`, `+05` or `Z`, not `+0200`. A 23-character lookahead stops before the offset, so the event's own timezone is ignored and `_time` depends on the forwarder's TZ. That is the exact hour-skew problem the troubleshooting section describes.",
+      "field": "detailedImplementation",
+      "quote": "MAX_TIMESTAMP_LOOKAHEAD = 23\nTIME_PREFIX = ^\nTIME_FORMAT = %Y-%m-%d %H:%M:%S,%3N\n# If the engine prints a timezone offset after the millisecond (for example +0200), append %z",
+      "severity": "major",
+      "suggested_fix": "State that the offset is always present. Extend `MAX_TIMESTAMP_LOOKAHEAD` to about 26 and parse the offset; check whether Splunk's `%z` accepts the two-digit `+02` form and `Z`, or set `TZ` explicitly on the input."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The engine writes its application log to `/var/log/ovirt-engine/engine.log`, not to the journal, which holds only service start and stop and stdout. The count comparison is therefore not meaningful. The DWH service unit is `ovirt-engine-dwhd`, and it is a separate service, not a split of the engine log.",
+      "field": "detailedImplementation",
+      "quote": "`sudo journalctl -u ovirt-engine --since \"1 hour ago\" -p err..alert | wc -l` (unit name may be `ovirt-engine` or `ovirt-engine-dwh` split by site); compare the integer with Splunk’s rough count",
+      "severity": "minor",
+      "suggested_fix": "Validate instead with `grep -cE '^\\S+ \\S+ (ERROR|FATAL) ' /var/log/ovirt-engine/engine.log` over the same window. Drop the DWH remark."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "`server.log` is the WildFly server log, not an audit log. Setup logs live under `/var/log/ovirt-engine/setup/`. The feed is a file `monitor` input, not a modular input or scripted poll.",
+      "field": "dataSources",
+      "quote": "`ovirt:audit` (`server.log`), `ovirt:ui` (UI), `ovirt:setup` (`engine-config.log`). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll",
+      "severity": "minor",
+      "suggested_fix": "Describe `server.log` as the WildFly container log and point setup logs to `/var/log/ovirt-engine/setup/*.log`. State that collection is a UF `monitor://` input."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "evidence_url": "https://bugzilla.redhat.com/show_bug.cgi?id=1697682",
+      "explanation": "These scenarios are template output and name no real engine cause. Known benign error bursts include engine restarts or upgrades (`engine-setup`), a host in maintenance or non-responsive generating repeated VDS broker errors, recurring harmless errors such as the `GlusterEventsWebHookServlet` 'Error processing event data' messages, and backup or snapshot jobs failing on a single VM.",
+      "field": "knownFalsePositives",
+      "quote": "**Batch `values` on `ovirt:engine`** — Scheduled automation elevates `host` without crossing `top_logger_count` >= 50 ... **Synthetic probe on `_time`, `host`, `logger`, `message_template`**",
+      "severity": "major",
+      "suggested_fix": "Replace the list with oVirt-specific benign bursts and how to recognise each, for example by `logger` class and accompanying `EVENT_ID`."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "Hyper-V has nothing to do with the oVirt Engine, and the detection reads the WildFly or JBoss engine log, not Apache httpd logs, so these tags mis-route the UC in equipment filters.",
+      "field": "equipmentModels",
+      "quote": "\"equipment\": [\"apache\", \"hyperv\", \"jboss\", \"ovirt\", \"syslog\"], \"equipmentModels\": [\"apache_httpd\"]",
+      "severity": "minor",
+      "suggested_fix": "Tag `ovirt` (and `jboss`/`linux` if desired). Remove `hyperv` and `apache_httpd`."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://bugzilla.redhat.com/show_bug.cgi?id=1524308",
+      "field": "spl",
+      "issue": "The search relies entirely on an extracted `log_level`, `level` or `severity` for its level filter and only backfills `logger` with `rex`. With the documented props, `log_level` is never extracted, so the search returns zero rows. Add a `rex` fallback for the level token after the timestamp, for example `^\\S+ \\S+ (?<log_lvl_rex>[A-Z]+) `.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The IPv4 sed pattern uses `\\\\.` inside the SPL string, which may reach the regex engine as a literal backslash rather than an escaped dot, so IPs would not be masked. Test it on a sample `_raw`.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0035-UC-19.1.41",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 5,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The burst logic is reasoned out carefully, but the props.conf extraction is anchored at the start of the line, where engine.log has its timestamp. `log_level` is therefore never extracted and the SPL's level filter drops every event. The `crcSalt` rationale and the timezone guidance are also wrong for the real engine.log format.",
+  "tier": "deep",
+  "uc_id": "UC-19.1.41",
+  "verdict": "incorrect"
+}
