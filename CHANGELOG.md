@@ -10,6 +10,17 @@ the release notes block in `index.html` by hand.
 
 ---
 
+## [Unreleased]
+
+### Changed
+
+- **One CI workflow.** `.github/workflows/ci.yml` builds the catalog once
+  per pull request and per push to `main`, and the content checks, fixture
+  validation and Pages deploy reuse that artifact. CodeQL, SARIF and
+  Lighthouse run weekly. The roadmap export no longer runs on push.
+  Sigstore attests `dist/integrity.json` and `dist/BUILD-INFO.json` on
+  every Pages deploy.
+
 ## [8.28.0] - 2026-11-04
 
 ### Added

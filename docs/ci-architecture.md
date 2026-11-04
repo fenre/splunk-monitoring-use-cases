@@ -12,12 +12,9 @@
 
 | Workflow                | Purpose                                            | Wall-clock | Trigger                |
 |-------------------------|----------------------------------------------------|-----------:|------------------------|
-| [`validate.yml`](#validate-yml-five-parallel-jobs)        | Catalog correctness; the merge gate.   | ~30 min    | PR + push to `main`    |
-| [`pages.yml`](#pages-yml)              | Build + deploy GitHub Pages.                       | ~5 min     | push to `main`         |
+| [`ci.yml`](#validate-yml-five-parallel-jobs)        | One catalog build, content checks, Pages deploy. | ~30 min | PR + push to `main` |
 | [`release.yml`](#release-yml)          | Tag-driven release: SBOM, .spl, attestation.       | ~10 min    | tag `v*.*.*`           |
-| [`uc-tests.yml`](#uc-tests-yml)        | Playwright UC smoke matrix (Splunk 9.4 / 10.2).    | ~15 min    | manual / nightly       |
-| [`uc-manifest.yml`](#uc-manifest-yml)  | Surface manifest of every UC's exported fields.    | ~3 min     | manual                 |
-| [`codeql.yml`](#codeql-yml)            | CodeQL Python + JS analysis.                       | ~8 min     | PR + push + weekly     |
+| [`codeql.yml`](#codeql-yml)            | CodeQL Python + JS analysis.                       | ~8 min     | weekly + manual        |
 | [`dependency-review.yml`](#dependency-review-yml) | License + CVE gate on PR-level dep changes.        | ~30 sec    | PR                     |
 | [`gitleaks.yml`](#gitleaks-yml)        | Secret-leak detection.                             | ~30 sec    | PR + push              |
 | [`splunkbase-sync.yml`](#splunkbase-sync-yml) | Refresh `data/splunkbase-catalog.json`.            | ~2 min     | weekly cron + manual   |
@@ -91,38 +88,40 @@ The audit runs in the `lint` job (~5 minutes from PR open).
 
 ## Workflow inventory
 
-The repository ships 13 GitHub Actions workflows. The merge gate is
-`validate.yml`; every other workflow is either a scheduled maintenance
-probe, a deployment surface, or a path-filtered helper.
+The merge gate is `ci.yml`. It builds the catalog once and deploys
+Pages from that artifact. CodeQL, SARIF and Lighthouse are weekly.
+Every other workflow is a scheduled maintenance probe or a release.
 
 | Workflow | Purpose | Trigger | Cadence | Writes to repo? |
 | --- | --- | --- | --- | --- |
-| [`validate.yml`](../.github/workflows/validate.yml) | Merge gate — 5 parallel jobs (`lint`, `audits-content`, `audits-build`, `mcp`, `frontend`) | `pull_request` (paths-filtered) | per PR | No |
-| [`pages.yml`](../.github/workflows/pages.yml) | Build + deploy the static site + signed-provenance attestations to GitHub Pages | `push` to `main`, `workflow_dispatch` | every push to `main` | No (Pages only) |
+| [`ci.yml`](../.github/workflows/ci.yml) | Merge gate and Pages deploy. One `build` job; `lint`, `audits-content`, `audits-build`, `mcp`, `frontend` reuse its artifact | `pull_request` and `push` to `main` | per PR and push | No (Pages only) |
 | [`release.yml`](../.github/workflows/release.yml) | Package + publish TA / DA / recommender `.spl` artefacts as a GitHub Release | `push` of `v*.*.*` tag, `workflow_dispatch` | per release | No (Release) |
-| [`codeql.yml`](../.github/workflows/codeql.yml) | CodeQL static analysis (Python + JavaScript) | `push`/`pull_request` to `main`; weekly cron | Mon 06:17 UTC + PRs/pushes | No |
+| [`codeql.yml`](../.github/workflows/codeql.yml) | CodeQL static analysis (Python + JavaScript) | weekly cron, `workflow_dispatch` | Mon 06:17 UTC | No |
 | [`dependency-review.yml`](../.github/workflows/dependency-review.yml) | Blocks PRs introducing dependencies with critical CVEs or non-permissive licences | `pull_request` | per PR | No |
 | [`gitleaks.yml`](../.github/workflows/gitleaks.yml) | Secret-leak detection (defence-in-depth backup to the pre-commit hook) | `push`/`pull_request` to `main`; weekly cron | Tue 03:42 UTC + per PR/push | No |
 | [`link-check.yml`](../.github/workflows/link-check.yml) | External-link health audit; opens an issue on failure | `workflow_dispatch`, weekly cron | Mon 06:00 UTC | Issue |
 | [`regulatory-watch.yml`](../.github/workflows/regulatory-watch.yml) | Probes regulator artefacts (NIST OSCAL, MITRE ATT&CK<sup class="ref">[<a href="#ref-2">2</a>]</sup>, PCI SSC, HHS, EUR-Lex), commits manifest deltas | `workflow_dispatch`, weekly cron | Mon 09:00 UTC | Commit + Issue |
 | [`splunkbase-sync.yml`](../.github/workflows/splunkbase-sync.yml) | Refreshes `data/splunkbase-catalog.json` from Splunkbase<sup class="ref">[<a href="#ref-6">6</a>]</sup> REST; opens PR with diff | `workflow_dispatch`, weekly cron | Tue 08:00 UTC | PR |
 | [`build-reproducibility.yml`](../.github/workflows/build-reproducibility.yml) | Asserts two consecutive `--reproducible` builds produce byte-identical `dist/integrity.json` | `workflow_dispatch`, nightly cron, build-pipeline PRs | 03:00 UTC nightly | No |
-| [`uc-tests.yml`](../.github/workflows/uc-tests.yml) | UC sample-data fixtures validation (pre-flight); production E2E gated by repo secrets | `push`/`pull_request` (paths-filtered), `workflow_dispatch` | per relevant PR | No |
-| [`uc-manifest.yml`](../.github/workflows/uc-manifest.yml) | Generates `manifest-all.json` and validates UC count / payload shape | `push`/`pull_request` (paths-filtered) | per relevant PR | No |
+| [`sarif.yml`](../.github/workflows/sarif.yml) | Full SARIF upload to code scanning. The PR smoke stays in `ci.yml` | weekly cron, `workflow_dispatch` | Mon 04:30 UTC | No |
+| [`lighthouse.yml`](../.github/workflows/lighthouse.yml) | Lighthouse perf and a11y trends | weekly cron, `workflow_dispatch` | Mon 07:00 UTC | No |
 | [`traffic.yml`](../.github/workflows/traffic.yml) | Archives GitHub repo traffic data daily (extends GitHub's 14-day window) | `workflow_dispatch`, daily cron | 00:00 UTC daily | Commit |
 
 ### Cadence calendar
 
 ```
+Mon 04:30 UTC   sarif.yml                (weekly)
 Mon 06:00 UTC   link-check.yml           (weekly)
-Mon 06:17 UTC   codeql.yml               (weekly + on PR/push)
+Mon 06:17 UTC   codeql.yml               (weekly)
+Mon 07:00 UTC   lighthouse.yml           (weekly)
+Mon 08:30 UTC   roadmap-export.yml       (weekly)
 Mon 09:00 UTC   regulatory-watch.yml     (weekly)
 Tue 03:42 UTC   gitleaks.yml             (weekly + on PR/push)
 Tue 08:00 UTC   splunkbase-sync.yml      (weekly)
 Daily 00:00 UTC traffic.yml              (every day)
 Daily 03:00 UTC build-reproducibility.yml (every night)
-Per-PR          validate.yml, dependency-review.yml, gitleaks.yml (push/PR), codeql.yml (push/PR), uc-manifest.yml, uc-tests.yml
-Per-push-main   pages.yml
+Per-PR          ci.yml, dependency-review.yml, gitleaks.yml
+Per-push-main   ci.yml (includes the Pages deploy), gitleaks.yml
 Per-tag         release.yml
 ```
 
@@ -142,13 +141,11 @@ the audit is the source of truth).
 
 ## Validate.yml (five parallel jobs)
 
-The merge gate. PRs cannot merge until every job in this workflow
-returns success. Job dependencies are intentionally **none** — every
-job is independent, so a slow audit doesn't delay the lint signal.
-
-Cross-job artefact independence: jobs that need `api/v1/` regenerate
-it locally (cheap, deterministic — ~5 seconds) rather than depending
-on `audits-build`. This keeps the parallelism pure.
+The merge gate. PRs cannot merge until every required job in this
+workflow returns success. `lint` and `audits-content` start
+immediately. `audits-build`, `mcp` and `frontend` wait for the `build`
+job and download its `dist/` and `api/v1/` artifact instead of
+building the catalog again. Deploy waits only for `build`.
 
 ### Job 1: `lint` (~5 min budget)
 
@@ -235,7 +232,7 @@ regenerate the report" — `make build` or the specific generator with
 
 ### Job 3: `audits-build` (~30 min budget)
 
-The only job that runs `tools/build/build.py`. Drives the wall-clock.
+Downloads the catalog artifact. The `build` job is the one that runs `tools/build/build.py`.
 
 Sequence:
 
