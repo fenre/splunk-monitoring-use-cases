@@ -1,3 +1,7 @@
+// Same globals as 01-state.js. No initialisers: this file is concatenated after that one.
+var inventorySelections;
+var currentSearch;
+var showFunStuff;
 var _srcBuilt = false;
 function buildSourceCatalog() {
   if (_srcBuilt) return;

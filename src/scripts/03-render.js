@@ -1,3 +1,5 @@
+// Same global as 01-state.js. No initialiser: this file is concatenated after that one.
+var ucAllCardsHtml;
 var DOMAIN_GUIDE = {1:'infrastructure-monitoring',2:'infrastructure-monitoring',5:'infrastructure-monitoring',6:'infrastructure-monitoring',15:'infrastructure-monitoring',18:'infrastructure-monitoring',19:'infrastructure-monitoring',9:'security-monitoring',10:'security-monitoring',17:'security-monitoring',3:'cloud-monitoring',4:'cloud-monitoring',20:'cloud-monitoring',7:'application-monitoring',8:'application-monitoring',12:'application-monitoring',13:'application-monitoring',16:'application-monitoring',11:'collaboration-iot-monitoring',14:'collaboration-iot-monitoring',21:'industry-verticals',22:'compliance-business',23:'compliance-business'};
 function domainGuideLink(catId, label) {
   var g = DOMAIN_GUIDE[catId];
