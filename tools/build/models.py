@@ -357,6 +357,7 @@ class UseCase(TypedDict, total=False):
     # Equipment / hardware.
     equipment: list[str]
     equipmentModels: list[str]
+    capabilities: list[str]
     hardware: str
 
     # Operational metadata.
