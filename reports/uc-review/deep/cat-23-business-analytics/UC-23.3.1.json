@@ -1,0 +1,116 @@
+{
+  "confidence": 0.78,
+  "content_sha256": "3a8d631c80b1dba339abb13633c3bd6c50f2700e766c149fea9e9afcdb476117",
+  "file": "content/cat-23-business-analytics/UC-23.3.1.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL never reads `dbx:marketing_spend_monthly`. It reads `inputlookup marketing_spend.csv` and sums a field named `spend`, while dataSources and detailedImplementation describe the column as `spend_amount`. A lookup built to the documented schema yields total_spend=0 after fillnull, so ROI is null on every row.",
+      "field": "dataSources",
+      "quote": "Parallel (finance marketing spend): `index=business` `sourcetype=\"dbx:marketing_spend_monthly\"` ... `spend_amount`, `currency_code`",
+      "severity": "major",
+      "suggested_fix": "Document the lookup columns the SPL expects (`campaign_source` or `channel`, `month`, `spend`), or explain how to populate marketing_spend.csv from the dbx:marketing_spend_monthly input with spend_amount renamed to spend."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "UC-23.3.7 is Email Deliverability and DKIM/SPF/DMARC telemetry, and UC-23.3.4 is Website Traffic Source and SEO; neither covers TV/CTV or direct mail. The UC-23.1.7 churn-recovery pointer is also unsupported by any sibling here.",
+      "field": "exclusions",
+      "quote": "TV/CTV upper-funnel measurement via Innovid/iSpot tracked in UC-23.3.7 ... Direct-mail / outdoor billboard ROI excluded — handled by the agency reconciliation extract (UC-23.3.4 referrer/UTM coverage)",
+      "severity": "major",
+      "suggested_fix": "Remove the cross-references, or point only to UCs whose titles match the excluded scope."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The evidence describes ITSI Glass Tables, a SOAR playbook and a saved search name (`mta_blended_roi_anomaly_v3`) that the UC never requires or defines; its own report is `rpt_marketing_channel_roi_monthly`. `latest_runtime_iso` is not a field returned by the saved/searches REST endpoint.",
+      "field": "evidence",
+      "quote": "Glass Table panel `MTABlendedROIExec` archived weekly to `evidence_index` ... SOAR `mta_remediation_v1` execution log retained 13 months in `index=audit`",
+      "severity": "major",
+      "suggested_fix": "List evidence the UC actually produces: the saved report definition, monthly exported result tables, and the finance reconciliation sign-off."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/create-dashboards-and-reports/dashboard-studio/10.3.2512/configuration-options-reference/visualization-configuration-options",
+      "explanation": "Dashboard Studio has no `splunk.funnel` visualization. The SPL also drops `region` and `customer_segment` at the stats stage, so neither trellis nor color split can be driven from it.",
+      "field": "visualization",
+      "quote": "**splunk.funnel** showing counts from influenced pipeline rows through closed-won ... trellised by **region**; ... color **customer_segment** from CRM joins",
+      "severity": "blocker",
+      "suggested_fix": "Use `splunk.bar`/`splunk.column` (or `splunk.sankey`) for the stage view, and add region/customer_segment to the stats BY clause or a companion search if those splits are wanted."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/DBX/latest/DeployDBX/Commands",
+      "explanation": "DB Connect 3.x ships the `dbxquery` search command; `dbquery` belongs to retired DB Connect 1.x/2.x. The text also says inputs are merged into `inputs.conf`, while DB Connect stores them in `db_inputs.conf`.",
+      "field": "detailedImplementation",
+      "quote": "rerun the DB Connect input with explicit `last_run` watermark or replay a targeted `dbquery` preview",
+      "severity": "minor",
+      "suggested_fix": "Use `| dbxquery connection=... query=...` and refer to `db_inputs.conf`."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "`preserveLabel` is not a known inputs.conf or props.conf setting; Apache combined logs already include the full request URI and query string in `%r`.",
+      "field": "detailedImplementation",
+      "quote": "Forward Apache `access_combined` with `preserveLabel` on full query strings",
+      "severity": "needs_verification",
+      "suggested_fix": "Remove the setting, or name the actual configuration (for example an Apache LogFormat that keeps the query string) after checking the spec files."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "spelling",
+      "explanation": "This presumably means 'table of authorities' (a delegation-of-authority matrix), not Tableau.",
+      "field": "detailedImplementation",
+      "quote": "governance thresholds documented in Tableau of authorities",
+      "severity": "minor",
+      "suggested_fix": "Write 'delegation-of-authority matrix' or 'table of authorities'."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by an AI model, not a human SME.",
+      "field": "status",
+      "quote": "\"status\": \"verified\", ... \"reviewer\": \"Claude (anthropic)\"",
+      "severity": "minor",
+      "suggested_fix": "Mark as draft until a marketing-ops or FP&A SME signs off."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "title",
+      "issue": "The title promises 'Multi-Touch' attribution, but the SPL credits each opportunity to a single coalesced campaign_source/lead_source, which is single-touch. Either retitle (for example 'Cross-Channel Marketing ROI: Sourced Spend Versus Revenue') or add a touch-level model (CampaignInfluence / campaign member data).",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The DB Connect rising-column input on last_modified_date ingests each opportunity once per change, and the SPL sums won_amt/pipe_amt across all 180 days of rows without `dedup OppId`. Revenue_closed and pipeline_generated are inflated for frequently edited deals; only `deals` (dc) is correct.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Join",
+      "field": "spl",
+      "issue": "`join type=left campaign_key create_month max=50000 [...]` puts the `max` option after the field list. The join syntax expects options before the fields, so confirm this parses as intended rather than treating `max=50000` as a field.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0016-UC-23.3.1",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The implementation narrative on finance and CRM reconciliation is thoughtful, but the spend data source and field names do not match what the SPL reads, and the exclusions point at unrelated sibling UCs. The visualization names a non-existent Dashboard Studio type and fields the SPL never outputs, the evidence block invents ITSI/SOAR artefacts, and the SPL is single-touch even though the title promises multi-touch.",
+  "tier": "deep",
+  "uc_id": "UC-23.3.1",
+  "verdict": "incorrect"
+}

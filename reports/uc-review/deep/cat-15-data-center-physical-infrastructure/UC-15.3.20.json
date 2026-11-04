@@ -1,0 +1,96 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "737ab64463fd3c8f17eb19492a209f40fd8b4a1925df43fefaa65f3d36f9ad6c",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.3.20.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://www.splunk.com/en_us/download/universal-forwarder.html",
+      "explanation": "The Splunk Universal Forwarder is downloaded from splunk.com, not Splunkbase; app 617 is not in the cached catalogue and its Splunkbase URL returns 404. The UF has no fire-panel modular input, so the sentence does not tell the reader how panel signals reach Splunk. The same claim is repeated in the second Step 1 of detailedImplementation.",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll",
+      "severity": "blocker",
+      "suggested_fix": "Remove the Splunkbase 617 reference and describe the real path: the fire panel's BMS gateway (BACnet/Modbus to a BMS that exports syslog or REST), a panel event-printer/serial-to-syslog converter, or a vendor network interface, landed via SC4S, HEC or a file monitor into `index=physical` as `sourcetype=\"fire:supervisory\"` with `signal_type`, `zone`, `ack_state` and `description`."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL has no duration logic: it returns every event with `ack_state=\"unack\"` immediately, and because it does not look at the latest state per zone it keeps returning old `unack` events even after a later acknowledgement event arrives.",
+      "field": "implementation",
+      "quote": "Page on any unacknowledged supervisory >5 min.",
+      "severity": "major",
+      "suggested_fix": "Either describe the SPL as it is (lists every unacknowledged trouble/supervisory event in the window) or record that the >5 minute rule needs SPL changes (latest state per `zone` and `signal_type`, then `now() - _time > 300`) and leave that to the SPL owner."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "clarity",
+      "explanation": "The field contains two full Step 1–4 sequences and a quadruplicated heading. The second set sets a 300–900 second poll interval (incompatible with paging after 5 minutes), throttles \"per entity\", and spot-checks `host, user, action`, none of which belong to this feed.",
+      "field": "detailedImplementation",
+      "quote": "Step 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize",
+      "severity": "major",
+      "suggested_fix": "Keep one sequence; make collection event-driven (syslog or BMS push) or poll at most every 60 seconds; throttle on `zone` plus `signal_type`; validate `signal_type`, `zone`, `ack_state` against the panel's event history."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "description, controlTest and knownFalsePositives describe a count-by-entity threshold; the SPL is an unaggregated filter on `signal_type` and `ack_state` with no threshold.",
+      "field": "cross_field",
+      "quote": "Rolls up `count` by `entity` across `the scheduled window` and pages when configured threshold.",
+      "severity": "major",
+      "suggested_fix": "Describe the real output: one row per unacknowledged trouble, supervisory or pre-action low-air signal, with time, zone, signal type and panel description."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "None of the scenarios names a real cause. Realistic ones are scheduled inspection and testing (valve tamper and walk tests put zones into supervisory), air-compressor cycling briefly dropping pre-action air pressure, and signals acknowledged at the panel while the BMS feed never updates `ack_state`.",
+      "field": "knownFalsePositives",
+      "quote": "Batch `count` on `fire:supervisory`** — Scheduled automation elevates `src` without crossing configured threshold",
+      "severity": "major",
+      "suggested_fix": "List those causes and suppress by `zone` during documented inspection windows rather than via a `host`-keyed exception register."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The text does not say that Splunk is only a secondary view. NFPA 72 requires supervisory signals to go to the listed supervising station or monitoring service, and a reader could treat this alert as that path.",
+      "field": "implementation",
+      "quote": "Map all supervisory points per NFPA 72.",
+      "severity": "minor",
+      "suggested_fix": "Add that the Splunk alert supplements, and does not replace, the code-required supervising station monitoring."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The SPL also outputs a `description` field that the data-source contract does not mention.",
+      "field": "dataSources",
+      "quote": "(signal_type, zone, ack_state)",
+      "severity": "minor",
+      "suggested_fix": "Add `description` (panel point label or event text) to the listed fields."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "Without `stats latest(ack_state) latest(_time) by zone, signal_type` (or equivalent), signals that were later acknowledged or restored still match on their earlier `unack` events, and nothing enforces the >5 minute rule stated in implementation.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0058-UC-15.3.20",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The SPL idea (unacknowledged trouble and supervisory signals from a fire panel feed) is sound, but the collection path cites a non-existent Splunkbase listing for the Universal Forwarder, the five-minute paging rule in implementation is not in the SPL, and detailedImplementation is two concatenated templates whose 5–15 minute polling defeats the paging goal.",
+  "tier": "deep",
+  "uc_id": "UC-15.3.20",
+  "verdict": "incorrect"
+}

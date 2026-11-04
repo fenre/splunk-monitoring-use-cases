@@ -1,0 +1,87 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "5a92d5772e462198fba35de87007b72fcecf8748701f082f6250932b8f0fbb21",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.2.13.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/9.3.1/Forwarding/Typesofforwarders",
+      "explanation": "The Universal Forwarder is a separately downloaded Splunk binary, not a Splunkbase app (splunkbase.splunk.com/app/617 returns 404), and it does not bundle Python for modular inputs.",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+      "severity": "blocker",
+      "suggested_fix": "Describe the real BMS path for AHU points (BACnet via Edge Hub or gateway, BMS historian via DB Connect Splunkbase 2686, or SNMP) and drop 'Universal Forwarder (Splunkbase 617)'."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/datacenter-physical.md",
+      "explanation": "The SPL also needs `ahu_id` and `max_filter_dp_pa`; neither is listed, and nothing says where the rated maximum ΔP comes from. The grounding guide lists BMS data as snmp:bms or bacnet:metrics, not bms:ahu.",
+      "field": "dataSources",
+      "quote": "`sourcetype=\"bms:ahu\"` (filter_dp_pa, fan_speed_pct)",
+      "severity": "major",
+      "suggested_fix": "List ahu_id and max_filter_dp_pa, state that max_filter_dp_pa is the filter manufacturer's rated final resistance held in an AHU lookup (or BMS point), and map from the guide's BMS sourcetypes if those are used."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "description claims a count by entity, but the SPL returns every raw sample where ΔP exceeds 85% of maximum, with no aggregation or latest-per-AHU step; the 85% threshold appears only in implementation.",
+      "field": "cross_field",
+      "quote": "Rolls up `count` by `entity` across `the scheduled window` and pages when configured threshold.",
+      "severity": "major",
+      "suggested_fix": "Describe the output as one row per AHU sample above 85% of rated maximum filter ΔP, with fan speed for context."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The scenarios reference `host` and `src`, which the SPL does not use, and name no real cause of misleading filter ΔP.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `host`** — Health checks in `cooling` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List real causes: fan speed ramps (ΔP rises roughly with the square of airflow, so high fan speed inflates ΔP), blocked or disconnected sensing tubes, transducer zero drift after a filter change, and AHU start-up transients."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The validation step names fields unrelated to AHU telemetry; the body is generic template text (HEC tokens, vendor API 401/429) and duplicates Steps 1–4, with 'Step 4 — Operationalize' repeated four times.",
+      "field": "detailedImplementation",
+      "quote": "Spot-check two known entities for field presence (`host, user, action`).",
+      "severity": "major",
+      "suggested_fix": "Deduplicate, spot-check ahu_id, filter_dp_pa and fan_speed_pct, and add AHU-specific steps (map BMS ΔP points in Pa, load rated max ΔP per filter bank, compare with the BMS AHU graphic)."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The monitored equipment is an air handler / BMS, not Splunk.",
+      "field": "equipment",
+      "quote": "\"splunk\"",
+      "severity": "minor",
+      "suggested_fix": "Use the BMS or HVAC equipment slug."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "No per-AHU reduction (e.g. `stats latest(filter_dp_pa) latest(fan_speed_pct) by ahu_id`), so every sample over threshold in the window produces a row, and ΔP is not normalised for fan speed even though implementation asks to correlate the two.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0035-UC-15.2.13",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 1
+  },
+  "summary": "A reasonable filter-loading threshold (85% of rated maximum ΔP), but the SPL relies on undocumented `ahu_id` and `max_filter_dp_pa` fields, the description claims an aggregation that does not exist, and the collection path names a non-existent Splunkbase Universal Forwarder app.",
+  "tier": "deep",
+  "uc_id": "UC-15.2.13",
+  "verdict": "incorrect"
+}

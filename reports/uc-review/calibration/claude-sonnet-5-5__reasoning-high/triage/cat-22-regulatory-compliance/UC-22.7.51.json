@@ -1,0 +1,113 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "7dd74b35cb4658a71f4c4ff14854ea25852a388c74b733a4698f6c65be825508",
+  "file": "content/cat-22-regulatory-compliance/UC-22.7.51.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "dataSources, implementation and detailedImplementation (and the evidence field) treat `monitored_segments.csv` as the in-scope segment inventory and say thresholds are tuned per segment. The SPL never references the lookup and uses fixed `zscore>3 OR count>10000` for all sources.",
+      "field": "cross_field",
+      "quote": "`monitored_segments.csv` defines in-scope networks.",
+      "severity": "major",
+      "suggested_fix": "Add the lookup join or filter to the SPL, or stop describing the lookup as part of the detection. Explain how per-segment tuning would be applied."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "Every result row is stamped 'analysed'. The evidence text claims the output 'demonstrates the network is being monitored and analysed without gaps' and gives per-segment monitoring confirmation. Nothing in the search detects missing feeds or gaps.",
+      "field": "cross_field",
+      "quote": "eval coverage_status=\"analysed\"",
+      "severity": "major",
+      "suggested_fix": "Describe `coverage_status` as a constant label, or add real coverage logic, such as a per-segment check for silent segments."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "'verified' status with an AI-assisted maintainer review is not evidence of SME sign-off. The compliance rationale also calls the SIEM 'sole-sufficient' for DE.CM-01 and DE.AE-02.",
+      "field": "cross_field",
+      "quote": "\"status\": \"verified\", ... \"reviewer\": \"Maintainer (AI-assisted review) — see data/provenance/ai-review-log.json\"",
+      "severity": "major",
+      "suggested_fix": "Lower the status unless SME sign-off exists, and drop 'sole-sufficient' wording."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The second half of the text repeats Steps 1 to 5 with generic template wording: 'sourcetype=see SPL', 'index=main', HEC/modular-input polling and a vendor API. None of this fits Network_Traffic CIM data. The spot-check line lists `All_Traffic.dest, All_Traffic.src, _time, src`, which mixes raw and renamed names.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=see SPL into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower.",
+      "severity": "major",
+      "suggested_fix": "Remove the generic second set of steps, or replace it with steps specific to confirming the Network_Traffic model is populated and accelerated."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "The base search hard-codes `earliest=-24h` inside the tstats `where` clause, and the baseline is only 24 hourly rows per source. A 30-day `earliest` outside tstats will not override it, so the calibration query would still look back 24 hours. Also the zscore itself is computed against a 24-hour baseline, so it will not reflect 30-day behaviour.",
+      "field": "detailedImplementation",
+      "quote": "<base search without the where> earliest=-30d\n| stats perc90(zscore) as p90, perc99(zscore) as p99, max(count) as peak by src",
+      "severity": "major",
+      "suggested_fix": "Describe a 30-day calibration with the time range as a parameter, or explain that zscore uses a 24-hour window and calibrate on that."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "Compliance-pack boilerplate: 'QSA' (PCI) and BAA/DPA processors do not explain false alerts on network volume, and `configured sourcetype` is a template placeholder. Real causes are missing: vulnerability scanners, backup and replication windows, patch distribution, CDN or load-balancer fan-in, and legitimate bulk transfers above 10000 events.",
+      "field": "knownFalsePositives",
+      "quote": "External assessor sampling** — QSA activity spikes `index=network_traffic` `configured sourcetype` without crossing `zscore` > 3.",
+      "severity": "major",
+      "suggested_fix": "Replace with network-specific causes and name the allow-list that handles them."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "The SPL needs only Splunk core and the CIM Network_Traffic model. Elsewhere ES is described as 'recommended' and optional, so listing it as a premium app requirement is inconsistent.",
+      "field": "premiumApps",
+      "quote": "\"premiumApps\": [ \"Splunk Enterprise Security\" ]",
+      "severity": "minor",
+      "suggested_fix": "Mark ES as optional for notables, or remove it from premiumApps."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The final table does not output `avg_count` or `sd_count`, and the SPL rolls results up to one row per `src` rather than per hour.",
+      "field": "description",
+      "quote": "Outputs `bytes_out`, `avg_count`, `sd_count` each `1h`",
+      "severity": "minor",
+      "suggested_fix": "Describe the final output: one row per source with max zscore, summed count, bytes_out, actions and destinations."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "compliance",
+      "issue": "Both entries use mode 'satisfies' with assurance 'full', and the rationale states a SIEM is the 'sole-sufficient' control. A statistical volume anomaly search over Network_Traffic cannot fully satisfy DE.CM-01 (networks monitored) or DE.AE-02 (events analysed).",
+      "severity": "major"
+    },
+    {
+      "field": "mitreAttack",
+      "issue": "T1071 (Application Layer Protocol) is a command-and-control technique. A volume z-score on source and destination counts is generic and does not specifically detect it.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "`where zscore>3 OR count>10000` uses a fixed absolute threshold across all segments, and the baseline is only 24 hours. The `monitored_segments.csv` lookup is never applied.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0033-UC-22.7.32",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 3,
+    "correctness": 4,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The content is substantially more tailored than the typical template UC: the Network_Traffic model, its sources and the DE.CM-01/DE.AE-02 mapping make sense. Problems remain: monitored_segments.csv is described as scoping the control but is never used by the SPL, the coverage claims and 'verified' status are overstated, and the file ends with generic boilerplate steps that contradict the earlier steps.",
+  "tier": "triage",
+  "uc_id": "UC-22.7.51",
+  "verdict": "rewrite"
+}

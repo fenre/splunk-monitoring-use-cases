@@ -1,0 +1,105 @@
+{
+  "confidence": 0.72,
+  "content_sha256": "67859a5714c8b1c193e143772bf487840292a0622c38101dc4c2c6da34866398",
+  "file": "content/cat-23-business-analytics/UC-23.2.3.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "dataSources and detailedImplementation tell readers to land bridged product-analytics data as `sourcetype=web:event`, but the SPL reads only `app:login` and `app:feature_use`. Customers whose telemetry arrives through the bridge would show zero logins and zero features and score as high churn risk.",
+      "field": "dataSources",
+      "quote": "forwarded JSON from Mixpanel/Amplitude/Pendo/Heap-style pipelines renamed at ingest to `web:event`",
+      "severity": "major",
+      "suggested_fix": "Tell readers to rewrite bridged events into `app:login` / `app:feature_use` with the same field names, or state that the SPL base searches must be extended to include `web:event`."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "Splunk Secure Gateway is the Splunk Mobile / Connected Experiences gateway and has nothing to do with Splunk Add-on for ServiceNow authentication. The add-on documents Basic and OAuth account types; mutual TLS support is doubtful.",
+      "field": "detailedImplementation",
+      "quote": "Prefer **`snow:incident`** via TA-ServiceNow modular inputs configured with OAuth or mutual TLS per Splunk Secure Gateway guidance",
+      "severity": "needs_verification",
+      "suggested_fix": "Reference the Splunk Add-on for ServiceNow 'Configure ServiceNow account' documentation and list only the authentication types it supports (Basic, OAuth)."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "`maxThroughput` is not an HTTP Event Collector setting; HEC capacity is tuned with `[http]` settings in inputs.conf such as `maxThreads` and `maxSockets`, plus indexer pipeline and queue capacity. `queueSize` applies to other input types and should be confirmed for HEC.",
+      "field": "detailedImplementation",
+      "quote": "remediation expands **`maxThroughput`** / **`queueSize`**",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the inputs.conf spec `[http]` section and name only settings that exist there, or point to the HEC troubleshooting documentation."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Join",
+      "explanation": "`max=0` only lifts the number of matches per row. It does not lift the subsearch result limit (50,000 rows by default) or the subsearch timeout, which is what threatens fidelity at customer scale.",
+      "field": "detailedImplementation",
+      "quote": "**`join`** overhead — **`max=0`** trades CPU for fidelity",
+      "severity": "minor",
+      "suggested_fix": "Say that join subsearches are truncated at the subsearch limits, and recommend `stats`-based merging across sourcetypes or a nightly summary keyed by customer_id for large customer bases."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Neither Dashboard Studio nor core Simple XML ships a 'timeline' visualization; one is only available as a separate Splunkbase custom visualization. detailedImplementation repeats 'Visualization → Timeline'.",
+      "field": "visualization",
+      "quote": "drilldown to **`timeline`** visualization of **`app:login`**/**`app:feature_use`** alongside **`snow:incident`** markers",
+      "severity": "needs_verification",
+      "suggested_fix": "Name the add-on that provides the timeline visualization, or use a native alternative such as a `splunk.line`/`splunk.column` timechart with event annotations."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "clarity",
+      "explanation": "CSM interventions happen outside Splunk, and the text does not say which search produces the rows that `collect` would write, so the step cannot be implemented as written.",
+      "field": "detailedImplementation",
+      "quote": "Record interventions via **`collect`** into **`index=summary`** **`sourcetype=churn_intervention_log`** capturing **`timestamp`**, **`csm_owner`**, **`notes`**",
+      "severity": "minor",
+      "suggested_fix": "Name the source of intervention records (for example a Gainsight/CRM task export via HEC or DB Connect) and the search that writes them, or drop the step."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "The status claims verification, but the reviewer is an automated agent and no SME sign-off is recorded.",
+      "field": "status",
+      "quote": "\"status\": \"verified\", ... \"reviewer\": \"agent-handcraft-2026-04-27\"",
+      "severity": "minor",
+      "suggested_fix": "Mark as draft or community until a human reviewer validates the scoring and the ingestion paths."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The base search is `app:login` only, so a customer with zero logins in 90 days produces no row and is never scored, although fully dormant accounts are the strongest churn signal. Seed the customer list from the ID map, billing or CRM, then left-join activity.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "Four `join` subsearches over 90 days are subject to the default subsearch row and time limits; `max=0` does not lift them. With more than about 50,000 customers or slow subsearches, feature, ticket or billing data is silently truncated, and fillnull turns it into zeros that raise churn scores. A single `stats ... by customer_id` over appended sourcetypes avoids this.",
+      "severity": "major"
+    },
+    {
+      "field": "title",
+      "issue": "'Prediction' overstates a fixed-weight heuristic score; no model is trained or applied. Consider 'Churn Risk Scoring and Early Warning'.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0011-UC-23.2.3",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 3,
+    "correctness": 3,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The scoring logic and weight rationale are well explained, but the ingestion story routes bridged analytics into a sourcetype the SPL never reads, the ServiceNow and HEC tuning advice contains wrong product references, and the SPL structurally cannot see fully dormant customers or more than the subsearch row limit.",
+  "tier": "deep",
+  "uc_id": "UC-23.2.3",
+  "verdict": "rewrite"
+}

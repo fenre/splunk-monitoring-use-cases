@@ -1,0 +1,165 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "5723fce7d048d93a67ba4b640742edd398af51f1aae14dca0acc982f64acad67",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.2.36.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/oVirt/ovirt-engine/blob/master/backend/manager/modules/common/src/main/java/org/ovirt/engine/core/common/AuditLogType.java",
+      "explanation": "In oVirt AuditLogType, 983 is RECONSTRUCT_MASTER_FAILED_NO_MASTER (warning) and 984 is RECONSTRUCT_MASTER_DONE, an informational success event. Neither is a low-space event. The storage-domain low-space events are IRS_DISK_SPACE_LOW (26), IRS_DISK_SPACE_LOW_ERROR (201) and IRS_CONFIRMED_DISK_SPACE_LOW (1403). The UC repeats the 983/984 framing in implementation, visualization and detailedImplementation, including 'code 984-class conditions' and 'PagerDuty when ... a 984-class row', so a successful master reconstruction would page as critical.",
+      "field": "dataSources",
+      "quote": "with numeric `code` 983 and 984 where present",
+      "severity": "blocker",
+      "suggested_fix": "Replace 983/984 with 26, 201 and 1403 for low-space and critical-space events. If master-domain health is in scope, treat 983 and 985 (RECONSTRUCT_MASTER_FAILED) as master-failure signals and 984 as a recovery or info signal."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval",
+      "explanation": "The text promises a freeze override built on `_hard`. That eval assigns a boolean expression to a field, which Splunk rejects ('Fields cannot be assigned a boolean result'), so the described behaviour never runs. Troubleshooting item (i) misattributes the failure to parsing 'error'. The '984 flag' is also a success event (see the dataSources finding).",
+      "field": "detailedImplementation",
+      "quote": "you never demote when `critical_space_breach=1`, `external_status=error`, or a 984 flag is set — those stay on the operations bridge until cleared",
+      "severity": "major",
+      "suggested_fix": "Describe the hard-breach flag as an if(...,1,0) integer. Rewrite Troubleshooting (i) to say a search error at the _hard line means the boolean was assigned directly."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "None of these four key names could be confirmed. Since oVirt 3.6 the thresholds have been per-domain attributes (warning_low_space_indicator and critical_space_action_blocker, set in the storage domain's Advanced Parameters), not global engine-config keys. Calling unconfirmed names 'documented' is overclaiming.",
+      "field": "detailedImplementation",
+      "quote": "run `engine-config -g FreeSpaceLow` / `engine-config -g FreeSpaceCritical` (RHV/oVirt naming varies) or the documented `StorageDomainPercentageWarning` and `StorageDomainSizeGBCritical`",
+      "severity": "needs_verification",
+      "suggested_fix": "Point validation at the per-domain Advanced Parameters in Web Admin and the two REST attributes. Run `engine-config -l` to list real keys before citing any."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "evidence_url": "https://www.ovirt.org/release/4.5.5/",
+      "explanation": "oVirt's published release notes run through 4.5.x, and no 4.6 'Bella' release could be found. 'Bella' appears only as a contributor's name in release notes. The item asserts a product version and codename that appear not to exist.",
+      "field": "detailedImplementation",
+      "quote": "(k) oVirt 4.6+ (Bella) — re-read the release note event codes",
+      "severity": "needs_verification",
+      "suggested_fix": "Drop the codename and say 'future oVirt releases after 4.5', unless a 4.6 release note can be cited."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "The text recognises zero-size inactive or detached domains as benign. The search, however, sets free_pct to 0 and available_gb to 0 for them, which trips critical_space_breach, so they page as critical. ISO and export domains are not filtered out either, although the critical-space blocker only governs data domains.",
+      "field": "detailedImplementation",
+      "quote": "(b) `available=0` AND `used=0` — domain is inactive, detached, or the engine has not yet imported metadata",
+      "severity": "minor",
+      "suggested_fix": "State that inactive, detached, ISO and export domains must be excluded (filter on status=active and type=data) before thresholds are applied."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "over_sub_ratio is committed/(available+used). On a preallocated domain where committed is about equal to used, the ratio equals the used fraction (below 1.0), not 1.0. Item (e), 'eta_to_critical_h negative', also cannot happen, because the eval only computes an ETA when depl_bps>0 and available>crit_bytes.",
+      "field": "detailedImplementation",
+      "quote": "(d) `over_sub_ratio` is always 1.0 — the domain is likely preallocated (thick) so committed tracks used",
+      "severity": "minor",
+      "suggested_fix": "Say that on preallocated domains over_sub_ratio is approximately the used fraction. Remove item (e) or reword it as 'ETA null while free space grows'."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "The where sourcetype=\"ovirt:engine:storagedomain\" filter discards every host and event row from the multisearch. Events come only from the later join, and host data is never used. Presenting the dead legs as an ACL or consistency benefit is misleading.",
+      "field": "detailedImplementation",
+      "quote": "Search walkthrough: the `multisearch` performs one unioned pull so schedulers, index-time routing, and sourcetype ACL tests stay consistent across all three pollers, then the `where` keeps the numeric capacity math on the storagedomain side only.",
+      "severity": "minor",
+      "suggested_fix": "State that the host feed is dashboard-only and events enter via the join. Recommend removing the unused multisearch legs."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "spelling",
+      "explanation": "The JSON string contains real CR and LF escape sequences instead of the escaped backslash form. The rendered props.conf line breaks across lines and is invalid; the sibling UC-19.2.35 escapes it correctly.",
+      "field": "detailedImplementation",
+      "quote": "LINE_BREAKER = ([\r\n]+)",
+      "severity": "minor",
+      "suggested_fix": "Encode it as LINE_BREAKER = ([\\r\\n]+) so the rendered config shows the literal backslash sequences."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The app field calls them HEC pollers, but detailedImplementation configures scripted inputs with sourcetype and index stanzas, which ingest stdout. Doing both double-ingests the data, and the reader is not told which model to use.",
+      "field": "app",
+      "quote": "Python 3 HEC pollers (stdlib + `ssl.create_default_context` loading a corporate CA bundle) with 300s `storagedomain` and 60s `event` interval",
+      "severity": "minor",
+      "suggested_fix": "Choose one model: a scripted input writing to stdout, or an external poller posting to HEC. Align the app, dataSources and inputs.conf text with it."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "A UPS SNMP model has nothing to do with oVirt storage domains. The equipment tags hyperv and snmp are likewise unrelated to the REST and KVM data path described.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_ups\"",
+      "severity": "minor",
+      "suggested_fix": "Remove snmp_ups, hyperv and snmp. Keep ovirt and linux, and add storage-vendor tags only if the UC actually uses them."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "specificity",
+      "explanation": "The URL is the generic storage feature index, not a page on storage-domain monitoring or space thresholds. The admin guide is also listed twice, once with only an anchor added.",
+      "field": "references",
+      "quote": "\"title\": \"oVirt feature — storage domain monitoring\", \"url\": \"https://www.ovirt.org/develop/release-management/features/storage/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the oVirt REST API StorageDomain type documentation (fields available, used, committed, warning_low_space_indicator, critical_space_action_blocker) and the AuditLogType or event-code reference."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by a generic project handle, but the search fails to parse and the event codes are mis-mapped. It could not have passed a real run.",
+      "field": "status",
+      "quote": "\"status\": \"verified\", ... \"reviewer\": \"@splunk-monitoring-use-cases\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade to draft until a named reviewer has run the search against a real engine."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Search/Addcommentstosearches",
+      "field": "spl",
+      "issue": "The first multisearch leg contains '| comment(\"UC-19.2.36 — ...\")' without backticks. comment is a macro, not a search command, so the search fails with an unknown-command error.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval",
+      "field": "spl",
+      "issue": "'| eval _hard=(critical_space_breach=1) OR (external_status=\"error\") OR (recent_984=1)' assigns a boolean to a field, which eval rejects ('Fields cannot be assigned a boolean result'). This aborts the search; it needs if(...,1,0).",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://github.com/oVirt/ovirt-engine/blob/master/backend/manager/modules/common/src/main/java/org/ovirt/engine/core/common/AuditLogType.java",
+      "field": "spl",
+      "issue": "Codes 983/984 are RECONSTRUCT_MASTER_FAILED_NO_MASTER and RECONSTRUCT_MASTER_DONE, not low-space events. recent_984 makes a successful master reconstruction 'critical', and the real low-space codes 26, 201 and 1403 are never matched.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "Missing or zero capacity values coalesce to \"0\", which makes free_pct=0 and available_gb=0, so critical_space_breach=1. Inactive or detached domains, ISO and export domains, and polls missing fields all page as critical. No status or type filter is applied.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "'sort 0 sev_order, -free_pct' lists the highest free_pct first within each severity, the opposite of the ascending order the visualization and detailedImplementation describe. depl_bps comes from one 5-minute delta, so the ETA is very noisy. The event join's coalesce falls back to the event's own 'id', which will not match a storage domain UUID.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0071-UC-19.2.36",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The storage-domain field model (available, used, committed, warning_low_space_indicator, critical_space_action_blocker, external_status) and the OAuth flow are well described. The event-code story is wrong, though: 983/984 are master-reconstruction events, not low-space events, and 984 is a success message. The search as written would not run, because it calls a bare comment command and assigns a boolean in eval. Several Validate and Troubleshooting claims are unverified or invented.",
+  "tier": "deep",
+  "uc_id": "UC-19.2.36",
+  "verdict": "incorrect"
+}

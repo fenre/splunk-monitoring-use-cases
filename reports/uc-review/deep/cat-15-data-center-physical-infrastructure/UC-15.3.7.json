@@ -1,0 +1,102 @@
+{
+  "confidence": 0.82,
+  "content_sha256": "92b25131b4da3c96accd6e61e7f8319d7b3898adaf67b08a95e6aa4a2c7528ba",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.3.7.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://www.splunk.com/en_us/download/universal-forwarder.html",
+      "explanation": "The Splunk Universal Forwarder is not a Splunkbase app; it is downloaded from splunk.com. splunkbase.splunk.com/app/617 returns 404 and ID 617 is absent from data/splunkbase-catalog.json. The same false ID is repeated in dataSources and detailedImplementation.",
+      "field": "app",
+      "quote": "Fire alarm panel integration, BMS — Universal Forwarder (Splunkbase 617)",
+      "severity": "blocker",
+      "suggested_fix": "Drop the Splunkbase ID. Say the fire panel or BMS feed is collected via syslog/SC4S, a vendor gateway, or a scripted/REST input on a Universal Forwarder or heavy forwarder (downloaded from splunk.com), and name the actual panel vendor integration if one is known. Apply the same fix in dataSources and detailedImplementation."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/datacenter-physical.md",
+      "explanation": "Microsoft 365 has nothing to do with fire detection/suppression panels or BMS telemetry; the tag will surface this UC in the M365 equipment picker and hide it from facilities users.",
+      "field": "equipment",
+      "quote": "\"equipment\": [\n    \"m365\"\n  ]",
+      "severity": "blocker",
+      "suggested_fix": "Remove `m365` and tag with the data-center physical / BMS equipment slug used by sibling 15.3 UCs (check data/equipment-app-map.json for the correct slug), or leave empty if none applies."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The SPL has no stats, no `entity` field and no threshold; it lists every alarm, trouble or suppression event as a row. The description describes a different (non-existent) detection.",
+      "field": "description",
+      "quote": "Threshold bundle: configured threshold; aggregation grain: `entity`; metrics: `count`.",
+      "severity": "major",
+      "suggested_fix": "Describe what the SPL does: return every fire panel event in `index=physical sourcetype=fire:alarm` whose `status` is alarm or trouble, or whose `type` is suppression, showing zone, type, status and description, newest first; any single row is alertable."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The scenarios reference `count`, `span=1h`, `src` and `host` grouping that the SPL does not use, and none name a real fire-system false-positive cause.",
+      "field": "knownFalsePositives",
+      "quote": "Planned work for 'Fire Suppression and Detection System Alarms' shifts `count` over `span=1h` while `host` remains in-scope.",
+      "severity": "major",
+      "suggested_fix": "List real causes: scheduled fire alarm/detector testing and inspections (NFPA 72 test mode), detector contamination or dust from construction work, VESDA/aspirating detector sensitivity alarms, panel 'trouble' from battery or ground-fault conditions that are maintenance rather than fire, and suppression system disarm/arm during service. Suggest suppressing zones in test mode using the panel's test/disable status."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "clarity",
+      "explanation": "The text repeats the Step 1-4 sequence twice, duplicates the Step 4 heading four times, and the second pass is generic (\"throttle per entity\", \"spot-check `host, user, action`\", \"HTTP 401/429 from the vendor endpoint\") that does not fit a fire panel feed with fields zone/type/status.",
+      "field": "detailedImplementation",
+      "quote": "Step 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize",
+      "severity": "major",
+      "suggested_fix": "Keep one set of steps specific to fire panels: how the panel or BMS exports events (syslog, BACnet gateway, vendor API), which fields must be extracted (zone, type, status, description), alert-on-every-row scheduling (real-time or 1-minute), and validation against the panel event log."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "Run-on fragment that does not name the index, sourcetype or the fields the SPL needs (`zone`, `type`, `status`, `description`).",
+      "field": "dataSources",
+      "quote": "Fire detection, suppression system status, alarm events Collected via Universal Forwarder",
+      "severity": "minor",
+      "suggested_fix": "State: fire alarm panel / BMS events in `index=physical` as `sourcetype=fire:alarm` with extracted `zone`, `type` (e.g. suppression), `status` (alarm, trouble, normal) and `description`."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "grandma_fidelity",
+      "explanation": "Besides being templated, it never mentions fire, smoke detectors or suppression, which is the only thing this UC watches.",
+      "field": "grandmaExplanation",
+      "quote": "We watch the physical data center for power, cooling, environment, and physical access.",
+      "severity": "minor",
+      "suggested_fix": "e.g. \"When the fire panel reports a fire alarm, a fault, or a gas-suppression release in the data center, we show it straight away so someone can respond.\""
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "No dedup or state tracking: a panel that keeps re-sending a trouble condition will page on every event; consider `stats latest(status) by zone` or alert throttling per zone. Also `description` as an extracted field name may collide with documentation expectations; confirm it exists in the feed.",
+      "severity": "minor"
+    },
+    {
+      "field": "monitoringType",
+      "issue": "Fire detection/suppression is life-safety / facilities operations rather than `Security`; `splunkPillar: Security` is likewise questionable.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0085-UC-15.3.7",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 1,
+    "overclaiming": 3,
+    "specificity": 1
+  },
+  "summary": "The SPL is a simple filter-and-table over fire panel events, but the surrounding prose is template residue that describes a count-by-entity threshold detection that does not exist, cites a non-existent Splunkbase ID for the Universal Forwarder, and tags the UC with Microsoft 365 equipment.",
+  "tier": "deep",
+  "uc_id": "UC-15.3.7",
+  "verdict": "incorrect"
+}

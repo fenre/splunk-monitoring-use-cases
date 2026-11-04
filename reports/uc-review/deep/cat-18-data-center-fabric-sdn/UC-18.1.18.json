@@ -1,0 +1,121 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "ddfd426d8b7698cdf2f281e4d7665b76b28b8399899ec203e5f56bd6615bb59c",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.1.18.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/1897",
+      "explanation": "Splunkbase 4022 is 'Technical Addon for the Metricator application for Nmon (HEC)', not a Cisco ACI add-on. The ACI add-on was TA_cisco-ACI (Splunkbase 1897), which is archived and replaced by Cisco DC Networking (7777). The same wrong ID appears in dataSources, implementation, detailedImplementation and references.",
+      "field": "app",
+      "quote": "**Splunk_TA_cisco-aci** ([Splunkbase **4022**](https://splunkbase.splunk.com/app/4022))",
+      "severity": "blocker",
+      "suggested_fix": "Name Cisco DC Networking (cisco_dc_networking_app_for_splunk, Splunkbase 7777) as the primary API-collection app, mention the deprecated TA_cisco-ACI (1897) only for legacy installs, and remove every 4022 reference."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "infraWiNode is a real APIC class, but it reports cluster fitness through attributes such as `health` (for example fully-fit or data-layer-diverged) and `operSt`, not `operState`. Neither dbgrReplStatus nor a class/node API path called `cluster_health.json` appears in the APIC model documentation, and no documented attribute gives replication delay in milliseconds.",
+      "field": "dataSources",
+      "quote": "**`GET https://<apic>/api/node/class/dbgrReplStatus.json`** plus **`GET https://<apic>/api/node/class/infraWiNode.json`** for **`operState`** corroboration; map **`delay`** / **`status`**",
+      "severity": "needs_verification",
+      "suggested_fix": "Look up the APIC Management Information Model reference to confirm whether dbgrReplStatus and cluster_health exist and which attribute, if any, carries replication delay. If none does, rewrite the UC around infraWiNode `health`/`operSt` divergence states and stop describing millisecond latency."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Cisco's API-based apps emit `cisco:dc:aci:class`, `cisco:dc:aci:health` and `cisco:dc:aci:authentication` (7777), and the legacy add-on emitted `cisco:apic:*`. The `cisco:aci:replication` and `cisco:aci:cluster_health` sourcetypes only exist if the customer builds custom rest_ta stanzas for them.",
+      "field": "dataSources",
+      "quote": "**`sourcetype=cisco:aci:replication`** ... **`sourcetype=cisco:aci:cluster_health`**",
+      "severity": "needs_verification",
+      "suggested_fix": "Say that these are custom sourcetypes assigned in the user's own rest_ta inputs, or map the UC to the sourcetypes that 7777 actually produces, after checking the 7777 package's props.conf."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "These are the labelling bands from the `band` eval, not alert conditions, and they point the wrong way. The SPL keeps rows only when repl_ms_peak>=500, composite_peak>=5 or pending_peak>=8. A reader would expect alerts on low or zero latency. The controlTest has the same inverted logic.",
+      "field": "description",
+      "quote": "alert when `repl_delay_ms` <= 0, `repl_delay_ms` < 200, `repl_delay_ms` < 500, or `repl_delay_ms` < 1000",
+      "severity": "blocker",
+      "suggested_fix": "State the real alert gate: peak replication delay of at least 500 ms in a 5-minute bucket, a composite score of at least 5, or at least 8 pending replicas, per controller DN."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Dedup",
+      "explanation": "dedup has no `keepest` option. Valid options are keepevents, keepempty, consecutive and sortby, so this troubleshooting command fails.",
+      "field": "detailedImplementation",
+      "quote": "insert **`dedup _time dn_lc keepest=last`** ahead of **`stats`**",
+      "severity": "blocker",
+      "suggested_fix": "Use `sort 0 - _time | dedup _time dn_lc` (dedup keeps the first event it sees), or `dedup dn_lc _time sortby -_time`."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL hard-codes 500, 750 and 1500 ms cutoffs and never reads aci_repl_baseline.csv, so the advice cannot be followed without changing the search. The prose also uses three different suppression lists (maintenance_aci.csv here, operational_exceptions.csv in exclusions, ops_exception_register.csv in knownFalsePositives), and the SPL applies none of them.",
+      "field": "detailedImplementation",
+      "quote": "shift cutoffs using `aci_repl_baseline.csv` rather than editing SPL weekly",
+      "severity": "major",
+      "suggested_fix": "Describe the baseline and maintenance lookups as optional extensions that must be added to the SPL, and use one suppression lookup name consistently."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The colour bands in detailedImplementation and the single value's 750 ms threshold do not line up with the SPL's 500 ms alert floor and its 500/750/1500 severity tiers.",
+      "field": "visualization",
+      "quote": "Color **<300ms** green, **300–749ms** amber, **≥750ms** red",
+      "severity": "minor",
+      "suggested_fix": "Align the colour bands with the lag_sev tiers: below 500 ms, 500–749 ms, 750–1499 ms, and 1500 ms or more."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The evidence field names the saved search `operations_apic_cluster_replication_latency`, a different name.",
+      "field": "implementation",
+      "quote": "save **`aci_uc1818_replication_latency`**",
+      "severity": "minor",
+      "suggested_fix": "Use one saved-search name in implementation, detailedImplementation and evidence."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "The reviewer is an automated agent ('agent-handcraft-2026-04-29'), and the UC relies on unverified APIC classes and a wrong Splunkbase ID. That does not support a verified status.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft or community until an SME confirms the APIC classes, fields and add-on."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Search",
+      "field": "spl",
+      "issue": "The base search contains `match(_raw,\"(?i)(dbgr|...)\")` inside the search command. match() is an eval function, valid only in eval/where, so the search command does not evaluate it as a regex filter, and the fault, syslog and audit lanes will not filter as intended. Move the regex conditions into a `| where` clause after the base search.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "`repl_delay_ms` falls back to the string \"0\" in coalesce, so the `isnull(repl_delay_ms)` branch of `band` is dead code, and missing delay fields look like healthy zero-latency samples rather than gaps in the data.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0009-UC-18.1.18",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The UC presents a detailed replication-latency workflow, but its add-on identity (Splunkbase 4022) is wrong, the APIC classes and millisecond delay fields it depends on look invented, and prose thresholds and suppression lookups do not match the SPL. The base search also uses an eval function where the search command cannot evaluate it.",
+  "tier": "deep",
+  "uc_id": "UC-18.1.18",
+  "verdict": "incorrect"
+}

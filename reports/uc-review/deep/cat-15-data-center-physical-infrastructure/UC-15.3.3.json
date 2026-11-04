@@ -1,0 +1,96 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "b501ee3ee1afad7008afab9b329ab01c8c6f807d9408c38662e0fe645d019b3f",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.3.3.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/datacenter-physical.md",
+      "explanation": "Tailgating is an unauthorised person entering behind an authorised badge, so the follower produces no badge event. Several entry events from the same `badge_id` within 10 seconds mean the same credential was presented repeatedly (double-swipe, reader retry, or passback attempt), which is a different condition. The repository guide's tailgating search instead groups by `reader_id` and correlates single grants with long door-open or forced events.",
+      "field": "detailedImplementation",
+      "quote": "`where eventcount > 1 AND action=\"entry\"` highlights multiple entry-stamped events in one burst, the tailgating heuristic for this UC",
+      "severity": "blocker",
+      "suggested_fix": "Describe tailgating as a single granted badge on a door followed by evidence of more than one passage: door held open beyond the normal duration, a door-forced or door-held alarm, mantrap or people-counter count above the badge count, or the controller's own tailgate event subtype (compare sibling UC-15.3.14). Group by door or reader, not by badge."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The scenarios group on `host` and `src`, but the SPL uses neither. None of them names a real tailgating false-positive cause, such as escorted visitors, legitimate group entry by approved contractors, double-swipes on slow readers, guard tours, or controller replay after a network outage.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `host`** — Health checks in `physical` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List real causes: escort and visitor workflows, reader debounce or retry duplicates, approved group entry during deliveries, guard tours, and event replay or duplication after a controller or forwarder reconnect. Suppress them with a door or badge allow-list or a maintenance calendar, not a generic register."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL has no `count` and no `entity` field. It runs `transaction badge_id maxspan=10s` and filters on `eventcount` and `action`. A reader who maps the description to the search will look for fields that do not exist.",
+      "field": "description",
+      "quote": "Pipeline aggregates `count` by `entity` over `10s`.",
+      "severity": "major",
+      "suggested_fix": "State the actual grain and trigger: per-door events grouped into 10-second transactions, with a row when a burst contains more than one entry event. Once the heuristic is corrected, describe the door-level logic instead."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The SPL is hard-coded to `door=\"DC_Main_Entry\"` and its `table` command drops `door`, so a per-door bar chart and a `door` column cannot come from this search as written.",
+      "field": "visualization",
+      "quote": "Sortable Table of `_time`, `badge_holder`, `badge_id`, `eventcount`, and `door`; column Bar chart of tailgating-like bursts by `door`",
+      "severity": "minor",
+      "suggested_fix": "Either note that the door filter must be widened (for example to a lookup of high-risk portals) and `door` added to the output for these panels, or limit the visualization to the single-door table the search produces."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "`schedule_search` is a real Splunk capability, but I could not confirm that a capability named `edit_alert_actions` exists in authorize.conf.",
+      "field": "detailedImplementation",
+      "quote": "schedule the detection under a service account with `schedule_search` and `edit_alert_actions`",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the authorize.conf capability list for the current Splunk version and name the exact capabilities needed to schedule an alert and use its alert actions, or drop the second capability."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "If the time windows sit exactly back-to-back, a 10-second transaction that straddles a run boundary is split and missed. With `latest_time=now`, late-arriving syslog or HEC events are also missed.",
+      "field": "detailedImplementation",
+      "quote": "`cron_schedule=*/5 * * * *`, `dispatch.earliest_time=-5m`, `dispatch.latest_time=now`",
+      "severity": "minor",
+      "suggested_fix": "Use an overlapping or lagged window, for example `earliest=-6m@m latest=-1m@m`, and rely on alert suppression to avoid duplicate pages."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`transaction badge_id maxspan=10s | where eventcount > 1 AND action=\"entry\"` detects repeated presentations of the same credential, not tailgating, which is an unbadged follower (guide glossary and tailgating search in docs/guides/datacenter-physical.md group by reader_id and correlate with door-open duration or forced events). After transaction, `action` is multivalue, so the `action=\"entry\"` test is ambiguous. The output also omits `door`.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "cimSpl",
+      "issue": "The Authentication tstats search only counts authentications by user, action and src per hour. It has no tailgating logic and is not an equivalent of the primary detection.",
+      "severity": "minor"
+    },
+    {
+      "field": "mitreAttack",
+      "issue": "T1078 (Valid Accounts) is a logical-access technique. Physical tailgating into a data hall does not map to it cleanly, so consider removing the mapping.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0068-UC-15.3.3",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 1,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The data sources, implementation and validation text are well written and specific. The core heuristic is wrong, though: grouping repeated entry events from the same badge within 10 seconds finds double-swipes and reader retries, not a second unbadged person following an authorised badge. The false-positive and description text is template residue with invented field names.",
+  "tier": "deep",
+  "uc_id": "UC-15.3.3",
+  "verdict": "incorrect"
+}

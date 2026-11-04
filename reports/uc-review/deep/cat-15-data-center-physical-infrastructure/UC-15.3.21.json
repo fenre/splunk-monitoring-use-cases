@@ -1,0 +1,102 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "9a28b8bdefd956434e2de573af2c2fb788be6e41d6c3d76f750e12ec04468aae",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.3.21.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/datacenter-physical.md",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "explanation": "Panel tamper switches, RS-485 line supervision faults and power-state changes are device health alarms, not authentication attempts; the Authentication model has no place for `tamper`, `line_fault` or `power_state`. The category guide maps badge access sourcetypes to Authentication but puts sensor and device alarms under Alerts.",
+      "field": "cimModels",
+      "quote": "\"cimModels\": [\"Authentication\"]",
+      "severity": "blocker",
+      "suggested_fix": "Replace with `Alerts` (or leave empty) and rewrite dataModelAcceleration accordingly; drop the suggestion to FIELDALIAS panel context into Authentication."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "implementation (\"sustained `line_fault=1`\") and detailedImplementation (\"require two consecutive fault buckets before paging line_fault-only noise\") describe persistence logic that the SPL does not have; with `dispatch.earliest_time=-5m` and `stats count by panel_id, fault_type`, a single transient line-fault event raises a row.",
+      "field": "cross_field",
+      "quote": "sustained `line_fault=1`",
+      "severity": "major",
+      "suggested_fix": "State that the SPL alerts on any tamper, line-fault or abnormal power event in the window, and that sustained/consecutive-bucket suppression needs an SPL change (for example a 10-minute window with `bin _time span=5m` and a distinct-bucket count) to be made by the SPL owner."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL's `stats count by panel_id, fault_type` outputs only `panel_id`, `fault_type` and `count`; `power_state` and last `_time` are discarded, and the `tamper=1` timeline cannot be built from these results.",
+      "field": "visualization",
+      "quote": "Primary **splunk.table** of `panel_id`, `fault_type`, `power_state`, `count`, and last `_time`",
+      "severity": "major",
+      "suggested_fix": "List only the columns the SPL returns, or say that the table needs `latest(power_state)` and `max(_time)` added to the stats by the SPL owner; build the timeline from a separate raw-event search."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "\"Access panel diagnostics\" is presented in app, dataSources and detailedImplementation (\"Deploy or verify the **Access panel diagnostics** normalization package\") as if it were an installable add-on, but it is not a Splunkbase app or vendor product; a reader cannot find it.",
+      "field": "app",
+      "quote": "\"app\": \"Access panel diagnostics\"",
+      "severity": "major",
+      "suggested_fix": "Say it is a customer-built props/transforms package (or name the actual vendor integration, for example Lenel OnGuard via DB Connect or HID/S2 syslog per the category guide) that extracts `tamper`, `line_fault`, `power_state`, `panel_id`, `fault_type`."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The scenarios are generic templates. detailedImplementation already names the real causes (storms or utility power transfers producing mass `line_fault`), and others are panel enclosures opened for maintenance (tamper), battery tests changing `power_state`, and loose RS-485 terminations after reader replacement.",
+      "field": "knownFalsePositives",
+      "quote": "Synthetic probe on `panel_id`, `fault_type`** — Health checks in `physical` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List those causes; suppress by `panel_id` only inside approved change windows, as implementation already says."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "`schedule_search` is a standard capability, but `edit_alert_actions` may not be a real Splunk capability name, and \"map Splunk Cloud patterns to `sc_admin`-approved equivalents\" is unclear.",
+      "field": "detailedImplementation",
+      "quote": "grant a `physical_security_analyst` role search rights on `index=physical`, `schedule_search`, and `edit_alert_actions`",
+      "severity": "needs_verification",
+      "suggested_fix": "Check authorize.conf.spec for the exact capability needed to configure alert actions; on Splunk Cloud state the role should inherit from `user` or `power`, not `sc_admin`."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/datacenter-physical.md",
+      "explanation": "Searchable retention is set by `frozenTimePeriodInSecs`, not hot/warm policy, and the category guide sets `physical_security` retention to seven years for compliance.",
+      "field": "detailedImplementation",
+      "quote": "Set retention hot/warm policies long enough to investigate tamper chains (commonly ninety days)",
+      "severity": "minor",
+      "suggested_fix": "Refer to index retention (`frozenTimePeriodInSecs`) and align with the guide's physical-security retention policy."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`stats count by panel_id, fault_type` drops events where `fault_type` is null, so a tamper or power event without a `fault_type` value never produces a row; consider `fillnull value=\"unspecified\" fault_type` before stats.",
+      "severity": "major"
+    },
+    {
+      "field": "cimSpl",
+      "issue": "The Authentication tstats by user/action/src does not represent panel tamper or line-fault alarms.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0059-UC-15.3.21",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "Implementation and detailedImplementation are specific and largely workable, but the CIM mapping to Authentication does not fit panel hardware faults, the \"sustained\" / two-consecutive-bucket line-fault logic and several visualization columns are not in the SPL, and the add-on is a placeholder name rather than a real package.",
+  "tier": "deep",
+  "uc_id": "UC-15.3.21",
+  "verdict": "incorrect"
+}

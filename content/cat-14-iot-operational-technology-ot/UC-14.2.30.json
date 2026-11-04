@@ -1,0 +1,64 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "14.2.30",
+  "title": "Cisco Industrial Ethernet PTP Clock Changes",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Fault"
+  ],
+  "splunkPillar": "Observability",
+  "exclusions": "Catalyst IE switches running IOS XE only. The alarm must be enabled for syslog with the alarm facility command. Other IOS devices that emit the same mnemonic will also match.",
+  "evidence": "The latest state per switch for 30 days, and a ticket when a fault is not cleared.",
+  "controlTest": {
+    "positiveScenario": "Change the PTP parent on a lab switch. A %PTP-6-PARENT_CLOCK_CHANGE syslog appears and the host's count increases.",
+    "negativeScenario": "Clear the fault. The next syslog contains the documented 'event cleared' text or the mnemonic stops, and the switch drops off the open list."
+  },
+  "dataSources": "`index=network sourcetype=cisco:ios` from Catalyst IE3x00, IE3400 Heavy Duty, and ESS3300 switches, parsed by the IOS XE syslog add-on (Splunkbase 7538). The messages are `%PTP-6-PARENT_CLOCK_CHANGE`, `%PTP-6-GRANDMASTER_CLOCK_CHANGE`, and `%PTP-6-GRANDMASTER_CLOCK_CHANGE_TO_LOCAL`.",
+  "app": "Splunkbase 7538 (IOS XE syslog).",
+  "spl": "index=network sourcetype=\"cisco:ios\" earliest=-7d\n(\"%PTP-6-PARENT_CLOCK_CHANGE\" OR \"%PTP-6-GRANDMASTER_CLOCK_CHANGE\" OR \"%PTP-6-GRANDMASTER_CLOCK_CHANGE_TO_LOCAL\")\n| rex field=_raw \"%(?<mnemonic>PTP-6-[A-Z0-9_]+)\"\n| stats count latest(mnemonic) as latest_mnemonic by host\n| sort - count",
+  "description": "Counts Precision Time Protocol clock-change messages per Catalyst IE switch. The messages are %PTP-6-PARENT_CLOCK_CHANGE, %PTP-6-GRANDMASTER_CLOCK_CHANGE, and %PTP-6-GRANDMASTER_CLOCK_CHANGE_TO_LOCAL, which are the IOS XE system messages for a parent or grandmaster change.",
+  "value": "Motion control and protection relays depend on a stable grandmaster. A switch that keeps changing parent or falling back to its local clock is the one that will break that timing, and this count shows which switch.",
+  "implementation": "Send IOS XE syslog from the IE switches to Splunk with the IOS XE syslog add-on (Splunkbase 7538), sourcetype cisco:ios, index=network. PTP clock-change messages are ordinary IOS XE syslog once PTP is configured. Alert when a switch's count rises.",
+  "visualization": "Table of host, count, and latest mnemonic.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Splunkbase 7538, IOS XE syslog add-on",
+      "url": "https://splunkbase.splunk.com/app/7538",
+      "retrieved": "2026-11-04"
+    },
+    {
+      "title": "High-Availability Seamless Redundancy (HSR), Catalyst IE3x00",
+      "url": "https://www.cisco.com/c/en/us/td/docs/switches/lan/cisco_ie3X00/software/17_4/b_redundancy_17-4_iot_switch_cg/m_hsr_iosxe_iotswitch.html",
+      "retrieved": "2026-11-04"
+    },
+    {
+      "title": "Configuring Precision Time Protocol, Catalyst IE3x00",
+      "url": "https://www.cisco.com/c/en/us/td/docs/switches/lan/cisco_ie3X00/software/17_4/b_system-management-ie3x00/m_ptp_17-4.html",
+      "retrieved": "2026-11-04"
+    }
+  ],
+  "knownFalsePositives": "1. **Planned ring or clock maintenance** — a change window produces the same mnemonic. Match the host to the change ticket before paging.\n\n2. **Other IOS XE devices** — a non-IE switch that emits the same mnemonic appears here. Restrict host to the IE inventory if that happens.\n\n**Suppression:** suppress hosts that are in a recorded maintenance window.",
+  "detectionType": "Anomaly",
+  "securityDomain": "network",
+  "requiredFields": [],
+  "equipment": [
+    "cisco",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "cisco_ios"
+  ],
+  "capabilities": [
+    "industrial_ethernet.ptp_timing"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Splunkbase 7538 (IOS XE syslog) on the indexer or heavy forwarder that receives syslog.\n• Catalyst IE3x00, IE3400 Heavy Duty, or ESS3300 switches running IOS XE, with syslog aimed at Splunk and sourcetype cisco:ios.\n• For HSR, `alarm facility hsr syslog` on the switch, from the HSR configuration guide. PTP and PRP messages are IOS XE system messages once those features are configured.\n\nStep 1 — Configure data collection\n• Confirm one switch is visible: `index=network sourcetype=cisco:ios host=<ie-switch> | head 5`.\n• Confirm the mnemonic: `index=network sourcetype=cisco:ios \"%PTP-6-PARENT_CLOCK_CHANGE\"`.\n\nStep 2 — Create the search\n```spl\nindex=network sourcetype=\"cisco:ios\" earliest=-7d\n(\"%PTP-6-PARENT_CLOCK_CHANGE\" OR \"%PTP-6-GRANDMASTER_CLOCK_CHANGE\" OR \"%PTP-6-GRANDMASTER_CLOCK_CHANGE_TO_LOCAL\")\n| rex field=_raw \"%(?<mnemonic>PTP-6-[A-Z0-9_]+)\"\n| stats count latest(mnemonic) as latest_mnemonic by host\n| sort - count\n```\n\nUnderstanding this SPL\n• The search matches the mnemonic text Cisco prints in the syslog example, not a parsed field. The IOS XE syslog add-on does not publish a field for these alarms.\n• `event cleared` is the text Cisco appends when the alarm clears, shown in the HSR syslog examples.\n\nStep 3 — Validate\nChange the PTP parent on a lab switch. A %PTP-6-PARENT_CLOCK_CHANGE syslog appears and the host's count increases.\n• Compare the host with the switch name in the facility-alarm output on the CLI.\n\n• Confirm in the vendor console that the same hour shows the same kind of event before trusting a zero or a spike.\n\nStep 4 — Operationalize\n• Run every 5 minutes. Page when a host stays in a fault state for two intervals.\n• Show uncleared hosts on the plant-network dashboard.\n\nStep 5 — Troubleshooting\n• Other IOS syslog arrives but not this mnemonic: PTP is not configured, so the switch never sends a parent or grandmaster change.\n• Nothing arrives: syslog is not reaching the input, or the sourcetype was left as syslog instead of cisco:ios.\n• No data for sourcetype cisco:ios, with an input error on the syslog receiver, means the switch is not sending or the receiver is down.\n",
+  "grandmaExplanation": "We count switches that changed the clock they follow, because factory timing breaks when that clock moves.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}

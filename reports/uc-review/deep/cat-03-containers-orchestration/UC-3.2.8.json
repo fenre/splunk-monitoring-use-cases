@@ -1,0 +1,172 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "e5b1485551e2e4f4e37ae78e493da48e20595caca36217f2c15b3459f6b425f8",
+  "file": "content/cat-03-containers-orchestration/UC-3.2.8.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_url": "https://etcd.io/docs/v3.5/dev-guide/limit/",
+      "explanation": "etcd's default --quota-backend-bytes is 2 GiB. 8 GiB is the suggested maximum, not the default. A reader who assumes 8 GiB underestimates quota pressure fourfold on clusters that keep the default.",
+      "field": "detailedImplementation",
+      "quote": "etcd enforces a default eight-gigabyte quota; crossing roughly eighty percent in-use versus quota is a planning red-line",
+      "severity": "blocker",
+      "suggested_fix": "State that the default quota is 2 GiB (configurable with --quota-backend-bytes, with 8 GiB as the suggested maximum), and tell readers to read etcd_server_quota_backend_bytes rather than assume a value."
+    },
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/5167",
+      "explanation": "Splunkbase 5167 is 'Upgrade Universal Forwarder (Windows)'. Splunk Connect for Kubernetes was a GitHub Helm chart that has reached end of support. The linked Splunk Add-on for Kubernetes has been deprecated since 2019.",
+      "field": "app",
+      "quote": "— Splunk Connect for Kubernetes (Splunkbase 5167)",
+      "severity": "blocker",
+      "suggested_fix": "Reference the Splunk OpenTelemetry Collector for Kubernetes Helm chart (Splunkbase listing 6264 in data/splunkbase-catalog.json) and drop the 5167 and Splunk Add-on for Kubernetes references, including the matching entry in references."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/5167",
+      "explanation": "The same field already says the OTel prometheus receiver scrapes etcd and ships the samples over HEC. No modular input or scripted poll is involved, and the Splunkbase ID is wrong.",
+      "field": "dataSources",
+      "quote": "Collected via Splunk Connect for Kubernetes (Splunkbase 5167) modular input or scripted poll into the index named in the SPL.",
+      "severity": "major",
+      "suggested_fix": "Delete the sentence, or say the samples are shipped by the Splunk OTel Collector splunk_hec exporter."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/common-information-model/8.5/data-models/application-state-deprecated",
+      "explanation": "The Application State data model has been deprecated since CIM 4.12.0. Raw etcd Prometheus metrics are not mapped to either model; the SPL only touches Performance through a decorative count join.",
+      "field": "cimModels",
+      "quote": "\"Performance\",\n    \"Application_State\"",
+      "severity": "blocker",
+      "suggested_fix": "Remove Application_State. Keep Performance only if the cimSpl node-CPU overlay is retained, and describe it as an optional host overlay rather than the detection's model."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The detection reads raw etcd Prometheus samples, not the Performance data model. The listed 'thresholds' are internal guards (quota_bytes > 0, histo_total > 0), not the alert tiers. The real triggers are no leader, db_size_use_pct >= 65/75/85/95, fsync p99 >= 10/25/50/100 ms, leader changes, and proposal failures.",
+      "field": "description",
+      "quote": "Identifies 'etcd Performance and Raft Health' patterns (UC-3.2.8) sourced from datamodel `Performance`. Threshold bundle: `compaction_delta_ms` > 1, `quota_bytes` > 0, `histo_total` > 0",
+      "severity": "major",
+      "suggested_fix": "Describe the detection per etcd member and 5-minute window: leader present, WAL fsync, backend commit and peer RTT p99 from histogram buckets, leader-change and proposal-failure deltas, and DB size against quota, with the actual severity thresholds."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "evidence_ref": "content/cat-03-containers-orchestration/UC-3.2.26.json",
+      "explanation": "UC-3.2.26 is 'Kubernetes etcd Quorum Health, Raft Member Risk, and Cluster-Membership Drift (Operational-Quorum Axis)'; it is not about apiserver-side request latency. detailedImplementation Step 1 repeats the wrong description, so the scope boundary between the two UCs is misleading.",
+      "field": "exclusions",
+      "quote": "UC-3.2.26 apiserver-side etcd request latency analytics",
+      "severity": "major",
+      "suggested_fix": "Describe UC-3.2.26 as the quorum and membership-drift axis, and state that this UC owns disk, commit, and RTT latency plus quota pressure."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "In the SPL the counter and gauge families are computed in the main search, the histogram quantiles in the first join, and the second join is the tstats Performance count. The walkthrough describes a different pipeline from the one shipped.",
+      "field": "detailedImplementation",
+      "quote": "The first join reconstructs histogram_quantile(0.99, …) semantics ... The second join adds gauge and counter families",
+      "severity": "minor",
+      "suggested_fix": "Re-order the narrative: the main search computes counters and gauges with streamstats deltas, join 1 computes histogram p99, and join 2 attaches the tstats count."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The tstats count is unrelated to etcd: it counts any Performance events, with summariesonly=f, so it proves nothing about acceleration or etcd. Presenting it as 'CIM proof' overclaims.",
+      "field": "detailedImplementation",
+      "quote": "a closing join on win_time attaches cim_perf_events from a tstats scan of the Splunk CIM Performance data model so every execution leaves evidence that accelerated summaries resolve on the search head",
+      "severity": "major",
+      "suggested_fix": "Drop the CIM-proof claim, or replace it with a real node-level overlay keyed on the etcd host."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The 'Supplemental engineering notes' paragraph and the 'Closing checklist: five em-dash step headers are present' line are generic template filler. Some advice, such as bypassing mTLS for a CIDR, is unsafe and unrelated to etcd.",
+      "field": "detailedImplementation",
+      "quote": "When legal requests exclude infrastructure metrics from broad access, place k8s_metrics behind a restricted role ... When Linkerd or Istio sidecars intercept scrapes accidentally, bypass mTLS for the prometheus service account CIDR.",
+      "severity": "major",
+      "suggested_fix": "Delete the supplemental notes and the closing checklist. Keep only etcd-specific operating guidance."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "On kubeadm, etcd usually exposes --listen-metrics-urls=http://127.0.0.1:2381 (plain HTTP on localhost only), while 2379 needs a client certificate. The PodMonitor examples assume a named 'metrics' container port that kubeadm static pods may not declare.",
+      "field": "dataSources",
+      "quote": "scraping each etcd member HTTPS /metrics (ports 2379 or 2381) with mTLS client certificates",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the kubeadm etcd static pod manifest. Then document either HTTPS 2379 with the etcd client certificate, or HTTP 2381 reachable only from the host network, and fix the PodMonitor port to match."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The UC contains a wrong default quota, a wrong Splunkbase ID, and metric-name errors in the SPL, and the only reviewer is the generic catalogue handle. This does not support a 'verified' status.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade to draft or community until an SME runs the search against real etcd scrapes."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://etcd.io/docs/v3.5/dev-guide/limit/",
+      "field": "spl",
+      "issue": "quota_bytes falls back to 8589934592 (8 GiB) when etcd_server_quota_backend_bytes is missing. The etcd default is 2 GiB, so db_size_use_pct is understated fourfold on default clusters. Use 2147483648 as the fallback.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://etcd.io/blog/2023/how_to_debug_large_db_size_issue/",
+      "field": "spl",
+      "issue": "Quota pressure is computed from etcd_mvcc_db_total_size_in_use_in_bytes. The NOSPACE quota applies to the physical db file size (etcd_mvcc_db_total_size_in_bytes), so a fragmented db can hit the alarm while in-use looks healthy.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://etcd.io/docs/v3.1/metrics/etcd-metrics-v3.1.0.txt",
+      "field": "spl",
+      "issue": "etcd_debugging_mvcc_db_compaction_total_duration_milliseconds is a histogram exported only as _bucket/_sum/_count, so the bare-name match is always null and compaction_delta_ms is always 0. Compaction is also not defragmentation; etcd exposes the etcd_disk_defrag_inflight gauge for that, so defrag_in_progress is mis-derived.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://prometheus.io/docs/concepts/metric_types/#histogram",
+      "field": "spl",
+      "issue": "The p99 calculation uses max(cumulative bucket count) per window. That is the lifetime distribution since the process started, not the last 5 minutes, so a fresh fsync regression barely moves fsync_p99_ms on a long-running member. Subtract the previous window's bucket counts before taking the quantile.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "snapshot_save_p99_s is the average (delta sum divided by delta count), not a p99, but severity and the output table label it p99.",
+      "severity": "minor"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/common-information-model/8.6/data-models/performance",
+      "field": "spl",
+      "issue": "The tstats join uses 'nodename=Performance', but the Performance root dataset is All_Performance, so the cim_perf_events join is empty or invalid.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/common-information-model/8.6/data-models/performance",
+      "field": "cimSpl",
+      "issue": "The cimSpl uses invalid dataset paths. Performance.cpu_load_percent, nodename=Performance.CPU and Performance.host should be All_Performance.* paths. Application_State is deprecated and its root is All_Application_State, so nodename=Application_State and Application_State.state do not exist.",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0071-UC-3.2.8",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The etcd axis is well chosen and the runbook cases are concrete. However, the UC states the wrong default etcd quota, cites a Splunkbase ID unrelated to Kubernetes, maps to a deprecated CIM model, and computes lifetime rather than per-window histogram percentiles. It also misdescribes its sibling UC-3.2.26 and ends with generic filler.",
+  "tier": "deep",
+  "uc_id": "UC-3.2.8",
+  "verdict": "incorrect"
+}

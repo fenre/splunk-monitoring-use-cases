@@ -1,29 +1,29 @@
 # Compliance coverage report
 
-_Generated: 2026-10-28T17:24:53Z_ by `python -m splunk_uc audit-compliance-mappings`. Do not hand-edit.
+_Generated: 2026-11-04T12:36:20Z_ by `python -m splunk_uc audit-compliance-mappings`. Do not hand-edit.
 
 Status: **passed**
 
 ## Summary
 
-* UC files checked: **16689**
-* UC files valid:   **16689**
+* UC files checked: **16731**
+* UC files valid:   **16731**
 * Compliance entries: **3870**
 * Findings: **0** (errors: **0**, baselined: **0**)
 * Baseline (`tests/golden/audit-baseline.json`): total **0**, tolerated this run **0**, new errors **0**, unused fingerprints **0** (see `docs/coverage-methodology.md` § 12)
 
 ## Global coverage (all tiers)
 
-* Clause coverage %: **100.0**
-* Priority-weighted %: **100.0**
-* Assurance-adjusted %: **75.1942**
+* Clause coverage %: **99.7028**
+* Priority-weighted %: **99.6829**
+* Assurance-adjusted %: **74.8771**
 
 ## Per tier
 
 | Tier | Clause % | Priority-weighted % | Assurance-adjusted % |
 |------|----------|----------------------|-----------------------|
-| tier-1 | 100.0 | 100.0 | 81.0738 |
-| tier-2 | 100.0 | 100.0 | 63.4679 |
+| tier-1 | 99.7778 | 99.7611 | 80.8349 |
+| tier-2 | 99.5475 | 99.5249 | 62.9929 |
 | tier-3 | 100.0 | 100.0 | 79.4118 |
 
 ## Per family (derivesFrom roots)
@@ -76,12 +76,12 @@ Status: **passed**
 | mas-trm | 100.0 | 100.0 | 50.0 |
 | meta-multi | 0.0 | 0.0 | 0.0 |
 | mifid-ii | 100.0 | 100.0 | 50.0 |
-| nca-otcc | 100.0 | 100.0 | 89.6947 |
+| nca-otcc | 96.4286 | 96.1832 | 85.8779 |
 | nerc-cip | 100.0 | 100.0 | 80.0 |
 | nesa-uae-ias | 100.0 | 100.0 | 50.0 |
 | nis2 | 100.0 | 100.0 | 49.4444 |
 | nist-800-53 | 100.0 | 100.0 | 81.3853 |
-| nist-csf | 100.0 | 100.0 | 75.3927 |
+| nist-csf | 95.0 | 94.7644 | 70.1571 |
 | no-kbf-nve | 100.0 | 100.0 | 44.494 |
 | no-personopplysningsloven | 100.0 | 100.0 | 50.0 |
 | no-petroleumsforskriften | 100.0 | 100.0 | 50.0 |
@@ -162,13 +162,13 @@ Status: **passed**
 | MAS TRM@2021 | 2 | 100.0 | 100.0 | 50.0 |
 | MiFID II@Directive 2014/65/EU | 2 | 100.0 | 100.0 | 50.0 |
 | Multiple@n/a | 3 | 0.0 | 0.0 | 0.0 |
-| NCA OTCC@1:2022 | 2 | 100.0 | 100.0 | 89.6947 |
+| NCA OTCC@1:2022 | 2 | 96.4286 | 96.1832 | 85.8779 |
 | NERC CIP@current | 2 | 100.0 | 100.0 | 80.0 |
 | NESA IAS@v2 (2020) | 2 | 100.0 | 100.0 | 50.0 |
 | NIS2@Directive (EU) 2022/2555 | 1 | 100.0 | 100.0 | 49.4444 |
 | NIST 800-53@Rev. 5 | 1 | 100.0 | 100.0 | 81.3853 |
 | NIST CSF@1.1 | 1 | 100.0 | 100.0 | 100.0 |
-| NIST CSF@2.0 | 1 | 100.0 | 100.0 | 70.8075 |
+| NIST CSF@2.0 | 1 | 94.1176 | 93.7888 | 64.5963 |
 | NO KBF@2012 as amended | 2 | 100.0 | 100.0 | 44.494 |
 | NO Personopplysningsloven@2018 | 2 | 100.0 | 100.0 | 50.0 |
 | NO Petroleumsforskriften@1997 as amended | 2 | 100.0 | 100.0 | 50.0 |

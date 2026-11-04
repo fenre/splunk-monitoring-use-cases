@@ -1,0 +1,138 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "83cdcb3eb3f114076481535a3bd52c37a621d1643ccf4b69d4268299ff0d0ddb",
+  "file": "content/cat-03-containers-orchestration/UC-3.1.7.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.docker.com/reference/cli/docker/buildx/prune/",
+      "explanation": "docker buildx prune has no --dry-run option (its options are --all, --filter, --force, --max-used-space, --min-free-space, --reserved-space, --timeout, --verbose). The fifth sourcetype contract therefore depends on a command mode that does not exist.",
+      "field": "dataSources",
+      "quote": "sourcetype=docker:buildx_prune_dryrun from docker buildx prune --dry-run or docker builder prune --dry-run structured output",
+      "severity": "blocker",
+      "suggested_fix": "Source build-cache reclaimable bytes from `docker system df -v` (Build Cache section) or `docker buildx du`, and rename the sourcetype to match."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "No Splunk-supported 'Splunk Add-on for Docker' with docker ps/images/volumes modular inputs appears on Splunkbase. The only Splunk-built Docker product is Splunk Connect for Docker (4496), a logging plugin, and the referenced docs.splunk.com AddOns/Docker page appears not to exist.",
+      "field": "app",
+      "quote": "Splunk Add-on for Docker (Splunk_TA_docker) when deployed from Splunkbase for modular inputs and CIM-friendly docker sourcetypes",
+      "severity": "needs_verification",
+      "suggested_fix": "Check Splunkbase. If no such add-on exists, say the five sourcetypes come from customer-maintained scripted inputs and remove the Splunk_TA_docker reference and its references entry."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "By the time streamstats runs, stats has already collapsed the data to one row per host_id. avg_reclaim_7snap therefore equals reclaimable_total_gb and growth_pct_weekly is always 0, so the prose (and the dashboard 'growth_pct_weekly trend lines') describe a metric the search cannot produce.",
+      "field": "detailedImplementation",
+      "quote": "streamstats window=7 global=f avg(reclaimable_total_gb) approximates week-over-week sprawl velocity when snapshots arrive at stable cadence",
+      "severity": "major",
+      "suggested_fix": "Explain that velocity needs a per-snapshot timeline (for example, bin _time by day before the final stats, or read a summary index). Until the SPL changes, do not claim week-over-week velocity."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Strcat",
+      "explanation": "The fenced block builds cleanup_command with `strcat(...)` inside eval, while the spl field uses `.` concatenation. strcat is a search command, not an eval function, so the runbook copy differs from the spl field and would not parse.",
+      "field": "detailedImplementation",
+      "quote": "Fenced SPL for runbooks must match the spl JSON field byte-for-byte",
+      "severity": "major",
+      "suggested_fix": "Paste the exact spl field or drop the byte-for-byte claim."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "This is generator residue addressed to authors, not operators. It also contradicts the sidecar, whose equipmentModels is kubernetes_k8s, and the earlier claim that the table 'lists thirteen columns' while naming seventeen.",
+      "field": "detailedImplementation",
+      "quote": "Closing checklist for authors: five plain-text step headers with em dashes appear exactly as mandated; ... equipmentModels lists docker_engine and docker_containerd; narrative fields avoid asterisk emphasis and forbidden boilerplate phrases.",
+      "severity": "major",
+      "suggested_fix": "Delete the authoring checklist and the long '... alignment:' filler paragraph. Fix the column count."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "Reclaimable Docker objects (exited containers, dangling images, orphan volumes) do not map to CIM Inventory or Performance datasets, and nothing in the SPL uses them.",
+      "field": "cimModels",
+      "quote": "\"Inventory\",\n    \"Performance\"",
+      "severity": "minor",
+      "suggested_fix": "Leave cimModels empty or mark it as not applicable, noting that Performance.Storage from linux:df only provides host disk totals."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "The UC targets standalone Docker Engine hosts and excludes Kubernetes CSI/PV reclaim, so a Kubernetes equipment model contradicts the scope.",
+      "field": "equipmentModels",
+      "quote": "\"kubernetes_k8s\"",
+      "severity": "minor",
+      "suggested_fix": "Use the Docker Engine equipment model slug instead."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.docker.com/reference/cli/docker/system/df/",
+      "explanation": "docker volume inspect normally reports UsageData as null. Per-volume RefCount and Size come from the Engine /system/df endpoint (docker system df -v), so an exporter built on volume inspect would leave rc null, and the SPL then marks every volume orphaned (isnull(rc) means orphan).",
+      "field": "dataSources",
+      "quote": "docker volume inspect JSON exposing RefCount, Mountpoint, Labels",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Engine API docs and source RefCount from docker system df -v or GET /system/df?type=volume."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "Marked verified, yet the SPL cannot execute, a cited add-on and a CLI flag appear not to exist, and controlTest/KFP are templated. Nothing shows SME sign-off.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade to draft until the SPL runs against real exporter output."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/spl-search-reference/9.0/search-commands/multisearch",
+      "field": "spl",
+      "issue": "Every multisearch arm ends in stats, but multisearch subsearches may contain only streaming commands, so the search fails with 'Multisearch subsearches might only contain purely streaming operations'. Use append, or move the per-arm aggregation after the multisearch.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.docker.com/reference/cli/docker/container/prune/",
+      "field": "spl",
+      "issue": "cleanup_command emits 'docker container prune --filter until=7d' and 'docker builder prune --filter until=7d'. The until filter takes Unix or date timestamps or Go durations (h, m, s), so '7d' is invalid and operators pasting the command get an error. Emit hours (retention_stopped_days*24 . \"h\"). Note also that until filters on container creation time, not exit time.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "After stats BY host_id, the fields environment, cluster and owner_contact no longer exist (the lookup subsearch also keeps only retention_stopped_days and exempt_ns). environment is always 'unset', cluster always 'unlabelled', owner always empty, and eventstats BY environment is fleet-wide. The streamstats window=7 runs over one row per host, so growth_pct_weekly is always 0.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "When host_disk_total_gb is missing, sprawl_score falls back to raw reclaimable GB but is still compared with the percentage bands 25/15/5, so a host with 26 GB reclaimable on a 4 TB disk is RED. is_stopped also counts 'created' containers as stopped.",
+      "severity": "minor"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/Inventory",
+      "field": "cimSpl",
+      "issue": "'FROM datamodel=Inventory WHERE nodename=Inventory' uses a non-existent datamodel name: the CIM Inventory model's object name is Compute_Inventory (root dataset All_Inventory). The search also only counts inventory events by dest and has no relation to container sprawl.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0026-UC-3.1.7",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The detailed implementation describes the sprawl problem and the collector contracts in useful depth. But the SPL cannot run (stats inside multisearch), the generated prune commands use an invalid 'until=7d' duration, the week-over-week velocity claim is impossible on one row per host, and the text cites a Splunk Add-on for Docker and a --dry-run prune mode that do not exist.",
+  "tier": "deep",
+  "uc_id": "UC-3.1.7",
+  "verdict": "incorrect"
+}

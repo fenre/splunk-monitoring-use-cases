@@ -95,6 +95,7 @@ FIREWALLED_FIELDS: frozenset[str] = frozenset(
     {
         "spl",
         "cimSpl",
+        "splVariants",
         "products",
         "productArtifacts",
         "id",

@@ -1,0 +1,148 @@
+{
+  "confidence": 0.65,
+  "content_sha256": "4b8f9b3706164bdb581fb128bfa6ad4aa93c9bf1f094f02361482f9799f11c87",
+  "file": "content/cat-22-regulatory-compliance/UC-22.51.13.json",
+  "findings": [
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Indexesconf",
+      "explanation": "Splunk retention is configured per index (and applied per bucket), not per host. The design reads `retention_days_actual` per host from `_audit`, defaults to 'global retention if per-host is unknown', and flags assets individually. Step 3(d) and Step 4 (row 5) then use per-index values, so the walkthrough contradicts itself. A reader would build a retention check that cannot report what the title promises.",
+      "field": "detailedImplementation",
+      "quote": "`retention_short_flag`: per-host retention < required for asset_class.",
+      "severity": "blocker",
+      "suggested_fix": "Base the retention check on the index that holds each asset's data, comparing the index's `frozenTimePeriodInSecs` (and any archive tier) with the required retention for the asset class, for example via `| rest /servicesNS/-/-/data/indexes`, and map assets to indexes in the lookup."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Indexer/Dataintegritycontrol",
+      "explanation": "`crcSalt` only changes how the file-monitor input identifies files for duplicate detection. It is not an integrity check, and `crcSalt = <SOURCE>` in `[default]` is not a best practice, since it can cause re-indexing when files are renamed. Splunk's integrity feature is index data integrity control (hash files per bucket, verified with `splunk check-integrity`), and the text does not show where this UC's `action=\"integrity_check\"` events would come from.",
+      "field": "detailedImplementation",
+      "quote": "Splunk integrity checks: per `inputs.conf` `[default] crcSalt = <SOURCE>` on UFs (already best practice), plus Splunk Cloud's per-bucket hash-chain.",
+      "severity": "blocker",
+      "suggested_fix": "Remove the `crcSalt` claim. If integrity is in scope, enable data integrity control on the indexes and explain how verification results reach Splunk, or drop the integrity flag from the UC."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "As far as I know, `_audit` records user and system actions such as searches, logins and configuration edits. I do not know of `action=update retention_policy=* retention_days` or `action=\"integrity_check\" status` events. The SPL depends on both fields, and a null `integrity_check_status` never raises the integrity flag, so the integrity column would always look clean.",
+      "field": "dataSources",
+      "quote": "`index=_audit` for retention and rotation events. ... Integrity hashes via Splunk Cloud's S3 frozen archive (where used) or `index=_audit` event-counts.",
+      "severity": "needs_verification",
+      "suggested_fix": "Check a real `_audit` sample for those actions and fields. If they do not exist, state which custom job writes them and to which index, or remove the retention and integrity inputs."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The description's conditions include `event_count_6h` > 0 and `observed_count` > 0, which are the healthy states. The SPL actually alerts on `no_data_flag`, `partial_data_flag`, `retention_short_flag` or `integrity_failed_flag`. The description and controlTest also reuse placeholders (`configured sourcetype`, `target_sourcetype`) and put `index=_audit` as the data source, while the real data come from all indexes (`index=*`).",
+      "field": "cross_field",
+      "quote": "alert when `event_count_6h` > 0, `missing_count` > 0, or `observed_count` > 0",
+      "severity": "major",
+      "suggested_fix": "State the four flags and their meaning in the description and controlTest, and name the real inputs: the asset inventory lookup, recent events by host and sourcetype, and the retention and integrity evidence."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "dataSources and the Step 2 outline describe a `metadata`-based observation, and Step 5 explains the limits of `metadata`, yet the SPL runs `index=* earliest=-6h | stats latest(_time) count BY host sourcetype` and the troubleshooting tells the reader to switch to exactly that. The text also keeps two sources of truth: `expected_sourcetypes` in `ot_asset_inventory_lookup` (used by the SPL) and `ot_logging_required.csv` (pipe-delimited sample but split on a comma, with `expected_sourcetypes_csv` and `retention_days_required` columns the SPL never uses, since it hard-codes 2555/365).",
+      "field": "cross_field",
+      "quote": "Splunk `metadata` command for last-event-time per host (across all in-scope indexes).",
+      "severity": "major",
+      "suggested_fix": "Pick one observation method and describe it correctly. Make one lookup authoritative and use its retention and expected-sourcetype columns in the SPL, with a single delimiter."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The KFPs are the compliance pack's generic scenarios (QSA activity, BAA/DPA vendor). None gives a real cause for a false no-data or partial-data flag. The prerequisites define `plant_shutdown_windows.csv` and a KV store `otcc_22_51_13_exceptions`, but neither is used by the SPL, and the KFP suppression names a third file, `nca_otcc_exception_register.csv`. The deterministic pass did not record this.",
+      "field": "knownFalsePositives",
+      "quote": "External assessor sampling** — QSA activity spikes `index=_audit` `configured sourcetype` without crossing `event_count_6h` > 0.",
+      "severity": "major",
+      "suggested_fix": "List real causes: planned plant shutdowns, quiet vendor consoles that only log on operator action, forwarder upgrades, sourcetype renames across add-on versions, and sensor outages. Wire one suppression lookup into the SPL."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The status is `verified`, but `compliance[0].requires_sme_review` is true and both entries in `splunkbaseApps` have `requiresSmeReview: true`. The listed reviewer 'OT Cybersecurity SME Panel' is a group and the integrity and retention parts above are unconfirmed.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Lower the status or clear the SME-review flags only after a named reviewer signs off on the retention and integrity logic."
+    },
+    {
+      "confidence": 0.45,
+      "dimension": "correctness",
+      "explanation": "The OTCC clause numbers (`OTCC-2-12-1-1`, `OTCC-2-13-1-1`), the 12-month minimum and a 7-year requirement for safety-related logs cannot be confirmed from the grounding. The 7-year figure may be an internal choice. The prerequisites also say '12-month online + 12-month frozen' while the SPL requires 365 days in total.",
+      "field": "detailedImplementation",
+      "quote": "retention meets the OTCC 12-month minimum (with 7 years for safety-related events)",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the NCA OTCC text for the log-retention subcontrol and the safety-event retention, then cite the exact clause and keep the lookups, SPL and prose at the same value."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "clarity",
+      "explanation": "Validation step (b) ends in a literal `| ...`, so it cannot be run. Step 5 also proposes 'UC-22.51.13b', which is not a UC in the catalogue, and a 'Splunk Cloud frozen-bucket archive or Splunk Enterprise smartstore with S3 retention' prerequisite blends two different features.",
+      "field": "detailedImplementation",
+      "quote": "| inputlookup ot_asset_inventory_lookup\n| stats values(asset_class) AS classes\n| append [| inputlookup ot_logging_required.csv | stats values(asset_class) AS configured]\n| ...",
+      "severity": "minor",
+      "suggested_fix": "Complete the reconciliation search (for example with `stats` on a combined list) and remove or replace the 13b reference. Describe archive and smartstore separately."
+    },
+    {
+      "confidence": 0.4,
+      "dimension": "correctness",
+      "explanation": "The path sits in the Distributed Search manual and does not look like a forwarder-health page. The NCA portal link (`controls-list/3`) also needs a check.",
+      "field": "references",
+      "quote": "https://docs.splunk.com/Documentation/Splunk/latest/DistSearch/MonitorForwardingDeployments",
+      "severity": "needs_verification",
+      "suggested_fix": "Replace with the Monitoring Console forwarder-monitoring documentation, and confirm the NCA control list URL."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/regulatory-compliance-master.md",
+      "explanation": "The expected-sourcetype matrix is dominated by Cisco Cyber Vision, Palo Alto, CyberArk and historian sourcetypes, but only the Windows add-on is listed. The subcategory's Cyber Vision add-on (Splunkbase 6071) is absent even though `equipment` includes cisco. The universal forwarder is not an app.",
+      "field": "app",
+      "quote": "Splunk Add-on for Microsoft Windows (Splunkbase 742) on OT Windows hosts. Splunk Universal Forwarder on every host. Splunk Enterprise Security (Splunkbase 263).",
+      "severity": "minor",
+      "suggested_fix": "List the add-ons needed for each expected sourcetype or say the UC is source-agnostic, and move the forwarder into prerequisites."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "compliance",
+      "issue": "Assurance is `full`, with the rationale 'Combined with UC-22.51.16 ... this satisfies OTCC-2-12-1-1 in full'. A coverage and gap check, whose retention and integrity inputs are unverified, cannot give full assurance of log collection, retention and integrity. The controlObjective claims 'preserve integrity' that the SPL cannot show.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "Observation joins `host` to `asset_key`. For PLCs, SIS and historian classes the expected sourcetypes (`cisco:cybervision:*`, `sis:bypass:alarm`) are emitted by sensors or relays, not by the asset itself (Step 5 says so), so those assets will always read as no_data. Retention is read per host, `integrity_check_status NOT IN (...)` is false for null, and `index=*` for 6 hours plus several `join` subsearches is heavy and subject to the 50,000-row subsearch limit.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The `join` commands put options after the field list (`join asset_key expected_sourcetypes type=left [...]`, `join asset_key type=outer`). Splunk expects join options before the field list, so this may fail to parse or ignore the type.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "mitreAttack",
+      "issue": "T1562.008 is 'Disable or Modify Cloud Logs'. For on-prem OT Windows hosts and forwarders, T1562.002 (Disable Windows Event Logging) is closer. The detection also finds missing logs from any cause, so the mapping is loose.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0056-UC-22.51.13",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The completeness half (expected sourcetypes per asset vs recent events) is well thought out and the OT-specific runbook is useful. The retention and integrity halves rest on a per-host retention model and on `_audit` events and settings that do not match how Splunk works, and the thresholds, data sources and compliance claims are inconsistent with the SPL.",
+  "tier": "triage",
+  "uc_id": "UC-22.51.13",
+  "verdict": "incorrect"
+}

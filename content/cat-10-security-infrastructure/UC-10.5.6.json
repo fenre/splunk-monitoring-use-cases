@@ -2,61 +2,80 @@
   "$schema": "../../schemas/uc.schema.json",
   "id": "10.5.6",
   "title": "Bandwidth Abuse Detection",
-  "criticality": "medium",
-  "difficulty": "intermediate",
+  "criticality": "low",
+  "difficulty": "beginner",
   "monitoringType": [
-    "Performance"
+    "Security",
+    "Capacity"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Covers the detection logic documented for 'Bandwidth Abuse Detection' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
-  "evidence": "Saved search `security_infra_bandwidth_abuse_detection` (UC-10.5.6), SOC dashboard panel \"Security Infra — Bandwidth Abuse Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
+  "exclusions": "Covers traffic through the web gateway only; byte counts are not available for requests the gateway blocks or does not decrypt. The CIM variant sums all categories because it does not filter by category.",
+  "evidence": "Daily report export, kept for the acceptable-use review.",
   "controlTest": {
-    "positiveScenario": "UC-10.5.6 positive (Bandwidth, Abuse, Detection): ingest synthetic events into `index=proxy` sourcetype='cisco:umbrella:proxy' where `total_bytes` grouped by `src_user`, `categories` satisfies `total_bytes` > 1073741824 for 'Bandwidth Abuse Detection'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-10.5.6 negative (Abuse Detection): ingest benign `proxy` / `cisco:umbrella:proxy` events where `src_user`, `categories` stays below `total_bytes` > 1073741824, or exclude the test entity via `soc_exception_register.csv`. Variant 2 confirms zero alert rows for 'Bandwidth Abuse Detection'."
+    "positiveScenario": "From a test user behind the web gateway, stream video from a site categorised as Video Sharing until more than 1 GB is transferred within the day. On the next daily run the user appears with `gb` above 1.",
+    "negativeScenario": "Have a second test user browse only business sites for the day. That user's requests are indexed but they do not appear in the results."
   },
-  "dataSources": "SWG traffic logs (bytes transferred, URL category) Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
-  "app": "SWG TA — Splunk Add-on for Cisco Security (Splunkbase 1352)",
-  "spl": "index=proxy sourcetype=\"cisco:umbrella:proxy\"\n| stats sum(bytes) as total_bytes by src_user, categories\n| where match(categories,\"Streaming|Gaming|Social\") AND total_bytes > 1073741824\n| eval gb=round(total_bytes/1073741824,2)\n| table src_user, categories, gb",
-  "description": "Alerts on UC-10.5.6 for Bandwidth, Abuse, Detection over `index=proxy` sourcetype `cisco:umbrella:proxy` with thresholds `total_bytes` > 1073741824. Groups `total_bytes` by `src_user`, `categories` each `the scheduled window`. Centered on Abuse Detection indicators. Supports repeatable security infra triage for 'Bandwidth Abuse Detection'.",
-  "value": "For 'Bandwidth Abuse Detection', UC-10.5.6 converts `total_bytes` on `cisco:umbrella:proxy` feeds into actionable rows and reduces missed threat campaigns, control regressions, and SOC SLA breaches.",
-  "implementation": "Track bandwidth usage per user by URL category. Alert when individual users exceed thresholds on non-business categories (>1GB/day on streaming). Report top bandwidth consumers for management review.",
-  "visualization": "Bar chart (bandwidth by user/category), Table (top consumers), Pie chart (bandwidth by category).",
+  "dataSources": "`index=sse sourcetype=cisco:cloud_security:proxy` (or `cisco:umbrella:proxy` on older Umbrella exports) from the Secure Access or Umbrella S3 log bucket, read by the Cisco Secure Access Add-on (7569). One event per web request through the secure web gateway with `action`, `url`, `url_domain`, `category`, `blocked_category`, `user`, `identities`, `src_ip`, `bytes_in`, `bytes_out`, `http_method`, and `status`, tagged `web` and `proxy` for the CIM Web data model.",
+  "app": "Cisco Secure Access Add-on for Splunk ([Splunkbase 7569](https://splunkbase.splunk.com/app/7569)), which reads Cisco Secure Access and Cisco Umbrella logs from the S3 log bucket and maps the web proxy log to the CIM Web data model. The companion Cisco Secure Access App (Splunkbase 5558) adds dashboards.",
+  "spl": "index=sse sourcetype IN (\"cisco:cloud_security:proxy\", \"cisco:umbrella:proxy\")\n| eval action=lower(action), total_bytes=coalesce(bytes_in, 0) + coalesce(bytes_out, 0)\n| where action=\"allowed\" AND match(category, \"(?i)Video Sharing|Movies|Television|Music|Radio|Games|Social Networking|P2P\")\n| stats sum(total_bytes) as total_bytes values(category) as categories dc(url_domain) as domains by user\n| where total_bytes > 1073741824\n| eval gb=round(total_bytes/1073741824, 2)\n| sort - gb\n| table user gb domains categories",
+  "description": "Totals bytes per user through the Secure Access or Umbrella web gateway to video sharing, movies, television, music, radio, games, social networking, and P2P file-sharing categories and lists users above 1 GB in the search window.",
+  "value": "Heavy recreational streaming on a constrained branch or VPN link slows business applications for everyone on it. This report shows who is using the bandwidth and on what, so capacity and acceptable-use conversations start from data.",
+  "implementation": "Collect the web proxy log with the Cisco Secure Access Add-on (7569) into `index=sse`. Run daily over 24 hours; adjust the 1 GB threshold to your link sizes.",
+  "visualization": "Table: user, gb, domains, categories. Supporting panel: daily total bytes by category over 30 days (stacked area).",
   "cimModels": [
     "Web"
   ],
-  "cimSpl": "| tstats `summariesonly` count sum(Web.bytes_in) as bi sum(Web.bytes_out) as bo\n  from datamodel=Web.Web\n  by Web.user Web.url Web.src span=1h\n| eval bytes=bi+bo\n| sort -bytes",
+  "cimSpl": "| tstats summariesonly=true sum(Web.bytes) as total_bytes values(Web.category) as categories from datamodel=Web where Web.action=\"allowed\" by Web.user\n| rename Web.user as user\n| where total_bytes > 1073741824\n| eval gb=round(total_bytes/1073741824, 2)\n| sort - gb",
+  "schema": "OCSF: http_activity",
+  "dataModelAcceleration": "Enable acceleration on the CIM Web data model over `index=sse` before using the tstats variant.",
   "references": [
     {
-      "title": "CIM: Web",
+      "title": "Cisco Secure Access Add-on for Splunk (Splunkbase 7569)",
+      "url": "https://splunkbase.splunk.com/app/7569",
+      "retrieved": "2026-11-02"
+    },
+    {
+      "title": "Cisco Umbrella: Log Management and Amazon S3 log export",
+      "url": "https://docs.umbrella.com/deployment-umbrella/docs/log-management",
+      "retrieved": "2026-11-02"
+    },
+    {
+      "title": "Cisco Umbrella: Manage Content Categories and Security Categories",
+      "url": "https://docs.umbrella.com/deployment-umbrella/docs/content-categories",
+      "retrieved": "2026-11-02"
+    },
+    {
+      "title": "Splunk CIM: Web data model",
       "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunkbase app 1352",
-      "url": "https://splunkbase.splunk.com/app/1352",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Cisco Security documentation",
-      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
+      "retrieved": "2026-11-02"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `proxy` (UC-10.5.6)** — Planned work for 'Bandwidth Abuse Detection' shifts `total_bytes` over `span=1h` while `src_user`, `categories` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `cisco:umbrella:proxy`** — Scheduled automation elevates `categories` without crossing `total_bytes` > 1073741824 for UC-10.5.6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src_user`, `categories`** — Health checks in `proxy` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:umbrella:proxy`** — First 48h baseline for UC-10.5.6 on `src_user` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `src_user`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Work video** — training platforms and video-conferencing replays may be categorised as Video Sharing. Add those domains to an exclusion lookup.\n\n2. **Marketing and social media teams** — their job is on social platforms. Exclude their group or raise their threshold.\n\n**Suppression:** a lookup of excluded domains and groups.",
+  "detectionType": "Baseline",
+  "securityDomain": "network",
+  "requiredFields": [
+    "action",
+    "category",
+    "user",
+    "bytes_in",
+    "bytes_out",
+    "url_domain"
+  ],
   "equipment": [
     "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_umbrella"
+  ],
+  "capabilities": [
+    "secure_access.secure_web_gateway"
   ],
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: SWG TA.\n• Ensure the following data sources are available: SWG traffic logs (bytes transferred, URL category).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nTrack bandwidth usage per user by URL category. Alert when individual users exceed thresholds on non-business categories (>1GB/day on streaming). Report top bandwidth consumers for management review.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=proxy sourcetype=\"cisco:umbrella\"\n| stats sum(bytes) as total_bytes by src_user, categories\n| where match(categories,\"Streaming|Gaming|Social\") AND total_bytes > 1073741824\n| eval gb=round(total_bytes/1073741824,2)\n| table src_user, categories, gb\n```\n\nUnderstanding this SPL\n\n**Bandwidth Abuse Detection** — Excessive bandwidth on non-business sites impacts network performance and productivity. Detection supports acceptable use enforcement.\n\nDocumented **Data sources**: SWG traffic logs (bytes transferred, URL category). **App/TA** (typical add-on context): SWG TA. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: proxy; **sourcetype**: cisco:umbrella. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=proxy, sourcetype=\"cisco:umbrella\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by src_user, categories** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where match(categories,\"Streaming|Gaming|Social\") AND total_bytes > 1073741824` — typically the threshold or rule expression for this monitoring goal.\n• `eval` defines or adjusts **gb** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **Bandwidth Abuse Detection**): table src_user, categories, gb\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` count sum(Web.bytes_in) as bi sum(Web.bytes_out) as bo\n  from datamodel=Web.Web\n  by Web.user Web.url Web.src span=1h\n| eval bytes=bi+bo\n| sort -bytes```\n\nUnderstanding this CIM / accelerated SPL\n\n**Bandwidth Abuse Detection** — Excessive bandwidth on non-business sites impacts network performance and productivity. Detection supports acceptable use enforcement.\n\nDocumented **Data sources**: SWG traffic logs (bytes transferred, URL category). **App/TA** (typical add-on context): SWG TA. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Network_Traffic.All_Traffic` — enable acceleration for that model.\n• `eval` defines or adjusts **bytes** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nCompare with the Cisco Umbrella Investigate or reporting UI for the same time range; then confirm Splunk field extractions and access.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (bandwidth by user/category), Table (top consumers), Pie chart (bandwidth by category).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (SWG TA — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:umbrella:proxy into proxy. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`categories, src_user, total_bytes`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
-  "grandmaExplanation": "We measure bandwidth on non-business site categories so abuse and performance problems surface before they hurt the business.",
+  "detailedImplementation": "Prerequisites\n• Cisco Secure Access Add-on for Splunk (Splunkbase 7569) on the search heads and on the heavy forwarder or Inputs Data Manager that reads the S3 bucket.\n• Log export to Amazon S3 enabled in the Secure Access or Umbrella dashboard (Admin > Log Management), either a Cisco-managed bucket or your own, with the access key and secret for Splunk.\n• An index for Secure Access and Umbrella data (this page uses `index=sse`) and a role with `srchIndexesAllowed` on it for the network security team.\n\nStep 1 — Configure data collection\n• In the add-on create an S3 modular input for the web proxy log path with the bucket name, region, access key, and secret, and set the index to `sse`.\n• Logs reach S3 in batches, so events usually arrive in Splunk 10 to 15 minutes after the request. `action` is logged as Allowed or Blocked (ALLOWED or BLOCKED in some exports); the searches lowercase it.\n• Check the fields this search needs: run `index=sse sourcetype=\"cisco:cloud_security:proxy\" | stats count by action` over 1 day and confirm both values appear.\n\nStep 2 — Create the search and alert\n```spl\nindex=sse sourcetype IN (\"cisco:cloud_security:proxy\", \"cisco:umbrella:proxy\")\n| eval action=lower(action), total_bytes=coalesce(bytes_in, 0) + coalesce(bytes_out, 0)\n| where action=\"allowed\" AND match(category, \"(?i)Video Sharing|Movies|Television|Music|Radio|Games|Social Networking|P2P\")\n| stats sum(total_bytes) as total_bytes values(category) as categories dc(url_domain) as domains by user\n| where total_bytes > 1073741824\n| eval gb=round(total_bytes/1073741824, 2)\n| sort - gb\n| table user gb domains categories\n```\n\nUnderstanding this SPL\n• `total_bytes` adds `bytes_in` and `bytes_out` with `coalesce` so a missing value counts as zero.\n• The `match` keeps the Umbrella content categories that carry recreational media and file sharing; edit the list to your policy.\n• `stats` per user totals bytes and lists categories and the number of domains, and the 1 GB threshold removes light users.\n\nAccelerated variant over the CIM data model:\n```spl\n| tstats summariesonly=true sum(Web.bytes) as total_bytes values(Web.category) as categories from datamodel=Web where Web.action=\"allowed\" by Web.user\n| rename Web.user as user\n| where total_bytes > 1073741824\n| eval gb=round(total_bytes/1073741824, 2)\n| sort - gb\n```\n• The tstats variant totals `Web.bytes` per user across all categories; add `Web.category` filters in the `where` clause if your CIM mapping carries the Secure Access category names.\n\nStep 3 — Validate\n• Compare with the Secure Access dashboard (or the Umbrella dashboard) under Reporting > Activity Search, filtered to Web and the same time range: the totals there should match the totals here within the S3 delivery delay.\n• Pick the top user and confirm their traffic in Activity Search for the same day.\n• Run `index=sse sourcetype=\"cisco:cloud_security:proxy\" | timechart span=1h count` over 7 days; gaps longer than an hour point to S3 input failures.\n\nStep 4 — Operationalize\n• Run daily at 06:00 over the previous 24 hours and send to the network team.\n• Use the 30-day panel in capacity planning for branch and VPN links.\n• Raise repeated top users with their manager under the acceptable-use policy, not as a security incident.\n\nStep 5 — Troubleshooting\n• No proxy events and S3 access errors (403 AccessDenied) in the add-on log: the access key cannot read the bucket or the region is wrong.\n• Proxy events missing while DNS events arrive: the Secure Web Gateway is not enabled for those identities, or the S3 input path points at the DNS folder only.\n• Events arrive hours late: the input polling interval is long, or the bucket path prefix is wrong and the input scans the whole bucket.\n• `bytes_in` and `bytes_out` are empty: older Umbrella exports log `requestSize` and `responseSize`; map them with `eval` or update the add-on.\n• The tstats variant returns nothing while the raw search works: the Web data model is not accelerated over `index=sse`, or the `cim_Web_indexes` macro does not include it.\n",
+  "grandmaExplanation": "We find who uses the most internet for videos, games, and social media at work, so the network stays fast for everyone else.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }

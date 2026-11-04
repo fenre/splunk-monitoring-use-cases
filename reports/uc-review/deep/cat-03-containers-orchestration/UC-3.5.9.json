@@ -1,0 +1,118 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "0a8341d4ae9a68e37100db6d363a7def4a78814d08dddcd696e97e7f48c43888",
+  "file": "content/cat-03-containers-orchestration/UC-3.5.9.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/5167",
+      "explanation": "Splunkbase 5167 is 'Upgrade Universal Forwarder (Windows)'; Splunk Connect for Kubernetes is a GitHub Helm chart that reached End of Support on 1 January 2024.",
+      "field": "app",
+      "quote": "Splunk Connect for Kubernetes (Splunkbase 5167)",
+      "severity": "blocker",
+      "suggested_fix": "Name the Splunk OpenTelemetry Collector for Kubernetes (Splunkbase 6264) for istiod metrics, logs and events; remove SCK/5167."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://istio.io/latest/docs/reference/commands/pilot-discovery/",
+      "explanation": "The istiod metric reference lists pilot_conflict_inbound_listener and pilot_conflict_outbound_listener_tcp_over_current_tcp (and similar suffixed variants), not a bare pilot_conflict_outbound_listener. The same section of detailedImplementation also lists pilot_xds_push_errors, which is absent; push failures are exposed through the type label of pilot_xds_pushes and pilot_total_xds_internal_errors / pilot_total_xds_rejects.",
+      "field": "dataSources",
+      "quote": "`pilot_conflict_outbound_listener`, `galley_validation_passed`, `galley_validation_failed`, `pilot_k8s_cfg_events`",
+      "severity": "blocker",
+      "suggested_fix": "Replace with documented series: pilot_conflict_outbound_listener_tcp_over_current_tcp (and siblings), pilot_total_xds_rejects, pilot_total_xds_internal_errors, pilot_xds_pushes by type."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "Listener conflicts come from Services that declare the same port with incompatible protocols; a DestinationRule with portLevelSettings changes cluster policy, not listeners, so this test will not increment any conflict gauge.",
+      "field": "detailedImplementation",
+      "quote": "apply an invalid **DestinationRule** that creates a listener conflict: `kubectl apply -f - <<< '{apiVersion: networking.istio.io/v1beta1, kind: DestinationRule, ... portLevelSettings: [{port: {number: 80}}]}}}'`",
+      "severity": "major",
+      "suggested_fix": "Create two Services (or a Service and ServiceEntry) exposing the same port with conflicting protocols (e.g. tcp vs http) and check the pilot_conflict_* gauges."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "Audit events on the webhook-configuration objects record changes to those objects, not webhook call failures; failed admission calls surface on the audited request (e.g. a pod create rejected with 'failed calling webhook'). The prerequisite that the collector needs 'get on audit events' is also wrong: audit logs are control-plane files or cloud-provider logs, not an RBAC-readable resource.",
+      "field": "detailedImplementation",
+      "quote": "collect audit events for `ValidatingWebhookConfiguration` and `MutatingWebhookConfiguration` resources. These show when the API server **fails to reach** the istiod webhook",
+      "severity": "major",
+      "suggested_fix": "Describe searching audit events for pod/config create requests with responseStatus messages containing 'failed calling webhook \"*.istio.io\"', collected from the API server audit log file or the managed-cluster audit log export."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "istiod push/validation counters and log categories are not host performance metrics and do not map to any CIM dataset the SPL uses; Application_State is also a legacy model with little current support.",
+      "field": "cimModels",
+      "quote": "\"Application_State\", \"Performance\"",
+      "severity": "major",
+      "suggested_fix": "Leave cimModels empty or document why a specific dataset applies; verify Application_State status in the current CIM manual before keeping it."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "Marked verified by an agent reviewer although two of the core metric names do not match the istiod reference, so the health score cannot have been validated end to end.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until an SME validates metric names against a live istiod."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The in-cluster IstioOperator controller has been removed in recent Istio releases, so many clusters have no IstioOperator resource to inspect; also the UC says Istio 1.14+ while sibling UCs assume 1.18+.",
+      "field": "detailedImplementation",
+      "quote": "Review `galley_validation_failed` alongside `kubectl get istiooperator`",
+      "severity": "minor",
+      "suggested_fix": "Use `istioctl version` / `istioctl x precheck` for control-plane vs data-plane skew and align the minimum version with sibling UCs."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "clarity",
+      "explanation": "With the default failurePolicy this blocks all pod creation in injected namespaces and config validation cluster-wide; the text does not warn that this is disruptive.",
+      "field": "detailedImplementation",
+      "quote": "temporarily scale istiod to 0 replicas and attempt a pod deployment in a labeled namespace",
+      "severity": "minor",
+      "suggested_fix": "Mark it as a non-production test only and suggest a dedicated test cluster."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://istio.io/latest/docs/reference/commands/pilot-discovery/",
+      "field": "spl",
+      "issue": "`metric_name IN (... \"pilot_conflict_outbound_listener\" ... \"pilot_xds_push_errors\")` uses names absent from the istiod metric reference, so push_errors and listener_conflicts are always 0 and the CRITICAL/DEGRADED push-error and conflict branches can never fire.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://prometheus.io/docs/concepts/metric_types/#counter",
+      "field": "spl",
+      "issue": "pilot_xds_pushes, galley_validation_* and sidecar_injection_requests_total are cumulative counters; summing raw values in 5-minute bins adds lifetime totals per scrape instead of in-window increments, and the gauge listener_conflicts is summed across ~10 scrapes per bin so one persistent conflict exceeds the >10 threshold. Use per-series deltas / mstats rate for counters and max/latest for gauges.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "This UC reads `metric_value` while sibling UCs (3.5.3, 3.5.7, 3.5.8) read `value` from the same otel:metrics sourcetype; one of them is wrong for a given collector config. pilot_proxy_convergence_time_bucket is selected but never used.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0116-UC-3.5.9",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The control-plane narrative is detailed, but two of the metrics the health score depends on (pilot_xds_push_errors, pilot_conflict_outbound_listener) are not in the current istiod metric reference, the listener-conflict test would not produce a conflict, the audit-log guidance misdescribes how webhook failures appear, and the Splunkbase ID is wrong.",
+  "tier": "deep",
+  "uc_id": "UC-3.5.9",
+  "verdict": "incorrect"
+}

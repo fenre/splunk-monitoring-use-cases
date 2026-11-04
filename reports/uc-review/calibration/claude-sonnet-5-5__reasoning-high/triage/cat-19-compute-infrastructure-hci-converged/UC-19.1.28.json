@@ -1,0 +1,95 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "59caa25b56cb5b6567dfe178514272f0784642f9362ec8ff873513361efbea87",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.1.28.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The real triggers are lookup-driven (snapshot age over max_age_days, snapshot count over target_count, RPO lag over min_target_rpo_minutes); `t_create_usec > 0` is only a validity filter. `nutanix:protection_domains:snapshots` is the mistyped sourcetype that the UC itself says to avoid, not a macro, and `local=true` is a lookup option, not a lookup. The same text is repeated in controlTest and knownFalsePositives.",
+      "field": "description",
+      "quote": "alert when `t_create_usec` > 0, or `t_exp_usec` > 0. Filter chain includes macro `nutanix:protection_domains:snapshots`, lookup `local=true`.",
+      "severity": "major",
+      "suggested_fix": "Describe the three drift conditions per protection domain from nutanix_pd_retention_policy.csv, and remove the macro and `local=true` wording."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "With a 30-60 minute poll and 'one JSON line per snapshot', every poll re-indexes all snapshots. If `_time` is the poll time, `snap_count` multiplies by the number of polls in 24h and `over_count` fires falsely; if `_time` is the snapshot creation time (as the props.conf suggests), snapshots older than 24 hours fall outside the search so `worst_snapshot_age_days` can never exceed about one day and `max_age_days` of several days can never breach. The design notes do not address either case.",
+      "field": "detailedImplementation",
+      "quote": "earliest=-24h@h",
+      "severity": "major",
+      "suggested_fix": "Explain how events are deduplicated (distinct snapshot id, or latest poll only) and use a lookback long enough for the policy, or index snapshot inventory with poll time and take the latest poll via `stats latest` / dedup before counting."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Propsconf",
+      "explanation": "TIME_PREFIX is a regex that must match up to the start of the timestamp, so it should include the colon/whitespace after the key; and with INDEXED_EXTRACTIONS=json Splunk normally uses TIMESTAMP_FIELDS. The microsecond epoch also needs verification against %s%6N.",
+      "field": "detailedImplementation",
+      "quote": "TIME_PREFIX = \"created_time_usecs\"\nTIME_FORMAT = %s%6N",
+      "severity": "minor",
+      "suggested_fix": "Use TIMESTAMP_FIELDS=created_time_usecs (or a prefix such as \"created_time_usecs\":\\s*) and test the parsed _time on a sample event."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The addendum is one run-on list of generic deployment remarks ('for retail peaks', 'for banking regulators', 'for IPv6-only PE', 'for teams, at-mention the owner') that is not specific to this detection despite saying so, and it buries the few useful points.",
+      "field": "detailedImplementation",
+      "quote": "Addendum (operator governance, evidence packs, and scale notes: each paragraph is product-specific to Nutanix PDs and this UC, not generic filler)",
+      "severity": "major",
+      "suggested_fix": "Delete the addendum or keep only Nutanix-specific points (v4 data-protection API, NearSync/Metro caveats, WAN pause windows)."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "The per-snapshot field names from `dr_snapshots`, the Splunk_TA_nutanix package name for Splunkbase 5076, the `[nutanix://...]` stanza keys (`nutanix_host`, `use_ssl`, `rest_endpoint`) and the 'Cluster Viewer' role are all stated as fact but are not in the grounding (5076 is not in the cached catalog; the guide lists only nutanix:alert / nutanix:prism:rest sourcetypes). The stanza is described as illustrative.",
+      "field": "dataSources",
+      "quote": "`created_time_usecs`, `expiry_time_usecs`, and snapshot `name` or id",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the dr_snapshots response schema on a live Prism Element, the real TA name and input stanza syntax, and the exact Prism read-only role name."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "clarity",
+      "explanation": "The column is named 'min' but is used as the maximum acceptable gap between snapshots; the detailed text has to explain this reversal.",
+      "field": "implementation",
+      "quote": "`min_target_rpo_minutes`",
+      "severity": "minor",
+      "suggested_fix": "Rename to max_rpo_minutes (and update the SPL/lookup) or state the semantics where first introduced."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "Sourcetype names are not CIM labels; CIM defines data models and tags, and this UC has no CIM mapping (cimModels is empty).",
+      "field": "detailedImplementation",
+      "quote": "will not match the Splunk CIM-style labels we standardise in this use case",
+      "severity": "minor",
+      "suggested_fix": "Say 'the sourcetype names defined in this UC' instead of CIM-style labels."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The search starts with two `//` comment lines; `//` is not SPL comment syntax (comments use triple backticks), so the text becomes search terms and the query will not behave as intended. `snap_count` counts events, not distinct snapshots, so repeated polls inflate it; `sort 0 - severity_bucket` sorts the bucket names alphabetically (warning, info, high, critical) rather than by severity.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0027-UC-19.1.28",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The detailedImplementation contains a thoughtful lookup-driven design for Nutanix protection-domain snapshots, but the description and controlTest describe nonsense thresholds and a non-existent macro, and the search's time window and per-poll counting undermine the retention and count checks.",
+  "tier": "triage",
+  "uc_id": "UC-19.1.28",
+  "verdict": "rewrite"
+}

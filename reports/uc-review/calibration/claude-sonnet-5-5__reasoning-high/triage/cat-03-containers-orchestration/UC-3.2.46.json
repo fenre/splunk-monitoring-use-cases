@@ -1,0 +1,121 @@
+{
+  "confidence": 0.7,
+  "content_sha256": "05ad0648a8da79c51c9d144b0d129a7e15275ce6ea565e9859ce7cf8aaf01797",
+  "file": "content/cat-03-containers-orchestration/UC-3.2.46.json",
+  "findings": [
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "Marked verified with a group handle as reviewer even though the SPL contains constructs that are unlikely to run (see firewalled flags) and no live validation is evidenced.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft until the saved search has been executed against real Cluster Autoscaler, Karpenter and kube-state-metrics data and reviewed by a named SME."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "clarity",
+      "explanation": "Truncated, meaningless fragment (a field name called a macro and a cut-off search string); the same fragment is repeated in controlTest and knownFalsePositives. The description also lists `mv` > 0 and `pend` > 0 as alert conditions, which are internal variables, while the SPL alerts on a severity case expression.",
+      "field": "description",
+      "quote": "Filter chain includes macro `involvedObject.name`, filter `index=k8s_metrics sourcetype=\"prometheus:scrape:metrics\" ear`.",
+      "severity": "major",
+      "suggested_fix": "Describe in plain words: per cluster and node group, a failed scale-up signal (Cluster Autoscaler or Karpenter logs, FailedScaleUp/NotTriggerScaleUp events, failed scale-up counter) together with pods Pending for at least five minutes."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "Scenarios are generic word salad and do not name real causes of spurious scale-out-failure alerts, such as expected NotTriggerScaleUp for pods whose nodeSelector matches no pool, Karpenter consolidation churn, a deliberately capped node group, or short Pending bursts during normal scale-up.",
+      "field": "knownFalsePositives",
+      "quote": "Scheduled automation elevates `nodegroup` without crossing `mv` > 0 for UC-3.2.46.",
+      "severity": "major",
+      "suggested_fix": "Replace with these real causes and how to rule each out; key suppression on cluster and nodegroup."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/ApplicationState",
+      "explanation": "The detection is about autoscaler refusals and Pending pods from logs, events and Prometheus metrics; neither CIM Application_State nor Performance models that signal, and the cimSpl does not use any scale-out failure signal.",
+      "field": "cimModels",
+      "quote": "\"Application_State\",\n    \"Performance\"",
+      "severity": "major",
+      "suggested_fix": "Remove the CIM mapping or explain which dataset genuinely applies; check the Application State model field names before keeping it."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "explanation": "The grounding guide lists Splunk OpenTelemetry Collector for Kubernetes and Splunk Connect for Kubernetes; the existence of a 'Splunk Add-on for Kubernetes' page at this path (also cited in references) is unverified, and markdown link syntax inside the app field is unusual.",
+      "field": "app",
+      "quote": "([Splunk Add-on for Kubernetes documentation](https://docs.splunk.com/Documentation/AddOns/released/Kubernetes/About))",
+      "severity": "needs_verification",
+      "suggested_fix": "Verify the URL and product name; otherwise cite the Splunk OpenTelemetry Collector for Kubernetes documentation."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "Authoring checklist text and a 'Telemetry depth addendum' of unrelated generic advice (Tanzu, PCI, OpenShift, training drills, audit evidence) are appended to the implementation, padding it and burying the actionable steps.",
+      "field": "detailedImplementation",
+      "quote": "Closing checklist: five steps use em dash headers exactly; Step 3 fenced SPL matches the spl JSON field;",
+      "severity": "major",
+      "suggested_fix": "Delete the checklist and addendum paragraphs; keep prerequisites, collection, search, validation and troubleshooting."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "The sample collector config does not look like the prometheus_simple receiver schema (single `endpoint`, `metrics_path`, `use_service_account`, `tls_enabled`), uses a plain http URL together with a bearer token and `insecure_skip_verify: true`, and the filelog `regex_parser` operators have no `parse_from` and would drop non-matching lines.",
+      "field": "detailedImplementation",
+      "quote": "prometheus_simple/cluster_autoscaler:\n    endpoints:\n      - url: http://cluster-autoscaler.kube-system.svc.cluster.local:8085/metrics\n        tls:\n          insecure_skip_verify: true\n        headers:",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the YAML against the Splunk OpenTelemetry Collector receiver documentation and remove the insecure TLS setting from the example."
+    },
+    {
+      "confidence": 0.45,
+      "dimension": "correctness",
+      "evidence_url": "https://karpenter.sh/docs/getting-started/getting-started-with-karpenter/",
+      "explanation": "Recent Karpenter installation guides run the controller in `kube-system` by default rather than a `karpenter` namespace; the SPL's `ns=\"karpenter\" OR like(rawl, \"%karpenter%\")` and the filelog path `karpenter_*` may miss a default install.",
+      "field": "detailedImplementation",
+      "quote": "namespace karpenter for controller logs",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm the namespace for the Karpenter versions in scope and make the collection path configurable."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The SPL puts `stats` (and `eval ... | stats`) inside every `multisearch` arm. multisearch only accepts purely streaming subsearches and errors on non-streaming commands such as stats (https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Multisearch), so the search cannot run as written.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "`coalesce(involvedObject_name, `involvedObject.name`, \"\")` uses backticks, which Splunk treats as a search-macro call, not a field reference; fields containing a dot must be written in single quotes (https://docs.splunk.com/Documentation/Splunk/latest/Knowledge/Usesearchmacros). The UC text even calls it 'macro involvedObject.name'.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "In the severity case, `match(lower(scale_failure_reason), \"(timeout|throttl|temporary|az%|capacity%overlay)\")` uses `%` as if it were a LIKE wildcard; in a regex it is a literal, so those alternatives never match. The comment() macro and embedded UC ID in the SPL should also be checked.",
+      "severity": "major"
+    },
+    {
+      "field": "cimSpl",
+      "issue": "Joins Application_State.dest to Performance.host for apps named like kube and returns CPU/memory averages; it contains no autoscaler or Pending-pod signal and relies on an app field/values the Application_State model may not carry.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0004-UC-3.2.18",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "A valuable detection concept with a long operational narrative, but the SPL appears unrunnable as written (non-streaming commands inside multisearch, a backticked field name parsed as a macro) and the description, CIM mapping and appended 'addendum' text are template or authoring residue. Status is marked verified with no sign-off.",
+  "tier": "triage",
+  "uc_id": "UC-3.2.46",
+  "verdict": "rewrite"
+}

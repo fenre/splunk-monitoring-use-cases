@@ -1,0 +1,110 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "4aceb713289eeea4838132fc297140009d13f8bd3d23ffece660f92664d71f4d",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.2.34.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://man7.org/linux/man-pages/man8/lvs.8.html",
+      "explanation": "In lv_attr, 't' marks a thin pool and 'V' marks a thin volume, which is each guest disk. This selector therefore emits every VM disk as a proxmox:lvm:thinpool row with its own data_percent and no metadata_percent. The SPL treats each row as a pool, so a guest disk that is 90% written raises a critical even when the pool is healthy.",
+      "field": "dataSources",
+      "quote": "--select 'lv_attr=~\"V|t.*\"'",
+      "severity": "blocker",
+      "suggested_fix": "Select pools only, for example --select 'lv_attr=~^t', and add '--units b --nosuffix' so lv_size is in plain bytes, which also removes the need for the to_bytes() parser that cannot handle '<' prefixes."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "GET /api2/json/storage returns the storage.cfg definitions (storage, type, content, nodes, shared and so on). Usage fields such as total, used, avail and used_fraction normally come from GET /nodes/{node}/storage or /nodes/{node}/storage/{storage}/status. Step 5(b) half-acknowledges this.",
+      "field": "dataSources",
+      "quote": "`sourcetype=proxmox:storage` from the datacenter PVE `GET /api2/json/storage` (cluster-wide; filter to `type=lvmthin` in the poller or in SPL) exposing `storage`, `type`, `content`, `nodes`, `total`, `used`, `avail`, `used_fraction`",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the response schema in the PVE API viewer. If /storage has no usage fields, keep it for type and enabled metadata only, and take capacity from /nodes/{node}/storage (one call per node returns every storage with usage)."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "cluster/resources returns one row per guest with a single maxdisk value and no per-disk storage mapping. The PVE API is not paginated either. The allocated-to-provisioned ratio per storage therefore cannot be built from this endpoint as described.",
+      "field": "dataSources",
+      "quote": "`sourcetype=proxmox:vm:disk` from `GET /api2/json/cluster/resources?type=vm` (poll all pages) flattening per-VM disk `storage` and `maxdisk` (bytes) to sum declared sizes per `storage`",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the endpoint's response. A likely source is GET /nodes/{node}/storage/{storage}/content?content=images, which lists each volume with its size on that storage. Sum size per storage and drop the pagination instruction."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL reads only earliest=-30m@m of pool data, so no streamstats window can reach back 24 hours. g24 is really growth over about 30 minutes, which the SPL then divides by 24. A window of 1440 is also 'wider', not 'narrower'.",
+      "field": "detailedImplementation",
+      "quote": "`streamstats` window=288 at a five minute alert cadence approximates one day; when your actual poll is one minute, narrow `window` to 1440 for a true 24h span.",
+      "severity": "major",
+      "suggested_fix": "Explain that the ETA needs a 24-hour lookback, for example a separate subsearch over -24h or a summary index, and that the current window only covers 30 minutes. Fix the wording to 'widen'."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "Cisco ACI and HashiCorp Vault have nothing to do with Proxmox LVM-thin capacity, and the equipment tags ceph, cisco, ovirt, pagerduty and servicenow are noise too.",
+      "field": "equipmentModels",
+      "quote": "\"cisco_aci\",\n    \"hashicorp_vault\"",
+      "severity": "minor",
+      "suggested_fix": "Keep the proxmox and linux equipment tags, remove the unrelated models and tags, and add a Proxmox model slug if the catalogue has one."
+    },
+    {
+      "confidence": 0.95,
+      "dimension": "spelling",
+      "explanation": "The Fujitsu server line is PRIMERGY.",
+      "field": "hardware",
+      "quote": "Fujitsu PRIMERGX lines",
+      "severity": "minor",
+      "suggested_fix": "Change to 'Fujitsu PRIMERGY'."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The savedsearches.conf snippet in the same step applies a single 60-minute suppression to every row, including read-only pools, so it contradicts the 15-minute guidance.",
+      "field": "detailedImplementation",
+      "quote": "do not throttle `pool_state=ro` below 15m until acknowledged",
+      "severity": "minor",
+      "suggested_fix": "Show a second saved search or alert condition for pool_state=ro with a 15-minute suppression, or drop the 15-minute claim."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified with a generic team reviewer, yet the lvs selector and the oversubscription source would produce wrong rows on a real PVE node.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status to draft until the pollers are run against PVE 8 and the output is checked against pvesm status and lvs."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats",
+      "field": "spl",
+      "issue": "The pool branch uses earliest=-30m@m, but streamstats window=288 and g24/24 assume 24 hours of samples. grow_pct_per_h and eta_to_full_hours are therefore computed from 30 minutes of growth divided by 24, which badly understates the rate and overstates the ETA, and c_eta (ETA under 168h) will rarely fire. Use a 24-hour lookback for the growth computation.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "pool_state uses like(ro_raw, \"%ro%\"), which matches any status string containing 'ro' (for example 'error'), so such rows become read-only and critical. The where clause also keeps every proxmox:storage:status row regardless of storage type, so ZFS, dir and NFS storages enter an LVM-thin alert.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0069-UC-19.2.34",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 4,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 5,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The LVM-thin explanation is accurate and readable: data versus metadata exhaustion, read-only risk and the extend runbook. The collection design has real problems, though. The lvs selector also picks up guest thin volumes as if they were pools, the PVE endpoints chosen for usage and per-storage provisioned size probably do not return those fields, and the '24h' growth and ETA math runs over only a 30-minute search window.",
+  "tier": "deep",
+  "uc_id": "UC-19.2.34",
+  "verdict": "incorrect"
+}

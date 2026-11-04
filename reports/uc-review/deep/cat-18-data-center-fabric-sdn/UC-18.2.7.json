@@ -1,0 +1,120 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "8a7744d569d175f64cf422896c2c6b615d49111f39a9668d6d13d41a5a299521",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.2.7.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/4856",
+      "explanation": "Splunkbase 4856 is the community 'Metrics Add-on for Infrastructure'; 1810 (cited for Splunk_TA_vmware) is 'Hunk App for MongoDB'. Splunk Add-on for VMware is 3215; NSX integrations on Splunkbase are 4241 and 6805. Repeated in dataSources, detailedImplementation and references.",
+      "field": "app",
+      "quote": "**`Splunk_TA_vmware-nsxt`** ([Splunkbase **4856**](https://splunkbase.splunk.com/app/4856)) for **`vmware:nsxt:audit`**, **`vmware:nsxt:syslog`**",
+      "severity": "blocker",
+      "suggested_fix": "Correct the IDs or describe audit/syslog ingestion as SC4S/custom inputs with site-defined sourcetypes."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "explanation": "CIM Authentication models login/logon attempts. Policy edits by a user from a client IP are change events; the Change model already carries `user`, `src`, `object` and `action`. dataModelAcceleration repeats the mis-mapping by aliasing audit `user_name` into Authentication.user.",
+      "field": "cimModels",
+      "quote": "\"Authentication\"",
+      "severity": "blocker",
+      "suggested_fix": "Keep Change only and map `change_user`→user, `client_ip`→src, `policy_id`→object_id."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL compares `revision_id` from the NSX Policy API (the object's `_revision` counter) with `approved_revision_id`. A Terraform state hash or Git commit SHA will never equal an NSX revision integer, so `drift_core` would fire for every policy.",
+      "field": "cross_field",
+      "quote": "authoritative **`approved_revision_id`** derived from Terraform `terraform state pull` hashes, GitOps `HEAD` merges, or CAB-signed YAML exports",
+      "severity": "major",
+      "suggested_fix": "Record the NSX `_revision` value (or a hash of the rule body computed the same way in both places) observed right after each approved apply as `approved_revision_id`."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "NSX Manager audit syslog records changes as structured `audit=\"true\"` entries with Operation (PATCH/PUT/DELETE) and module fields; these upper-case event tokens do not appear in NSX logging references, and the SPL's section-order, import and realization classes depend on them.",
+      "field": "dataSources",
+      "quote": "**`vmware:nsxt:syslog`** Manager narratives (**`POLICY_UPDATE`**, **`SECTION_ORDER_CHANGED`**, **`RULE_ADDED`**, **`RULE_DELETED`**, **`RULE_MODIFIED`**, **`IMPORT_FAILED`**, **`REALIZATION_FAILED`**)",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm against the NSX 4.2 'Log Message IDs' / audit log format documentation and rewrite the syslog classifier on real fields (e.g. Operation, ModuleName, request URI)."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "clarity",
+      "explanation": "Markdown bold markers are embedded inside the SPL snippet, so copying it produces an invalid search; similar corruption appears in '(**`**UC-18.2.1**7`**)', '**`policy_**realization_status**`**' and '**dedup**e'.",
+      "field": "detailedImplementation",
+      "quote": "`| join type=left **change_user** [| search index=vmware sourcetype=\"**vmware:nsxt:audit**\" earliest=-24h | **stats** latest(**client_ip**) as **client_ip**",
+      "severity": "major",
+      "suggested_fix": "Put the join in a fenced spl block without formatting and fix the garbled UC-18.2.17 / policy_realization_status references."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "The ESXi DFW user-world agent is `vsfwd`; `vsipfwwd` is not an NSX component (repeated in detailedImplementation).",
+      "field": "dataSources",
+      "quote": "aligned to **`vsipfwwd`** programming",
+      "severity": "minor",
+      "suggested_fix": "Use `vsfwd`."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The SPL copy in detailedImplementation differs from the `spl` field (different operators, missing drift_family/table tail), so readers get two versions.",
+      "field": "cross_field",
+      "quote": "| eval realization_problem=if(realization_status==\"ERROR\" OR syslog_evt==\"REALIZATION_FAILED\",1,0)",
+      "severity": "minor",
+      "suggested_fix": "Embed the exact `spl` text, or reference it instead of duplicating."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The 'Policy API — Security Policies' reference points to the techdocs home page; the `docs.vmware.com` portal link is retired.",
+      "field": "references",
+      "quote": "\"url\": \"https://techdocs.broadcom.com/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the NSX 4.2 Policy API SecurityPolicy reference on developer.broadcom.com."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "Marked verified by an automated agent while the baseline comparison cannot work as documented and add-on IDs are wrong.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until SME validation."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "title",
+      "issue": "Title promises 'Intent-vs-Realized', 'Out-of-Band Edits' and 'Section Order Reconciliation'; the SPL never joins audit or change-ticket data (so cannot tell out-of-band from approved edits) and section-order detection relies on an unverified syslog token.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "`strftime(change_ts_raw,...)` returns null when `change_timestamp` is a string rather than epoch; `drift_family`, `snap_token` and `correlation_digest` are computed but dropped by the final `table`; RULE_ADDED/RULE_DELETED/RULE_MODIFIED events are classified then discarded by the `where` filter.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0038-UC-18.2.7",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "A sensible baseline-vs-live revision comparison with a clear grandma explanation, but the add-on IDs are wrong, the NSX syslog event names look invented, the baseline is built from Terraform/Git hashes that can never equal NSX revision numbers, Authentication is the wrong CIM model, and the audit-join snippet is corrupted by markdown.",
+  "tier": "deep",
+  "uc_id": "UC-18.2.7",
+  "verdict": "incorrect"
+}

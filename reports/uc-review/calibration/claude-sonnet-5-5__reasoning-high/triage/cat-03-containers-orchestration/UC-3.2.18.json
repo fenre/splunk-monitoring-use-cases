@@ -1,0 +1,125 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "d5c3471e9e52e9a100eb30f6a90398112487a306dde88e4ea02ae95a2b53f704",
+  "file": "content/cat-03-containers-orchestration/UC-3.2.18.json",
+  "findings": [
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified with a group handle as reviewer; nothing in the text shows an SME actually ran the multi-arm SPL against real ingress, kube-state-metrics and OTel data.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Lower status to draft until a named Kubernetes/ingress SME has validated it on live data and recorded the date."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL only has an NGINX arm and a Traefik arm, so only two of these controller_family values can ever be produced; dataSources, equipment (envoy, haproxy, azure) and the scope paragraph also claim Envoy, HAProxy, ALB, GKE and Application Gateway coverage that the search does not implement.",
+      "field": "detailedImplementation",
+      "quote": "Document controller_family values in your runbook: nginx_ingress, traefik, envoy_ingress, haproxy_ingress, contour_envoy, aws_alb, gke_l7, aks_appgw.",
+      "severity": "major",
+      "suggested_fix": "Either add arms for the other controllers or restrict description, dataSources, equipment and scope to NGINX Ingress and Traefik and describe the others as separate follow-on work."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "Scheduling a 15-minute alert over a 24-hour window re-evaluates every historical 15-minute bucket on each run, so one incident keeps matching for a day (throttling hides but does not remove this) and the three 24-hour joins to metrics are expensive. Step 3 also says to alert on critical or high, while the SPL `where` keeps medium, and the final `true(), \"medium\"` branch turns every remaining row into an alert.",
+      "field": "implementation",
+      "quote": "save uc_3_2_18_ingress_upstream_backend_5xx every fifteen minutes with earliest=-24h@h latest=now",
+      "severity": "major",
+      "suggested_fix": "Use a short lookback (for example the last two to three 15-minute buckets) for alerting and keep 24h only for investigation; align the severity filter between prose and SPL."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The four scenarios are title/field word salad (batch `sum`, synthetic probe on `_time`) and none names a real cause of a spurious 502/503/504 burst, such as rolling deployments, intentional scale-to-zero, load-test or scanner traffic, planned backend maintenance, or health-check endpoints returning 503.",
+      "field": "knownFalsePositives",
+      "quote": "Scheduled automation elevates `cluster` without crossing `rt_raw` > 0 for UC-3.2.18.",
+      "severity": "major",
+      "suggested_fix": "Replace with real ingress false-positive causes, each with how to distinguish it, and key suppression on vhost/namespace."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
+      "explanation": "The CIM Performance data model describes host CPU, memory, storage and network metrics; it does not carry HTTP response_time per vhost, so mapping ingress access logs to it looks wrong. Web is the dataset that fits access logs.",
+      "field": "cimModels",
+      "quote": "\"Performance\"",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the CIM Performance dataset fields; remove Performance from cimModels unless a real mapping exists."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "explanation": "The grounding guide names Splunk OpenTelemetry Collector for Kubernetes and Splunk Connect for Kubernetes; a 'Splunk Add-on for Kubernetes' is not listed, and the data sources give no Splunkbase ID for the access-log parsing (nginx:access, traefik:access sourcetypes appear to be local conventions).",
+      "field": "app",
+      "quote": "Splunk Add-on for Kubernetes documentation for legacy HEC patterns",
+      "severity": "needs_verification",
+      "suggested_fix": "Verify the add-on name or remove it; state that nginx:access and traefik:access are locally assigned sourcetypes and what props are needed."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "Authoring-process instruction leaked into reader-facing documentation; the section also duplicates the full SPL.",
+      "field": "detailedImplementation",
+      "quote": "Fenced SPL for runbooks must match the spl JSON field byte-for-byte aside from newline normalization:",
+      "severity": "minor",
+      "suggested_fix": "Remove the authoring note and keep only a brief pointer to the saved search."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "clarity",
+      "explanation": "Describes only the NGINX arm and omits Traefik, the kube-state-metrics joins and the on-call routing, and the group-by list omits namespace and vhost that the SPL actually uses.",
+      "field": "description",
+      "quote": "using `index=web` sourcetype `nginx:access`, grouped by `_time`, `cluster`, `controller_family`, `ingress_class`",
+      "severity": "minor",
+      "suggested_fix": "State that each row is a 15-minute bucket per cluster, namespace and vhost with 502-504 counts joined to endpoint availability and pod readiness."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "Traefik JSON access-log `Duration` is reported in nanoseconds (see https://doc.traefik.io/traefik/observability/access-logs/), but the SPL treats `rt_raw` below 300 as seconds and anything else as milliseconds, so req_latency_ms and p90_latency_ms would be inflated enormously and always exceed LAT_WARN_MS. Verify units.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "For NGINX the namespace is coalesced from `proxy_upstream_name`, which has the form `<namespace>-<service>-<port>`, not a namespace; the later joins to kube_endpoint and pod readiness on cluster+namespace will then not match, defaulting to 'healthy' via fillnull(999999 / 1) and masking zero-endpoint outages.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "The metric joins parse `namespace=\"...\"` and trailing values from `_raw`, assuming Prometheus text exposition; events delivered via the OTel splunk_hec exporter are typically JSON, so these rex extractions may never match.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "The leading `comment(\"...\")` macro and the embedded `UC-3.2.18` identifier: the comment macro is not a built-in; confirm it is defined, and avoid putting the UC ID inside SPL text.",
+      "severity": "minor"
+    },
+    {
+      "field": "cimSpl",
+      "issue": "Joins Web.url (aliased vhost) to Performance.dest on 15-minute buckets, and uses Performance.response_time, which is not a field of the CIM Performance model; the join key is not semantically comparable.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0004-UC-3.2.18",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "A substantive and well-differentiated ingress 502/503/504 detection with a genuinely useful implementation walkthrough, undermined by template description/false-positive text, claims of coverage for controllers the SPL does not handle, a verified status without sign-off, and a 24-hour re-evaluation window that will re-alert. Several field and unit assumptions need verification.",
+  "tier": "triage",
+  "uc_id": "UC-3.2.18",
+  "verdict": "rewrite"
+}

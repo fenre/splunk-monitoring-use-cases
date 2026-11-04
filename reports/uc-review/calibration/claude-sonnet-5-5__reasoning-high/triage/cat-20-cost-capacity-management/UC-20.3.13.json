@@ -1,0 +1,90 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "c349b69f867ad577990334826426cec79a10f3c7bbccbf7637ba7faa6fa5c77c",
+  "file": "content/cat-20-cost-capacity-management/UC-20.3.13.json",
+  "findings": [
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "SAP named-user licences are counted per authorised person (measured via USMM/LAW), not by concurrent sessions, and indirect access is a contractual matter that a session log count cannot establish; monitoringType also claims Compliance. The detection can at most indicate usage near an entitlement figure.",
+      "field": "value",
+      "quote": "Comparing entitled named users to measured concurrent dialog peaks highlights indirect access risk and indirect-license optimization programs.",
+      "severity": "major",
+      "suggested_fix": "Reword to say the search compares peak distinct dialog users per hour to the entitlement figure as an early indicator, and that licence compliance must be confirmed with SAP's own measurement."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "SM20 is the Security Audit Log analysis transaction (logon and audit events when configured), not a session or concurrency counter; session counts normally come from SM04/AL08 or workload statistics. SAProuter, named in the app field, logs network connections, not user sessions. The Universal Forwarder is not a Splunkbase app (617 is not in the cached catalog).",
+      "field": "implementation",
+      "quote": "(1) Ingest SM20 or gateway session logs with one-hour granularity.",
+      "severity": "needs_verification",
+      "suggested_fix": "Document which SAP source provides logon/session records (and that sap:sm20 is a customer-defined sourcetype), and correct the app field to the real collection path."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "peak_to_entitled_pct is peak divided by entitled times 100, so '> 25' is satisfied by almost any system, while the effective trigger is the second clause `peak_concurrent>entitled*0.9`, which makes the 25 condition redundant. Also `peak_concurrent` is the maximum of hourly distinct users over 30 days, not concurrent sessions.",
+      "field": "description",
+      "quote": "alert when `peak_to_entitled_pct` > 25",
+      "severity": "major",
+      "suggested_fix": "State the true trigger (peak distinct dialog users in an hour above 90% of entitled named users) and rename peak_concurrent to reflect that it is hourly distinct users."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "A stray `]` appears as a grouping field in description, controlTest and knownFalsePositives; the output grain (hourly) is stated, but the final table is a per-system result.",
+      "field": "description",
+      "quote": "grouped by `_time`, `system_id`, `]`. Outputs `named_dialog_users`, `peak_concurrent` each `1h`",
+      "severity": "major",
+      "suggested_fix": "Remove the placeholder and describe the per-system output."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "explanation": "Validation for SAP licensing should compare with SAP USMM/LAW or the SAP licence measurement, not a cloud billing console; the line 'Enable Data Model Acceleration (and metric indexes for `mstats`)' is also irrelevant (no data model or mstats is used and cimModels is empty).",
+      "field": "detailedImplementation",
+      "quote": "Step 3 — Validate\ncompare with the cloud billing console for the same scope, accounts, and time range.",
+      "severity": "major",
+      "suggested_fix": "Validate against LAW/USMM results for the same system and period and delete the data model acceleration sentence."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "specificity",
+      "explanation": "Generic scenarios; real causes are technical or communication users counted as dialog users, multiple logins by one person, month-end or audit peaks, and test systems sharing a system_id.",
+      "field": "knownFalsePositives",
+      "quote": "Scheduled automation elevates `system_id` without crossing `peak_to_entitled_pct` > 25 for UC-20.3.13.",
+      "severity": "major",
+      "suggested_fix": "List those real causes and how to exclude them (user type from SAP, service accounts)."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "After `stats ... by _time, system_id` and `eventstats max(...)`, the table emits one row per hour for each qualifying system instead of one row per system; `where ... peak_to_entitled_pct>25 AND peak_concurrent>entitled*0.9` makes the first clause redundant; `join` of a latest-1d entitlement subsearch drops systems with no position data silently.",
+      "severity": "major"
+    },
+    {
+      "field": "monitoringType",
+      "issue": "Compliance is claimed, but the search is an internal usage indicator and cannot demonstrate SAP licence compliance.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0030-UC-20.3.12",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The UC compares hourly distinct SAP users to named-user entitlements and calls the result a license compliance and indirect-access signal; the metric, the source (SM20) and the trigger logic do not support that claim, and the text still has placeholder artefacts and cloud-billing validation steps.",
+  "tier": "triage",
+  "uc_id": "UC-20.3.13",
+  "verdict": "rewrite"
+}

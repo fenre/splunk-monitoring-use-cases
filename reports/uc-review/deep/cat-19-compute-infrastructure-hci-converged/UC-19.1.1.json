@@ -1,0 +1,122 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "1a8bf4e58badcb0622ba7fc2c1f8c636c3dade258c7e01a8137a92ce5b0bc2c7",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.1.1.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/",
+      "explanation": "Splunk's add-on documentation says the add-on assigns all Cisco UCS data the sourcetype `cisco:ucs` and sets the source per class ID, so faultInst events arrive as `sourcetype=cisco:ucs source=cisco:ucs:faultInst`. A `cisco:ucs:faults` sourcetype is not produced by the add-on.",
+      "field": "dataSources",
+      "quote": "sourcetype `cisco:ucs:faults` from the Splunk Add-on for Cisco UCS (Splunkbase 2731, v4.3.1). The TA’s **modular input** polls the UCS Manager XML/HTTPS **API** and materialises `faultInst` into indexed events",
+      "severity": "blocker",
+      "suggested_fix": "Describe the feed as `index=cisco_ucs sourcetype=cisco:ucs source=cisco:ucs:faultInst`, collected by an add-on Input that uses a Template containing the faultInst class ID. Only mention a custom sourcetype if the site overrides it on the Input."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/print_page/",
+      "explanation": "This gets it backwards. The add-on's documented install path is `$SPLUNK_HOME/etc/apps/Splunk_TA_cisco-ucs/` and the Splunkbase package name is `Splunk_TA_cisco-ucs`. The current release is 4.3.3 (compatible with 9.1 through 10.5). 4.3.1 only supported Splunk 9.1 through 9.4.",
+      "field": "app",
+      "quote": "current release 4.3.1, Splunk-supported on 9.1–10.2 and Splunk Cloud). The install directory and Splunkbase package name are `Splunk_TA_cisco_ucs` (underscore). Older download bundles may still show the hyphenated `Splunk_TA_cisco-ucs` string—treat that as a filename artefact",
+      "severity": "blocker",
+      "suggested_fix": "State that the package and folder name is `Splunk_TA_cisco-ucs` (hyphen), the current release is 4.3.3, and give the Splunk compatibility from the release notes (4.3.3 supports 9.1.x through 10.5.x)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://www.cisco.com/c/en/us/td/docs/unified_computing/ucs/ts/faults/reference/ErrMess/UCS_SEMs.html",
+      "explanation": "F0479 is fltDcxVIfLinkState (virtual interface link down, cause vif-down), not a memory fault. F0408 is fltEquipmentChassisPowerProblem (chassis power state against the power policy), not PSU input. The memory example in Step 3 (`.../mem-4/fault-F0479`) inherits the same error.",
+      "field": "detailedImplementation",
+      "quote": "examples you can bookmark while testing: **F0479** for memory, **F0521** for CPU thermal, **F0408** for PSU input",
+      "severity": "blocker",
+      "suggested_fix": "Use real codes from the Cisco UCS Faults Reference, for example F0184/F0185 (fltMemoryUnitDegraded / fltMemoryUnitInoperable) for memory, F0175–F0177 for processor thermal, and F0408 described as chassis power problem. Fix the Step 3 example DN to a memory fault code."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://www.cisco.com/c/en/us/td/docs/unified_computing/ucs/sw/ucsm_syslog/b_Monitoring_Cisco_UCSM_Using_Syslog/b_Monitoring_Cisco_UCSM_Using_Syslog_chapter_010.html",
+      "explanation": "UCSM syslog is configured under Admin > All > Faults, Events, and Audit Log > Syslog. Communication Services holds HTTP/HTTPS, SNMP, and similar services. The Local Sources there are Faults, Events, and Audits, not 'fault and equipment classes'.",
+      "field": "detailedImplementation",
+      "quote": "in UCSM choose **Admin > Communication & Management > Communication Services** (wording can vary by 3.x/4.x) and configure a **syslog** destination",
+      "severity": "blocker",
+      "suggested_fix": "Use Admin > All > Faults, Events, and Audit Log > Syslog. Configure a Remote Destination with level and facility, and enable the Faults (and optionally Audits/Events) local sources."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/ConfigureInputs/",
+      "explanation": "The add-on is configured as Managers (splunk_ta_cisco_ucs_servers.conf), Templates of class IDs (splunk_ta_cisco_ucs_templates.conf), and Inputs that bind managers and templates. Collection runs on a heavy forwarder only. Copying a `cisco_ucs://` stanza is not the documented workflow.",
+      "field": "detailedImplementation",
+      "quote": "open `$SPLUNK_HOME/etc/apps/Splunk_TA_cisco_ucs/default/inputs.conf` and copy the **documented** stanza template for the Cisco UCS family (naming is commonly `cisco_ucs://<label>`",
+      "severity": "major",
+      "suggested_fix": "Describe the documented flow: add a Manager (host and read-only credentials), make sure a Template includes `faultInst`, create an Input that selects the manager and template with an interval and index, then confirm with `index=cisco_ucs sourcetype=cisco:ucs source=cisco:ucs:faultInst`."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/compute-hci.md",
+      "explanation": "dataSources and detailedImplementation suggest syslog lines can be parsed into the same fault sourcetype. However, UCSM syslog lines do not carry the XML faultInst attributes (`lc`, `ack`, `created`, `occur`) the SPL relies on, and the subcategory guide keeps syslog as a separate `cisco:ucs:syslog` sourcetype. The Step 1 advice to set props/transforms on a Universal Forwarder would also not parse the stream.",
+      "field": "cross_field",
+      "quote": "**or** you forward **UCSM syslog** to a receiver that normalises the same logical sourcetype",
+      "severity": "major",
+      "suggested_fix": "Present syslog as a separate, complementary sourcetype with its own extractions on the heavy forwarder or SC4S tier. State that the SPL as written only works on the API-polled faultInst events."
+    },
+    {
+      "dimension": "specificity",
+      "explanation": "The reference URL is the Cisco home path, not the faults reference its title promises.",
+      "field": "references",
+      "quote": "\"title\": \"Cisco UCS Faults Reference, Release 4.2 (fault codes, causes, actions)\",\n      \"url\": \"https://www.cisco.com/c/en/us/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the actual Cisco UCS Faults and Error Messages Reference page for the UCSM release in scope."
+    },
+    {
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by a generic org handle, yet it contains a non-existent sourcetype, wrong fault codes and a wrong GUI path, so the claim of SME verification is not supported.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "minor",
+      "suggested_fix": "Downgrade to a draft or community status until a named SME validates it against a live add-on deployment."
+    },
+    {
+      "dimension": "grandma_fidelity",
+      "explanation": "Sorting does not fix anything. The sentence muddles what the detection does: it lists open hardware faults per server part so staff can replace the part before redundancy is lost.",
+      "field": "grandmaExplanation",
+      "quote": "We sort by that path so a fan, power unit, or memory bank is fixed while redundancy still holds",
+      "severity": "minor",
+      "suggested_fix": "Say plainly: we list every open hardware fault on each Cisco blade or rack server, grouped by the part affected (fan, power supply, memory, disk), so the team can replace it before a second failure causes an outage."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/",
+      "field": "spl",
+      "issue": "The search filters `sourcetype=\"cisco:ucs:faults\"`, which the Splunk Add-on for Cisco UCS does not produce. The add-on writes `sourcetype=cisco:ucs` with `source=cisco:ucs:faultInst`, so the search returns nothing on a default install. Use `sourcetype=cisco:ucs source=\"cisco:ucs:faultInst\"`.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "`sort 0 - count, - severity` sorts severity as a string (warning > minor > major > critical), so critical rows sort last among equal counts. Also, each poll re-ingests the same open fault, so `count` measures poll repetitions over 24h rather than distinct faults. Map severity to a rank (for example with the add-on's `ucs_fault_highestSeverity` lookup) and use dc or latest instead.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0001-UC-19.1.1",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 3,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The detailed implementation is substantive, but the UC is built on a sourcetype the Splunk Add-on for Cisco UCS does not emit (the add-on uses sourcetype cisco:ucs with source cisco:ucs:faultInst), misstates the add-on folder name and version support, cites a wrong fault code for memory, and gives a wrong UCSM syslog navigation path.",
+  "tier": "deep",
+  "uc_id": "UC-19.1.1",
+  "verdict": "incorrect"
+}

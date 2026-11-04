@@ -1,0 +1,128 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "c74ef1bd8cdeb278651aeb2366c1eb845c2fd9031e044bdb9ff4162c7f739b1b",
+  "file": "content/cat-03-containers-orchestration/UC-3.3.21.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "detailedImplementation promises several signals that have no logic in the spl field: ServiceAccount subjects in tenant namespaces (Case 4), Group subjects mapped to large directory populations (Case 6), and canonical-JSON hash tamper evidence. The SPL extracts only kind User subjects, and ocp_rbac_snapshot subject tuples (subject_kind, subject_namespace, role_ref_name) are never read.",
+      "field": "cross_field",
+      "quote": "Case 4 — ServiceAccount in a tenant namespace granted powerful cluster-scoped roles: when audit or inventory shows subject_kind ServiceAccount with subject_namespace outside openshift-*, kube-*",
+      "severity": "major",
+      "suggested_fix": "Either remove Cases 4 and 6 and the hash claim from detailedImplementation, or note that they need a separate search over ocp_rbac_snapshot subject rows (subject_kind=ServiceAccount AND subject_namespace NOT openshift-*/kube-*)."
+    },
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "explanation": "An RBAC audit detection on OpenShift has nothing to do with UPS hardware or SNMP. The equipment entry 'snmp' and the model 'snmp_ups' are mis-tags that will surface this UC in unrelated equipment filters.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_ups\"",
+      "severity": "major",
+      "suggested_fix": "Remove snmp from equipment and snmp_ups from equipmentModels. Keep kubernetes/openshift (and opentelemetry if retained)."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "The URL is the repository root, not an rbac package. ClusterRole and ClusterRoleBinding are upstream rbac.authorization.k8s.io types defined in kubernetes/api, not in openshift/api.",
+      "field": "references",
+      "quote": "\"title\": \"OpenShift API Reference — package rbac v1\",\n      \"url\": \"https://github.com/openshift/api/blob/master/\"",
+      "severity": "major",
+      "suggested_fix": "Replace it with https://github.com/kubernetes/api/blob/master/rbac/v1/types.go or the Red Hat 'Role APIs' / ClusterRoleBinding API reference page for the supported OCP minor version."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "The grounding guide names 'Splunk OpenShift App', Splunk OpenTelemetry Collector for Kubernetes and Splunk Connect for Kubernetes (3743). It does not name a 'Splunk OpenShift Monitoring Add-on' or a Splunk_TA_kubernetes package.",
+      "field": "app",
+      "quote": "Splunk OpenShift Monitoring Add-on patterns; Splunk Add-on for Kubernetes (`Splunk_TA_kubernetes`) for audit routing",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm on Splunkbase whether these packages exist. If they do not, list the Splunk OpenTelemetry Collector for Kubernetes (filelog receiver for audit logs) plus the custom oc inventory exporter."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The closing table command lists 21 fields, not 19.",
+      "field": "detailedImplementation",
+      "quote": "closing table includes _time, cluster, signal_type, ... agg_lbl_cnt for nineteen analyst-visible columns",
+      "severity": "minor",
+      "suggested_fix": "Change 'nineteen' to 'twenty-one', or drop the count."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "RBAC object mutations fit Change (All_Changes / Account_Management). The Authentication model records logon outcomes, and no lane in this detection uses logon events.",
+      "field": "cimModels",
+      "quote": "\"Change\",\n    \"Authentication\"",
+      "severity": "minor",
+      "suggested_fix": "Keep Change and drop Authentication, unless an OAuth login lane is added."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified with only a generic reviewer handle. Its SPL contains a join inside a multisearch arm, and its subject rex misses the standard Subject JSON order, which suggests it has not been run.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set the status to draft or community until an SME has executed the search against real OpenShift audit data and recorded the sign-off."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/search-commands/multisearch",
+      "field": "spl",
+      "issue": "The third multisearch arm (oauth_bind_hygiene) contains `join type=left max=0 cluster bind_user [| inputlookup ...]`. multisearch subsearches must be purely streaming, but join is at best centralized streaming (see the Command types page), so the search fails to parse. Use `lookup ocp_oauth_user_identity_snapshot.csv ...` instead, which is distributable streaming.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://github.com/kubernetes/api/blob/master/rbac/v1/types.go",
+      "field": "spl",
+      "issue": "The subject rex requires `\"kind\":\"User\",\"name\":\"...\"` adjacency. In rbac/v1, Subject serializes in the order kind, apiGroup, name, and apiGroup defaults to rbac.authorization.k8s.io for User subjects, which oc adm policy and kubectl create clusterrolebinding send explicitly. Real request bodies therefore read `\"kind\":\"User\",\"apiGroup\":\"rbac.authorization.k8s.io\",\"name\":...` and the regex matches nothing. Patch requests carry no full subjects array at all. The orphan-subject lane is silently empty.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/search-commands/streamstats",
+      "field": "spl",
+      "issue": "binding_velocity_win comes from `sort 0 cluster cr_or_crb_name - _time | streamstats window=20 ... sum(is_bind_evt) BY cluster`. window counts the last 20 rows, not a time span, and rows are ordered by object name. The value therefore depends on how many adjacent names are bindings, not on 'mass binding additions in minutes'. The 6 and 12 thresholds have no time meaning. Use `bin _time span=5m` plus stats count BY cluster, or streamstats time_window=10m on time-sorted events.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "agg_label_drift fires on any ClusterRole carrying aggregate labels whose name does not start with system: or openshift:. The upstream default roles edit and view carry rbac.authorization.k8s.io/aggregate-to-admin and aggregate-to-edit labels, and OLM-generated per-CRD admin/edit/view ClusterRoles carry them too. Unless every one is pre-listed in approved_cluster_roles.csv, each snapshot raises 'high' rows for vendor-intended aggregation.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "Arm 1 defaults a missing responseStatus.code to 201, so failed or denied requests count as successful when the field is not extracted. Arms 3 and 4 have no response-code filter at all, so 403-denied ClusterRoleBinding and bundled-role attempts produce critical, high and medium rows. Unquoted `objectRef.resource` and `user.username` inside coalesce are evaluated as string concatenation, not as field references.",
+      "severity": "minor"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/data-management/common-information-model/8.6/data-models/change",
+      "field": "cimSpl",
+      "issue": "The Change datamodel's root dataset is All_Changes, so `Change.action`/`Change.dest` and `WHERE nodename=Change` are invalid. The query returns nothing. Joining Change.dest to Authentication.src is also semantically unrelated.",
+      "severity": "blocker"
+    },
+    {
+      "field": "mitreAttack",
+      "issue": "T1098.006 (Account Manipulation: Additional Container Cluster Roles) is the specific technique for ClusterRoleBinding grants and fits better than T1078.004 (Cloud Accounts). Check the ATT&CK version the catalogue pins and consider adding or substituting it.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0086-UC-3.3.21",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 5,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The detailed implementation is thoughtful about OpenShift RBAC governance. The SPL, however, cannot run as written: a multisearch arm contains join. The OAuth-subject rex misses the JSON field order that oc and kubectl emit, and the 'binding velocity' window is row-based and sorted by object name, not by time. Several promised signals (ServiceAccount subjects, Group subjects) have no SPL lane, and the equipment, references and status fields are inaccurate.",
+  "tier": "deep",
+  "uc_id": "UC-3.3.21",
+  "verdict": "incorrect"
+}

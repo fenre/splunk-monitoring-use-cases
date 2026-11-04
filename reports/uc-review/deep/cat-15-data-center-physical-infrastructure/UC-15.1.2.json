@@ -1,0 +1,102 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "f5e3cc8cfc667808d36ddab46e6394937a6010faeab42983a3faff684942c09f",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.1.2.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/617",
+      "explanation": "The Universal Forwarder is not Splunkbase app 617: that Splunkbase URL returns 404 and the ID is not in the repository's Splunkbase catalog, because the UF is downloaded from splunk.com. The UF also does not poll SNMP by itself and has no bundled Python for SNMP Modular Input, so a reader following this line has no working collector.",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll",
+      "severity": "blocker",
+      "suggested_fix": "Name a real SNMP collector, such as SNMP Modular Input (Splunkbase 1537) on a heavy forwarder or Splunk Connect for SNMP (Splunkbase 6266), with sourcetype snmp:pdu into index=power. Name the vendor MIB objects that supply current_amps and rated_amps (for example APC PowerNet-MIB rPDU2 tables or Raritan or Server Technology PDU MIBs)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL only flags individual circuits whose current_amps exceed 80% of rated_amps. It does not compute power (kW), aggregate by rack, or trend anything, so the per-rack reporting and trending in the text, and in the title and visualization heatmap, are not delivered.",
+      "field": "implementation",
+      "quote": "Track per-outlet and per-circuit power. Alert when any circuit exceeds 80% capacity. Report on rack power distribution for capacity planning. Track power trends per rack.",
+      "severity": "major",
+      "suggested_fix": "Limit the text to what the SPL does (per-circuit current above 80% of the rated breaker or PDU input current), or describe the extra aggregation (for example stats sum(power_kw) by rack_id) as a separate optional search."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The SPL neither groups by entity nor counts. It lists each snmp:pdu reading where current_amps/rated_amps exceeds 80%, with rack_id, pdu_name and circuit.",
+      "field": "description",
+      "quote": "grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `pct_capacity` > 80.",
+      "severity": "major",
+      "suggested_fix": "Describe the output as one row per PDU circuit reading above 80% of its rated current, identified by rack, PDU and circuit."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "clarity",
+      "explanation": "The field is two generated templates joined together: Steps 1–4 appear twice, the Step 4 heading is repeated four times, and the second copy contradicts the SPL ('stats/timechart aggregates define the alert grain; joins/lookups enrich owner', 'throttle per entity', 'earliest=-24h@h'). A 24-hour window would also re-alert on stale overload readings.",
+      "field": "detailedImplementation",
+      "quote": "Step 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize",
+      "severity": "major",
+      "suggested_fix": "Rewrite as one sequence: SNMP polling setup with the actual collector and MIB objects, field extraction for current_amps, rated_amps, rack_id, pdu_name and circuit, a short schedule window matched to the poll interval with throttling on pdu_name and circuit, and validation against the PDU web UI."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The entries are templates keyed on host, count and span=1h, which the SPL never uses. They name no real cause of a spurious overload row.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `host`** — Health checks in `power` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List PDU-specific causes: inrush current during simultaneous server power-on; load shifting onto one side of an A/B pair while the partner feed is in maintenance (expected but worth separate handling); rated_amps set to the PDU input rating rather than the upstream breaker rating, or the reverse; and outlet-level and circuit-level rows mixed in the same sourcetype."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/datacenter-physical.md",
+      "explanation": "The data-center guide's equivalent PDU overcurrent search uses sourcetype snmp:rpdu with bank_load_amps and bank_capacity_amps, and its PDU field dictionary lists outlet_load_amps and bank_load_amps. This UC's snmp:pdu current_amps and rated_amps appear nowhere in dataSources, so the reader cannot tell which extractions to build.",
+      "field": "cross_field",
+      "quote": "| eval pct_capacity=round(current_amps/rated_amps*100,1)",
+      "severity": "minor",
+      "suggested_fix": "Document in dataSources the exact fields required (current_amps, rated_amps, rack_id, pdu_name, circuit), or align the field names with the guide's PDU field dictionary."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "There is no single standard 'PDU-MIB' comparable to the IETF UPS-MIB. PDU metrics come from vendor MIBs such as APC PowerNet-MIB, Raritan PDU2-MIB or Server Technology Sentry MIBs, and 'SNMP TA' is not a specific Splunkbase product.",
+      "field": "app",
+      "quote": "SNMP TA (PDU-MIB), vendor API",
+      "severity": "needs_verification",
+      "suggested_fix": "Check which vendor MIB the deployment polls, and name that MIB and the concrete Splunkbase collector instead of 'SNMP TA (PDU-MIB)'."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "title",
+      "issue": "The title promises power per rack, but the SPL measures current utilisation per circuit, with no kW computation and no rack-level aggregation.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "There is no latest() or dedup per pdu_name and circuit, so every poll inside the window yields another row for the same overloaded circuit. Events with null or zero rated_amps silently drop out.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0012-UC-15.1.2",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The SPL is a simple per-circuit current-versus-rating check, but the surrounding text claims per-rack power trending it does not do. dataSources names a non-existent 'Universal Forwarder (Splunkbase 617)' as the SNMP collector, and detailedImplementation is two concatenated templates with a quadruplicated heading and instructions that contradict the SPL.",
+  "tier": "deep",
+  "uc_id": "UC-15.1.2",
+  "verdict": "incorrect"
+}

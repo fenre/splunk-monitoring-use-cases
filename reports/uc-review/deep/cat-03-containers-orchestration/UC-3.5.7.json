@@ -1,0 +1,120 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "c70939152d556c439696eeae8e66646f52e1caa96d8531d0d6d459a3fef1425f",
+  "file": "content/cat-03-containers-orchestration/UC-3.5.7.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/5167",
+      "explanation": "Splunkbase app 5167 is 'Upgrade Universal Forwarder (Windows)'; Splunk Connect for Kubernetes is not a Splunkbase app and reached End of Support on 1 January 2024.",
+      "field": "app",
+      "quote": "Splunk Connect for Kubernetes (Splunkbase 5167)",
+      "severity": "blocker",
+      "suggested_fix": "Remove the SCK/5167 reference and name the Splunk OpenTelemetry Collector for Kubernetes (Splunkbase 6264, signalfx/splunk-otel-collector-chart) for metrics, access logs and events."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/splunk/splunk-connect-for-kubernetes",
+      "explanation": "Same wrong Splunkbase ID; SCK is an archived Helm chart (End of Support 1 Jan 2024), not a modular input.",
+      "field": "dataSources",
+      "quote": "Collected via Splunk Connect for Kubernetes (Splunkbase 5167) modular input or scripted poll",
+      "severity": "blocker",
+      "suggested_fix": "State that Envoy stats are scraped by the OTel Collector prometheus receiver and access logs/events by its filelog and k8s_events receivers."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://istio.io/latest/docs/ops/configuration/telemetry/envoy-stats/",
+      "explanation": "By default Istio configures Envoy to record only cluster_manager, listener_manager, server and cluster.xds-grpc stats, so per-service envoy_cluster_upstream_rq*, cx_connect_fail, rq_timeout and rq_retry series are absent unless proxyStatsMatcher inclusions are configured. Following the steps as written yields no data.",
+      "field": "detailedImplementation",
+      "quote": "Envoy exposes per-cluster upstream metrics on port **15090** (`/stats/prometheus`) including the `envoy_cluster_upstream_rq_xx` family",
+      "severity": "blocker",
+      "suggested_fix": "Add a prerequisite to set meshConfig.defaultConfig.proxyStatsMatcher (or the proxy.istio.io/config annotation) with inclusions such as upstream_rq_xx, upstream_cx_connect_fail, upstream_rq_timeout, upstream_rq_retry, and note the cardinality cost."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://istio.io/latest/docs/ops/configuration/telemetry/envoy-stats/",
+      "explanation": "Same omission as detailedImplementation: without proxyStatsMatcher the upstream_rq_xx counters are not exported by Istio sidecars.",
+      "field": "implementation",
+      "quote": "Deploy the Splunk OTel Collector with Prometheus receiver scraping Envoy sidecar stats on port 15090 to collect envoy_cluster_upstream_rq_xx counters",
+      "severity": "major",
+      "suggested_fix": "Mention the proxyStatsMatcher inclusion step before the scrape step."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "In Envoy's Prometheus output the response_code_class tag is extracted from upstream_rq_<N>xx, giving envoy_cluster_upstream_rq_xx{envoy_response_code_class}, while envoy_cluster_upstream_rq carries envoy_response_code (three-digit). The prose appears to conflate the two series.",
+      "field": "detailedImplementation",
+      "quote": "**`envoy_cluster_upstream_rq`** (total **upstream requests** by response code class, labeled `envoy_cluster_name` and `envoy_response_code_class`)",
+      "severity": "needs_verification",
+      "suggested_fix": "Check a live /stats/prometheus output and name the exact series and label (envoy_cluster_upstream_rq_xx with envoy_response_code_class) the SPL depends on."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "HTTP upstream response-code counters are neither network flow records (Network_Traffic) nor host CPU/memory/storage metrics (Performance); the SPL uses no CIM dataset.",
+      "field": "cimModels",
+      "quote": "\"Network_Traffic\", \"Performance\"",
+      "severity": "major",
+      "suggested_fix": "Leave cimModels empty or, if access logs are mapped, use Web (status, http_method, url) for the per-request variant."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "Marked verified by an agent reviewer although the collection prerequisite for the core metric is missing, so no working end-to-end validation is evident.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until an SME confirms the metrics arrive and the SPL produces correct rates."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The nginx image is not guaranteed to ship nc, and a one-shot nc listener answers once; the test is unreliable.",
+      "field": "detailedImplementation",
+      "quote": "kubectl run err-test --image=nginx -- /bin/sh -c 'echo HTTP/1.1 500 | nc -l -p 80'",
+      "severity": "minor",
+      "suggested_fix": "Use a purpose-built fault service (e.g. Istio's httpbin /status/500 endpoint) or a VirtualService fault-injection abort with httpStatus 500."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://prometheus.io/docs/concepts/metric_types/#counter",
+      "field": "spl",
+      "issue": "Envoy upstream_rq* series are cumulative Prometheus counters; `stats sum(rq_count)` over every scrape in the window adds lifetime totals repeatedly instead of computing the in-window delta, so error percentages reflect lifetime ratios weighted by scrape count, not the last 5 minutes. Compute per-series deltas (e.g. streamstats/range per series, or mstats rate) first.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/ConditionalFunctions",
+      "field": "spl",
+      "issue": "`match(metric_name, \"envoy_cluster_upstream_rq\")` is an unanchored regex, so it also matches upstream_rq_total, upstream_rq_timeout, upstream_rq_retry, upstream_rq_pending_overflow, upstream_rq_completed etc.; these land in response_class=\"unknown\" but are summed into grand_total, inflating the denominator and deflating server_err_pct. Anchor to the exact series (e.g. ^envoy_cluster_upstream_rq_xx$).",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "Two independent searches are concatenated in one spl field, and the `severity` column is computed but the search does not filter on the 1% alert threshold that implementation describes; the alert condition lives only in prose.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0114-UC-3.5.7",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 3,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The detailedImplementation explains Envoy cluster stats well, but it omits that Istio does not emit per-upstream cluster stats by default, cites a wrong Splunkbase ID and an end-of-support collector, and the SPL sums cumulative counters with an unanchored regex that mixes unrelated metrics.",
+  "tier": "deep",
+  "uc_id": "UC-3.5.7",
+  "verdict": "incorrect"
+}

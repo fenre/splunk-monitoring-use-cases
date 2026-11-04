@@ -1,0 +1,124 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "d33fa306f4c4b0dac59a55238c8f1e236f738b8fc84c0fc26378ac682c20da43",
+  "file": "content/cat-23-business-analytics/UC-23.6.2.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/concur/developer.concur.com/blob/preview/src/api-reference/expense/expense-report/expense-entry.markdown",
+      "explanation": "The Concur Expense Entries v3.0 resource has no `ReceiptImageStatus` or `OwnerLoginID` fields. Receipt state comes from `HasImage`, `IsImageRequired` and `ReceiptReceived`, and the owner from `ReportOwnerID` (or `OwnerLoginID` on the Reports resource). A reader polling entries as described would not get the fields the SPL groups and filters on.",
+      "field": "dataSources",
+      "quote": "writes JSON lines at hourly grain with fields such as `TransactionDate`, `TransactionAmount`, `ExpenseTypeCode`, `VendorDescription`, `ReceiptImageStatus`, `OwnerLoginID`",
+      "severity": "blocker",
+      "suggested_fix": "List the real entry fields (`ReportOwnerID`, `HasImage`, `IsImageRequired`, `ReceiptReceived`, `ReportID`, `TransactionCurrencyCode`). State that the modular input must map them to `OwnerLoginID`/`ReceiptImageStatus` (or update the SPL to use the native names)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "grandmaExplanation promises duplicate detection, and dataSources/implementation describe DB Connect `dbx:ap_expense_lines` joins 'for duplicate-payment joins'. The SPL has no duplicate rule and never reads `dbx:ap_expense_lines`, Expensify, Coupa or Workday sourcetypes.",
+      "field": "cross_field",
+      "quote": "duplicate dinners, sneaky amounts just under approval limits, or weekends charged like weekdays",
+      "severity": "major",
+      "suggested_fix": "Remove the duplicate claim from grandmaExplanation and label the AP/Expensify/Coupa feeds as optional extensions. Alternatively describe the separate duplicate search (e.g. `stats count by OwnerLoginID TransactionAmount VendorDescription TransactionDate | where count>1`)."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The SPL applies USD-style thresholds ($25/$75/$500/$2,500) to raw `TransactionAmount`, which is in the transaction currency, and sums mixed currencies into `total_flagged_amount`. Nothing in the search normalizes currency, and `macros.conf` thresholds (`threshold_low_receipt`, `threshold_vp_cap`) cited in Step 2 do not appear in it.",
+      "field": "implementation",
+      "quote": "normalize currency columns before thresholds",
+      "severity": "minor",
+      "suggested_fix": "State that the input must emit a reimbursement-currency amount (Concur `PostedAmount`/`ApprovedAmount` in report currency) or that the SPL needs an FX lookup. Show which literals the macros would replace."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "These Concur OAuth scope names, the audit-log endpoint, the Expensify webhook event name, and the 'thirty-requests-per-minute' Concur limit in detailedImplementation are given without references and look guessed.",
+      "field": "dataSources",
+      "quote": "`scope` including `EXP_RPT` / `RECEIPTS` ... Companion audit trail: `concur:audit` via `GET .../reportingauditlog/v1/auditLog` ... real-time `expensify.report.state.change` pushes",
+      "severity": "needs_verification",
+      "suggested_fix": "Check against the SAP Concur Developer Center (OAuth scopes list, available audit APIs, rate limits) and the Expensify Integration Server docs. Remove any item that cannot be confirmed."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Concur expense type codes are configured per tenant and policy (e.g. via expense group configurations), so 'ENT', 'MEAL' and 'TRVL' are unlikely to match out of the box. The text never tells the reader to map them.",
+      "field": "dataSources",
+      "quote": "ExpenseTypeCode IN (\"ENT\",\"MEAL\",\"TRVL\")",
+      "severity": "needs_verification",
+      "suggested_fix": "Tell the reader to list tenant codes via GET /expense/expensegroupconfigurations and maintain a lookup of discretionary categories."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "$49.99 is not in any of the SPL's just-below bands (24–25, 74–75, 499–500, 2499–2500), and the SPL does not read Expensify data at all. Saved-search names also differ between implementation (`finance_te_anomaly_review_queue`) and detailedImplementation (`finance_te_anomaly_weekly`).",
+      "field": "detailedImplementation",
+      "quote": "Expensify SmartScan OCR occasionally mistranscribes handwritten totals (`USD 50.00` versus `USD 49.99`), falsely triggering JUST_BELOW_APPROVAL_THRESHOLD",
+      "severity": "minor",
+      "suggested_fix": "Use an example that matches a configured band (e.g. 75.00 → 74.99) and settle on one saved-search name."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The final `stats` collapses reasons into a multivalue `values(anomaly_flags)` per owner, so per-reason counts and a reason × department heatmap cannot be built from this output.",
+      "field": "visualization",
+      "quote": "stacked column chart counting anomaly-flag hits stacked by decoded reason codes ... matrix-style heatmap faceting anomaly reason against `department`",
+      "severity": "minor",
+      "suggested_fix": "Say these panels use a sibling search that runs `mvexpand anomaly_flags | stats count sum(amount) by anomaly_flags department` before the owner roll-up."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "Asterisk (a VoIP PBX) is unrelated to expense-report analytics.",
+      "field": "equipment",
+      "quote": "\"asterisk\"",
+      "severity": "minor",
+      "suggested_fix": "Remove `asterisk`, and add a Concur/SaaS slug if one exists."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by an authoring agent, but its key fields do not exist in the documented Concur API.",
+      "field": "status",
+      "quote": "\"status\": \"verified\" ... \"reviewer\": \"agent-handcraft-2026-04-28\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until it has been validated against a real Concur tenant export."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://github.com/concur/developer.concur.com/blob/preview/src/api-reference/expense/expense-report/expense-entry.markdown",
+      "field": "spl",
+      "issue": "`stats ... by OwnerLoginID, department` drops every event where `OwnerLoginID` is null. Concur Entries v3.0 returns `ReportOwnerID`, not `OwnerLoginID`, so unless the input renames the field the search returns no rows. `ReceiptImageStatus IN (\"Missing\",\"NotReceived\")` likewise never matches (use `HasImage`/`IsImageRequired`/`ReceiptReceived`).",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "Thresholds are absolute amounts applied to `TransactionAmount` in the transaction currency, and `sum(amount)` mixes currencies. Use the report-currency `PostedAmount`/`ApprovedAmount`, or convert first.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "The flag named `ROUND_NUMBER_SPLIT_RULE` only checks for specific round amounts. It does not detect split transactions (several entries summing past a limit), so the label overstates the rule.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0037-UC-23.6.2",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 4,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 3,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The rule set is readable and the troubleshooting is practical. However, the search depends on Concur fields that the v3.0 Entries API does not return (`OwnerLoginID`, `ReceiptImageStatus`). It also has no duplicate detection or currency normalization, although the prose and the grandma text promise both.",
+  "tier": "deep",
+  "uc_id": "UC-23.6.2",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,105 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "4ee719aaadd9d2e219a2668c77034ad22f67fa558e4956a62622ed7779230336",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.2.2.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-connect-for-snmp/main/configuration/splunk-configuration/",
+      "explanation": "Splunk Connect for SNMP sends polled numeric values to a metrics index (default `netmetrics`, sourcetype `sc4snmp:metric`) with metric names of the form `sc4snmp.<MIB>.<object>`, not to an events index as `sensor:humidity` with a `humidity_pct` field. A reader who picks SC4SNMP would get data the event-search SPL cannot read.",
+      "field": "dataSources",
+      "quote": "commonly SNMP Modular Input (Splunkbase app 1537) or Splunk Connect for SNMP (Splunkbase app 6266)—routed to index=environment as sourcetype \"sensor:humidity\" with extracted numeric field humidity_pct",
+      "severity": "blocker",
+      "suggested_fix": "Keep SNMP Modular Input (1537) as the path that can write `sourcetype=sensor:humidity` to `index=environment` (with a response handler or props extraction for `humidity_pct`). If SC4SNMP is kept, say its data lands in the metrics index as `sc4snmp:metric` and needs an `mstats` variant of the search."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The implementation requires three consecutive out-of-band polls, but the SPL returns every single reading outside 40–60% with no persistence logic, and the controlTest and description describe a `count` by `entity` aggregation that also does not exist in the SPL.",
+      "field": "cross_field",
+      "quote": "Alert when RH stays outside 40–60% for longer than three consecutive polls",
+      "severity": "major",
+      "suggested_fix": "Either describe the SPL as alerting on any single out-of-band reading, or document the persistence step (for example `streamstats` counting consecutive breaches per `zone`) and align the controlTest with `zone` instead of `entity`."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/datacenter-physical.md",
+      "explanation": "40–60% RH is a legacy site policy; current ASHRAE TC 9.9 recommended envelope is defined by dew point (about −9 °C to 15 °C) with an upper limit of 60% RH, and the subcategory guide cites an A1 allowable range of 8–80% RH, so the 40% floor will raise alerts that ASHRAE would not consider out of range.",
+      "field": "implementation",
+      "quote": "Alert when RH stays outside 40–60%",
+      "severity": "minor",
+      "suggested_fix": "Say the 40–60% band is an organisational policy and point to UC-15.2.10 (ASHRAE exceedance) for envelope-based thresholds, or make the low threshold configurable."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "SNMP TimeTicks (for example sysUpTime) are hundredths of a second since agent restart, not a wall-clock time; event `_time` for a poll should be the poll time on the collector.",
+      "field": "detailedImplementation",
+      "quote": "translate timeticks into _time using the appliance clock",
+      "severity": "minor",
+      "suggested_fix": "Say `_time` is the collector's poll timestamp; ensure the collector is NTP-synchronised."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "clarity",
+      "explanation": "SNMP communities or SNMPv3 users are configured on the probe and in the input, not granted to an OS account; the role names `power` and `splunk_monitoring_ops` are invented (`power` is a built-in Splunk role with broad rights, not an index-scoped role).",
+      "field": "detailedImplementation",
+      "quote": "grant the splunkfwd or modular-input service account SNMP read-only strings over UDP/161 from approved collectors.\n• Stage inputs.conf stanzas that send parsed events to index=environment with sourcetype=\"sensor:humidity\"; reserve \"power\" or \"splunk_monitoring_ops\" RBAC roles",
+      "severity": "minor",
+      "suggested_fix": "Say: configure an SNMPv3 read-only user (or v2c community) on each probe and in the input stanza, allow UDP/161 from the collector, and give the facilities role search access to `index=environment`."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The UC polls SNMP OIDs on a schedule; it does not use traps.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_trap\"",
+      "severity": "minor",
+      "suggested_fix": "Use the SNMP polling / environmental probe model identifier, or drop the trap model."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The scenarios reference `src`, `host`, `count` and `span=1h`, none used by the SPL, and none is a real humidity false positive; the implementation itself names better ones (humidifier or dehumidifier cycles).",
+      "field": "knownFalsePositives",
+      "quote": "Scheduled automation elevates `src` without crossing `humidity_pct` > 60",
+      "severity": "major",
+      "suggested_fix": "List real causes: humidifier/dehumidifier cycling on a CRAC, door-open events in a hall, economizer intake of humid outside air, sensor drift or a probe placed in a supply-air stream, and RH swings after a CRAC restart."
+    },
+    {
+      "confidence": 0.95,
+      "dimension": "spelling",
+      "explanation": "Missing space.",
+      "field": "detailedImplementation",
+      "quote": "Ifhumidity_pct is null",
+      "severity": "minor",
+      "suggested_fix": "If `humidity_pct` is null"
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "No time bound or latest-per-zone step, so a scheduled run over 24h@h lists every historical out-of-band reading, including zones that have recovered; there is no persistence check matching the 'three consecutive polls' rule in the implementation.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0040-UC-15.2.2",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 4,
+    "specificity": 3
+  },
+  "summary": "Better authored than its siblings (real exclusions, implementation and visualization), but it presents Splunk Connect for SNMP as producing `index=environment sourcetype=sensor:humidity` events with a `humidity_pct` field, which SC4SNMP does not do, and the persistence rule in the implementation is not in the SPL.",
+  "tier": "deep",
+  "uc_id": "UC-15.2.2",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,134 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "8c19259fb93b3748f0c11290b1736baa3ef095b404fa1e794ed9afbbdb34061a",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.1.33.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The SPL does not roll up by `jn` (that is only an inner join key) and does not page on `cross_validation_modtime_lag > 30`; severity comes from `last_change_age_minutes` versus `warn_stale_minutes`/`crit_stale_minutes` (default 5/30), and the lag only changes `recommended_action` text.",
+      "field": "description",
+      "quote": "Rolls up `count` by `jn` across `the scheduled window` and pages when `cross_validation_modtime_lag` > 30.",
+      "severity": "major",
+      "suggested_fix": "Describe the detection as: Intersight devices whose asset.DeviceRegistration ConnectionStatus is NotConnected (not in maintenance), graded warning/critical by minutes since ConnectionStatusLastChangeTime, with compute.PhysicalSummary ModTime lag shown as corroboration."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/NetworkSessions",
+      "explanation": "The CIM Network Sessions model describes network session start/end activity such as DHCP leases and VPN sessions; a management-plane device-connector registration status is not a network session, and dataModelAcceleration even suggests aliasing ConnectionStatus into it.",
+      "field": "cimModels",
+      "quote": "\"Network_Sessions\"",
+      "severity": "blocker",
+      "suggested_fix": "Remove Network_Sessions; keep the search on raw Intersight events, or at most map a derived alert to the Alerts model."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The text says the add-on emits one sourcetype per MO class (and detailedImplementation calls this the 'real TA sourcetype'), but I could not find any documentation that the Cisco Intersight Add-on 7828 collects asset/DeviceRegistrations or uses `cisco:intersight:assetdeviceregistration`/`computephysicalsummary`; community descriptions of the add-on list grouped sourcetypes such as `cisco:intersight:targets` and `cisco:intersight:compute`.",
+      "field": "dataSources",
+      "quote": "sourcetype `cisco:intersight:assetdeviceregistration` for the Intersight `asset.DeviceRegistration` managed object, polled from `GET /api/v1/asset/DeviceRegistrations` by `Splunk_TA_Cisco_Intersight` (Splunkbase 7828)",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the installed add-on's props.conf and input options for the device-registration/targets feed and its sourcetype; if not collected natively, document it as a custom poll of /api/v1/asset/DeviceRegistrations."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase 7828 is the Cisco-built 'Cisco Intersight Add-on for Splunk', not a Splunk-built 'Splunk Add-on for Cisco Intersight'.",
+      "field": "references",
+      "quote": "Splunk Add-on for Cisco Intersight (Splunkbase 7828)",
+      "severity": "minor",
+      "suggested_fix": "Retitle the reference 'Cisco Intersight Add-on for Splunk (Splunkbase 7828)'."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "Asterisk (the open-source PBX) has nothing to do with Intersight device connectors; the tag looks like a mis-mapping.",
+      "field": "equipment",
+      "quote": "\"asterisk\"",
+      "severity": "minor",
+      "suggested_fix": "Remove `asterisk` and keep `cisco`."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "overclaiming",
+      "explanation": "Account Administrator and Device Administrator are full write roles; recommending them for a read-only polling key is not least privilege.",
+      "field": "app",
+      "quote": "Account Administrator, Device Administrator, and Audit Administrator is a defensible read set",
+      "severity": "minor",
+      "suggested_fix": "Recommend Intersight's Read-Only role (plus only the additional audit-read privilege if audit records are needed), and verify the exact role names in Intersight RBAC documentation."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The saved SPL hard-codes `earliest=-2h`, so the stated thirty-minute window does not match; with no dedup the 2-hour window also returns one row per poll per device.",
+      "field": "detailedImplementation",
+      "quote": "Schedule the alert every ten minutes (cron */10) with a search window of last thirty minutes",
+      "severity": "minor",
+      "suggested_fix": "State the window the SPL actually uses, and advise deduplicating to the latest registration event per Moid."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "Moid is an object ID, not a timestamp, so it cannot be a timestamp prefix; the prefix also stops before the opening quote of the JSON value, so TIME_FORMAT would not match. Overriding the vendor's props in the TA's local/ also risks breaking its own extractions.",
+      "field": "detailedImplementation",
+      "quote": "TIME_PREFIX = \"ConnectionStatusLastChangeTime\":|\"ModTime\":|\"Moid\":",
+      "severity": "minor",
+      "suggested_fix": "Use a single prefix such as `\"ModTime\":\\s*\"` and confirm against the add-on's shipped props.conf before overriding."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified although the SPL as written cannot run correctly (comment line) and the controlTest/knownFalsePositives are template text, so there is no sign of real validation.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until the search has been run against real DeviceRegistration events."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "Generic template scenarios reference fields and spans not in the SPL and name no real cause; real false positives for this signal include connector upgrades, FI failover/reboot, proxy certificate rotation, and API poll lag.",
+      "field": "knownFalsePositives",
+      "quote": "Planned work for 'Intersight Device Connector / Tunnel Health' shifts `count` over `span=1h` while `jn` remains in-scope.",
+      "severity": "major",
+      "suggested_fix": "Replace with concrete causes: Device Connector auto-upgrade restarts, planned FI reboots or failovers, scheduled proxy/TLS-inspection changes, and delayed polls that leave a stale NotConnected record."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/SplunkCloud/latest/Search/Comments",
+      "field": "spl",
+      "issue": "The first line `// UC-19.1.33 — Intersight asset.DeviceRegistration ...` is not SPL comment syntax. Splunk comments use triple backticks (or a comment macro); a `//` line becomes literal search terms ANDed into the base search, so the search returns no events.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "No dedup/stats by Moid or device before filtering, so with earliest=-2h and 5-minute polling each disconnected device appears once per poll (about 24 rows), inflating alert counts and making last_change_age_minutes vary per row.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`connection_status IN (\"NotConnected\", \"Disconnected\")`: Disconnected is not a documented asset.DeviceRegistration ConnectionStatus value (the dataSources list gives Connected, NotConnected, Claimed, Unclaimed, ClaimInProgress); it appears to be a ConnectionReason value. Harmless but misleading.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0026-UC-19.1.33",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The detailed implementation explains the device-connector failure mode well, but the SPL opens with a `//` line that Splunk treats as search terms rather than a comment, the description claims a paging condition the SPL does not implement, and the CIM mapping to Network_Sessions does not fit a connector-status signal. The Intersight add-on sourcetype names are asserted as fact without support.",
+  "tier": "deep",
+  "uc_id": "UC-19.1.33",
+  "verdict": "incorrect"
+}

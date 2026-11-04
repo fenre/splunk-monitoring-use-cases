@@ -1,0 +1,99 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "2f1ead36a5fa165919bc8a742d9d1baf0c4841c830e6f6a13d4297cab7edc1f1",
+  "file": "content/cat-24-business-intelligence-analytics-platforms/UC-24.2.31.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://learn.microsoft.com/en-us/power-bi/report-server/get-started",
+      "explanation": "Power BI Report Server is licensed per core (SQL Server Enterprise with SA or SQL Server 2025 Standard/Enterprise, or Fabric/Premium capacity). Report viewers do not consume per-user licences, so reclaiming idle accounts frees no licences. Only a Power BI Pro licence for publishers is per user.",
+      "field": "grandmaExplanation",
+      "quote": "so their licences can be freed and access tidied up",
+      "severity": "blocker",
+      "suggested_fix": "Say the goal is tidying up access: removing stale accounts and role assignments to reduce attack surface and keep permissions clean. Mention Pro licences only for publishers who no longer publish."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "evidence_url": "https://www.microsoft.com/licensing/guidance/SQL",
+      "explanation": "As with the grandma text, there is no per-viewer licence on Report Server to reclaim. The audience for this list is the access or identity owner, plus the Power BI Pro licence owner for publishers.",
+      "field": "implementation",
+      "quote": "route the idle-account list to identity/license owners",
+      "severity": "major",
+      "suggested_fix": "Route to report server administrators and identity owners for access cleanup. Reference Power BI Pro only for content publishers."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "With a 24-hour window, `max(_time)` per user is always within the last day, so `days_idle>60` can never be true and the search never returns a row. The rest of the field is the generic five-step template (modular input, `list_inputs`, inventory count comparison) and says nothing about Report Server.",
+      "field": "detailedImplementation",
+      "quote": "Schedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages.",
+      "severity": "blocker",
+      "suggested_fix": "Specify a search window well beyond 60 days (for example -180d) or a summary or lookup of last-seen per user. Replace the template steps with Report Server specifics: a DB Connect input on ReportServer.dbo.ExecutionLog3 with a TimeStart rising column, mapping UserName to `user`, and validation against the execution log."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "evidence_url": "https://learn.microsoft.com/en-us/sql/reporting-services/report-server/report-server-executionlog-and-the-executionlog3-view?view=sql-server-ver17",
+      "explanation": "`dataSources` says the execution log comes in through a Universal Forwarder modular input, while `app` says ExecutionLog via DB Connect. The execution log is a SQL view (ExecutionLog3) in the ReportServer database, so DB Connect (or a SQL export) is the real path, not a UF modular input.",
+      "field": "cross_field",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll",
+      "severity": "major",
+      "suggested_fix": "State that ExecutionLog3 (columns UserName, ItemPath, TimeStart, Status, RequestType) is pulled with Splunk DB Connect into sourcetype `powerbi:reportserver`. Mention the UF only for the Report Server service log files, if those are used."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://learn.microsoft.com/en-us/sql/reporting-services/report-server-web-service/net-framework/reporting-services-properties-report-server-system-properties?view=sql-server-ver17",
+      "explanation": "This leaves out two facts that decide whether the detection works. ExecutionLogDaysKept defaults to 60 days, so an initial backfill can never show more than 60 days idle. And an activity-only search cannot see accounts that never ran a report during the retained window.",
+      "field": "implementation",
+      "quote": "Ingest Power BI Report Server activity events; schedule monthly",
+      "severity": "major",
+      "suggested_fix": "Tell the reader to raise ExecutionLogDaysKept or keep at least 90 days in Splunk, and to compare against an account inventory (ReportServer dbo.Users or the AD group granted Browser access) so zero-activity accounts are included."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "The link points to the general monitoring page rather than the ExecutionLog3 column reference. The HEC reference is unrelated to the DB Connect path.",
+      "field": "references",
+      "quote": "Power BI Report Server — ExecutionLog",
+      "severity": "minor",
+      "suggested_fix": "Link the ExecutionLog3 view documentation and Splunk DB Connect, and drop the HEC reference."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "A pure activity-based `stats max(_time) by user` only lists users who were active at some point inside the search window. Accounts that never executed a report are invisible. Join an account inventory lookup to catch them.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "ExecutionLog3 exposes `UserName`, not `user`. The SPL assumes a field alias that the UC does not document.",
+      "severity": "minor"
+    },
+    {
+      "field": "monitoringType",
+      "issue": "The 'Cost' monitoringType assumes licence reclamation, which does not apply to core-licensed Power BI Report Server viewers.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0143-UC-24.2.31",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 3,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The idea (find Report Server users with no recent report executions) is understandable, but the text promises licence savings that the core-licensed Power BI Report Server does not offer. The collection path is contradictory, and the generic scheduling guidance (earliest=-24h@h) makes a more-than-60-days-idle result impossible.",
+  "tier": "deep",
+  "uc_id": "UC-24.2.31",
+  "verdict": "incorrect"
+}

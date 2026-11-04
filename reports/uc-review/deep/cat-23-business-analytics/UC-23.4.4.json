@@ -1,0 +1,172 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "ae3b36567f4fecfaffb91ba29f9bac45783dc5687ee41080c0e4640d1e6a9e4a",
+  "file": "content/cat-23-business-analytics/UC-23.4.4.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://help.sap.com/doc/cd753f29622244df98e335af737b5422/2611/en-US/SF_LRN_Web_Svc_Integ.pdf",
+      "explanation": "SAP SuccessFactors Learning exposes its learning-history and assignment APIs as OData v4 microservices under /learning/odatav4/public/... (for example user/learningHistory/v1/learninghistorys, which needs a criteria/targetUserID filter). The SAP Learning API reference has no LearningManagement_* entities under /odata/v2, so a collector built from this text would call endpoints that do not exist.",
+      "field": "dataSources",
+      "quote": "SAP SuccessFactors Learning OData v2 namespaces such as `/odata/v2/LearningManagement_LearningHistory` and `/odata/v2/LearningManagement_Item`",
+      "severity": "blocker",
+      "suggested_fix": "Name the real Learning OData v4 services, for example /learning/odatav4/public/user/learningHistory/v1/learninghistorys for completions and the userassignment or learningPlan services for open assignments, or the admin adhocDataExtract service for bulk pulls. Note the per-student filter constraint. Make the same change in detailedImplementation Path C."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://csod.dev/guides/reporting/rapi/odata-queries.html",
+      "explanation": "Cornerstone's Reporting API (OData v4) serves report views under /services/api/x/odata/api/views/vw_rpt_* (for example vw_rpt_training and vw_rpt_transcript). The /v1/learning/trainings path does not appear in Cornerstone's developer documentation. The real transcript endpoint is /services/api/v1/transcripts/overview?externalId=..., which works one user at a time.",
+      "field": "dataSources",
+      "quote": "Cornerstone OnDemand REST OData `/services/api/x/odata/api/v1/learning/trainings`",
+      "severity": "blocker",
+      "suggested_fix": "Use /services/api/x/odata/api/views/vw_rpt_transcript (with the vw_rpt_transcript:read scope) for bulk transcript status and due dates, and vw_rpt_training for course metadata. Cite /services/api/v1/transcripts/overview only for per-user lookups. Update detailedImplementation Path B to match."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "Workday REST resources normally sit under /ccx/api/<service>/v1/{tenant}/..., and Docebo's enrollment APIs are usually documented under /learn/v1/enrollments or /course/v1/courses/enrollments. Both paths here look guessed.",
+      "field": "dataSources",
+      "quote": "Workday Learning REST `/api/v1/learning_enrollments` ... `sourcetype=docebo:enrollment` arrays normalized from Docebo OAuth `/api/learning_object/v1`",
+      "severity": "needs_verification",
+      "suggested_fix": "Check both paths against the Workday REST API directory (Learning service) and the Docebo API browser, then replace them with the documented resource paths or drop the path detail."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/business-analytics.md",
+      "explanation": "The category guide's HR table lists training-compliance sourcetypes as `workday:learning_completion` and `cornerstone:enrollment`, so the UC and the guide name the same feeds differently. dataSources also lists `captivate_prime:completion`, `cornerstone:learners` and `xapi:lrs_batch`, which the SPL never queries.",
+      "field": "dataSources",
+      "quote": "`sourcetype=workday:learning_enrollment` ... `sourcetype=cornerstone:lms_rest`",
+      "severity": "minor",
+      "suggested_fix": "Use the same sourcetype names as docs/guides/business-analytics.md §4.4, or update the guide. Either add the extra sourcetypes to the SPL or mark them as optional feeds that need their own normalisation. Adobe Captivate Prime has been renamed Adobe Learning Manager."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The boilerplate Steps 1–5 contradict the UC. implementation and Stretch two say to run the search daily over 45 days, cimModels is empty so no data model can be checked, and Step 4 is missing. The generic suppression and maintenance-window advice keyed on host/src does not fit learner data.",
+      "field": "detailedImplementation",
+      "quote": "Schedule it as a saved search (typically every 5–15 minutes over a rolling lookback ... For high-volume sources, use `tstats` against the accelerated data model when possible. ... Confirm CIM field extractions resolve by running `| datamodel <model> search | head 1`",
+      "severity": "major",
+      "suggested_fix": "Delete the generic Step 1–5 block, or rewrite it for a daily 07:00 schedule over the 45-day window. Drop the CIM and tstats references and point suppression at the leave-of-absence, grace-period and acquisition-cohort lookups already described in Stretch five."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The SPL has no span=1h, and none of the four scenarios (maintenance window, batch dc, synthetic probe, onboarding burst) is a real cause of a false overdue row. The real causes (new-hire grace windows, leave of absence, migrated transcripts, acquisitions, localisation delays, UTC-midnight due dates) are buried in detailedImplementation.",
+      "field": "knownFalsePositives",
+      "quote": "Planned work for 'Training Completion and Compliance Tracking' shifts `open_course_assignments`, `impacted_learners` over `span=1h`",
+      "severity": "major",
+      "suggested_fix": "Replace the list with the real causes from Stretch five: grace-period cohorts, sanctioned leave, legacy migrations and acquired workforces, untranslated course builds, and timezone shifts on due dates. Give each one the lookup that suppresses it."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL never filters on those thresholds. It only removes completed and no-deadline rows, so 'on-track' rows (more than 30 days left) and 'optional' training also reach the output. An alert on result count would fire on non-urgent work.",
+      "field": "description",
+      "quote": "pages when `days_to_deadline` < 0, `days_to_deadline` <= 7, or `days_to_deadline` <= 30",
+      "severity": "major",
+      "suggested_fix": "Describe what the search actually returns: a grouped worklist of open assignments with deadline buckets overdue / 7d / 30d / on-track. Say that alerting should key on deadline_proximity=\"overdue\" (and training_type not optional). Otherwise ask for the SPL to add that filter."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL drops every completed row (deadline_proximity!=\"completed_ok\") and looks back only 45 days. It cannot produce completion percentages, a 13-week trend or a Sankey of lifecycle transitions.",
+      "field": "visualization",
+      "quote": "dual-axis line chart plotting thirteen-week trailing regulatory-completion percentages versus ninety-five percent benchmark overlays; radial gauge contrasting measured completeness",
+      "severity": "major",
+      "suggested_fix": "Either limit the visualization to what the SPL returns (an overdue heatmap and a manager-routing table) or describe a separate companion search that keeps completed rows over 13 weeks and computes completed/assigned per week."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "clarity",
+      "explanation": "This mixes 30/60/90-day grace windows with 'weeks six through eighty-nine', which makes no sense. Several Stretch paragraphs are run-on word chains that are hard to act on. The timezone example also claims a '23 hours early' flip, while the UTC-to-Chicago offset is 5–6 hours.",
+      "field": "detailedImplementation",
+      "quote": "Splunk naive overdue searches scream during weeks six through eighty-nine despite policy-compliant journeys",
+      "severity": "minor",
+      "suggested_fix": "State it plainly: during a 30/60/90-day new-hire grace period, learners appear overdue unless a grace-cohort lookup excludes them. Fix the timezone example to say the shift equals the UTC offset of the policy timezone."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://www.law.cornell.edu/cfr/text/45/164.316",
+      "explanation": "The HIPAA Security Rule documentation retention requirement is six years from creation or last effective date (45 CFR 164.316(b)(2)), not seven.",
+      "field": "detailedImplementation",
+      "quote": "JDBC extraction proofs retained seven years minimum where HIPAA Security Rule awareness narratives apply",
+      "severity": "minor",
+      "suggested_fix": "Say 'at least six years where HIPAA Security Rule documentation requirements apply (longer if other policies require)'."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The SPL queries no Salesforce sourcetype. Trailhead completion data is not one of the objects the Salesforce add-on is documented to collect, so listing it (and the 'salesforce' equipment tag) implies a dependency the detection does not have.",
+      "field": "app",
+      "quote": "optional Splunk Add-on for Salesforce ([Splunkbase 3549](https://splunkbase.splunk.com/app/3549)) when Trailhead or Trailmix telemetry arrives via Salesforce-hosted integrations",
+      "severity": "minor",
+      "suggested_fix": "Remove the Salesforce add-on and the salesforce equipment tag, or add a documented Salesforce-side learning object and sourcetype to the SPL."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by an agent reviewer ('agent-handcraft-2026-04-28') with no SME sign-off, and it contains wrong vendor API paths, so the status overstates its assurance.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set the status to draft or community until an HR/LMS SME validates the feeds and SPL against a real tenant."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "Several references point to landing pages rather than the cited material: the Workday community home page, the generic NIST publications page for SP 800-50, and the PCI document library.",
+      "field": "references",
+      "quote": "\"title\": \"Workday Learning REST documentation context\", \"url\": \"https://community.workday.com/\"",
+      "severity": "minor",
+      "suggested_fix": "Link to the specific documents, for example https://csrc.nist.gov/pubs/sp/800/50/r1/final for SP 800-50 and the PCI DSS v4 requirement 12.6 page. Replace the Workday link with a public Workday Learning API reference, or remove it."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/ConditionalFunctions",
+      "field": "spl",
+      "issue": "`match(raw_status,\"complete\")` is an unanchored regex. It matches 'incomplete' and 'not_completed', which are common SCORM and LMS status values, so learners who have not finished are classed completion_ok=1 and silently dropped. Anchor it (for example match(raw_status,\"^complete(d)?$\")) or list the exact completed statuses.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The search reads 45 days of snapshot or poll events but never reduces them to the latest state per learner_key+course_key (for example `stats latest(raw_status) latest(due_epoch) latest(completed_epoch) by learner_key course_key` before the deadline eval). An older 'in_progress' event for an enrollment that has since been completed still produces an overdue row. Also, `open_course_assignments` is dc(course_key) per group, which counts distinct courses, not learner×course assignments.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The output keeps the 'on-track' (more than 30 days) and 'optional' training_type rows, so scheduling it as an alert on result count pages on non-urgent work. Consider `where deadline_proximity IN (\"overdue\",\"at-risk-7d\") AND training_type!=\"optional\"` for the alert variant.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The numeric status mapping (\"3\" = completed, \"4\" = failed) is attributed to Workday Learning_Status_Code but is not documented anywhere in the UC. Verify it against the Workday Learning enrollment status reference before keeping it.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "monitoringType",
+      "issue": "[\"Performance\",\"Availability\"] does not describe a training-compliance overdue tracker. A Compliance (or Business/KPI) monitoring type fits better.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0025-UC-23.4.4",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The detection idea (overdue and at-risk mandatory training rolled up by department and manager) is sound, and the diagnostic catalogue in detailedImplementation has real domain insight. But the SuccessFactors and Cornerstone API paths are wrong, the SPL misclassifies 'incomplete' as complete, and it does not reduce snapshot history to the latest state per enrollment. Large parts of the text are generic boilerplate that contradicts the UC's own schedule and CIM stance.",
+  "tier": "deep",
+  "uc_id": "UC-23.4.4",
+  "verdict": "incorrect"
+}

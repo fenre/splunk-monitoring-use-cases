@@ -1,0 +1,176 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "935e3ab4b65488f937e83f588f59368151337bc50715f67e4a1f2e23e8c4efac",
+  "file": "content/cat-03-containers-orchestration/UC-3.2.20.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/kubernetes/kubernetes/blob/master/pkg/controller/cronjob/cronjob_controllerv2.go",
+      "explanation": "The CronJob controller emits the Warning event reason \"MissSchedule\", not \"MissedSchedule\". JobFailed is a Job condition type (batchv1.JobFailed), not an event reason that the controllers emit, so filtering kube:events on it will match nothing.",
+      "field": "dataSources",
+      "quote": "reasons JobFailed, BackoffLimitExceeded, MissingJob, MissedSchedule",
+      "severity": "major",
+      "suggested_fix": "Use reason=MissSchedule for missed CronJob runs and BackoffLimitExceeded or DeadlineExceeded for Job failures, and drop JobFailed as an event reason (or check for it as a status condition)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://raw.githubusercontent.com/kubernetes/kube-state-metrics/main/docs/metrics/workload/cronjob-metrics.md",
+      "explanation": "kube-state-metrics natively exposes kube_cronjob_status_last_successful_time, and kube_cronjob_info carries concurrency_policy. No custom exporter or mirroring is needed. The text (Step 1 and the edge-case section) implies otherwise.",
+      "field": "detailedImplementation",
+      "quote": "lastSuccessfulTime gaps when you mirror them from custom metrics",
+      "severity": "major",
+      "suggested_fix": "State that kube_cronjob_status_last_successful_time and kube_cronjob_info{concurrency_policy} come from kube-state-metrics, and use last-successful staleness as the main signal."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "The edge-case text describes linking a Job to its owning CronJob through kube_job_owner as a future enhancement. kube_job_owner (owner_kind, owner_name) is already a standard kube-state-metrics series.",
+      "field": "detailedImplementation",
+      "quote": "future enhancement",
+      "severity": "minor",
+      "suggested_fix": "Use kube_job_owner{owner_kind=\"CronJob\"} now to attribute Job failures to their CronJob."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Multisearch",
+      "explanation": "The validation SPL in the implementation steps repeats the production pattern of putting stats inside multisearch arms. multisearch accepts only streaming subsearches, so the validation search fails as well.",
+      "field": "detailedImplementation",
+      "quote": "multisearch",
+      "severity": "major",
+      "suggested_fix": "Replace multisearch with a single search over both sourcetypes (OR), or use append, followed by one stats."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The text is padded with several repeated 'Closing ... checklist' sections and with 'Operator wellbeing' and 'Executive storytelling' notes that say nothing about Job or CronJob telemetry. It also says 'fourteen analyst columns' while listing sixteen.",
+      "field": "detailedImplementation",
+      "quote": "Operator wellbeing",
+      "severity": "major",
+      "suggested_fix": "Remove the duplicate checklists and the off-topic sections, and make the column count match the table command."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "explanation": "The audit drill uses kube:audit, but the Kubernetes guide's primary audit sourcetype is kube:apiserver:audit in index k8s_audit.",
+      "field": "detailedImplementation",
+      "quote": "sourcetype=kube:audit",
+      "severity": "minor",
+      "suggested_fix": "Use index=k8s_audit sourcetype=kube:apiserver:audit to match the guide."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
+      "explanation": "CIM Application_State describes host-level application or service state. It has no mapping for Kubernetes Job or CronJob objects, and nothing in this pipeline populates it. Performance is used only as a padding join.",
+      "field": "cimModels",
+      "quote": "Application_State",
+      "severity": "major",
+      "suggested_fix": "Leave cimModels empty (or N/A); kube-state-metrics data is not CIM-normalised."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "consistency",
+      "explanation": "Acceleration guidance for data models that this UC's detection does not actually use is noise.",
+      "field": "dataModelAcceleration",
+      "quote": "Accelerate Splunk CIM Application_State and Performance summaries on hosts and service identities that back batch controllers",
+      "severity": "minor",
+      "suggested_fix": "Remove it, or state that no data model acceleration applies."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "PagerDuty is an alert destination, not a data source or monitored equipment for Kubernetes batch workloads.",
+      "field": "equipment",
+      "quote": "pagerduty",
+      "severity": "minor",
+      "suggested_fix": "Remove pagerduty from equipment."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "specificity",
+      "explanation": "The AKS link points to a generic documentation root, and the EKS batch-jobs URL may not resolve to a real page.",
+      "field": "references",
+      "quote": "AKS / EKS batch job references",
+      "severity": "needs_verification",
+      "suggested_fix": "Replace them with the Kubernetes Job and CronJob concept pages and the kube-state-metrics cronjob and job metric docs."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Multisearch",
+      "explanation": "The SPL cannot parse (multisearch is mid-pipeline, stats sits inside its arms, and backticked fields become macros), so the content cannot have been verified.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status to draft or community until the SPL has been run against live kube-state-metrics data."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Multisearch",
+      "field": "spl",
+      "issue": "multisearch is a generating command and must be the first command in the search. Here it follows '| eval join_key' and a join, and the arms are double-bracketed ('multisearch [ [ search ... ] ]') instead of '| multisearch [search ...] [search ...]'. The search fails to parse.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Multisearch",
+      "field": "spl",
+      "issue": "The multisearch arms contain stats and other non-streaming commands. multisearch accepts only streaming subsearches, so the search errors.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Knowledge/Usesearchmacros",
+      "field": "spl",
+      "issue": "`involvedObject.kind` is wrapped in backticks, which Splunk expands as a search macro (one that does not exist). Unquoted dotted names such as involvedObject.kind and metadata.namespace inside eval are parsed as concatenation with the '.' operator. Use single quotes: 'involvedObject.kind'.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
+      "field": "spl",
+      "issue": "The leading Performance tstats join is padding: its fields are dropped immediately by 'fields - join_key perf_correlation_tick'. 'nodename=Performance.CPU' is also invalid; the CIM Performance root is All_Performance (All_Performance.CPU).",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "CronJobs missing from critical_cronjobs.csv default to a 1440-minute expected cadence with should_be_running=1, so weekly or monthly CronJobs are flagged stale. The search should use the schedule from kube_cronjob_info, or only alert on lookup-listed CronJobs.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "kube_job_status_failed is split by a 'reason' label and stays above 0 for failed Jobs kept by failedJobsHistoryLimit. 'kube_job_status_failed > 0' therefore keeps alerting on old failures until the Job is garbage-collected. Restrict to recent Jobs (kube_job_created or a completion time) or alert on transitions only.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
+      "field": "cimSpl",
+      "issue": "It uses 'Performance.cpu_load_percent', 'Performance.mem_used_percent', 'Performance.host' and 'nodename=Performance.CPU OR nodename=Performance.Memory'. The CIM Performance root dataset is All_Performance (for example All_Performance.CPU.cpu_load_percent and All_Performance.dest), so the tstats returns nothing or errors. Application_State also has no Kubernetes Job or CronJob semantics.",
+      "severity": "blocker"
+    },
+    {
+      "field": "mitreAttack",
+      "issue": "The array holds a free-text 'N/A'-style string instead of being empty. A batch reliability UC has no ATT&CK mapping, so it should be an empty array.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0040-UC-3.2.20",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The goal of finding failed Jobs and stale CronJobs is sound, and the plain-language explanation is fine. But the SPL cannot run: multisearch is placed mid-pipeline with stats inside its arms, and backticked dotted fields become macro calls. The CIM paths are invalid, several Kubernetes facts are wrong (the event reason is MissSchedule, and lastSuccessfulTime is a native kube-state-metrics metric), and the implementation text is padded with off-topic sections.",
+  "tier": "deep",
+  "uc_id": "UC-3.2.20",
+  "verdict": "incorrect"
+}

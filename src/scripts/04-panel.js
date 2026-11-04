@@ -1,6 +1,8 @@
 var detailOpen = false;
 var detailEntry = null;
 var _detailScrollPos = 0;
+// Same global as 01-state.js. No initialiser: this file is concatenated after that one.
+var panelUCList;
 
 function fillDetailPane(e) {
   var uc = e.uc;
@@ -345,6 +347,11 @@ function closeDetail() {
   detailEntry = null;
   document.body.classList.remove('detail-open');
   window.scrollTo(0, _detailScrollPos);
+  if (typeof packsView !== 'undefined' && packsView) {
+    currentCat = null;
+    currentSubcat = null;
+    buildSidebar();
+  }
   updateHash(true);
 }
 

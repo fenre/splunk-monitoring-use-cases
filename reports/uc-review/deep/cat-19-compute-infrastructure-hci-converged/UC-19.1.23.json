@@ -1,0 +1,161 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "afee6ca28061988c1b9242eca11edf362493c9f07f49d4ee4a7cd618711fd241",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.1.23.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/get-data-in/get-started-with-getting-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data",
+      "explanation": "Splunk's published sourcetype list for the Cisco Intersight Add-on shows `cisco:intersight:auditrecords` as the audit sourcetype. Sourcetypes are not derived from lower-cased MO class names, and no `cisco:intersight:aaaauditrecord` exists. The text tells readers to reject the one name that actually works, so every search, props stanza and controlTest built on this UC would return nothing.",
+      "field": "dataSources",
+      "quote": "sourcetype `cisco:intersight:aaaauditrecord` for Intersight `aaa.AuditRecord` objects ... The TA derives sourcetype names from **lower-cased** managed-object class names, so the audit stream is not `cisco:intersight:auditRecords`.",
+      "severity": "blocker",
+      "suggested_fix": "Use sourcetype `cisco:intersight:auditrecords` throughout. Remove the 'lower-cased MO class' claim and the 'not `cisco:intersight:auditRecords`' warning."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/get-data-in/get-started-with-getting-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data",
+      "explanation": "None of these appear in the add-on's published sourcetype list, which covers advisories, alarms, auditrecords, compute, contracts, custom inventory and metrics, fabric, licenses, metrics, network, networkelements, networkobjects, pools, profiles and targets. Detailed Implementation Appendix A repeats the same invented family and adds iampermission, iamprivilegeset, iamapikey and iamoauthtoken. Step 5's session-correlation join also relies on it.",
+      "field": "dataSources",
+      "quote": "Complementary streams for enrichment-only panels: `cisco:intersight:iamuser`, `cisco:intersight:iamsession`, and `cisco:intersight:workflowworkflowinfo`.",
+      "severity": "blocker",
+      "suggested_fix": "Remove the invented IAM and workflow sourcetypes from dataSources, Appendix A and Step 5. If session or user enrichment is wanted, say it needs a custom REST input, not this add-on."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "The stanza scheme and the `mo_class` key are invented. The text even admits the spelling depends on 'your exact TA'. The add-on is configured through its UI by input type, such as Audit Records, not by an arbitrary MO class. A hand-written stanza like this will be silently ignored or rejected.",
+      "field": "detailedImplementation",
+      "quote": "[ta_cisco_intersight://aaa_audit]\\ndisabled = 0\\naccount = intersight_prod_account\\nindex = cisco_intersight\\ninterval = 300\\n# Poll only audit records; mo_class or mo_type spelling follows your exact TA:\\nmo_class = aaa.AuditRecord",
+      "severity": "major",
+      "suggested_fix": "Replace the stanza with UI steps: Inputs, then Create New Input, choose the audit-records input type and set index and interval. If showing inputs.conf, copy the real stanza from the add-on's README/inputs.conf.spec."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "explanation": "SPL has no `throttle` command in any build. Throttling is an alert setting (alert.suppress and alert.suppress.fields in savedsearches.conf), not a pipeline stage. Readers who paste this get a search error.",
+      "field": "detailedImplementation",
+      "quote": "`| throttle key=user_email+object_type window=3600` as the last pre-action pipeline stage (exact command availability depends on Splunk build",
+      "severity": "major",
+      "suggested_fix": "Configure suppression in the alert: alert.suppress = 1, alert.suppress.fields = user_email,object_type, alert.suppress.period = 1h. Remove the pipe example."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "`fieldsummary` summarises the fields of its input rows, and `recentTime` is not an argument to it. `metadata` already returns recentTime, lastTime and totalCount, so the final pipe is wrong and adds nothing.",
+      "field": "detailedImplementation",
+      "quote": "| metadata type=sourcetypes index=cisco_intersight | search sourcetype=\"cisco:intersight:aaaauditrecord\" | fieldsummary recentTime",
+      "severity": "minor",
+      "suggested_fix": "Use `| metadata type=sourcetypes index=cisco_intersight | search sourcetype=\"cisco:intersight:auditrecords\" | eval lag_min=round((now()-recentTime)/60,1) | table sourcetype totalCount lastTime recentTime lag_min`."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "aaa.AuditRecord documents a `Request` payload. Whether a `Response` body is also stored, and whether the add-on keeps it, is not established. The visualization and the drilldown SPL both rely on it.",
+      "field": "detailedImplementation",
+      "quote": "render `Request` and `Response` as prettified JSON (limit line length) for “what did the API actually post?”",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the field list on a real ingested event. Only mention `Response` if it is present, otherwise refer to `Request` only."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "The Detailed Implementation prerequisites say the add-on uses an Intersight API key (KeyId + Secret). The two auth descriptions contradict each other, and 'read scope must include aaa/AuditRecords' is not how Intersight role privileges are expressed.",
+      "field": "app",
+      "quote": "OAuth2 **client credentials** to your Intersight account; read scope must include `aaa/AuditRecords`.",
+      "severity": "minor",
+      "suggested_fix": "Pick one, matching the add-on's account setup, such as 'Intersight API key or OAuth application with a role that has read access to audit logs (e.g. Audit Log Viewer / Read-Only plus audit)'. Use the same wording in app and the prerequisites."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "The UC drops everything except Created/Modified/Deleted object events, which belong in the Change model. Nothing in the search produces login success or failure events for Authentication, and dataModelAcceleration admits the Authentication mapping is only 'where applicable'.",
+      "field": "cimModels",
+      "quote": "\"Change\", \"Authentication\"",
+      "severity": "minor",
+      "suggested_fix": "Keep `Change` only. Remove Authentication here and in references and dataModelAcceleration, unless a separate login-audit search is added."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The data is SaaS REST API audit records. No BMC, SNMP or syslog transport is involved, so these tags send the UC to unrelated equipment pickers. equipmentModels has the same problem with `hardware_bmc_ipmi` and `snmp_trap`.",
+      "field": "equipment",
+      "quote": "\"hardware_bmc\", \"snmp\", \"syslog\"",
+      "severity": "minor",
+      "suggested_fix": "Reduce equipment to [\"cisco\"] and equipmentModels to [\"cisco_intersight\", \"cisco_ucs\"]."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC depends on a non-existent sourcetype, invented companion sourcetypes, an invented input stanza and a non-existent SPL command, and its reviewer is 'handcraft-draft'. It cannot have been run against real data, so 'verified' overclaims.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft/community until the corrected sourcetype and SPL have been run against a live Intersight add-on feed."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "Repeats the wrong sourcetype. 'throttle' should be described as alert suppression, not an SPL step, to stay consistent with the corrected Detailed Implementation.",
+      "field": "implementation",
+      "quote": "ensure `aaa.AuditRecord` (sourcetype `cisco:intersight:aaaauditrecord`) lands in `cisco_intersight`, deploy the two lookup CSVs and `transforms.conf`, then schedule the `spl` as a report. Add alerts ... with 1h throttle",
+      "severity": "minor",
+      "suggested_fix": "Change to `cisco:intersight:auditrecords` and say 'alert suppression for 1h on user_email, object_type'."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/get-data-in/get-started-with-getting-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data",
+      "field": "spl",
+      "issue": "The search uses sourcetype=\"cisco:intersight:aaaauditrecord\", which the Cisco Intersight Add-on does not publish. The real audit sourcetype is cisco:intersight:auditrecords, so as written the search returns no events.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Search/Comments",
+      "field": "spl",
+      "issue": "The first line is a `// ...` comment. SPL has no `//` comment syntax (comments use triple backticks), so the leading text is parsed as search terms and the search fails or returns nothing.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "`eval source=coalesce(Source, source, \"\")` overwrites Splunk's built-in `source` metadata field with the Intersight Source value, and the later `eval source=mvindex(_sources,0)` reuses the name. Rename it to `change_source` to avoid confusing it with the input source.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "`sort severity_tier, ...` sorts alphabetically (critical, info, warning), so info rows appear before warning rows. Add a numeric rank, e.g. eval tier_rank=case(severity_tier==\"critical\",1,severity_tier==\"warning\",2,1=1,3), and sort on that.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "'Account.Name' and 'Organization.Name' assume expanded relationships. Intersight MoRefs normally carry only Moid/ObjectType unless $expand is used, so account_name and org_name will likely always be 'unknown'. Check against real events.",
+      "severity": "needs_verification"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change",
+      "field": "cimSpl",
+      "issue": "`where nodename=Change.All_Changes` should be `nodename=All_Changes`. `All_Changes.object` only fills in if a custom mapping exists, and dataModelAcceleration says the add-on ships none. As written, the search will return nothing out of the box.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0016-UC-19.1.23",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 3,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The control framing and plain-language explanation are solid, but the UC is built on a sourcetype the Cisco Intersight add-on does not publish. It insists on `cisco:intersight:aaaauditrecord` and rejects the real `cisco:intersight:auditrecords`. It also invents companion sourcetypes, an inputs.conf stanza, a `throttle` SPL command and `//` SPL comments, while carrying status=verified.",
+  "tier": "deep",
+  "uc_id": "UC-19.1.23",
+  "verdict": "incorrect"
+}

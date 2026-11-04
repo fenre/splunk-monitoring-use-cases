@@ -1,0 +1,187 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "9c2cc4479686a1020a7e5862e0549a1204c78132b5af840f94e8647575d74fa2",
+  "file": "content/cat-03-containers-orchestration/UC-3.2.25.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/storage/storageclass-metrics.md",
+      "explanation": "kube-state-metrics exposes kube_storageclass_info with only the storageclass, provisioner, reclaim_policy and volume_binding_mode labels. There is no allow_volume_expansion label. The data source as described cannot be collected, so every expansion-eligibility claim downstream (sc_allow_expand, expansion_resize_hint, the Step 2 and Step 4 checks for 'allow_volume_expansion labels') rests on a non-existent field.",
+      "field": "dataSources",
+      "quote": "kube_storageclass_info including allow_volume_expansion",
+      "severity": "blocker",
+      "suggested_fix": "Remove allow_volume_expansion from the KSM list. Source expansion eligibility from a curated lookup (storageclass → allowVolumeExpansion, exported from `kubectl get sc -o json`), or from a custom-resource-state KSM config that exposes .allowVolumeExpansion. State that explicitly in dataSources and detailedImplementation."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://kubernetes-csi.github.io/docs/volume-expansion.html",
+      "explanation": "The same false claim about kube_storageclass_info is repeated in Step 1, the Step 2 checklist ('confirm kube_storageclass_info exposes allow_volume_expansion labels'), Step 4 and the closing paragraph. Operators following the runbook will chase a label that never appears. Separately, allowVolumeExpansion=true allows expansion, but whether it works online depends on the CSI driver's ONLINE expansion capability.",
+      "field": "detailedImplementation",
+      "quote": "Expansion feasibility is not universal: kube_storageclass_info carries allow_volume_expansion true or false; only true classes support online growth",
+      "severity": "major",
+      "suggested_fix": "Rewrite each mention to point at the lookup or custom-resource-state source. Note that online versus offline expansion depends on CSI driver capabilities (EXPAND_VOLUME / ONLINE)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/performance",
+      "explanation": "The detection runs entirely on raw Prometheus scrapes in k8s_metrics. CIM Performance appears only as an optional node-disk proxy join, and Inventory is not used by the primary SPL at all. Listing both as the UC's CIM models implies CIM-normalised coverage that does not exist. The CIM Performance Storage dataset also has no disk_usage field; its percentage field is storage_used_percent under the All_Performance root, keyed on dest.",
+      "field": "cimModels",
+      "quote": "\"Performance\",\n    \"Inventory\"",
+      "severity": "major",
+      "suggested_fix": "Keep Performance only if the node-disk overlay is retained and corrected to All_Performance.Storage.storage_used_percent BY All_Performance.dest. Drop Inventory, or explain what Inventory adds."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/performance",
+      "explanation": "disk_usage is not a CIM Performance field, and the dataset path is All_Performance.Storage. The guidance repeats the field error.",
+      "field": "dataModelAcceleration",
+      "quote": "Accelerate Splunk CIM Performance summaries on Performance.Storage nodes ... correlating near-full PVC curves with disk_usage proxies",
+      "severity": "minor",
+      "suggested_fix": "Reference All_Performance.Storage and storage_used_percent, and state which add-on populates it for Kubernetes worker nodes."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "clarity",
+      "explanation": "This is a single semicolon-chained paragraph of roughly sixty unrelated assertions (red teams, legal hold, Black Friday, universities, sustainability officers, Thanos, Jira, Slack). It contains no actionable step for this detection and buries the useful content. The many short 'X alignment:' one-liners before it add the same kind of padding.",
+      "field": "detailedImplementation",
+      "quote": "Supplemental ownership depth: storage platform engineers certify scrape intervals during peak retail events ... sustainability officers track energy impact of unnecessary early expansions; university clusters isolate student namespaces with permanent bronze dampening; media encoding farms validate scratch PVC classes differ from archival classes in dashboards.",
+      "severity": "major",
+      "suggested_fix": "Delete the 'Supplemental ownership depth' paragraph and the generic '... alignment:' one-liners. Keep only the scrape, lookup, retention and routing guidance specific to PVC fill forecasting."
+    },
+    {
+      "confidence": 0.95,
+      "dimension": "consistency",
+      "explanation": "The list and the SPL table command both contain 25 columns, not 24. The closing checklist ('final table includes twenty-four columns') and visualization ('twenty-four closing SPL columns') repeat the wrong count.",
+      "field": "detailedImplementation",
+      "quote": "The closing table lists twenty-four analyst columns: cluster, namespace, pvc, pv, storageclass, csi_driver, owner_team, criticality, used_pct, inode_pct, gb_per_day, days_to_99, inode_days_to_full, hrs_to_99, sla_rpo8h_critical, sc_headroom_pct, pending_pvc_cluster, pvc_pv_oversub_ratio, sc_allow_expand, expansion_resize_hint, iops_capacity_curve, node_disk_pressure_pct, ns_top_burn_gb_per_day, severity, kubelet_node.",
+      "severity": "minor",
+      "suggested_fix": "Change 'twenty-four' to 'twenty-five' everywhere, or drop the count."
+    },
+    {
+      "confidence": 0.95,
+      "dimension": "consistency",
+      "explanation": "The SPL table has 25 columns.",
+      "field": "visualization",
+      "quote": "table matching the twenty-four closing SPL columns",
+      "severity": "minor",
+      "suggested_fix": "Say 'the closing SPL columns' or 'twenty-five'."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "explanation": "RPO is the maximum tolerable data loss measured back from an incident. It has nothing to do with how many hours remain before a volume fills. Calling an 8-hour fill runway an 'RPO' gate (and naming the field sla_rpo8h_critical) misleads storage and DR stakeholders.",
+      "field": "detailedImplementation",
+      "quote": "an eight hour recovery-point-objective style SLA gate for gold inventory rows",
+      "severity": "minor",
+      "suggested_fix": "Describe it as an '8-hour fill-runway SLA'. If a rename of the SPL field is coordinated, use something like runway8h_critical."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The entries are templated noise ('elevates namespace', 'mv >= 0') and miss the real false-positive sources for PV fill forecasting. Examples: NFS/EFS/CephFS-style shared filesystems reporting very large or shared capacity; CSI drivers that do not implement NodeGetVolumeStats, so no kubelet series appear; PVC resizes that change cap_bytes mid-window; compaction or log-rotation sawtooth that breaks the linear first/last slope; new PVCs with only a few buckets; one-off bulk restore or backfill writes that extrapolate to a false 'fills in hours'.",
+      "field": "knownFalsePositives",
+      "quote": "Batch `max` on `prometheus:scrape:metrics`** — Scheduled automation elevates `namespace` without crossing `mv` >= 0 for UC-3.2.25.",
+      "severity": "major",
+      "suggested_fix": "Replace the four templated items with these concrete causes, each with a discriminator (check the csi_driver or provisioner, require a minimum bucket count, compare cap_bytes at t0 and t1, use a robust slope such as a median of deltas)."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The point is valid, but the doc never says that some filesystems (XFS with dynamic inode allocation, and network filesystems) report inode totals that change or are effectively unbounded. That makes inode_days_to_full unreliable for those StorageClasses.",
+      "field": "detailedImplementation",
+      "quote": "Inode exhaustion can strike while byte utilisation looks comfortable ... inode_pct and inode_days_to_full must ride alongside used_pct.",
+      "severity": "minor",
+      "suggested_fix": "Add a caveat that inode ETA is meaningful mainly on ext4-style fixed-inode filesystems, and suggest suppressing it for provisioners whose inode totals float."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "The reviewer is the generic '@splunk-monitoring-use-cases' handle, and the SPL depends on a non-existent KSM label, non-existent CIM fields and a multisearch that will not parse. The UC cannot have been executed end to end, so 'verified' overstates its maturity.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade to 'draft' or 'community' until the SPL is fixed and run against real kubelet/KSM data by a named reviewer."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "explanation": "The link text labels the OTel Collector Helm chart as 'Splunk Add-on for Kubernetes documentation'. The guide associates the Splunk OpenTelemetry Collector for Kubernetes with its own Splunkbase listing and docs, and that URL could not be confirmed to describe the collector. The same entry appears in references.",
+      "field": "app",
+      "quote": "Splunk OpenTelemetry Collector for Kubernetes ([Splunk Add-on for Kubernetes documentation](https://docs.splunk.com/Documentation/AddOns/released/Kubernetes/About))",
+      "severity": "minor",
+      "suggested_fix": "Link to the Splunk OpenTelemetry Collector for Kubernetes documentation or its GitHub chart (signalfx/splunk-otel-collector-chart), and fix the matching references entry."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The primary detection does not use the Performance data model; it reads raw prometheus:scrape:metrics events. Performance is only an optional join for node disk pressure.",
+      "field": "description",
+      "quote": "using datamodel `Performance`",
+      "severity": "minor",
+      "suggested_fix": "Describe the actual source: kubelet volume_stats and kube-state-metrics PV/PVC series in index=k8s_metrics, with an optional CIM node-disk overlay."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/search-commands/multisearch",
+      "field": "spl",
+      "issue": "multisearch requires every subsearch to be purely streaming, but each of the four top-level arms ends with `bin` + `stats`, and the joined subsearches also embed multisearch with `stats` arms. The search fails at parse time. Use a single base search filtered on all four metric names, followed by one stats BY cluster namespace pvc _time (or append/union).",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/storage/storageclass-metrics.md",
+      "field": "spl",
+      "issue": "sc_allow_expand is computed from an allow_volume_expansion field that kube_storageclass_info never carries (labels are storageclass, provisioner, reclaim_policy, volume_binding_mode). After fillnull it is always 0, so expansion_resize_hint can only ever be 'migrate_or_new_sc' or 'observe', and the 'expand now' branches are dead code.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/performance",
+      "field": "spl",
+      "issue": "The node-disk tstats uses `Performance.disk_usage`, `Performance.host` and `nodename=Performance.Storage`. The CIM Performance root dataset is All_Performance, the Storage percentage field is storage_used_percent and the host key is dest. As written, the tstats returns nothing, so node_disk_pressure_pct is always null and the 'write_amp_hot_nearfull' / 'disk_pressure_nearfull' buckets never fire.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/performance",
+      "field": "cimSpl",
+      "issue": "Same CIM field errors (Performance.disk_usage, Performance.host). The Inventory tstats uses `Inventory.dest` with `nodename=Inventory`, but the Inventory model's root dataset is All_Inventory, so those paths likely also return nothing. The query also only correlates generic inventory with node disk and contains nothing about PVCs.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "`sort - severity +used_pct` sorts severity as a string in descending lexical order ('warning' > 'info' > 'high_*' > 'elevated_*' > 'critical_*'), so the most urgent rows land at the bottom, and within a band the fullest volumes come last. Map severity to a numeric rank before sorting.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "The closing where clause keeps every PVC in a cluster whenever pending_pvc_cluster>=8, even PVCs with low used_pct and no burn. This produces cluster-wide noise unrelated to fill risk.",
+      "severity": "minor"
+    },
+    {
+      "field": "title",
+      "issue": "The title promises an 'IOPS-vs-Capacity Curve', but no IOPS metric is ingested. iops_capacity_curve is a heuristic bucket of used_pct, gb_per_day and a (currently broken) node disk percentage proxy, as the implementation itself admits ('when block-level IOPS are not directly ingested'). The title overclaims.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0045-UC-3.2.25",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The burn-rate and time-to-99% idea is sound and the kubelet volume_stats metrics are real. But the UC relies on a kube_storageclass_info label (allow_volume_expansion) that kube-state-metrics does not emit, on CIM Performance fields that do not exist, and on a multisearch whose arms contain stats. The detailedImplementation is also padded with a long run-on filler paragraph and miscounts its own table columns.",
+  "tier": "deep",
+  "uc_id": "UC-3.2.25",
+  "verdict": "incorrect"
+}

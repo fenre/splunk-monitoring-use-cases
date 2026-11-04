@@ -1,0 +1,101 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "ad16432ea40cbce247171dcf54fa3d4dc5d523174b7640bfccb3350e28e7b9c0",
+  "file": "content/cat-14-iot-operational-technology-ot/UC-14.3.57.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Edge/2.2.0/Admin/Setup",
+      "explanation": "Splunk Edge Hub OS sends data over an HTTP Event Collector token configured at registration through the Splunk App for Edge Hub. It does not use a Universal Forwarder modular input. Splunkbase app 617 also does not exist (the Splunkbase API returns 'App was not found').",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+      "severity": "blocker",
+      "suggested_fix": "Say that Edge Hub sensor data arrives over HEC, and that the response-test records must be posted to HEC by the test procedure or script. Remove the Universal Forwarder and Splunkbase 617 references here and in `app`."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The Edge Hub hardware manual and product specifications list operating temperature ranges but no sensor response-time figure. The two figures also conflict: 'slow-moving air' is still air.",
+      "field": "implementation",
+      "quote": "Temperature sensor response time (Edge Hub spec): ~1-5 seconds in air, ~10-30 seconds in slow-moving air.",
+      "severity": "needs_verification",
+      "suggested_fix": "Look up the response-time (t63/t90) figure for the built-in sensor and the external I²C probe in the Edge Hub sensor documentation or the sensor chip datasheet. If no figure is published, drop the 'Edge Hub spec' attribution and present the numbers as site-determined baselines."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "evidence_url": "https://manualspro.net/635303-actineon-splunk-splkeh201gl-edge-hub-user-manual",
+      "explanation": "Using fire detection as the example suggests Edge Hub temperature readings can serve a life-safety function. The Edge Hub manual says the device is not intended for any use where failure could lead to death or personal injury.",
+      "field": "implementation",
+      "quote": "Alert if average response time exceeds equipment-specific safety limit (e.g., fire detection requires < 30 second response).",
+      "severity": "major",
+      "suggested_fix": "Use an operational example, such as cold-chain or HVAC monitoring, that needs readings within N seconds. State that this test does not qualify Edge Hub as a fire or life-safety detector."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "Edge Hub does not run stimulus tests or emit `temperature_response_test`, `stimulus_type`, `stimulus_start_time` or `temperature_rise_detected_time`. The reader is never told who creates these records or how. The SPL also divides by 1000, so it expects epoch milliseconds, which the text never states.",
+      "field": "detailedImplementation",
+      "quote": "Store test results in edge-hub-logs.",
+      "severity": "major",
+      "suggested_fix": "Explain that the technician or a test script records the stimulus start and the first reading at baseline +5 °C (found from the edge_hub_data sensor metrics), then posts one event per test to HEC with sensor_id, stimulus_type=heat_pulse and both timestamps in epoch milliseconds."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The `description` promises an average and a worst case across tests. The SPL's first stats keeps only the latest test per sensor, so avg and max both equal that one value. `dataSources` lists `edge-hub-data sensor_response_metrics`, which the SPL never reads.",
+      "field": "cross_field",
+      "quote": "Outputs `avg_response_time`, `worst_case` each `the scheduled window`",
+      "severity": "major",
+      "suggested_fix": "Say the search evaluates the most recent test per sensor (or describe multi-test averaging only if the SPL is changed). Remove the unused sensor_response_metrics source, or explain its role."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "None of the scenarios describes a real reason a sensor test would wrongly show slow response.",
+      "field": "knownFalsePositives",
+      "quote": "Synthetic probe on `sensor_id` — Health checks in `edge-hub-logs` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List real causes: heat source placed too far from or angled away from the sensor, testing the built-in sensor inside the enclosure instead of the external probe, timestamps in seconds instead of milliseconds, clock skew between the test recorder and the hub, and a baseline taken before the reading settled."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "The SPL uses no premium app. Edge Hub is hardware, and nothing in the search depends on OT Intelligence.",
+      "field": "premiumApps",
+      "quote": "\"Splunk Edge Hub\",\n    \"Splunk OT Intelligence\"",
+      "severity": "minor",
+      "suggested_fix": "Remove premiumApps; keep the Edge Hub device under prerequisites."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The first `stats latest(...) by sensor_id` collapses to one test per sensor, so the following `avg` and `max` are identical and the 30 s average threshold is meaningless. Compute latency per test event (eval before stats), then aggregate.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`/1000` assumes both timestamps are epoch milliseconds; with epoch seconds every latency is 1000x too small and nothing alerts.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0088-UC-14.3.57",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "A manual heat-stimulus test of temperature sensors is a reasonable idea. The text, though, gives the wrong collection path (Universal Forwarder and a non-existent Splunkbase ID), quotes an unsourced 'Edge Hub spec' for response time, frames Edge Hub as fire-detection equipment against the vendor's own high-risk-use warning, and never explains how the test records reach Splunk.",
+  "tier": "deep",
+  "uc_id": "UC-14.3.57",
+  "verdict": "incorrect"
+}

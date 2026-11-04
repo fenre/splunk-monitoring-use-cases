@@ -1,0 +1,125 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "d058ee9e54e00c91cb2f67ff7da5a7b4a7bfb26a974c2c6247070ad94f55ca6e",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.1.36.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/CiscoUcs/ucsmsdk/blob/master/ucsmsdk/mometa/vnic/VnicEther.py",
+      "explanation": "In the UCSM object model vnicEtherIf is the per-VLAN interface (rn `if-[name]`) and has no failoverEnabled property. Fabric failover is configured on vnicEther itself through switchId values `A-B` or `B-A` (allowed values: A, A-B, B, B-A, NONE). detailedImplementation Step 3 (3) and Step 5 item 3 repeat the wrong mapping.",
+      "field": "dataSources",
+      "quote": "the **vnicEtherIf** child carries **`failoverEnabled`**",
+      "severity": "blocker",
+      "suggested_fix": "State that fabric placement and failover both come from vnicEther.switchId (A, B, A-B, B-A), and drop vnicEtherIf from the failover logic."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/",
+      "explanation": "The Splunk Add-on for Cisco UCS assigns all data sourcetype `cisco:ucs` and puts the class in source (`cisco:ucs:vnicEther`, `cisco:ucs:lsServer`); detailedImplementation's 'keep sourcetype cisco:ucs:inventory' and 'expect cisco:ucs:inventory' are therefore wrong for a default install.",
+      "field": "dataSources",
+      "quote": "`index=cisco_ucs` and sourcetype `cisco:ucs:inventory` from **Splunk_TA_cisco_ucs**",
+      "severity": "blocker",
+      "suggested_fix": "Document `sourcetype=cisco:ucs source=cisco:ucs:vnicEther OR source=cisco:ucs:lsServer`, or say explicitly that `cisco:ucs:inventory` is a local override set on the input."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/ConfigureInputs/",
+      "explanation": "The add-on documentation uses `$SPLUNK_HOME/etc/apps/Splunk_TA_cisco-ucs/local/` and the Splunkbase app id is `Splunk_TA_cisco-ucs` (hyphen); the inputs.conf path given in detailedImplementation would target a non-existent app directory.",
+      "field": "app",
+      "quote": "The on-disk directory name and canonical app id use an underscore.",
+      "severity": "major",
+      "suggested_fix": "State the app directory as `Splunk_TA_cisco-ucs`."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/ConfigureInputs/",
+      "explanation": "Class IDs are selected in add-on collection Templates (Configuration > Templates or `splunk_ta_cisco_ucs_templates.conf` `content=`), which inputs reference with `templates=`; there is no inventory stanza with a `url=` key or a class-list setting in inputs.conf.",
+      "field": "detailedImplementation",
+      "quote": "In the add-on’s advanced or class-list surface for the XML inventory poller, ensure vnicEther, vnicEtherIf, and lsServer are not removed",
+      "severity": "major",
+      "suggested_fix": "Describe adding a Manager, a Template containing vnicEther and lsServer, and an Input that references both."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL raises critical when operable vNICs exist on only one fabric and warning when both fabrics are used with no failover; 'count >= 1' is not the alert condition.",
+      "field": "description",
+      "quote": "alert when `vnic_count_a` >= 1, `vnic_count_b` >= 1, `vnic_count_a` >= 1, or `vnic_count_b` >= 1",
+      "severity": "minor",
+      "suggested_fix": "Describe the critical/warning states in plain words."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "The Network Management Guide reference points at the Cisco home page.",
+      "field": "references",
+      "quote": "\"title\": \"Cisco UCS Manager Network Management Guide 4.2 — vNIC, Ethernet interfaces\",\n      \"url\": \"https://www.cisco.com/c/en/us/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the actual UCSM 4.2 Network Management Guide vNIC chapter."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "Template text with a stray `]` field and no real causes; the genuine false positives (approved single-NIC appliances, lab orgs, template clones mid-edit, poll during FI failover) are already listed in exclusions and Step 5 but not here.",
+      "field": "knownFalsePositives",
+      "quote": "Synthetic probe on `sp_dn`, `parent`, `]` — Health checks in `cisco_ucs` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "Move the concrete causes from Step 5 and exclusions into knownFalsePositives."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "Marked verified although the SPL depends on attributes that do not exist on the MOs it reads, so it cannot produce a non-info row.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until tested against real vnicEther inventory."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://github.com/CiscoUcs/ucsmsdk/blob/master/ucsmsdk/mometa/vnic/VnicEther.py",
+      "field": "spl",
+      "issue": "is_op reads operState from vnicEther rows, but vnicEther has no operState property (operState is on vnicEtherIf). is_op is always 0, so vnic_count_a/vnic_count_b are always 0 and every profile lands in unknown_topology/info; critical and warning can never fire.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://github.com/CiscoUcs/ucsmsdk/blob/master/ucsmsdk/mometa/vnic/VnicEtherIf.py",
+      "field": "spl",
+      "issue": "failover_enabled_count is built from vnicEtherIf.failoverEnabled, a property that does not exist; fabric failover is vnicEther.switchId in (A-B, B-A). The sw=\"a\"/\"b\" tests also ignore A-B/B-A values, so failover-enabled vNICs are never counted on either fabric.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/",
+      "field": "spl",
+      "issue": "Base and subsearches use sourcetype=\"cisco:ucs:inventory\"; the add-on's default sourcetype is cisco:ucs (class in source), so the search returns nothing without a local override.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The sp_dn regex `^(?<sp_dn>org-root/.+?/ls-[^/]+)` and the org replace require a sub-org, so service profiles directly under org-root (org-root/ls-NAME) are never joined to their vNICs; the nested join/subsearch pattern is also subject to subsearch result limits on large domains.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0029-UC-19.1.36",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The southbound A/B vNIC posture idea and the sibling boundaries are clearly written, but the UCSM object facts are wrong: vnicEtherIf has no failoverEnabled attribute (fabric failover is encoded as vnicEther switchId A-B/B-A) and vnicEther has no operState, so the SPL counts zero operable vNICs and classifies every profile as unknown_topology. The add-on facts (sourcetype, app folder, class-list configuration) also contradict the Splunk Add-on for Cisco UCS documentation.",
+  "tier": "deep",
+  "uc_id": "UC-19.1.36",
+  "verdict": "incorrect"
+}

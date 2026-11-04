@@ -1,0 +1,108 @@
+{
+  "confidence": 0.65,
+  "content_sha256": "e08f0fd228ca06c1be2666fc68f36d1c95edcbb1abb3ec2bb1f31a57e017b872",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.1.43.json",
+  "findings": [
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_url": "https://bugzilla.redhat.com/show_bug.cgi?id=1524308",
+      "explanation": "VDSM lines have the form `2017-12-11 09:16:38,772+0200 ERROR (jsonrpc/0) [storage.TaskManager.Task] ...`, with a thread in parentheses and a logger such as `vds`, `storage.*`, `virt.vm` or `jsonrpc.JsonRpcServer`. I could not find a `vds:Client` token in any VDSM source or log sample. If it does not exist, the main reconnect counter is always zero.",
+      "field": "dataSources",
+      "quote": "primary `sourcetype=\"ovirt:vdsm\"` from `/var/log/vdsm/vdsm.log` (Python/threads: **vds:Client**, Reactor, storage helpers",
+      "severity": "needs_verification",
+      "suggested_fix": "Grep a real vdsm.log and the VDSM source for the strings VDSM logs on engine disconnects. On the engine side, the relevant messages include 'Heartbeat exceeded', `VDS_NETWORK_ERROR`, 'is not responding' and 'Failed to communicate with VDSM'. Replace `vds:Client` throughout with the verified tokens."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "`hostkey` takes `host` first, and `host` is always set by the forwarder. Engine events therefore carry the engine VM's hostname; the `h_msg` backfill and the `engine-aggregate` fallback never run. Engine 'Failed to communicate with VDSM' rows and hypervisor reconnect rows end up in different `host` bins, so `cross_hint`, which is described as the engine-to-host story, can never be 1.",
+      "field": "detailedImplementation",
+      "quote": "when it cannot, engine-side rows land on `host=engine-aggregate` so you still see the cluster narrative without faking a hypervisor FQDN",
+      "severity": "major",
+      "suggested_fix": "Describe the actual behaviour. To correlate, extract the hypervisor name from engine messages, for example 'Host <name> is not responding', and group on that extracted name instead of `host`."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "explanation": "This is backwards. Splunk documents that `crcSalt = <SOURCE>` should not be used with rolling log files, because it prevents recognition across a roll or rename and causes re-indexing.",
+      "field": "detailedImplementation",
+      "quote": "(5) Logrotate: a sudden burst at rotate time is often re-ingest or duplicate if `crcSalt` is missing—mirror UC-19.1.41’s `<SOURCE>` pattern.",
+      "severity": "major",
+      "suggested_fix": "Remove `crcSalt = <SOURCE>` from both monitor stanzas and from troubleshooting item 5. If a burst appears at rotation, check that only the live file is monitored."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://bugzilla.redhat.com/show_bug.cgi?id=1524308",
+      "explanation": "vdsm.log always prints a numeric offset after the milliseconds, for example `+0200`, so `_time` silently uses the forwarder's TZ. `%%z` is also a typo for `%z`.",
+      "field": "detailedImplementation",
+      "quote": "TIME_FORMAT = %Y-%m-%d %H:%M:%S,%3N\n# If your line prints a timezone offset after the comma, add %%z to TIME_FORMAT",
+      "severity": "minor",
+      "suggested_fix": "Use `TIME_FORMAT = %Y-%m-%d %H:%M:%S,%3N%z` and note that the offset is part of every line."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "Every input in the UC is a UF `monitor://` stanza in a custom app. Splunk_TA_nix and modular or scripted inputs play no part, and the same mis-attribution is appended to `app`.",
+      "field": "dataSources",
+      "quote": "Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+      "severity": "minor",
+      "suggested_fix": "State that collection is a UF file monitor in a custom app such as TA-ovirt-vdsm-local, and drop the Splunk_TA_nix attribution or mark it optional."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "These scenarios are template output. The real benign causes appear only in troubleshooting: host activate or re-enrol, engine restarts reconnecting every host, iSCSI VLAN maintenance, and journald plus file double ingest.",
+      "field": "knownFalsePositives",
+      "quote": "**Batch `sum` on `ovirt:vdsm`** — Scheduled automation elevates `hostkey` without crossing `n_reconnect` >= 3 ... **Synthetic probe on `_time`, `hostkey`**",
+      "severity": "major",
+      "suggested_fix": "Move those concrete causes into knownFalsePositives with how to confirm each, for example a change ticket, or an engine restart time that precedes reconnects on every host."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The UC excludes Hyper-V explicitly; the tag mis-routes it in equipment filters.",
+      "field": "equipment",
+      "quote": "\"equipment\": [\"hyperv\", \"ovirt\"]",
+      "severity": "minor",
+      "suggested_fix": "Replace `hyperv` with `linux` or `kvm` as appropriate."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats",
+      "field": "spl",
+      "issue": "`stats ... max(len(_raw)) as maxraw` puts an eval expression inside a stats function without the required `eval()` wrapper. Splunk either rejects the argument, failing the scheduled search, or treats `len(_raw)` as a field name that does not exist, leaving `maxraw` null. Use `max(eval(len(_raw)))`, or compute `eval rawlen=len(_raw)` before `stats`.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`hostkey` coalesces `host` first, so engine rows never fall back to `engine-aggregate`. `cross_hint` requires `n_eng_vdsm>0 AND n_reconnect>0` in the same host bin, which cannot happen because engine and VDSM events come from different hosts. Correlate on a hypervisor name extracted from engine messages instead.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`is_reconnect` depends on the `vds:Client` and `vdsm.client` tokens, which may not exist in VDSM logs. The search also returns `ok` rows (there is no `where`), and `sort 0 - _time, severity_bucket` orders buckets alphabetically. Check the tokens against real logs and add `where severity_bucket!=\"ok\"` for the alert.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0037-UC-19.1.43",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 5,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The UC explains how it differs from its two oVirt siblings well, but the SPL uses `max(len(_raw))` inside `stats` without `eval()`, so `maxraw` either breaks the search or is always null. The reconnect detector keys on a `vds:Client` token that does not appear in the VDSM log samples checked, and the engine-to-host cross hint can never fire because engine and hypervisor events land on different `host` values.",
+  "tier": "deep",
+  "uc_id": "UC-19.1.43",
+  "verdict": "rewrite"
+}

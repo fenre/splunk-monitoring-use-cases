@@ -1,0 +1,96 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "8bdcafb90b2fee88d16d69e19948c0d4832e5f18e38823803d68a6bf0d843dbb",
+  "file": "content/cat-05-network-infrastructure/UC-5.20.16.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://www.rfc-editor.org/rfc/rfc2465",
+      "explanation": "ipv6NetToMediaTable (mib-2.55.1.12) is defined in the IPV6-MIB, RFC 2465, which RFC 4293 obsoletes. RFC 4293's replacement is the version-neutral ipNetToPhysicalTable (1.3.6.1.2.1.4.35). The RFC 2465 state column has reachable, stale, delay, probe, invalid and unknown, with no INCOMPLETE; incomplete(7) exists only in RFC 4293's ipNetToPhysicalState. The same RFC 4293 attribution appears in references and detailedImplementation.",
+      "field": "dataSources",
+      "quote": "SNMP polling of `ipv6NetToMediaTable` (RFC 4293, OID 1.3.6.1.2.1.55.1.12) ... state (REACHABLE, STALE, DELAY, PROBE, INCOMPLETE)",
+      "severity": "blocker",
+      "suggested_fix": "Either cite RFC 2465 for ipv6NetToMediaTable (deprecated IPV6-MIB) with its real state values, or switch the UC to IP-MIB ipNetToPhysicalTable (1.3.6.1.2.1.4.35, RFC 4293, filtered to ipNetToPhysicalNetAddressType=ipv6) and its seven states. Then check which table each target platform supports."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-connect-for-snmp/main/configuration/profiles/",
+      "explanation": "SC4SNMP varBinds take [MIB-Component, object, index] names (for example ['IPV6-MIB','ipv6NetToMediaTable'] or ['IP-MIB','ipNetToPhysicalTable']), and its inventory is a CSV header block under poller.inventory, not a YAML device list. SC4SNMP writes its own event/metric indexes and sourcetypes (sc4snmp:event, sc4snmp:metric), so there is no splunk.hec.sourcetype override. Following these steps would not produce sourcetype=ndp:cache, so every search in the UC would return nothing.",
+      "field": "detailedImplementation",
+      "quote": "varBinds:\n    - ['1.3.6.1.2.1.55.1.12']  # ipv6NetToMediaTable ... # SC4SNMP values.yaml (Kubernetes)\nsplunk:\n  hec:\n    url: https://splunk-hf.example.com:8088\n    token: <hec_token>\n    index: network\n    sourcetype: ndp:cache",
+      "severity": "blocker",
+      "suggested_fix": "Show the documented SC4SNMP profile and CSV inventory syntax, and search the SC4SNMP event index and sourcetype it actually writes. Or state that ndp:cache comes from the scripted-CLI path, or from a custom transform you must write."
+    },
+    {
+      "confidence": 0.95,
+      "dimension": "consistency",
+      "explanation": "1,000 × 20 is 20,000 entries per poll, not 6,000. That gives about 5.76M per day at 288 polls, while 6,000 per poll would give about 1.7M. Neither matches 8.6M. The sizing a reader uses for licence planning is internally inconsistent; detailedImplementation's 500 × 20 × 288 = 2.88M is correct.",
+      "field": "dataSources",
+      "quote": "a campus with 1,000 L3 interfaces × 20 average NDP entries/interface × 300s interval = ~6,000 entries every 5 minutes ≈ ~8.6M entries/day ≈ 1-3 GB/day",
+      "severity": "major",
+      "suggested_fix": "Recompute: 1,000 interfaces × 20 entries = 20,000 entries per poll × 288 polls/day ≈ 5.8M entries/day. Give the GB figure from a stated per-event size."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "clarity",
+      "explanation": "The scripted input emits raw multi-line CLI tables, yet every search assumes mac_address, ipv6_address, state and interface fields. No line-breaking or extraction is defined for either collection path. Disabling SSH host-key checking on a credentialed service account is also unsafe advice.",
+      "field": "detailedImplementation",
+      "quote": "ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 splunk-svc@$router \\\n    \"show ipv6 neighbors\" 2>/dev/null",
+      "severity": "major",
+      "suggested_fix": "Add props/transforms (or a script that emits one key=value line per neighbor) that produce ipv6_address, mac_address, state and interface. Use a managed known_hosts file instead of StrictHostKeyChecking=no."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "overclaiming",
+      "explanation": "Neither SOC 2 nor HIPAA sets a 90-day retention period for neighbor-cache or network logs, so citing them as the source of this number overstates the requirement.",
+      "field": "detailedImplementation",
+      "quote": "Index retention: minimum 90 days for regulatory compliance (SOC 2, HIPAA)",
+      "severity": "minor",
+      "suggested_fix": "Present 90-365 days as an organisational forensic choice and tell readers to check their own policy, or cite a framework that does set a log-retention period (for example PCI DSS 10.5.1's 12 months)."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "Whether an SNMP manager can read a MIB subtree is controlled by SNMP views (VACM), not by the transport ACL. An ACL filters the manager's source address, not which MIB is visible.",
+      "field": "detailedImplementation",
+      "quote": "check SNMP ACL on the device — it may allow IPv4 SNMP but not IPv6 MIB access.",
+      "severity": "minor",
+      "suggested_fix": "Say: check that the SNMP view assigned to the community or user includes the IPV6-MIB / IP-MIB subtree."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The UC polls neighbor-cache tables; it does not use traps.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_trap\"",
+      "severity": "minor",
+      "suggested_fix": "Replace snmp_trap with the SNMP polling model, or remove it."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "duration_hours divides (last_seen_epoch - first_seen_epoch), but neither field exists, so duration_hours is always null. first_seen and last_seen are overwritten with strftime strings before sorting, so -last_seen sorts as text. The unused entry_key eval and the missing multicast (ff..) filter also differ from the corrected search in detailedImplementation.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0035-UC-5.20.16",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The forensic idea, the RFC 9099 grounding and detailedImplementation's searches are useful. However, the MIB is attributed to the wrong RFC and mixes deprecated and current state values, the SC4SNMP configuration does not match how SC4SNMP works, and the dataSources volume arithmetic contradicts itself.",
+  "tier": "deep",
+  "uc_id": "UC-5.20.16",
+  "verdict": "incorrect"
+}

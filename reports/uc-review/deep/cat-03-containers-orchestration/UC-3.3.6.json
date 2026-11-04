@@ -1,0 +1,115 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "7ee6b294ed75b5cb4a4ee885dc0a4b2ae2a161199783a1e6db5103a58360d740",
+  "file": "content/cat-03-containers-orchestration/UC-3.3.6.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#typical-status-properties",
+      "explanation": "A condition's lastTransitionTime records only the last time the condition changed status. A healthy operator that has been Available=True, Degraded=False for weeks correctly has an old lastTransitionTime. Treating its age as a heartbeat (heartbeat_age_h, Case 10, the 'stale heartbeat' tier) reports healthy operators as stalled.",
+      "field": "detailedImplementation",
+      "quote": "Stale lastTransitionTime while versions or generations advance elsewhere suggests the reporting controller stopped reconciling or the watch connection is partitioned.",
+      "severity": "blocker",
+      "suggested_fix": "Describe lastTransitionTime as the start of the current condition state. Use it for dwell, for example now() minus the Progressing=True transition time. Detect exporter or controller staleness from snapshot _time gaps or the operator's status.versions and observedGeneration instead."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/common-information-model/8.5/data-models/application-state-deprecated",
+      "explanation": "Application State has been deprecated since CIM 4.12.0 (replaced by Endpoint). It models host processes, services and ports, not Kubernetes operator conditions.",
+      "field": "cimModels",
+      "quote": "\"Application_State\"",
+      "severity": "blocker",
+      "suggested_fix": "Drop Application_State. Keep Change only for audited clusteroperator and clusterversion mutations, and treat condition health as non-CIM."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Neither product appears in the Splunkbase catalogue. Its Kubernetes and OpenShift entries are Splunk OpenTelemetry Collector for Kubernetes (6264), App For Kubernetes (8560) and Outcold's Monitoring Kubernetes/OpenShift (3743/3836).",
+      "field": "app",
+      "quote": "Splunk OpenShift Monitoring Add-on patterns, Splunk Add-on for Kubernetes (`Splunk_TA_kubernetes`)",
+      "severity": "blocker",
+      "suggested_fix": "Name Splunk OpenTelemetry Collector for Kubernetes (6264) with distribution=openshift (k8sobjects pull of clusteroperators.config.openshift.io, as in the grounding guide's values.yaml) plus Prometheus federation. Remove the invented add-on names."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "These are template entries with a stray ']' token. The real false-positive causes are already in the risk briefing: Progressing=True during upgrades, certificate rotation and MCO rollouts, network or DNS flaps during load-balancer maintenance, and external IdP outages degrading authentication.",
+      "field": "knownFalsePositives",
+      "quote": "Synthetic probe on `cluster`, `operator_name`, `lane`, `]` — Health checks in `ocp_metrics` populate the same fields",
+      "severity": "major",
+      "suggested_fix": "List those causes, with the ClusterVersion history check (an active update suppresses Progressing dwell) as the primary mitigation."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "The Cluster Version Operator reports through the ClusterVersion resource. As far as I know, it is not listed as a ClusterOperator in `oc get clusteroperator`, so 'cluster-version' in the operator list and in the page regex may never match a row.",
+      "field": "detailedImplementation",
+      "quote": "operator-lifecycle-manager packages, and the cluster-version operator itself. Each ClusterOperator publishes a standard condition tuple",
+      "severity": "needs_verification",
+      "suggested_fix": "Run `oc get co` on a 4.16 or 4.17 cluster and drop cluster-version from the ClusterOperator list if it is absent. Point CVO health to UC-3.3.1."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The grouping includes a stray ']' token, and the 'alert logic' lists guard clauses rather than the real tiers. Page fires on Degraded=True for critical operators or Progressing dwell >=120 minutes; warn fires on any Degraded=True, dwell >=45 minutes, or Upgradeable=False while another operator is degraded.",
+      "field": "description",
+      "quote": "by `cluster`, `operator_name`, `lane`, `]` over `the scheduled window`. Alert logic enforces `ltt_epoch` > 0, `prom_peak` >= 1, `prom_peak` < 1",
+      "severity": "minor",
+      "suggested_fix": "Describe the actual severity tiers."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/container-platforms-docker-openshift.md",
+      "explanation": "The grounding guide's operator table maps UC-3.3.6 to Image Registry, and other rows map MCO to UC-3.3.5, Authentication to UC-3.3.7 and Console to UC-3.3.4. Those mappings do not match the current UC titles.",
+      "field": "cross_field",
+      "quote": "| Image Registry | Internal registry | PVC full, route broken | UC-3.3.6 |",
+      "severity": "minor",
+      "suggested_fix": "Update the guide's operator table to the current UC IDs (this UC covers all ClusterOperators)."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/splunk-enterprise/spl-search-reference/9.4/search-commands/multisearch",
+      "field": "spl",
+      "issue": "The snapshot arm runs `sort 0` and `streamstats`, and the prometheus, events and audit arms end in `stats`, all inside multisearch. multisearch allows only streaming commands, so the search fails with 'Multisearch subsearches may only contain purely streaming operations'. Use union, or move the non-streaming steps after fan-in.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "`streamstats window=2 current=t last(_time) AS prev_ts last(prog_f) AS prev_prog` returns the current event's own values, because last() with current=t is the current row. prev_ts therefore equals _time, and prog_dwell_min is always 0 when Progressing=True, so the 45- and 120-minute Progressing tiers can never fire. Compute dwell as now() minus the Progressing lastTransitionTime.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The prometheus arm takes `max(mv)` and `latest(ctype)` per operator across both cluster_operator_up and every cluster_operator_conditions condition. Available=1 makes prom_peak 1 almost always, so degraded_metric_hint fires whenever the last-seen series happens to be condition=Degraded, even with value 0, and the cluster_operator_up<1 path never triggers. Split by metric name and condition label before aggregating.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/change",
+      "field": "cimSpl",
+      "issue": "It uses `nodename=Change` with Change.* fields, but the Change root dataset is All_Changes. It also uses Application_State.state and Application_State.info, but that deprecated model's root is All_Application_State and it has no state or info fields. Both tstats calls return nothing.",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0093-UC-3.3.6",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The ClusterOperator condition model is described well, but the SPL cannot run (sort, streamstats and stats inside multisearch). Its Progressing-dwell and metric-degraded logic would not work even if it ran. The prose treats lastTransitionTime as a heartbeat, and the CIM mapping and app names are wrong.",
+  "tier": "deep",
+  "uc_id": "UC-3.3.6",
+  "verdict": "incorrect"
+}

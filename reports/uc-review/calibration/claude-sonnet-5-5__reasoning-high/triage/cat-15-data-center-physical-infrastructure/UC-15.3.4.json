@@ -1,0 +1,70 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "9da3c256edbb009fb26a2e66b4df5d557fdc237018cc243b6e23458124b85f3f",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.3.4.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The description (also controlTest and knownFalsePositives) says events are counted and grouped by `entity` or `host` against a threshold. The SPL has no stats, count, entity or threshold, only a per-event filter on recording_status and connection_status that tables the rows. The prose describes a different detection from the one the SPL runs.",
+      "field": "cross_field",
+      "quote": "Groups `count` by `entity` each `the scheduled window`.",
+      "severity": "major",
+      "suggested_fix": "Describe the real behaviour: it lists every camera whose latest status event shows connection_status other than connected or recording_status other than recording. Say which fields appear in the result row (camera_id, location, last_frame) and drop the count/threshold wording."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The test scenarios refer to a count and an `entity` field, but the SPL emits no count and the sidecar defines no entity field. A tester cannot build the synthetic events from this text, since they would need recording_status and connection_status values.",
+      "field": "controlTest",
+      "quote": "where `count` grouped by `entity` satisfies detection threshold for 'Camera System Health'.",
+      "severity": "major",
+      "suggested_fix": "Specify the test events: one with connection_status=connected and recording_status=recording (expect no row), and one with recording_status=stopped or connection_status=disconnected (expect one row with camera_id and location)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The false-positive scenarios refer to `host`, `src` and span=1h grouping, which the SPL does not use. The real causes are not named: cameras in maintenance or standby, scheduled recording modes (motion-only), NVR failover, and vendor status literals other than 'recording' or 'connected'.",
+      "field": "knownFalsePositives",
+      "quote": "Synthetic probe on `host` — Health checks in `physical` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "Replace with camera-specific causes. Examples are cameras intentionally disabled during works, motion-triggered recording that reports a non-'recording' state, firmware upgrades, and vendor values such as online/offline that do not match the literals in the where clause."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "The SPL hard-codes 'recording' and 'connected', and the sourcetype `vms:camera_status` is custom. The text says the literals vary by vendor, but no mapping is given. If a vendor emits other values, every camera will alert. The same applies to `last_frame`, which is listed but never used in a comparison.",
+      "field": "detailedImplementation",
+      "quote": "validate `connection_status` and `recording_status` literals against the vendor UI",
+      "severity": "needs_verification",
+      "suggested_fix": "Add a lookup or case() normalisation for vendor status values. Either use last_frame to flag stale cameras (for example now() minus last_frame above a limit) or note that it is display-only."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "SC4S (Splunkbase 4740) is correctly identified. However, SC4S only ships parsers for supported vendors and the text names none, so vms:camera_status will not appear automatically. The sourcetype is a normalised, custom one.",
+      "field": "dataSources",
+      "quote": "NVR/VMS **syslog** into Splunk Connect for Syslog ([Splunkbase app 4740](https://splunkbase.splunk.com/app/4740))",
+      "severity": "minor",
+      "suggested_fix": "State that vms:camera_status is a custom sourcetype that must be created by props/transforms, or by an SC4S custom parser or HEC bridge, and name one or two example VMS products."
+    }
+  ],
+  "firewalled_field_flags": [],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0072-UC-15.3.4",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 4,
+    "grandma_fidelity": 1,
+    "overclaiming": 4,
+    "specificity": 2
+  },
+  "summary": "The implementation and data-source text is solid and specific. The description, controlTest and false-positive text are templated and describe a count-by-entity aggregation that the SPL does not perform. The grandma text is a generic subcategory sentence.",
+  "tier": "triage",
+  "uc_id": "UC-15.3.4",
+  "verdict": "rewrite"
+}

@@ -1,0 +1,102 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "6ddacd8be733ee7b793636bb152029807eb6cfcb9f0b50c870bebf27349aa621",
+  "file": "content/cat-05-network-infrastructure/UC-5.4.10.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/wireless-infrastructure.md",
+      "explanation": "Splunkbase 1352 is the Cisco Networks app/add-on (cisco_ios / TA-cisco_ios, 'App for Cisco Network Data'), not a 'Cisco Security' add-on. The repository guide names it as the TA for WLC / Catalyst 9800 syslog.",
+      "field": "references",
+      "quote": "Splunk Add-on for Cisco Security (Splunkbase 1352)",
+      "severity": "blocker",
+      "suggested_fix": "Retitle to 'Cisco Networks Add-on for Splunk (TA-cisco_ios, Splunkbase 1352)'. Replace the generic 'Cisco Security documentation' and Lantern root links with the Cisco WLC wIPS / IDS signature configuration guide and the Meraki Air Marshal documentation."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/wireless-infrastructure.md",
+      "explanation": "The repository guide gives Cisco WLC / Catalyst 9800 syslog as collected via TA-cisco_ios (Splunkbase 1352), usually through SC4S. It lists no 'Splunk Add-on for Cisco WLC'.",
+      "field": "app",
+      "quote": "`Splunk Add-on for Cisco WLC` for WLC wIPS syslog",
+      "severity": "major",
+      "suggested_fix": "Name 'Cisco Networks Add-on for Splunk (TA-cisco_ios, Splunkbase 1352) via SC4S' for WLC syslog, and 'Cisco Meraki Add-on for Splunk (Splunk_TA_cisco_meraki, Splunkbase 5580)' for Air Marshal."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/wireless-infrastructure.md",
+      "explanation": "dataSources and detailedImplementation call Meraki Air Marshal data `sourcetype=meraki` (SC4S syslog), the implementation field calls it `meraki:airmarshal` (TA API input), and the repository guide uses `meraki:wireless:airmarshal`. A reader cannot tell which input or sourcetype to configure.",
+      "field": "cross_field",
+      "quote": "dataSources: `sourcetype=meraki` ... implementation: enable the Air Marshal input (sourcetype=meraki:airmarshal)",
+      "severity": "major",
+      "suggested_fix": "Pick the Splunk_TA_cisco_meraki Air Marshal input and its actual sourcetype (check the installed TA version; sibling UC-5.4.17 uses `meraki:airmarshal`), and use it consistently in dataSources, implementation and detailedImplementation."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "detailedImplementation searches `index=wireless` with no sourcetype and uses fields alert_type/src_mac/target_mac/detecting_ap. The saved SPL searches `index=network sourcetype=cisco:wlc:syslog` and groups by rex-extracted sig_name/attacker_mac. These are two different detections with different outputs.",
+      "field": "detailedImplementation",
+      "quote": "index=wireless earliest=-24h\n| where match(_raw, \"(?i)(wips|wids|intrusion|deauth.*flood",
+      "severity": "major",
+      "suggested_fix": "Align detailedImplementation with the saved SPL (index=network, cisco:wlc:syslog, sig_name, attacker_mac), or explicitly present the `index=wireless` search as an optional multi-vendor extension."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "Cisco WLC standard IDS signature alerts and Adaptive wIPS alarms (often raised through Cisco Prime/DNA Center/MSE rather than WLC syslog) use different message formats. It is not confirmed that WLC syslog carries 'Signature <id> ... MAC <mac>' in the form the rex expects, or that the format is Snort-style.",
+      "field": "implementation",
+      "quote": "The query uses rex to extract Snort-style signature id, signature name, and attacker MAC from wIPS messages.",
+      "severity": "needs_verification",
+      "suggested_fix": "Check a real WLC/C9800 IDS-signature syslog sample (for example the %WPS/IDS signature attack messages) and document the exact message text and mnemonic the rex depends on. Note whether Adaptive wIPS alarms need a separate source."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "Suricata is a network IDS engine and plays no part in this wireless controller/Air Marshal detection.",
+      "field": "equipment",
+      "quote": "\"suricata\"",
+      "severity": "minor",
+      "suggested_fix": "Remove 'suricata'. Consider adding 'meraki' and 'aruba' if Aruba WIDS stays in scope."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "grandma_fidelity",
+      "explanation": "It uses jargon (ids/ips) and describes a coverage/quality problem. The UC actually detects wireless attacks such as fake access points, disconnect floods and spoofing.",
+      "field": "grandmaExplanation",
+      "quote": "We watch wireless ids/ips events so we notice problems while they are still small, and we can fix them before Wi-Fi users get dropped calls or dead spots.",
+      "severity": "major",
+      "suggested_fix": "Something like: 'Our Wi-Fi equipment watches the airwaves for attacks, such as a fake hotspot pretending to be ours or someone knocking people off the network. We collect those warnings and show which device did it and near which access point.'"
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The search has no threshold or time-window logic, although the description and controlTest refer to a 'detection threshold'. The rex assumes a 'Signature <digits> ... MAC <hex>' layout that needs checking against real WLC IDS syslog. The detection does not cover the Meraki/Aruba sources named in dataSources and app.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "criticality",
+      "issue": "'critical' is given for a raw count table with no severity filtering. Consider whether only Evil Twin/MitM classes should be critical, as the detailedImplementation alert tiers suggest.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0029-UC-5.4.10",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "detailedImplementation has good domain content (attack taxonomy, containment, PMF caveat). However, the UC disagrees with itself on index, Meraki sourcetype and field names, and names add-ons wrongly. The plain-language text treats a security detection as a Wi-Fi quality issue.",
+  "tier": "deep",
+  "uc_id": "UC-5.4.10",
+  "verdict": "incorrect"
+}

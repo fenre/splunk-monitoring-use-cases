@@ -1,0 +1,162 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "66148b7af1a6c4185aefeba432703b614f020331f68fb326f35d57a6513c99e0",
+  "file": "content/cat-23-business-analytics/UC-23.1.4.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "These conditions are NPS category cutoffs (9+ promoter, 6- detractor) and a CSAT top-box score of 4, not the alert logic. The SPL's final `where` fires on |nps_delta| > 5 with at least 50 responses, CSAT below 80% with more than 100 responses, a detractor coinciding with a major incident, or a post-launch NPS below the benchmark floor. The same wrong conditions appear in controlTest.",
+      "field": "cross_field",
+      "quote": "Alert logic enforces `major_incident_count` > 0, `response_score` >= 9, `response_score` <= 6, or `response_score` >= 4.",
+      "severity": "major",
+      "suggested_fix": "State the four real alert conditions in description and controlTest, with their thresholds (5 points, 50 and 100 responses, 80%, benchmark minus 10, 14-day launch window)."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The title says 'Trend Dashboard', but the SPL ends with a `where` that keeps only weeks meeting an alert condition, so a continuous weekly trend line or a full heatmap cannot be drawn from it. The scatter of 'verbatim topic clusters', the sparklines against 'CSV benchmarks' and Step 4's 'cases for individual detractor verbatims' also need data the aggregated output does not contain (`csat_topic_tags` is computed but never used, and `nps_verbatim_topics.csv` is not in the SPL).",
+      "field": "visualization",
+      "quote": "weekly `splunk.line` overlays for `nps_score`, `csat_pct`, and `ces_pct` trellised by `contact_channel`; heatmap (`splunk.matrix`) for product versus channel deltas",
+      "severity": "major",
+      "suggested_fix": "Provide a separate unfiltered weekly series for the dashboard and keep the filtered search for alerts, or restrict the visualization and Step 4 to what the alert output provides."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The mapping from each vendor's payload to the fields the SPL reads (`response_score`, `survey_type`, `response_scale_max`, `contact_channel`, `customer_id_hash`) is not defined. The only alias shown maps `responses{}.values.QID1` to `response_score_flat`, a name the SPL never uses. Qualtrics export JSON holds many responses in one `responses` array, so one event per response is not guaranteed, and the SPL counts events as responses. Step 1 also names the hash fields `customer_email_sha256`/`customer_id_sha256` while the SPL reads `customer_id_pii_hash` or `customer_id_hash`.",
+      "field": "detailedImplementation",
+      "quote": "normalise nested JSON via INDEXED_EXTRACTIONS so QID fields flatten into predictable aliases (`response_score`, `verbatim_comment`)",
+      "severity": "major",
+      "suggested_fix": "Document how to split the `responses` array into one event per response, which question ID carries the score, and the field names for hashes. Align the names in Step 1 and the SPL."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/Extractfieldsfromfileswithstructureddata",
+      "explanation": "Setting both `INDEXED_EXTRACTIONS = json` and `KV_MODE = json` makes Splunk extract the same fields at index time and at search time, which gives duplicated multivalue fields. Splunk advises disabling search-time extraction (`KV_MODE = none`) for sourcetypes with indexed JSON extractions. With duplicated values, the `coalesce` and `tonumber` calls in the SPL can return multivalue results.",
+      "field": "detailedImplementation",
+      "quote": "KV_MODE = json\nINDEXED_EXTRACTIONS = json",
+      "severity": "major",
+      "suggested_fix": "Use `INDEXED_EXTRACTIONS = json` with `KV_MODE = none`, or use `KV_MODE = json` alone."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "evidence_url": "https://api.qualtrics.com/",
+      "explanation": "HEC needs an `Authorization: Splunk <token>` header that a vendor webhook usually cannot send, and HEC input stanzas cannot verify `X-Qualtrics-Signature` themselves. The text says to 'qualify HEC stanzas with X-Qualtrics-Signature HMAC-SHA256 verification', but only the forwarder shim can do that. The Qualtrics signature algorithm (SHA-256) is not confirmed. As far as I know, Qualtrics `export-responses` is an asynchronous start, progress and file-download flow (zipped), so polling it with the REST modular input is not a single GET. The Medallia 'Open Connect' and 'Webhook Listener' names and DB Connect against 'Salesforce Data Cloud' also need checking.",
+      "field": "detailedImplementation",
+      "quote": "Qualtrics Webhooks POSTing signed payloads to `/services/collector/event`",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Qualtrics API and event-subscription documentation, and describe the async export steps, a webhook relay that adds the HEC token, and the real signature scheme. Verify the Medallia and Data Cloud connection claims."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "The cached Splunkbase catalog lists app 1546 as 'REST API Modular Input' (`rest_ta`), not 'Splunk Add-on for REST'. The same name is used in the implementation field and the references.",
+      "field": "app",
+      "quote": "Splunk Add-on for REST ([Splunkbase 1546](https://splunkbase.splunk.com/app/1546))",
+      "severity": "minor",
+      "suggested_fix": "Use the Splunkbase name 'REST API Modular Input'."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The KFPs talk about maintenance windows, CMDB changes, synthetic probes and monitoring-tagged assets, which do not exist for survey data. The real false-alert causes are in Step 5 of detailedImplementation (survey fatigue, small samples, incentive surges, channel-mix changes, translation effects, incident-driven dips), but none are in this field.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `_time`, `product`, `contact_channel`** — Health checks in `cx_voc_responses` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.",
+      "severity": "major",
+      "suggested_fix": "Replace the four items with the Step 5 causes that most often trigger these alerts: samples near the 50-response limit, channel mix shifts, survey wording changes and incident-driven dips."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "Besides the self-reference already recorded, the sentence is IT-operations boilerplate ('operational risk', 'delayed incident response', 'incidents compound'), unconnected to customer satisfaction. It names no business benefit such as detecting a drop in customer sentiment early.",
+      "field": "value",
+      "quote": "UC-23.1.4 helps teams contain Customer, Satisfaction, Score, (CSAT, NPS) scenarios and reduce operational risk and delayed incident response before incidents compound.",
+      "severity": "major",
+      "suggested_fix": "State the benefit: catching meaningful week-over-week NPS/CSAT drops and incident-linked detractors early enough for product, support and account teams to respond."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/business-analytics.md",
+      "explanation": "In the sibling list, UC-23.1.2 is shopping cart abandonment and UC-23.1.5 is customer journey cross-channel attribution, so neither covers Adobe Launch consent telemetry. The guide places customer support in 23.7, so 'eNPS in UC-23.7.3' is also doubtful.",
+      "field": "exclusions",
+      "quote": "Does not substitute Adobe Launch consent telemetry or storefront checkout abandonment mathematics handled elsewhere in cat-23 (UC-23.1.2 / UC-23.1.5).",
+      "severity": "minor",
+      "suggested_fix": "Check each cross-reference against the current sibling titles and correct or remove them."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "consistency",
+      "explanation": "The evidence field names a SOAR playbook, a workbook `VOCUnifiedWeekly`, an `evidence_index`, ServiceNow CHG records and a saved search `cx_voc_nps_drop_alert_v3`. None is described in the implementation, which routes to Teams, Slack and Salesforce Flow. Webhook signature logs from Medallia and SurveyMonkey are asserted without a source.",
+      "field": "evidence",
+      "quote": "SOAR `cx_voc_remediation_v2` execution log ... `| rest /services/saved/searches/cx_voc_nps_drop_alert_v3`",
+      "severity": "minor",
+      "suggested_fix": "Name only artifacts the implementation actually produces and make the saved-search name match."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "`nps_significant` is a sample-size rule of thumb, not a significance test, and `wilson_margin` is a fixed lookup (.03/.06/.15), not a Wilson interval. Step 4 triggers escalation on 'nps_significant=Yes'. Step 1 also lists 'Anthropic Claude classification' and 'MonkeyLearn-era clustering' as upstream tooling without relevance to this UC.",
+      "field": "detailedImplementation",
+      "quote": "eval nps_significant=if(responses>=50,\"Yes\",\"Insufficient sample\")",
+      "severity": "minor",
+      "suggested_fix": "Rename the fields (for example `enough_responses`, `margin_estimate`) or compute a real interval. Drop the unrelated tool name-dropping."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The status is `verified`, but the reviewer is an agent identifier, not an SME. The vendor API, webhook and signature details above are unconfirmed.",
+      "field": "status",
+      "quote": "\"reviewer\": \"agent-handcraft-csat-nps-2026-04-28\"",
+      "severity": "major",
+      "suggested_fix": "Lower the status until a named VOC platform SME has checked the vendor endpoints and webhook behaviour."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "grandma_fidelity",
+      "explanation": "The UC does not predict renewals, and it does not say it alerts on a sizeable weekly change, a low satisfaction share or a bad launch window. The closing clause about clicks and carts is confusing.",
+      "field": "grandmaExplanation",
+      "quote": "raise the alarm before renewals turn hostile—not before counting clicks or carts alone",
+      "severity": "minor",
+      "suggested_fix": "Say that we collect customer survey scores and comments, track them week by week, and raise a flag when scores fall noticeably or fall after an outage or product launch."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`survey_type` defaults to 'NPS' and `response_scale_max` to 10 for every source, but the SPL also ingests `trustpilot:review` and `bv:conversation` star ratings (1 to 5). Those stars fall below the Detractor cutoff of 6, which drags NPS strongly negative. The implementation says to 'convert star distributions cautiously', but the SPL does not.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The final `where` keeps only alerting weeks, so the same search cannot drive a trend dashboard (title and visualization). `benchmark_floor=tonumber(benchmark_nps_band)-10` returns null when `benchmark_nps_band` is a band string (as the field name suggests), so the post-launch condition never fires. `acct_h_77` in the `coalesce` is a value from a sample payload, not a field name, and `bin span=1w` aligns to Thursday boundaries, not Monday.",
+      "severity": "minor"
+    },
+    {
+      "field": "title",
+      "issue": "'Trend Dashboard' describes a visualization, but the SPL implements a thresholded alert over weekly aggregates.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0057-UC-23.1.4",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 3,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The multi-vendor VOC design and the Step 5 interpretation hazards are strong and specific. However, the description, controlTest, KFPs, value and evidence do not describe the SPL's real alert logic, the title promises a trend dashboard while the SPL filters to alert rows only, and the raw-survey-to-field mapping that the SPL depends on is never specified.",
+  "tier": "triage",
+  "uc_id": "UC-23.1.4",
+  "verdict": "rewrite"
+}

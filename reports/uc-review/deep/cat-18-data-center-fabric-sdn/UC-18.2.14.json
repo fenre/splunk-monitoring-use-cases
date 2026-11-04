@@ -1,0 +1,169 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "837850bf7439c607a7c36743c1918b19a12263fd56621e2e646b85117a427255",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.2.14.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/4856",
+      "explanation": "Splunkbase 4856 is the community 'Metrics Add-on for Infrastructure', and 1810 (cited for Splunk_TA_vmware) is 'Hunk App for MongoDB'. The VMware NSX-T Splunk App is 4241 and the Splunk Add-on for VMware is 3215. The wrong IDs repeat in dataSources, implementation, detailedImplementation (including 'documented under Splunkbase 4856') and references.",
+      "field": "app",
+      "quote": "**`Splunk_TA_vmware-nsxt`** ([Splunkbase 4856](https://splunkbase.splunk.com/app/4856), VMware NSX 4.x / NSX-T 3.2.x alignment)",
+      "severity": "blocker",
+      "suggested_fix": "Use 4241 for the NSX-T app and 3215 for Splunk_TA_vmware everywhere, and fix the same IDs in docs/guides/datacenter-fabric-sdn.md."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://knowledge.broadcom.com/external/article/392162/security-intelligence-error-while-expor.html",
+      "explanation": "NSX Intelligence runs on the NSX Application Platform, and its REST API is served through NSX Manager under /napp/api/v1/intelligence/... (for example /napp/api/v1/intelligence/recommendations/{id}/export), not under /policy/api/v1/intelligence/. Collectors built from these paths will get 404s. The same paths repeat in detailedImplementation (Quick win, Step 1, Step 3).",
+      "field": "dataSources",
+      "quote": "**`GET /policy/api/v1/intelligence/flows/visualization-graph`**, **`GET /policy/api/v1/intelligence/groups/{group_id}/flow-stats`**, **`GET /policy/api/v1/intelligence/recommendations`**, **`GET /policy/api/v1/intelligence/correlations`**",
+      "severity": "blocker",
+      "suggested_fix": "Use the NSX Intelligence and Application Platform API reference (base /napp/api/v1) to pick real endpoints for flows and recommendations, and drop the routes that cannot be found there."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/datacenter-fabric-sdn.md",
+      "evidence_url": "https://developer.broadcom.com/xapis/nsx-intelligence-and-application-platform-apis/latest",
+      "explanation": "No Splunk add-on documents an NSX Intelligence flow export sourcetype, and NSX Intelligence has no documented per-flow 'anomaly_score' field. Its anomaly output comes from Suspicious Traffic / NTA detectors as events. The sourcetype is not in the grounding guide's NSX list, and the description builds its main detection on this field.",
+      "field": "dataSources",
+      "quote": "**`vmware:nsxt:intelligence:flow`** (Intelligence-exported flows with **`flow_id`**, **`src_vm_id`**, **`dst_vm_id`**, **`group_id_src`**, **`group_id_dst`**, **`anomaly_score`**, **`bytes_per_second`**",
+      "severity": "needs_verification",
+      "suggested_fix": "Say how flows actually reach Splunk (a custom collector against the NAPP API) and label the sourcetype as site-defined. Map 'anomaly' to the documented Intelligence detector/event fields after checking the API reference."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.broadcom.com/xapis/nsx-intelligence-and-application-platform-apis/latest",
+      "explanation": "NAPP's Druid store is an internal platform component. A public Druid SQL endpoint at this path is not documented in the NSX Intelligence and Application Platform API guide, and querying internal pods directly is probably unsupported.",
+      "field": "detailedImplementation",
+      "quote": "issue controlled POST `/api/v1/napp/druid/v2/sql` queries against **Apache Druid** backing NAPP services",
+      "severity": "needs_verification",
+      "suggested_fix": "Remove the Druid SQL step unless Broadcom documents it; use the published Intelligence APIs instead."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "No Splunk add-on is cited for vRealize Network Insight (now Aria Operations for Networks), and 'vrni:flow:netflow' looks like an invented sourcetype. The same applies to the 'nsxdp-cli ipfix flows show' command in Step 3.",
+      "field": "detailedImplementation",
+      "quote": "**vRealize Network Insight** **vrni:flow:netflow** streams",
+      "severity": "needs_verification",
+      "suggested_fix": "Name a real Aria Operations for Networks export path and sourcetype, and check the nsxdp-cli syntax in Broadcom docs, or remove both."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL has no alert filter. It returns the top 200 rows by sum_bps with baseline_spike, ew_volume_anomaly and idfw_burst flags. Each flag combines several conditions (for example ew_bps_sum > 0.6 × p95 AND peak_anom > 0.5 AND ew_bps_sum > 1000), not the OR list given here. The same misreading appears in controlTest.",
+      "field": "description",
+      "quote": "alert when `anomaly_score` > 0.85, `peak_anom` > 0.85, `peak_anom` > 0.5, or `ew_bps_sum` > 1000",
+      "severity": "major",
+      "suggested_fix": "Describe the output as a ranked top-talker table, and define baseline_spike and ew_volume_anomaly exactly as the SPL computes them. Say that alerting needs a where clause on those flags."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "'apache' and the equipment model 'apache_httpd' appear to come from 'Apache Druid' in the text. The UC has nothing to do with Apache HTTP Server. 'servicenow' is an enrichment lookup, not monitored equipment.",
+      "field": "equipment",
+      "quote": "\"apache\",\n    \"netflow\",",
+      "severity": "minor",
+      "suggested_fix": "Remove apache, apache_httpd and servicenow from equipment and equipmentModels."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The SPL outputs no recommended_rule_id or publish timestamps, and panel 2's 'tenant token' split has no matching field either. These panels need different searches.",
+      "field": "visualization",
+      "quote": "(4) Single-value plus sparkline — outstanding recommended_rule_id backlog versus Policy publish timestamps",
+      "severity": "minor",
+      "suggested_fix": "Remove the panel, or note that it needs a separate recommendations search (UC-18.2.18 covers the publish queue)."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "clarity",
+      "explanation": "This sentence claims add-on documentation that does not exist. Step 2 also lists fields (l7_app_id, packets_per_second, conn_count) that the SPL never uses.",
+      "field": "detailedImplementation",
+      "quote": "Rely on vmware:nsxt:intelligence:flow for cross-host correlation documented under **Splunkbase** 4856",
+      "severity": "minor",
+      "suggested_fix": "Remove the documentation claim, and keep the field list to what the SPL and the real export actually provide."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
+      "explanation": "Network_Traffic fits flow records, but the SPL never uses it. Performance has no dataset for flow throughput.",
+      "field": "cimModels",
+      "quote": "\"Network_Traffic\",\n    \"Performance\"",
+      "severity": "minor",
+      "suggested_fix": "Keep Network_Traffic as optional (once src/dest/bytes are mapped) and drop Performance."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "The reviewer is an agent, and the add-on IDs and API base path are wrong. There is no evidence of SME validation against NSX Intelligence data.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft until someone with NSX Intelligence/NAPP access has validated it."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The title promises the API reference, but the link is the techdocs home page.",
+      "field": "references",
+      "quote": "\"title\": \"VMware NSX 4.2 API Reference — Policy and Intelligence endpoints\",\n      \"url\": \"https://techdocs.broadcom.com/\"",
+      "severity": "minor",
+      "suggested_fix": "Link https://developer.broadcom.com/xapis/nsx-intelligence-and-application-platform-apis/latest."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "grandma_fidelity",
+      "explanation": "The SPL compares against the 95th percentile of the last 24 hours, not weekly habits, and only optionally weights by user identity.",
+      "field": "grandmaExplanation",
+      "quote": "compare each week's habits so unusual east-west bursts tied to logged-in people ring alarms early",
+      "severity": "minor",
+      "suggested_fix": "Say 'compare against the last day's normal traffic between each pair of server groups'."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "No where clause filters on baseline_spike, ew_volume_anomaly or idfw_burst, so a scheduled alert fires on every run whenever any flow exists. p95_pair is computed over the same 24 h window that contains the spike being tested. appendcols adds NAPP columns only to the first row. The classification regexes '(?i)EW' and '(?i)NS' also match unrelated strings (e.g. 'NEW').",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "sum(bytes_per_second) adds instantaneous rates across events, which gives neither a volume nor an average rate. Use sum(bytes) or avg(bytes_per_second) for a meaningful throughput figure.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "The search depends on the vmware:nsxt:intelligence:flow sourcetype and the anomaly_score field, neither of which is documented for any NSX add-on or Intelligence export.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "mitreAttack",
+      "issue": "T1568 (Dynamic Resolution) cannot be detected from east-west flow volume, and T1071 (Application Layer Protocol) is not tied to any SPL logic. The tags overclaim security coverage for a volume-ranking UC.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0028-UC-18.2.14",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 3,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The goal is plausible (rank east-west group pairs by volume and flag anomalies from NSX Intelligence). However, the add-on IDs are wrong, the Intelligence API paths use the wrong base path, and the flow sourcetype and fields (anomaly_score, Druid SQL endpoint) are presented as add-on facts with no evidence. The SPL also never filters to alertable rows, although the description says it alerts.",
+  "tier": "deep",
+  "uc_id": "UC-18.2.14",
+  "verdict": "incorrect"
+}

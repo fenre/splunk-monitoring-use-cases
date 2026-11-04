@@ -1,0 +1,132 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "50b942a360360d27ff953af7481da67af79b2d168098b8a805beda5fc258ea71",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.3.8.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/aci/apic/sw/all/syslog/guide/b_ACI_System_Messages_Guide/m-aci-f0x-messages.html",
+      "explanation": "ACI F0467 is fltFvNwIssuesConfig-failed, which is raised when an EPG/ESG is incompletely or incorrectly configured. It is not an AAA modification or audit trace. The same claim is repeated in detailedImplementation Step 1.",
+      "field": "dataSources",
+      "quote": "plus syslog **`F0467`** AAA-mod traces",
+      "severity": "blocker",
+      "suggested_fix": "Remove F0467 as an audit signal. Point to aaaModLR exported through an APIC syslog/callhome export policy instead."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/aci/apic/sw/all/faults/guide/b_APIC_Faults_Errors/b_IFC_Faults_Errors_chapter_010.html",
+      "explanation": "On aaaModLR, ind is the action (creation/modification/deletion) and txId is the transaction ID. The changed object's DN is in 'affected'; the record's own dn is subj-[...]/mod-N. The property changes are in changeSet, while descr is only a human summary. Following this mapping puts actions into transaction_id and loses the real transaction key.",
+      "field": "detailedImplementation",
+      "quote": "**cisco:aci:audit**: **FIELDALIAS** for dn→**object_dn_or_uri**, ind→**transaction_id** where available, descr fields into **after_value** snapshots of **aaaModLR** payloads",
+      "severity": "blocker",
+      "suggested_fix": "Map txId→transaction_id, affected→object_dn_or_uri, ind→action_type and changeSet→after_value. Keep descr as a description."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "The NSX realized-state API reports intent realization status. I could not confirm that it returns audit entries. NSX audit trails are normally emitted as audit-tagged syslog from NSX Manager.",
+      "field": "dataSources",
+      "quote": "**`AuditEntry`** bodies from **`GET`** **`https://<nsx-manager>/policy/api/v1/infra/realized-state`**",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm in the NSX 4.x API and logging docs where audit records live, and cite the documented audit syslog format or API."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "These look like invented OpenDaylight log tokens. I found no evidence that Karaf or ODL emits these literal banners. The auth subsearch sourcetypes 'tacacs:session' and 'cisco:acs:radius' are also unverified.",
+      "field": "dataSources",
+      "quote": "**`sourcetype=opendaylight:karaf`** (**CONFIG_DATASTORE_WRITE**, **DATASTORE_DELETE**)",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the ODL audit/log4j2 output for the actual message strings and the TACACS+/ACS add-on sourcetypes, or label these as collector-defined placeholders."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "The ESXi logs add-on parses ESXi host syslog, not NSX Manager or Edge appliance syslog.",
+      "field": "app",
+      "quote": "**`Splunk Add-on for VMware ESXi`** contexts where NSX appliances forward syslog",
+      "severity": "minor",
+      "suggested_fix": "Name the NSX syslog parsing path actually used (SC4S NSX source or a custom TA)."
+    },
+    {
+      "dimension": "clarity",
+      "explanation": "Step 5 is filled with long, loosely related enrichment prose (Vault, Atlantis, Terraform checksums, RAFT snapshots) that the SPL never uses. A second generic 'Step 1 — Configure data collection … Step 5 — Troubleshooting' template follows with a broken field list ('actor, actor], after_hours').",
+      "field": "detailedImplementation",
+      "quote": "Cross-team narration: capture lightweight Markdown run-notes beside each suppression macro explaining why Jenkins-backed bursts differ from interactive AAA sessions — future reviewers inherit rationale without deciphering stale Slack threads referencing retired Atlantis installs",
+      "severity": "major",
+      "suggested_fix": "Cut Step 5 to the enrichments the search actually performs, delete the duplicated generic Step 1–5 block, and fix the field list."
+    },
+    {
+      "dimension": "consistency",
+      "explanation": "The visualization and the grandmaExplanation ('walks back what they did without saying so') promise rollback pairing. The SPL's final stats by actor drops rollback_pair_hint, before_snap, after_snap and paired_reverse, and it has no where clause, so no rollback or threshold condition is ever surfaced.",
+      "field": "cross_field",
+      "quote": "Timeline — **`rollback_pair_hint`** sequences grouped by **`txn`** showing **`before_snap`** vs **`after_snap`**",
+      "severity": "major",
+      "suggested_fix": "Align visualization and grandmaExplanation with the per-actor summary the SPL returns, or have SPL owners keep the rollback fields in the final output."
+    },
+    {
+      "dimension": "specificity",
+      "explanation": "The SPL does not query Catalyst Center, Vault or ESXi. The equipment list also includes github, rabbitmq, servicenow and splunk_es, which are only mentioned as optional enrichments.",
+      "field": "equipmentModels",
+      "quote": "\"cisco_catalyst_center\",\n    \"hashicorp_vault\",\n    \"vmware_esxi\"",
+      "severity": "minor",
+      "suggested_fix": "Limit equipment tags to the controllers the SPL actually searches (ACI, NSX, OpenStack, OVS, ODL/ONOS)."
+    },
+    {
+      "dimension": "specificity",
+      "explanation": "The aaaModLR, NSX and OpenStack audit references point at generic portal roots.",
+      "field": "references",
+      "quote": "\"url\": \"https://developer.cisco.com/docs/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the APIC 'Events and Audit Logs' chapter, the keystonemiddleware audit docs and the specific NSX audit logging page."
+    },
+    {
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified despite a mislabelled fault code, a wrong aaaModLR field mapping and a SPL that cannot run as written.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until SME validation."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/search-commands/transaction",
+      "field": "spl",
+      "issue": "transaction is called with maxpause=300ms, but maxpause only accepts s|m|h|d units, and transaction needs events in descending time order, which the preceding eventstats does not guarantee. Even with seconds, a 300 ms pause would split almost every multi-step edit. The trailing 'fields actor act …' tokens are not a documented transaction option.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The final 'stats … by actor' discards every rollback and pair field and has no alert filter, so the search lists top changers instead of auditing rollbacks. hour_bucket from strftime is a string, which makes the >=22/<=5 comparison type-dependent; use tonumber.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/search-commands/join",
+      "field": "cimSpl",
+      "issue": "'join Change.user' against a subsearch that only outputs Authentication.user. join needs the join field in both result sets, so nothing matches, auth_t is always null, and every row is labelled possible_shadow_actor.",
+      "severity": "blocker"
+    },
+    {
+      "field": "mitreAttack",
+      "issue": "T1078.001 (Default Accounts) is not supported by anything in the detection. T1098 (Account Manipulation) is also a weak fit for network-controller config edits.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0059-UC-18.3.8",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 3,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "A sprawling multi-controller change-audit UC. It mislabels ACI fault F0467 and maps aaaModLR fields wrongly, and its SPL never surfaces the rollback pairing promised in the title. The detailedImplementation is padded with word salad and a second, generic Step 1–5 template.",
+  "tier": "deep",
+  "uc_id": "UC-18.3.8",
+  "verdict": "incorrect"
+}

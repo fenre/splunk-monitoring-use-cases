@@ -1,0 +1,108 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "5bd63127ef7c50bd0cdcc83193fe892e04bcaee29e00e05f1908b80d27a9837e",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.1.27.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://mibs.observium.org/object/PowerNet-MIB/upsAdvInputLineFailCause",
+      "explanation": "PowerNet-MIB has no object named upsLastTransferReason. The reason for the last transfer to battery is upsAdvInputLineFailCause (.1.3.6.1.4.1.318.1.1.1.3.2.5), an enumeration: noTransfer(1), highLineVoltage(2), brownout(3), blackout(4), smallMomentarySag(5), deepMomentarySag(6), and so on. The same wrong name appears in implementation and detailedImplementation, so a reader cannot configure the poll.",
+      "field": "dataSources",
+      "quote": "enumerated `upsLastTransferReason`",
+      "severity": "blocker",
+      "suggested_fix": "Replace upsLastTransferReason with upsAdvInputLineFailCause in dataSources, implementation and detailedImplementation, and list its enumeration values."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://mibs.observium.org/object/PowerNet-MIB/upsAdvInputLineFailCause",
+      "explanation": "The transfer-cause object is a polled scalar that holds the cause of the most recent transfer. It never increments, and it keeps its value after power returns, so it cannot count events. upsBasicOutputStatus is likewise a polled enumeration (onLine(2), onBattery(3), onSmartBoost(4), onSmartTrim(12)), not a bit field carried in traps. Transfer events reach the trap path as APC enterprise traps such as upsOnBattery.",
+      "field": "implementation",
+      "quote": "or when `upsLastTransferReason` increments on the trap path. Decode `upsBasicOutputStatus` when traps expose on-battery bits",
+      "severity": "blocker",
+      "suggested_fix": "Detect a transfer by polling upsBasicOutputStatus=3 (onBattery), or by watching upsAdvInputLineFailCause change between polls, or by matching the APC upsOnBattery / powerRestored traps. Say which of these the SPL uses."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/cisco-networks.md",
+      "evidence_url": "https://splunk.github.io/splunk-connect-for-snmp/main/configuration/splunk-configuration/",
+      "explanation": "With Splunk Connect for SNMP, Gauge values such as upsAdvInputLineVoltage go to the metrics index (default netmetrics) as sourcetype sc4snmp:metric, and traps arrive as sc4snmp:traps in the event index. Neither lands as snmp:apc:ups or snmp:trap in index=power, so the event search finds nothing on the SC4SNMP path.",
+      "field": "dataSources",
+      "quote": "standardize `sourcetype=snmp:apc:ups` for scheduled walks and optionally merge parallel trap streams carrying UPS MIB OIDs under `sourcetype=snmp:trap`",
+      "severity": "blocker",
+      "suggested_fix": "Document the real SC4SNMP sourcetypes and indexes (sc4snmp:metric in a metrics index queried with mstats; sc4snmp:traps in the event index), or restrict the snmp:apc:ups event sourcetype to SNMP Modular Input (1537) collection."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The implementation and detailedImplementation describe a nominal-voltage lookup and a two-consecutive-poll persistence rule, but the SPL hard-codes 108/132 V and fires on a single low reading. On 230 V fleets every poll exceeds 132 V and alerts.",
+      "field": "cross_field",
+      "quote": "Normalize nominal voltage using lookup `ups_nominal_voltage` keyed on `host`. For North American 120 V service, alert when `upsAdvInputLineVoltage` stays below 108 V across two SNMP polls",
+      "severity": "major",
+      "suggested_fix": "Either state that the SPL is 120 V-only and fires on a single poll below 108 V, or describe the lookup-driven thresholds and two-poll rule as an extension the reader must add."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The SPL searches only sourcetype=snmp:apc:ups. The trap sourcetype is never referenced, so trap-only transfer events are not detected.",
+      "field": "detailedImplementation",
+      "quote": "**Sourcetypes referenced by the SPL:** `snmp:apc:ups`, `snmp:trap`",
+      "severity": "minor",
+      "suggested_fix": "List only snmp:apc:ups, or say that the trap stream needs a separate search or an append."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "Steps 2, 3 and 5 are generic template text: data model validation and tstats advice for a UC with no cimModels, and exception keys such as user, src and process_name. None of it applies to UPS voltage telemetry.",
+      "field": "detailedImplementation",
+      "quote": "Confirm CIM field extractions resolve by running `| datamodel <model> search | head 1` and inspecting the relevant fields.",
+      "severity": "major",
+      "suggested_fix": "Replace these steps with UPS-specific validation: compare upsAdvInputLineVoltage against the NMC web UI, trigger a self-test (upsAdvInputLineFailCause=selfTest(9)) to prove the transfer path, and remove the CIM data model step."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "clarity",
+      "explanation": "'Harmonic-only monitoring classes' is undefined, and it is unclear which assets this excludes or why.",
+      "field": "exclusions",
+      "quote": "harmonic-only monitoring classes until battery-transfer SNMP OIDs are confirmed for those assets",
+      "severity": "minor",
+      "suggested_fix": "Name the concrete asset types, for example power-quality meters that report voltage but have no transfer-to-battery capability."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`match(toString(reason), \"(?i)transfer|battery|boost|trim\")` matches the idle value 'noTransfer' when the enumeration is rendered as text, so every healthy UPS counts as a transfer event. If the value arrives as an integer (1-10), the regex matches nothing. Because upsAdvInputLineFailCause holds the last cause indefinitely, a non-idle value also re-fires on every poll after a single transfer. Compare against an explicit list of enumeration values and detect a change, or use upsBasicOutputStatus=3.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "`coalesce(upsLastTransferReason, transfer_reason)` references a non-existent PowerNet object (the real one is upsAdvInputLineFailCause), and the fixed 108/132 V thresholds cause continuous alerts on 230 V UPS units.",
+      "severity": "major"
+    },
+    {
+      "field": "title",
+      "issue": "The title promises correlation of a voltage sag with transfer-to-battery events, but the SPL ORs the two conditions independently and never correlates them.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0020-UC-15.1.27",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The UC names a PowerNet-MIB object that does not exist (upsLastTransferReason; the real object is upsAdvInputLineFailCause) and misdescribes how transfer-cause and output-status values behave. The implementation promises nominal-voltage normalization and two-poll persistence that the SPL does not do, and the SPL's transfer regex matches the idle value 'noTransfer'.",
+  "tier": "deep",
+  "uc_id": "UC-15.1.27",
+  "verdict": "incorrect"
+}

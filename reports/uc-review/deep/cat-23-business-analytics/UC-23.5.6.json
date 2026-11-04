@@ -1,0 +1,142 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "703e7d78ac5d8168b372d3503242f73b486179c954f8b1290b26449917043ee4",
+  "file": "content/cat-23-business-analytics/UC-23.5.6.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://sparkplug.eclipse.org/specification/version/2.2/documents/sparkplug-specification-2.2.pdf",
+      "explanation": "In Sparkplug B, NDATA is the edge-node data message and its topic has no device_id segment. Device-level metrics use DDATA: `spBv1.0/{group_id}/DDATA/{edge_node_id}/{device_id}`. The same wrong path is repeated in detailedImplementation, so subscriptions built from it would miss device metrics.",
+      "field": "dataSources",
+      "quote": "topic paths `spBv1.0/{group}/NDATA/{edge}/{device}`",
+      "severity": "blocker",
+      "suggested_fix": "Use `spBv1.0/{group_id}/NDATA/{edge_node_id}` for node metrics and `spBv1.0/{group_id}/DDATA/{edge_node_id}/{device_id}` for PLC/device counters, in both fields."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://www.sapdatasheet.org/abap/tabl/afru.html",
+      "explanation": "AFRU (Order Confirmations) stores confirmed yield in `LMNGA` and scrap in `XMNGA`. It has no `LMNG` field, and its change timestamps are `ERSDA` (entry date) and `LAEDA` (last change), not `CPUDT`/`LASTCHANGED`. detailedImplementation also calls AFRU 'goods movements', which is wrong: goods movements live in MSEG/AUFM. SQL written from this text would fail or watermark on columns that do not exist.",
+      "field": "dataSources",
+      "quote": "SAP `AFRU` confirmations (`LMNG`, `AUFNR`) tied to `AFKO` shop-floor orders — watermark **`CPUDT`/`LASTCHANGED`**",
+      "severity": "blocker",
+      "suggested_fix": "Reference `AFRU-LMNGA` (yield) and `AFRU-XMNGA` (scrap), watermark on `ERSDA`/`ERZET` or `LAEDA`, and describe AFRU as order confirmations. Fix the same text in detailedImplementation Step 1(B)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/data-management/connect-relational-databases/deploy-and-use-db-connect/4.3/reference/db_inputs.conf.spec",
+      "explanation": "db_inputs.conf has no `cron_schedule` setting. Schedules go in the required `interval` key, which accepts seconds or a cron expression.",
+      "field": "detailedImplementation",
+      "quote": "Poll `cron_schedule = 0 */15 * * *` during steady ops",
+      "severity": "blocker",
+      "suggested_fix": "Say `interval = 0 */15 * * *` (or `interval = 900`) with `mode = rising` and `tail_rising_column_name = ERSDA`/`LAEDA`."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "These endpoint paths look like guesses. The same FactoryTalk path also appears in dataSources, and 'SAP IBP extracts (`/IBP/DEMAND` APIs' in Step 1(C) has the same problem. None of them is backed by a reference, and the vendors' published APIs are structured differently (e.g. the Tulip API is organised around tables and stations).",
+      "field": "detailedImplementation",
+      "quote": "REST pollers hitting FactoryTalk `/api/factorytalk/v1/orders`, Siemens Opcenter REST `/api/Opcenter/v1/Manufacturing/Orders`, Plex `/api/plex/v1/production-events`, or Tulip `/api/v3/runs`",
+      "severity": "needs_verification",
+      "suggested_fix": "Check each path against the vendor API documentation (Rockwell FactoryTalk ProductionCentre / Plex, Siemens Opcenter Execution, Tulip API, SAP IBP OData services). Replace unverified paths with a generic 'vendor REST API (see vendor docs)' description."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "detailedImplementation describes alert tiers at OEE < 0.40, but the SPL's `where` clause fires at `oee_avg < 0.60` or `abs(variance_pct) > 15` and has no 'four consecutive hours' logic. The visualization also mentions fifteen-minute State_Code sampling while the SPL bins at 1h.",
+      "field": "cross_field",
+      "quote": "(1) `oee_avg < 0.40` sustained four consecutive hours → Manufacturing Engineering paging",
+      "severity": "minor",
+      "suggested_fix": "State that the shipped SPL implements the 0.60 / ±15% screen, and that the 0.40 four-hour tier needs a separate clone using `streamstats` over consecutive hours."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "The SPL never reads `dbx:sap_afru` or `dbx:sap_ibp_demand_plan`. It reads the three OT sourcetypes and the CSV lookup only, so readers may expect the SAP confirmations to feed the KPI.",
+      "field": "implementation",
+      "quote": "(1) Land `sparkplug_b:metric`, `factorytalk:production_event`, `dbx:sap_afru` plus JDBC `dbx:sap_ibp_demand_plan`",
+      "severity": "minor",
+      "suggested_fix": "Mark `dbx:sap_afru` as a validation and reconciliation source, and `dbx:sap_ibp_demand_plan` as the upstream source that refreshes `sop_fc_line_week.csv`."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "The SAP confirmation transaction is CO11N (letter O, not zero). 'C011' is a typo that readers cannot run.",
+      "field": "detailedImplementation",
+      "quote": "reconcile `Counter_Good` deltas inside Splunk against **SAP COHV/C011** confirmations",
+      "severity": "minor",
+      "suggested_fix": "Write 'SAP COHV / CO11N (or CO13 to display confirmations)'."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://sparkplug.eclipse.org/specification/version/3.0/",
+      "explanation": "Sparkplug is governed by the Eclipse Foundation's Sparkplug Working Group, as the linked URL (sparkplug.eclipse.org) shows. OASIS governs MQTT itself.",
+      "field": "references",
+      "quote": "OASIS Sparkplug Working Group — Sparkplug B specification",
+      "severity": "minor",
+      "suggested_fix": "Retitle to 'Eclipse Sparkplug Working Group — Sparkplug 3.0 specification'."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "overclaiming",
+      "explanation": "'AICPC' is not a recognisable body, and no source supports the 70–85% band. 'per literature aggregated by MESA International surveys' for the 60% OEE average is similarly unsourced.",
+      "field": "detailedImplementation",
+      "quote": "referencing **Mean Absolute Percentage Error (MAPE)** hygiene classes (**AICPC/APICS** guidance bands **70–85%** average accuracy)",
+      "severity": "needs_verification",
+      "suggested_fix": "Cite a specific ASCM/APICS or MESA publication for these figures, or present them as illustrative internal targets."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified, but the only reviewer is an authoring agent. The factual errors above show it has not been checked by an SME.",
+      "field": "status",
+      "quote": "\"status\": \"verified\" ... \"reviewer\": \"agent-handcraft-2026-04-28\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until a manufacturing/OT SME validates it against real Sparkplug and SAP PP data."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Bin",
+      "field": "spl",
+      "issue": "`actual_good` is summed per `line_id` per 1-hour `prod_hour`, then compared with `forecast_units` from `sop_fc_line_week.csv`, which is keyed by `iso_week`. One hour of output is compared with a full week's forecast, so `variance_pct` is close to -99% on almost every row and the `abs(variance_pct) > 15` filter passes everything. Aggregate actuals to `iso_week` (or pro-rate the forecast per hour) before computing variance.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "`sum(Counter_Good)` assumes each event carries an incremental count. Sparkplug/OPC-UA PLC counters such as `Counter_Good` are commonly cumulative, so summing raw samples inflates throughput. Planned runtime also defaults to 28,800 s per event rather than per hour. Compute counter deltas (e.g. `streamstats` range per line) and an hourly planned runtime.",
+      "severity": "needs_verification"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Aggregatefunctions",
+      "field": "spl",
+      "issue": "`max(State_Code) as last_state` returns the lexicographically largest state string, not the most recent one. Use `latest(State_Code)`.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "`strftime(prod_hour,\"%Y-%V\")` pairs the calendar year with the ISO week number, so dates around 1 January produce the wrong key (e.g. 2027-01-01 falls in ISO week 2026-W53 but becomes '2027-53'). Use `%G-%V` so the key matches the planning system's ISO-week calendar.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0034-UC-23.5.6",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The OEE maths and the operational guidance are substantive. However, the search compares one hour of output against a weekly forecast, the Sparkplug topic and SAP AFRU field names are wrong, and several vendor REST paths look invented.",
+  "tier": "deep",
+  "uc_id": "UC-23.5.6",
+  "verdict": "incorrect"
+}

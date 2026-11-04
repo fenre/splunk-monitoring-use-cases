@@ -1,0 +1,105 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "120a12e7cc692749c8f03eb58c82e65fb339f6fad57eeee4b1dd156c5d844634",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.3.18.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://www.splunk.com/en_us/download/universal-forwarder.html",
+      "explanation": "The Splunk Universal Forwarder is downloaded from splunk.com, not Splunkbase; Splunkbase app 617 is not in the cached catalogue and its URL returns 404. The UF also ships no modular input for cabinet door sensors, so the sentence does not tell the reader how the data actually arrives. The same claim is repeated in detailedImplementation (second Step 1).",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll",
+      "severity": "blocker",
+      "suggested_fix": "Drop the Splunkbase 617 reference and name the real path: the cabinet-lock or smart-PDU vendor's syslog, SNMP trap, or REST/webhook output, landed via SC4S, an SNMP trap receiver, or HTTP Event Collector into `index=physical` as `sourcetype=\"cabinet:intrusion\"`. Link the UF download page only if a file-monitor on a vendor export host is actually used."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "dataSources lists only `door_state` and `force_detect`, but the SPL also filters on `authorized` and outputs `rack_id`, `cabinet_id`, `user` and `ticket_id`. A reader building the feed from dataSources would not extract the fields the third branch of the `where` clause needs, so unauthorised opens would never match.",
+      "field": "cross_field",
+      "quote": "`sourcetype=\"cabinet:intrusion\"` (door_state, force_detect)",
+      "severity": "major",
+      "suggested_fix": "List the full field contract in dataSources: `door_state` (open/closed/forced), `force_detect` (0/1), `authorized` (0/1, set by the lock controller or a ticket lookup), `rack_id`, `cabinet_id`, `user`, `ticket_id`, and state how `authorized` is derived."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "description, controlTest and knownFalsePositives (`count` over `span=1h`, `host`, `src`) describe a thresholded count by entity, but the SPL has no aggregation or threshold; every forced or unauthorised-open event is a result row.",
+      "field": "cross_field",
+      "quote": "grouped by `entity`. Outputs `count` each `the scheduled window`; alert when configured threshold.",
+      "severity": "major",
+      "suggested_fix": "Describe the real behaviour: one row per cabinet door event that is forced (`force_detect=1` or `door_state=\"forced\"`) or opened without authorisation (`authorized=0`), with rack, cabinet, user and ticket."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "clarity",
+      "explanation": "The field contains two complete Step 1–4 sequences and a quadruplicated heading. The second set gives a 300–900 second poll interval, which contradicts implementation's \"Page on forced events immediately\", and refers to throttling \"per entity\", stats/timechart grain, joins and fields `host, user, action` that this SPL does not use.",
+      "field": "detailedImplementation",
+      "quote": "Step 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize",
+      "severity": "major",
+      "suggested_fix": "Keep one sequence; make collection event-driven (trap, syslog or webhook) or poll at most every 60 seconds so forced-door paging is timely; throttle on `cabinet_id`; spot-check `door_state`, `force_detect`, `authorized`."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The scenarios are generic metric-alert templates and the SPL does not group on anything. Real false positives for this detection are authorised technicians whose work order is not yet reflected in `authorized`, a door left ajar or a misaligned latch reported as forced, mechanical key overrides during lock maintenance, and remote-hands vendors opening cabinets under a customer ticket the controller does not know.",
+      "field": "knownFalsePositives",
+      "quote": "Synthetic probe on `host`** — Health checks in `physical` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "Replace with those concrete causes and suppress by `cabinet_id` plus an approved-work-order lookup keyed on `ticket_id` or `user`."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "This is a policy statement, not implementation guidance: it does not say how events are collected, how `authorized` is populated, or how the search is scheduled. It also implies the search checks `ticket_id`, but the SPL only checks `authorized`.",
+      "field": "implementation",
+      "quote": "Require ticket_id or approved user for opens in secure suites. Page on forced events immediately.",
+      "severity": "major",
+      "suggested_fix": "Summarise the ingestion path, how `authorized` is set (controller flag or ticket lookup), the schedule (for example every 5 minutes or real-time on forced events), and the paging route."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "equipment and equipmentModels tag the UC as SNMP PDU data, while dataSources and app describe a Universal Forwarder/scripted poll of cabinet door sensors.",
+      "field": "cross_field",
+      "quote": "\"equipment\": [\"snmp\"], \"equipmentModels\": [\"snmp_pdu\"]",
+      "severity": "minor",
+      "suggested_fix": "Align the tags with the actual source (cabinet lock / smart PDU door sensor) or state in dataSources that door state is read from smart-PDU SNMP traps."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The SPL outputs no location or coordinate field, so a map panel cannot be built from it.",
+      "field": "visualization",
+      "quote": "Map of data hall.",
+      "severity": "minor",
+      "suggested_fix": "Say a data-hall floor plan requires a lookup from `rack_id` to hall/row coordinates, or drop the map."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The unauthorised-open branch tests only `authorized=0`; events where `authorized` is missing (null) are silently skipped, and the `ticket_id` requirement stated in implementation is not enforced. Consider `(door_state=\"open\" AND (authorized=0 OR isnull(ticket_id)))` or equivalent, as decided by the owner.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0056-UC-15.3.18",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The SPL is a simple, usable forced/unauthorised cabinet-door filter, but the surrounding text is template residue: the collection path cites a non-existent Splunkbase listing for the Universal Forwarder, the SPL relies on fields the data-source text never mentions, and detailedImplementation is two concatenated templates with duplicated headings and a polling interval that contradicts immediate paging.",
+  "tier": "deep",
+  "uc_id": "UC-15.3.18",
+  "verdict": "incorrect"
+}

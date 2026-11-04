@@ -1,0 +1,99 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "9014e6021d81231436e51d160aaeaec161461e24eeca29607fee668d5325a9ee",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.4.8.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-connect-for-snmp/main/configuration/splunk-configuration/",
+      "explanation": "By default, SC4SNMP sends polled data to `netops` (`sc4snmp:event`) and `netmetrics` (`sc4snmp:metric`) and sends traps as `sc4snmp:traps`. It never sends `snmp:apc:ats` into `index=power`, so the SPL returns nothing for an SC4SNMP user. 'AirIR-MIB' is not a MIB module; the ATS objects (`atsStatus*`) are in PowerNet-MIB.",
+      "field": "app",
+      "quote": "Splunk Connect for SNMP (SC4SNMP) or SNMP Modular Input; APC PowerNet-MIB / AirIR-MIB field extractions",
+      "severity": "blocker",
+      "suggested_fix": "Name one collector and say what sourcetype and index it produces. If SC4SNMP is kept, describe the sourcetype override or rewrite the data path for `sc4snmp:traps`/`sc4snmp:event`. Replace 'AirIR-MIB' with 'PowerNet-MIB (atsStatus subtree)'."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://www.splunk.com/en_us/download/universal-forwarder.html",
+      "explanation": "The Universal Forwarder is a splunk.com download, not a Splunkbase app, and it has no SNMP input. Splunkbase /app/617 returns 404. The index list `power|cooling|environment` also disagrees with the SPL's `index=power`.",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll",
+      "severity": "blocker",
+      "suggested_fix": "Replace this with the real collector (SC4SNMP, or SNMP Modular Input, Splunkbase 1537, on a heavy forwarder) and state `index=power`."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://mibs.observium.org/mib/PowerNet-MIB/",
+      "explanation": "An ATS transfer and its retransfer can both happen inside one 5–15 minute poll, so polling `atsStatusSelectedSource` misses them. PowerNet-MIB defines traps for this event (`atsSourceSwitched` .1.3.6.1.4.1.318.0.126, `atsLostRedundancy`, `atsSourceStatusFail`), but the steps never mention them, even though `equipmentModels` lists `snmp_trap`. The rest of the steps are REST-API template text (vendor API rate limits, HTTP 401/429, 'vendor admin UI inventory').",
+      "field": "detailedImplementation",
+      "quote": "Default poll interval 300–900 seconds unless the vendor API rate-limits lower.",
+      "severity": "major",
+      "suggested_fix": "Make trap reception the primary input: send the NMC's trap receiver to SC4SNMP or the SNMP Modular Input and match `atsSourceSwitched`/`atsLostRedundancy`. Keep polling `atsStatusSelectedSource` (sourceA(1)/sourceB(2)) and `atsStatusRedundancyState` as a state check. Drop the REST-API language."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The SPL hard-codes `earliest=-7d` and returns weekly counts, while `detailedImplementation` schedules it over 24 hours. Neither field states the alert condition: whether any transfer pages, or only a transfer to the non-preferred source. For a `critical` UC, the reader cannot tell when on-call is paged.",
+      "field": "cross_field",
+      "quote": "Schedule the SPL with earliest=-24h@h and throttle per entity",
+      "severity": "major",
+      "suggested_fix": "State the alert condition (for example, any `atsSourceSwitched` trap, or `atsStatusSelectedSource` differing from `atsConfigPreferredSource`), a schedule window that matches the SPL, and a separate weekly report for transfer counts."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "evidence_url": "http://oidref.com/1.3.6.1.4.1.318.1.1.8.5.1.2",
+      "explanation": "The idea is right, but the field gives neither the enum values nor a way to correlate with generator data.",
+      "field": "implementation",
+      "quote": "(1) Normalize enum mapping for source A/B. (2) Correlate with genset logs.",
+      "severity": "minor",
+      "suggested_fix": "Give the mapping (`atsStatusSelectedSource`: 1=sourceA, 2=sourceB) and say which generator or utility events to join on and within what time window."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified although it cites a non-existent Splunkbase app, its SPL change detection cannot work as written, and it ignores the native transfer trap.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade the status until an SME has validated it against a real APC ATS feed."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The reference is a PDU category page, not the Rack ATS, and there is no PowerNet-MIB or ATS reference.",
+      "field": "references",
+      "quote": "https://www.se.com/ww/en/product-category/3100-2000-pdu/",
+      "severity": "minor",
+      "suggested_fix": "Cite the APC Rack ATS (AP77xx/AP44xx) user or SNMP documentation, or a PowerNet-MIB reference."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/Aboutdefaultfields",
+      "field": "spl",
+      "issue": "`prev_source` is never computed (there is no `streamstats`), so `prev` is always \"\" and `src!=prev` is true for every event that has a source value. `coalesce(..., source, ...)` also falls back to Splunk's default metadata field `source`, which is present on every event, so every poll matches and the search returns poll counts, not transfers (https://docs.splunk.com/Documentation/Splunk/latest/Data/Aboutdefaultfields). `atsInputSourceStatus`/`atsActiveSource` are not the documented PowerNet-MIB objects; the selected-source object is `atsStatusSelectedSource` (http://oidref.com/1.3.6.1.4.1.318.1.1.8.5.1.2). Use `streamstats current=f last(src) as prev by ats_name`, or match the `atsSourceSwitched` trap.",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0098-UC-15.4.8",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 1,
+    "overclaiming": 2,
+    "specificity": 1
+  },
+  "summary": "Detecting ATS source transfers is a valuable, critical signal, but the collection text is wrong. SC4SNMP does not emit `snmp:apc:ats`, and the Universal Forwarder is not Splunkbase 617. The implementation ignores the ATS trap that actually reports a transfer, and the SPL's change logic compares against a field that is never computed.",
+  "tier": "deep",
+  "uc_id": "UC-15.4.8",
+  "verdict": "incorrect"
+}

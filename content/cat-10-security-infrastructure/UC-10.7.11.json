@@ -5,64 +5,85 @@
   "criticality": "high",
   "difficulty": "intermediate",
   "monitoringType": [
-    "Security"
+    "Security",
+    "Anomaly"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Covers the detection logic documented for 'Cisco Duo Admin Login Unusual Os' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
-  "evidence": "Saved search `security_infra_cisco_duo_admin_login_unusual_os` (UC-10.7.11), SOC dashboard panel \"Security Infra — Cisco Duo Admin Login Unusual Os\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
+  "exclusions": "Covers Duo Admin Panel sign-ins only, not end-user authentications to protected applications.",
+  "evidence": "Alert rows with administrator, source IP, location, browser, OS, and outcome, kept with the analyst's verdict.",
   "controlTest": {
-    "positiveScenario": "UC-10.7.11 positive (Cisco, Duo, Admin, Login, Unusual): ingest synthetic events into `index=risk` sourcetype='target_sourcetype' where `firstTime`, `lastTime` grouped by `normalized_risk_object` satisfies 168h lookback for 'Cisco Duo Admin Login Unusual Os'. Validate filter `normalized_risk_object IN (\"$user$\") starthoursago=168`. Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-10.7.11 negative (Unusual Os): ingest benign `risk` / `target_sourcetype` events where `normalized_risk_object` stays below 168h lookback, or exclude the test entity via `soc_exception_register.csv`. Variant 12 confirms zero alert rows for 'Cisco Duo Admin Login Unusual Os'."
+    "positiveScenario": "Sign in to the Duo Admin Panel as a test administrator from a operating system outside the expected list. After the next input interval the activity event appears with `action.name=admin_login`, and the search returns one row for that administrator.",
+    "negativeScenario": "Sign in again from an expected operating system. The activity event is indexed, but the search returns no row for it."
   },
-  "dataSources": "Cisco Duo Activity Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
-  "app": "Splunk Security Essentials / ESCU — Universal Forwarder (Splunkbase 617)",
-  "spl": "| from datamodel Risk.All_Risk | search normalized_risk_object IN (\"$user$\") starthoursago=168  | stats count min(_time) as firstTime max(_time) as lastTime values(search_name) as \"Search Name\" values(risk_message) as \"Risk Message\" values(analyticstories) as \"Analytic Stories\" values(annotations._all) as \"Annotations\" values(annotations.mitre_attack.mitre_tactic) as \"ATT&CK Tactics\" by normalized_risk_object | `security_content_ctime(firstTime)` | `security_content_ctime(lastTime)`",
-  "description": "Identifies UC-10.7.11 — Cisco, Duo, Admin, Login, Unusual — using datamodel `Risk.All_Risk`, grouped by `normalized_risk_object`. Outputs `firstTime`, `lastTime` each `the scheduled window`; alert when 168h lookback. Filter chain includes filter `normalized_risk_object IN (\"$user$\") starthoursago=168`. Purpose-built for 'Cisco Duo Admin Login Unusual Os' in Security Infra workflows.",
-  "value": "Tracking `firstTime`, `lastTime` via UC-10.7.11 on `Risk.All_Risk` telemetry improves response to 'Cisco Duo Admin Login Unusual Os' and reduces missed threat campaigns, control regressions, and SOC SLA breaches.",
-  "implementation": "ESCU Risk-Based Alerting detection. Enable in ES Content Management as a Correlation Search. Generates risk events attributed to IP address entities — Notable Events fire when an entity’s cumulative risk exceeds the configured threshold. Requires Cisco Duo Activity ingested and CIM-normalized.",
-  "visualization": "Table, Timeline (from ESCU).",
+  "dataSources": "`index=duo sourcetype=cisco:duo:activity` from the Cisco Security Cloud (7404) Duo input, Activity log type, which polls `GET /admin/v2/logs/activity`. One event per user or administrator action, with the access device's browser, OS, IP address, and location.",
+  "app": "Cisco Security Cloud (`CiscoSecurityCloud`, [Splunkbase 7404](https://splunkbase.splunk.com/app/7404)), Cisco Duo input. Replaces the deprecated Duo Splunk Connector (Splunkbase 3504, end of life 31 May 2026).",
+  "spl": "index=duo sourcetype=\"cisco:duo:activity\" \"action.name\"=admin_login NOT access_device.os IN (\"Mac OS X\")\n| rename actor.name as user access_device.ip.address as src_ip\n| stats count min(_time) as firstTime max(_time) as lastTime by access_device.browser access_device.browser_version src_ip access_device.location.city access_device.location.country access_device.location.state access_device.os access_device.os_version actor.details actor.type outcome.result user\n| convert ctime(firstTime) ctime(lastTime)",
+  "description": "Finds Duo Admin Panel sign-ins (`action.name=admin_login`) whose operating system is outside the expected set for your administrators. Each row shows the administrator, source IP, location, browser, OS, and outcome.",
+  "value": "Administrators sign in from managed laptops with known operating systems. A login from an unexpected OS suggests an unmanaged or attacker device holding admin credentials for the system that controls MFA.",
+  "implementation": "Collect the Duo Activity log with the Cisco Security Cloud (7404) Duo input into `index=duo`. Replace the expected value in the `NOT ... IN (...)` clause with the operating systems on your administrators' managed devices. Alert on each row; investigate successful logins first.",
+  "visualization": "Alert table: firstTime, user, src_ip, access_device.location.country, access_device.browser, access_device.os, outcome.result. Supporting map: admin sign-ins by country over 30 days.",
   "cimModels": [],
-  "dataModelAcceleration": "Not applicable",
+  "schema": "OCSF: authentication",
   "references": [
     {
-      "title": "https://splunkbase.splunk.com/app/7404",
+      "title": "Cisco Security Cloud (Splunkbase 7404)",
       "url": "https://splunkbase.splunk.com/app/7404",
-      "retrieved": "2026-04-25"
+      "retrieved": "2026-11-02"
     },
     {
-      "title": "Splunk Enterprise Security (Splunkbase 263)",
-      "url": "https://splunkbase.splunk.com/app/263",
-      "retrieved": "2026-04-25"
+      "title": "Cisco Security Cloud App for Splunk User Guide",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/cisco-secure-cloud-app/user-guide/cisco-security-cloud-user-guide.pdf",
+      "retrieved": "2026-11-02"
     },
     {
-      "title": "Cisco Security documentation",
-      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
-      "retrieved": "2026-04-25"
+      "title": "Duo Admin API",
+      "url": "https://duo.com/docs/adminapi",
+      "retrieved": "2026-11-02"
     },
     {
-      "title": "Splunk ES Content Management",
-      "url": "https://docs.splunk.com/Documentation/ES/latest/Admin/ContentManagement",
-      "retrieved": "2026-04-25"
+      "title": "Splunk Security Content detection: cisco_duo_admin_login_unusual_os",
+      "url": "https://github.com/splunk/security_content/blob/develop/detections/application/cisco_duo_admin_login_unusual_os.yml",
+      "retrieved": "2026-11-02"
     }
   ],
-  "knownFalsePositives": "1. **Correlation deprioritisation for UC-10.7.11** — 'Cisco Duo Admin Login Unusual Os' / Unusual Os may change `search_name` output on `normalized_risk_object` without a real incident. Keywords: Cisco, Duo, Admin, Login, Unusual. Bound by filter `normalized_risk_object IN (\"$user$\") starthoursago=168`. Compare ES Content Management release timestamp.\n\n2. **Sibling rule interference** — Parent risk object absorbs child findings for UC-10.7.11; `normalized_risk_object` count drops while cumulative score remains high.\n\n3. **Approved exercise replay** — `risk_search` against `$dest$` lab host in `index=risk` during scheduled pen-test for Unusual Os.\n\n4. **Macro or lookup drift** — ES update reclassifies Unusual Os rows; suppress via `soc_exception_register.csv` keyed on `normalized_risk_object`, `search_name`, `valid_until`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `normalized_risk_object`, `search_name`, `valid_until`.",
+  "knownFalsePositives": "1. **Unlisted but legitimate operating system values** — the shipped search expects one value. Administrators who travel or use a second platform will match until you list every approved value.\n\n2. **VPN and cloud egress** — admins behind a corporate VPN or secure web gateway appear with the egress location, which can sit in another country or show a generic browser string.\n\n3. **Failed attempts** — rows with `outcome.result` other than success are still worth review but are lower priority than successful sign-ins.\n\n**Suppression:** a lookup of administrators and their approved values, joined before the `NOT` filter.",
   "mitreAttack": [
-    "T1556"
+    "T1556",
+    "T1078"
   ],
-  "detectionType": "ip_address",
+  "detectionType": "Anomaly",
+  "securityDomain": "identity",
+  "requiredFields": [
+    "action.name",
+    "actor.name",
+    "actor.type",
+    "actor.details",
+    "outcome.result",
+    "access_device.ip.address",
+    "access_device.browser",
+    "access_device.browser_version",
+    "access_device.os",
+    "access_device.os_version",
+    "access_device.location.city",
+    "access_device.location.state",
+    "access_device.location.country"
+  ],
   "equipment": [
     "cisco",
     "security_essentials"
+  ],
+  "equipmentModels": [
+    "cisco_duo"
+  ],
+  "capabilities": [
+    "duo.activity_log"
   ],
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
-  "premiumApps": [
-    "Splunk Enterprise Security"
-  ],
-  "detailedImplementation": "Enterprise Security Detection Rule\n\n\"Cisco Duo Admin Login Unusual Os\" is a TTP (Tactics, Techniques, and Procedures) detection that identifies known adversary behaviors with high fidelity, sourced from the Splunk Enterprise Security Content Update (ESCU). It operates within the Risk-Based Alerting (RBA) framework, attributing risk to IP address entities. Rather than generating standalone alerts, each firing contributes a risk score to the identified entity — Notable Events are created only when cumulative risk exceeds the configured threshold, significantly reducing alert fatigue while preserving detection coverage.\n\nPrerequisites\n\n• Splunk Enterprise Security 7.x or later with the ES Content Update (ESCU) app installed and up to date.\n• Data sources: Cisco Duo Activity. Must be ingested into Splunk and normalized to the Common Information Model (CIM) via the appropriate Technology Add-on.\n• MITRE ATT&CK: T1556. Review the ATT&CK matrix for adjacent techniques to identify detection coverage gaps in your environment.\n\nDeployment\n\n1. In Enterprise Security, navigate to Configure → Content → Content Management.\n2. Search for \"Cisco Duo Admin Login Unusual Os\" or filter by Analytic Story to locate the detection.\n3. Review the detection’s configuration: scheduling interval, risk score weight, and risk message template. The default risk score reflects the detection’s relative severity — adjust based on your organization’s risk tolerance.\n4. Enable the detection. It will run as a scheduled Correlation Search and write risk events to the risk index when conditions are met.\n5. Verify the Risk Notable aggregation rule is enabled (Content Management → search for \"Risk Notable\"). This is the correlation search that fires when an entity’s cumulative risk score crosses the configured threshold, creating the Notable Event that analysts investigate.\n6. Optionally configure Adaptive Response Actions on this detection — for example, automatically enriching risk events with threat intelligence lookups, adding entities to a triage watchlist, or triggering a SOAR playbook for high-confidence detections.\n\nTuning and False Positive Management\n\nKnown false positives for this detection: No false positives have been identified at this time.\n\n• Adjust the risk score weight in Content Management. Start with the ESCU default and increase for detections that consistently produce true positives in your environment; decrease for noisy detections.\n• Use the Risk Analysis dashboard in ES to identify which detections contribute the most risk events and which entities are most frequently flagged — this reveals both coverage strengths and tuning opportunities.\n• Create lookup-based suppressions for known-good activity: approved administrative tools, vulnerability scanner IPs, scheduled batch processes, and maintenance windows.\n• If the detection fires frequently on a specific entity that is consistently benign, consider adding a per-entity risk exception rather than disabling the detection entirely — this preserves coverage for other entities.\n\nAnalyst Response Workflow\n\nWhen a Risk Notable fires for an entity associated with this detection:\n\n1. Open the Notable Event in Incident Review. Examine the entity’s risk timeline — this detection is one of potentially many contributing risk signals. The composite risk score provides more context than any single detection alone.\n2. Review the Risk Message and Analytic Story annotations to understand what adversary behavior was detected and its position in the MITRE ATT&CK kill chain.\n3. Pivot to the Asset Investigator or Identity Investigator to review the entity’s full activity timeline and correlate with threat intelligence and other security events.\n4. Assess the full scope: check for related risk events from the same Analytic Story and from other entities that may indicate lateral movement or a coordinated attack.\n5. Determine disposition: True Positive (initiate incident response), Benign True Positive (legitimate activity — document and consider tuning), or False Positive (add suppression and adjust detection).\n6. Update the Notable Event status, set the owner, and document findings in the investigation notes for audit trail and team visibility.\n\nAbout the SPL Query Shown Above\n\nThe SPL displayed for this use case is the Risk Investigation drilldown search — it queries the Risk data model to show all risk events associated with a specific entity. This is the search analysts use during investigation to understand what contributed to an entity’s risk score.\n\nThe actual detection logic is packaged within the ESCU Correlation Search definition and runs automatically on schedule. To view or modify the detection’s underlying search logic, navigate to Configure → Content → Content Management and click on the detection name.\n\nValidation\n\nConfirm the required data sources are flowing:\n\n```spl\n| tstats count where index=* by index, sourcetype | sort -count\n```\n\nVerify the detection is enabled and firing:\n\n```spl\nindex=_audit action=\"alert_fired\" ss_name=\"*\"\n| stats count by ss_name, trigger_time | sort -trigger_time\n```\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Security Essentials / ESCU — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=see SPL into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`normalized_risk_object`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
-  "grandmaExplanation": "We look for unusual Cisco Duo admin sign-in patterns described in the title so we notice possible stolen or misused admin sessions early.",
+  "detailedImplementation": "Prerequisites\n• Cisco Security Cloud (`CiscoSecurityCloud`, Splunkbase 7404) on the search heads and on the heavy forwarder or Splunk Cloud Inputs Data Manager that runs its modular inputs. It replaces the Duo Splunk Connector (Splunkbase 3504, end of life 31 May 2026); disable the old connector's inputs after cutover so events are not indexed twice.\n• A Duo Admin API application created by an Owner-role administrator in the Duo Admin Panel under Applications > Protect an Application > Admin API. Record the integration key, secret key, and API hostname (`api-XXXXXXXX.duosecurity.com`), and grant it **Grant read log**.\n• Outbound HTTPS (TCP 443) from the input host to the API hostname, and an accurate system clock on that host, because the Admin API signs every request with the current date.\n• An index for Duo data (this page uses `index=duo`) and a role with `srchIndexesAllowed` on it for the identity and SOC teams.\n\nStep 1 — Configure data collection\n• In Cisco Security Cloud open Application Setup, choose the Cisco Duo card, and create an input with the integration key, secret key, and API hostname. Enable the Activity log type and set the index to `duo`.\n• The input reads `GET /admin/v2/logs/activity` and writes `sourcetype=cisco:duo:activity`: nested JSON with `action.name`, `actor.name`, `actor.type`, `target.name`, `target.details`, `old_target.details`, `outcome.result`, and `access_device.*` (browser, OS, IP address, city, state, country).\n• Check the field this search needs: run `index=duo sourcetype=cisco:duo:activity \"action.name\"=admin_login | stats count by access_device.os` over 30 days to see the values your administrators actually use.\n\nStep 2 — Create the search and alert\n```spl\nindex=duo sourcetype=\"cisco:duo:activity\" \"action.name\"=admin_login NOT access_device.os IN (\"Mac OS X\")\n| rename actor.name as user access_device.ip.address as src_ip\n| stats count min(_time) as firstTime max(_time) as lastTime by access_device.browser access_device.browser_version src_ip access_device.location.city access_device.location.country access_device.location.state access_device.os access_device.os_version actor.details actor.type outcome.result user\n| convert ctime(firstTime) ctime(lastTime)\n```\n\nUnderstanding this SPL\n• `\"action.name\"=admin_login` keeps only Duo Admin Panel sign-ins; the quotes are needed because the field name contains a dot.\n• `NOT access_device.os IN (\"Mac OS X\")` removes the expected operating system; edit the list from the 30-day check in Step 1.\n• `actor.name` (the administrator) and `access_device.ip.address` are renamed to `user` and `src_ip` so the row lines up with other identity alerts.\n• Every `by` field must exist on the event, otherwise `stats` drops it. If your events lack `actor.details` or state, remove those fields from the `by` clause.\n\nStep 3 — Validate\n• Compare with the Duo admin console (Admin Panel) under Reports > Administrator Actions, filtered to admin logins, for the same time range.\n• Pick one known administrator sign-in and check that country, browser, and OS on the event match what the administrator used.\n• Run `index=duo sourcetype=cisco:duo:activity | timechart span=1h count` over 7 days to confirm there are no collection gaps.\n\nStep 4 — Operationalize\n• Schedule every 15 minutes over the last 20 minutes; throttle on `user` plus `src_ip` for 12 hours.\n• The responder confirms the sign-in with the administrator out of band. If it is not recognized, reset the admin's password and hardware token and review Reports > Administrator Actions for changes made in that session.\n• Send to Enterprise Security as a finding on `user` when ES is in use.\n\nStep 5 — Troubleshooting\n• No Duo events and HTTP 401 in the input log under `$SPLUNK_HOME/var/log/splunk/duo_splunkapp/`: wrong secret key, an API hostname from a different Duo account, or clock skew on the input host.\n• HTTP 403: the Admin API application is missing **Grant read log**.\n• HTTP 429: Duo rate-limits the log endpoints. Make sure the deprecated 3504 connector and the 7404 input are not both polling the same Admin API application.\n• Duplicate rows after migration: the 3504 connector and the 7404 input are both enabled for the same log type.\n• Events arrive but `access_device.*` fields are empty: the activity record has no device context for that action. Admin logins normally carry it; check one raw event.\n",
+  "grandmaExplanation": "We flag sign-ins to the Duo control panel from a type of computer our admins do not use.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }

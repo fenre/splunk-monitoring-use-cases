@@ -1,0 +1,173 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "d9bd08db1794ec407c9b9b3cfa489b8b0cc8993be4dc67db861637a68dd72031",
+  "file": "content/cat-03-containers-orchestration/UC-3.1.3.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.kernel.org/admin-guide/cgroup-v2.html",
+      "explanation": "cgroup v2 cpu.stat reports usage_usec, user_usec, system_usec, nr_periods, nr_throttled, throttled_usec, nr_bursts and burst_usec, with all durations in microseconds. throttled_time in nanoseconds and cpuacct.usage are cgroup v1 names. On v2 hosts the throttled-time and usage math has no matching field, or is off by 1000x if throttled_usec is aliased to throttled_time.",
+      "field": "dataSources",
+      "quote": "scripted reads of cgroup v2 cpu.stat (nr_periods, nr_throttled, throttled_time)",
+      "severity": "blocker",
+      "suggested_fix": "List the v2 fields (nr_periods, nr_throttled, throttled_usec, usage_usec) separately from the v1 fields (throttled_time in ns, cpuacct.usage in ns), and state that the microsecond fields must be multiplied by 1000 before reuse in nanosecond math."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-unix-and-linux/Sourcetypes/",
+      "explanation": "Splunk_TA_nix has no cgroup input and no linux:cgroup or procfs:loadavg sourcetype. Its documented sourcetypes are cpu, vmstat, top, ps, df, iostat and similar. The implementation and detailedImplementation lines 'Deploy Splunk_TA_nix linux:cgroup cpu.stat scrapes' and 'procfs:loadavg collection via Splunk_TA_nix modular input' describe inputs that do not exist.",
+      "field": "app",
+      "quote": "Splunk Add-on for Unix and Linux ([Splunkbase 833](https://splunkbase.splunk.com/app/833)) supplies linux:cgroup and procfs style host telemetry.",
+      "severity": "blocker",
+      "suggested_fix": "Say that linux:cgroup and procfs:loadavg come from a customer-written scripted input that reads cpu.stat and /proc/loadavg. The alternatives are the OpenTelemetry docker_stats receiver or the Engine API stats cpu_stats.throttling_data. For host load, point to the TA_nix vmstat or cpu sourcetypes."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/moby/moby/blob/v28.5.2/daemon/update_linux.go",
+      "explanation": "The lab container is started with --cpus=0.25. That flag sets HostConfig.NanoCpus (250000000), while CpuQuota and CpuPeriod stay 0, and the daemon derives the CFS quota at runtime. Path B would therefore report 0 0, and responders would chase a 'props gap' that does not exist. The same mistake appears in Step 2: 'values are negative one for unlimited'. Unset CpuQuota is 0 in inspect; -1 only appears in cgroup v1 cfs_quota_us.",
+      "field": "detailedImplementation",
+      "quote": "docker inspect lab-throttle --format '{{.HostConfig.CpuQuota}} {{.HostConfig.CpuPeriod}}' must match cfs_quota_us and cfs_period_us fields in Splunk after normalization. Mismatches indicate props gaps",
+      "severity": "blocker",
+      "suggested_fix": "Validate HostConfig.NanoCpus for --cpus containers, and CpuQuota/CpuPeriod only when --cpu-quota/--cpu-period were used. Describe unlimited as CpuQuota=0 and NanoCpus=0 in docker inspect."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://www.kubernetes.dev/resources/keps/2625/",
+      "explanation": "KEP-2625 is the 'SMT aware cpumanager policy' (full-pcpus-only option). It has nothing to do with cgroup v2 CPU quota, so Case B's 'review KEP-2625 era guidance on cgroup v2 cpu quota behavior' points readers at the wrong document. The URL is also only the sig-node directory.",
+      "field": "references",
+      "quote": "Kubernetes enhancement — KEP-2625 cgroup v2 optional CPU quota",
+      "severity": "blocker",
+      "suggested_fix": "Remove the KEP-2625 reference and the Case B mention. If burst behaviour matters, cite the kernel CFS bandwidth control document (cpu.max.burst)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/container-platforms-docker-openshift.md",
+      "explanation": "The integration guide defines the indexes container and linux, not metrics_oti, containers or os. The sibling UCs disagree too: UC-3.1.2 uses index=os sourcetype=linux:cgroup and UC-3.1.4 uses index=oti_containers sourcetype=linux:cgroup:memory. Readers cannot tell where cgroup data actually lands.",
+      "field": "cross_field",
+      "quote": "index=metrics_oti OR index=containers OR index=os sourcetype=linux:cgroup",
+      "severity": "major",
+      "suggested_fix": "Align dataSources, implementation and the sibling UCs on the guide's index names (container / linux) and one cgroup sourcetype naming scheme."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "A five-minute schedule over a window snapped to the previous whole hour rescans the same closed hour twelve times. That produces duplicate alerts, and detection lags by up to two hours for a high-criticality performance UC.",
+      "field": "implementation",
+      "quote": "Save container_uc_3_1_3_cpu_throttling every five minutes on earliest=-1h@h latest=@h",
+      "severity": "major",
+      "suggested_fix": "Either run hourly at a few minutes past the hour over -1h@h to @h, or run every five minutes over a rolling window such as -15m to now with alert throttling."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "This is authoring-generator residue (a schema self-check), not guidance for an operator. The same goes for 'Fenced SPL for runbooks must match the spl JSON field byte-for-byte' and the 'six mandated severity strings' wording.",
+      "field": "detailedImplementation",
+      "quote": "Closing checklist: monitoringType lists Performance and Capacity; splunkPillar Observability; cimModels includes Performance; five step headers use plain text with em dashes; Step 3 fenced SPL matches the spl field exactly",
+      "severity": "major",
+      "suggested_fix": "Delete the closing checklist and the generator-contract sentences, and keep only the operational steps."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "The hostmetrics receiver does not read per-container cpu.stat throttling counters. Per-container throttling comes from the docker_stats receiver (container.cpu.throttling_data.* metrics), and its field names do not match the SPL coalesce list.",
+      "field": "app",
+      "quote": "Splunk OpenTelemetry Collector for Linux ... can scrape cgroup CPU counters",
+      "severity": "needs_verification",
+      "suggested_fix": "Name the receiver explicitly (docker_stats receiver throttling_data metrics) and give the props or field aliases that map it to nr_periods, nr_throttled and throttled time."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "overclaiming",
+      "explanation": "Neither source appears in references. Buffer's widely cited CPU-limits post is believed to date from 2019, not 2017, and no specific Cloudflare NGINX container-throttling post is identified.",
+      "field": "evidence",
+      "quote": "Buffer's 2017 Kubernetes CPU throttling incident narrative, and Cloudflare engineering posts on NGINX container CPU throttling failures",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the publication year and URL of the Buffer post and whether the Cloudflare post exists. Then add both as references with URLs, or remove them."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "The Brendan Gregg reference points at the blog index rather than a specific CFS or throttling article, and the Lantern reference is about Docker logs, not CPU metrics.",
+      "field": "references",
+      "quote": "\"url\": \"http://www.brendangregg.com/blog/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the specific article that is relied on, and drop the logging-focused Lantern page or replace it with a metrics-relevant one."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by a generic repository handle, yet it contains a non-existent TA sourcetype, wrong cgroup v2 field names and SPL that cannot return rows. No SME sign-off is evident.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until an SME has validated the data source and run the search on a real cgroup v2 host."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Nothing in the UC maps to Application_State, and that model may be deprecated in current CIM releases. Host CPU load in Performance is only a loose proxy for per-container throttling.",
+      "field": "cimModels",
+      "quote": "\"Application_State\"",
+      "severity": "needs_verification",
+      "suggested_fix": "Check whether Application_State is still in the current CIM release, and remove it (and its mention in dataModelAcceleration) if it is not used."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats",
+      "field": "spl",
+      "issue": "With `streamstats window=2 current=t`, last(nr_periods), last(nr_throttled), last(throttled_time_ns), last(cpu_usage_ns) and last(_time) all return the current event's own values, because the current event is the last one seen in the window. So periods_delta=0 and sec_delta=0 on every row, and `where periods_delta>0 AND ... sec_delta>0` drops everything. The search never alerts. Use `current=f window=1 last(...)` (or window=2 current=t with first()) to get the previous sample.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.kernel.org/admin-guide/cgroup-v2.html",
+      "field": "spl",
+      "issue": "The SPL only coalesces the v1 throttled_time (ns) and cpuacct_usage names. cgroup v2 throttled_usec and usage_usec are never read, so throttled_wall_pct and quota_pct_used are null on v2 hosts, and they would be 1000x low if the fields were aliased without converting units.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.docker.com/engine/containers/resource_constraints/#cpu",
+      "field": "spl",
+      "issue": "cpuset_span replaces '-' with ',' and counts the elements, so a range such as '0-63' counts as 2 CPUs. Broad cpusets are flagged cpuset_narrow=1, which raises high_cpuset_numa_misplacement falsely. Ranges must be expanded (end-start+1) before counting.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "There is a severity ladder gap. A sample with throttle_pct>=90 whose 5-sample average (throttle_pct_sustained) is below 90 matches neither the critical branch nor 'high_throttled_70_to_90pct' (throttle_pct<90), so the worst point-in-time throttling returns no row. The medium branch's `throttle_peak_1h>=30` test is always true when throttle_pct>=30, so the 'chronic' qualifier is not enforced.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The cfs_cpus fallback treats CpuQuota=0 and NanoCpus=0 as no limit, which is correct. But the docker:inspect subsearch defaults a missing CpuQuota to -1 and a missing CpuPeriod to 100000, so a missing inspect record cannot be told apart from an unlimited container. container_name is not present in raw cgroup cpu.stat reads either, so the container_owner join on host_id/container_name usually misses unless the collector enriches it.",
+      "severity": "minor"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
+      "field": "cimSpl",
+      "issue": "CIM Performance fields are rooted at All_Performance: the CPU dataset is All_Performance.CPU and the field is All_Performance.cpu_load_percent. `Performance.cpu_load_percent` with `nodename=Performance.CPU` returns nothing. Host CPU load is also not a container throttling signal.",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0022-UC-3.1.3",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The CFS throttling idea is sound and the risk briefing and grandma text are good. But the UC gives the wrong cgroup v2 cpu.stat field names and units, credits a linux:cgroup sourcetype and a loadavg modular input to Splunk_TA_nix (it has neither), and tells readers to validate docker inspect CpuQuota after --cpus (it reads 0). The SPL's streamstats delta logic cannot produce any rows.",
+  "tier": "deep",
+  "uc_id": "UC-3.1.3",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,108 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "471c8ec3419510d2fe3fdaa82ec4a538e19829daf6f8191027ae90b3804fad97",
+  "file": "content/cat-25-personal-hobbyist-monitoring/UC-25.8.105.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "Does not name any actual mechanism that produces `event=sqm_test` records with `latency_under_load_ms`. OpenWrt's sqm-scripts only configure shaping and do not emit latency-under-load measurements to syslog, so the reader cannot build the feed.",
+      "field": "implementation",
+      "quote": "Ingest OpenWrt SQM measurements data through its real API, export, MQTT bridge, or open-source connector into `index=personal`",
+      "severity": "major",
+      "suggested_fix": "Describe the concrete test (for example a scheduled load test script on the router or a LAN host that logs the latency measured under load) and the exact log or HEC event format with `event=sqm_test` and `latency_under_load_ms`."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Check that a syslog sourcetype carries structured `event` and `latency_under_load_ms` fields. Plain OpenWrt syslog does not; these would have to come from a custom script or HEC JSON and field extraction, which the text does not document. The sourcetype is not in the grounding sourcetype list for this subcategory beyond the generic router syslog.",
+      "field": "dataSources",
+      "quote": "`openwrt:syslog`",
+      "severity": "needs_verification",
+      "suggested_fix": "State how latency_under_load_ms is produced and extracted, or use a dedicated sourcetype for the test results."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The calibration and field-presence searches in Step 3 use `avg_latency_ms`, `max_latency_ms` and `router` against raw events, but those fields are computed by the stats in the main SPL. The raw field is `latency_under_load_ms`. These steps return nothing useful.",
+      "field": "detailedImplementation",
+      "quote": "| stats perc50(avg_latency_ms) AS p50 perc90(avg_latency_ms) AS p90 perc99(avg_latency_ms) AS p99 max(avg_latency_ms) AS hi",
+      "severity": "major",
+      "suggested_fix": "Use `latency_under_load_ms` in the field-presence table and `perc50/perc90/perc99(latency_under_load_ms)` for calibration, and filter `event=sqm_test`."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "Auditor and regulation wording is irrelevant to a home router latency check. 'Key fields to extract: sourcetype-specific' and the 'Typical connector stack' (UniFi, Pi-hole, speedtests) do not describe an OpenWrt SQM feed, and the subcategory is named 'Home Network & Connectivity' instead of the grounded 'Home Lab, Network & Connectivity'.",
+      "field": "detailedImplementation",
+      "quote": "the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.",
+      "severity": "major",
+      "suggested_fix": "Remove compliance wording; document the fields and the OpenWrt-specific connector."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "Fitness-tracker scenarios are irrelevant. Real causes of high latency under load: a test run during a large backup or upload by another device, SQM bandwidth set above the real ISP rate, ISP peak-hour congestion, or wifi/powersave effects on the test host.",
+      "field": "knownFalsePositives",
+      "quote": "Same activity synced from watch and phone into `openwrt:syslog`.",
+      "severity": "major",
+      "suggested_fix": "Replace with SQM and latency-test specific false positives and tell the reader to compare against the shaped rate setting."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "clarity",
+      "explanation": "Unresolved placeholder and no explanation of what a row is (one router with high average or peak latency under load) or that the 50 ms / 100 ms limits are household-specific defaults.",
+      "field": "description",
+      "quote": "Outputs `avg_latency_ms`, `max_latency_ms` each `the scheduled window`",
+      "severity": "minor",
+      "suggested_fix": "State that each row is a router whose test results exceeded 50 ms average or 100 ms peak in the search window."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "grandma_fidelity",
+      "explanation": "'Bufferbloat' and 'shaping' are unexplained jargon, and 'returning' implies a history the search does not compare.",
+      "field": "grandmaExplanation",
+      "quote": "so you can spot bufferbloat returning despite shaping",
+      "severity": "minor",
+      "suggested_fix": "Say it warns when your internet gets sluggish while the connection is busy, such as during uploads."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "specificity",
+      "explanation": "Only the OpenWrt start page relates to this UC; Tailscale, Cloudflare Tunnel, Pi-hole, AdGuard, Speedtest and UniFi are unrelated, and there is no link to the OpenWrt SQM guide.",
+      "field": "references",
+      "quote": "Tailscale docs",
+      "severity": "minor",
+      "suggested_fix": "Replace with the OpenWrt SQM documentation page and drop unrelated products."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "monitoringType",
+      "issue": "'Security' does not fit a latency-under-load performance check.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "A single bad sample can trigger via max>100 with no minimum sample count; avg and max thresholds are hardcoded and not tied to the configured SQM shaped rate.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0093-UC-25.8.105",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 3,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The idea (alert when latency under load stays high on an SQM-shaped OpenWrt router) is sound, but the text never says how SQM latency records get into `openwrt:syslog`, and the validation SQL queries fields that do not exist in the raw events. Template residue (auditor, fitness false positives) remains.",
+  "tier": "triage",
+  "uc_id": "UC-25.8.105",
+  "verdict": "rewrite"
+}

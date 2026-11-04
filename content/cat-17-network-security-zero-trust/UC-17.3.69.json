@@ -1,0 +1,78 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.3.69",
+  "title": "Cisco Secure Access Allowed Access to Anonymizer Services",
+  "criticality": "medium",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "exclusions": "Only sees anonymizers that Secure Access categorises and that are looked up through its DNS. VPN apps that connect by IP address without a DNS lookup are not seen; the firewall log covers those.",
+  "evidence": "Saved alert results with user, device, and domains, plus the allow-list decision or policy change for each user.",
+  "controlTest": {
+    "positiveScenario": "From a test device whose Secure Access DNS policy allows the Proxy/Anonymizer category, browse to a well-known web proxy site. Within the S3 delay the query is indexed with `action=Allowed` and a category containing Anonymizer, and the search returns a row for the device.",
+    "negativeScenario": "Block the Proxy/Anonymizer category for the test device's policy and repeat. The query is indexed with `action=Blocked`, so the search returns no row."
+  },
+  "dataSources": "`index=sse sourcetype=cisco:cloud_security:dns` from the Secure Access or Umbrella S3 log bucket, read by the Cisco Secure Access Add-on (7569). One event per DNS query with `action`, `domain`, `query`, `category`, `src_ip`, `src_external_ip`, `user`, and `identity_type`.",
+  "app": "Cisco Secure Access Add-on for Splunk ([Splunkbase 7569](https://splunkbase.splunk.com/app/7569)), which reads Cisco Secure Access and Cisco Umbrella logs from the S3 log bucket and maps the web proxy log to the CIM Web data model. The companion Cisco Secure Access App (Splunkbase 5558) adds dashboards.",
+  "spl": "index=sse sourcetype=\"cisco:cloud_security:dns\" action=\"allowed\" category=\"*anonymizer*\"\n| fillnull value=\"unknown\" src_ip src_external_ip user identity_type\n| stats count min(_time) as firstTime max(_time) as lastTime values(domain) as domain values(query) as query values(reply_code) as reply_code values(record_type) as record_type by src_ip src_external_ip user identity_type action category\n| convert ctime(firstTime) ctime(lastTime)\n| sort - count",
+  "description": "Finds DNS lookups that Secure Access allowed to domains in the Proxy/Anonymizer category. Each row shows the device, user, identity type, the domains, and how many lookups there were. Adapted from the Splunk Security Content detection for Cisco Secure Access.",
+  "value": "Anonymizers and web proxies are how users and malware get around the web policy: once traffic goes through one, Secure Access no longer sees where it really goes. If the category is allowed, this search shows who uses it, so the policy can be tightened or the use approved.",
+  "implementation": "Collect the Secure Access DNS log with the 7569 add-on into `index=sse`. Schedule hourly, alert on new users, and decide whether the Proxy/Anonymizer category should be blocked in the DNS policy.",
+  "visualization": "Alert table: user, src_ip, identity_type, category, domain, count, firstTime, lastTime. Supporting panel: anonymizer lookups per day over 30 days (column chart).",
+  "cimModels": [],
+  "schema": "OCSF: dns_activity",
+  "references": [
+    {
+      "title": "Cisco Secure Access Add-on for Splunk (Splunkbase 7569)",
+      "url": "https://splunkbase.splunk.com/app/7569",
+      "retrieved": "2026-11-02"
+    },
+    {
+      "title": "Splunk Security Content detection: Cisco SA - Access to Anonymizer Services",
+      "url": "https://github.com/splunk/security_content/blob/develop/detections/network/cisco_sa___access_to_anonymizer_services.yml",
+      "retrieved": "2026-11-02"
+    },
+    {
+      "title": "Splunk Security Content data source: Cisco Secure Access DNS",
+      "url": "https://github.com/splunk/security_content/blob/develop/data_sources/cisco_secure_access_dns.yml",
+      "retrieved": "2026-11-02"
+    }
+  ],
+  "knownFalsePositives": "1. **Approved privacy tools** — security researchers and some teams use anonymizers on purpose. Keep them in an allow-list with an owner.\n\n2. **Miscategorised domains** — some domains carry several categories (for example Proxy/Anonymizer and Application). Check the domain before escalating.\n\n**Suppression:** an allow-list of users and domains, and a 24-hour throttle per user.",
+  "mitreAttack": [
+    "T1090.003"
+  ],
+  "detectionType": "TTP",
+  "securityDomain": "network",
+  "requiredFields": [
+    "action",
+    "category",
+    "domain",
+    "query",
+    "src_ip",
+    "src_external_ip",
+    "user",
+    "identity_type",
+    "reply_code",
+    "record_type"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_umbrella"
+  ],
+  "capabilities": [
+    "secure_access.dns_security"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Cisco Secure Access Add-on for Splunk (Splunkbase 7569) on the search heads and on the heavy forwarder or Inputs Data Manager that reads the S3 bucket.\n• Log export to Amazon S3 enabled in the Secure Access or Umbrella dashboard (Admin > Log Management), either a Cisco-managed bucket or your own, with the access key and secret for Splunk.\n• An index for Secure Access and Umbrella data (this page uses `index=sse`) and a role with `srchIndexesAllowed` on it for the network security team.\n\nStep 1 — Configure data collection\n• In the Cisco Secure Access Add-on (Splunkbase 7569) create an S3 modular input for the **DNS** log folder with the bucket name, region, access key, and secret, and set the index to `sse`. The add-on writes `sourcetype=cisco:cloud_security:dns`.\n• Logs reach S3 in batches, so events usually arrive in Splunk 10 to 15 minutes after the activity.\n• Check the fields this search needs: run `index=sse sourcetype=\"cisco:cloud_security:dns\" category=\"*anonymizer*\" | stats count by action category` over 7 days.\n\nStep 2 — Create the search and alert\n```spl\nindex=sse sourcetype=\"cisco:cloud_security:dns\" action=\"allowed\" category=\"*anonymizer*\"\n| fillnull value=\"unknown\" src_ip src_external_ip user identity_type\n| stats count min(_time) as firstTime max(_time) as lastTime values(domain) as domain values(query) as query values(reply_code) as reply_code values(record_type) as record_type by src_ip src_external_ip user identity_type action category\n| convert ctime(firstTime) ctime(lastTime)\n| sort - count\n```\n\nUnderstanding this SPL\n• The add-on lowercases `action` to `allowed` or `blocked` for CIM; the raw log writes Allowed or Blocked.\n• `category` holds every category of the domain separated by commas, so the wildcard match finds Proxy/Anonymizer wherever it appears.\n• `fillnull` keeps rows for identities with no internal IP or user, such as network tunnels.\n\nStep 3 — Validate\n• Compare with the Secure Access dashboard under Reporting > Activity Search, filtered to DNS and the Proxy/Anonymizer category: the identities should match within the S3 delay.\n• Check one listed domain in the dashboard's domain lookup and confirm its category.\n• Run `index=sse sourcetype=\"cisco:cloud_security:dns\" | timechart span=1h count` over 7 days; gaps longer than an hour point to S3 input failures.\n\nStep 4 — Operationalize\n• Schedule hourly over the last 70 minutes and throttle on `user` for 24 hours.\n• Route to the network security team; repeated use by one user goes to their manager under the acceptable-use policy.\n• If no approved use remains, block the Proxy/Anonymizer category in the DNS policy and keep this search as a check that the block holds.\n\nStep 5 — Troubleshooting\n• No proxy events and S3 access errors (403 AccessDenied) in the add-on log: the access key cannot read the bucket or the region is wrong.\n• Events arrive hours late: the input polling interval is long, or the bucket path prefix is wrong and the input scans the whole bucket.\n• No anonymizer events at all: the category is already blocked for every identity, so only `action=blocked` events exist. That is the intended end state.\n",
+  "grandmaExplanation": "Some websites hide where you are really going on the internet. We list who is using them, because they let people and bad software slip past the company's web rules.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}

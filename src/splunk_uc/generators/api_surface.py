@@ -262,6 +262,26 @@ def _load_ucs() -> list[dict[str, Any]]:
 _ID_RX = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
 
 
+def _vendor_capability_coverage() -> dict[str, dict[str, Any]]:
+    """Map equipment model id -> capability coverage from data/cisco-portfolio.json."""
+    from splunk_uc.generators import cisco_coverage
+
+    if not cisco_coverage.PORTFOLIO.exists():
+        return {}
+    matrix = cisco_coverage.build_matrix(cisco_coverage.load_portfolio(), cisco_coverage.collect_ucs())
+    out: dict[str, dict[str, Any]] = {}
+    for prod in matrix["products"]:
+        out[prod["equipmentModel"]] = {
+            "product": prod["slug"],
+            "capabilityMap": prod["capabilityMap"],
+            "requestCoverageUrl": matrix.get("requestCoverageUrl"),
+            "capabilities": [
+                {k: c[k] for k in ("ref", "name", "status", "useCases", "cimModels")} for c in prod["capabilities"]
+            ],
+        }
+    return out
+
+
 def _uc_sort_key(uc: Mapping[str, Any]) -> tuple[int, int, int]:
     m = _ID_RX.match(uc.get("id", ""))
     if not m:
@@ -1056,10 +1076,10 @@ def _looks_like_app_label(token: str) -> bool:
     picked up from the comma-split of free-text ``t``.
 
     The ``t`` field is human-authored markdown (e.g.
-    ``"Splunk Add-on for Cisco IOS (\\`Splunk_TA_cisco-ios\\`, Splunkbase 1352)"``).
+    ``"Splunk Add-on for Cisco IOS (\\`Splunk_TA_cisco-ios\\`, Splunkbase 1467)"``).
     Splitting on commas can land mid-parenthesis and produce tokens
     like ``"Splunk Add-on for Cisco IOS (Splunk_TA_cisco-ios"`` or
-    ``"Splunkbase 1352)"`` — neither of which is a Splunk app label and
+    ``"Splunkbase 1467)"`` — neither of which is a Splunk app label and
     both of which pollute the recommender's app-index. This guard:
 
     * rejects unbalanced-paren tokens
@@ -1334,6 +1354,15 @@ def _recommender_uc_thin(
         "equipmentModels": sorted([em for em in (uc.get("em", []) or []) if isinstance(em, str)]),
         "sb": sb_compact,
     }
+    variant_models = sorted(
+        {
+            str(item.get("model"))
+            for item in (uc.get("qv") or [])
+            if isinstance(item, Mapping) and isinstance(item.get("model"), str) and item.get("model")
+        }
+    )
+    if variant_models:
+        record["variantModels"] = variant_models
     # Only non-Splunk-platform UCs carry ``products`` so existing records
     # stay byte-identical.
     non_default = products.non_default_products(dict(uc))
@@ -1438,7 +1467,9 @@ def _recommender_payloads(
                 "of compliance-tagged UCs (category 22). v9.0 adds the "
                 "`sb` field listing required Splunkbase apps; cross-"
                 "reference each id against /recommender/splunkbase-"
-                "index.json for the install metadata."
+                "index.json for the install metadata. Records that "
+                "carry vendor SPL variants list the models in "
+                "`variantModels`."
             ),
             "useCaseCount": len(thin_records),
             "useCases": thin_records,
@@ -1723,6 +1754,8 @@ def _equipment_payloads(
     generated = _deterministic_timestamp()
     version = _read_version()
 
+    capability_coverage = _vendor_capability_coverage()
+
     index_entries: list[dict[str, Any]] = []
     details: dict[str, dict[str, Any]] = {}
     all_referenced_ids = sorted(set(equipment_ucs.keys()) | set(by_id.keys()))
@@ -1748,15 +1781,16 @@ def _equipment_payloads(
                 set(model_ucs.get(compound, [])),
                 key=lambda x: _uc_sort_key({"id": x}),
             )
-            model_summary.append(
-                {
-                    "id": compound,
-                    "modelId": model["id"],
-                    "label": model.get("label", model["id"]),
-                    "useCaseCount": len(m_uc_ids),
-                    "useCaseIds": m_uc_ids,
-                }
-            )
+            summary_entry: dict[str, Any] = {
+                "id": compound,
+                "modelId": model["id"],
+                "label": model.get("label", model["id"]),
+                "useCaseCount": len(m_uc_ids),
+                "useCaseIds": m_uc_ids,
+            }
+            if compound in capability_coverage:
+                summary_entry["capabilityCoverage"] = capability_coverage[compound]
+            model_summary.append(summary_entry)
         model_summary.sort(key=lambda m: m["id"])
 
         index_entry: dict[str, Any] = {
@@ -1956,6 +1990,10 @@ def _manifest(
                 "detail": f"/api/{API_VERSION}/equipment/{{equipmentId}}.json",
                 "appIndex": f"/api/{API_VERSION}/equipment/app-index.json",
             },
+            "starterPacks": {
+                "index": f"/api/{API_VERSION}/starter-packs/index.json",
+                "detail": f"/api/{API_VERSION}/starter-packs/{{packId}}.json",
+            },
         },
         "deprecations": [],
         "successor": None,
@@ -2135,6 +2173,21 @@ paths:
           in: path
           required: true
           schema: { type: string }
+  /starter-packs/index.json:
+    get:
+      summary: Guided-onboarding starter packs (all packs, resolved steps, alias groups)
+      description: |
+        Produced by ``python -m splunk_uc generate-starter-packs`` from
+        ``data/starter-packs/*.json`` (subtree owned outside this generator).
+        Show only ``status: published`` packs to end users.
+  /starter-packs/{packId}.json:
+    get:
+      summary: One starter pack with resolved steps and audit readiness
+      parameters:
+        - name: packId
+          in: path
+          required: true
+          schema: { type: string }
   /oscal/index.json:
     get:
       summary: OSCAL artifacts index
@@ -2187,7 +2240,9 @@ paths:
         Cross-reference each id against
         ``/recommender/splunkbase-index.json`` for the install
         metadata (display name, URL, latest version, cloud-vetted
-        flag).
+        flag). Records with vendor SPL variants (uc.schema 1.10.0
+        ``splVariants``) also carry ``variantModels``, the equipment
+        model compounds that have their own search.
   /recommender/splunkbase-index.json:
     get:
       summary: Splunkbase app install metadata keyed by Splunkbase id
@@ -2575,7 +2630,7 @@ def _render_story_surfaces(out_root: pathlib.Path) -> None:
 #: therefore must be ignored by this script's rmtree / diff logic.
 #: Keep in sync with the corresponding generator entries in
 #: .github/workflows/validate.yml.
-_EXTERNAL_SUBTREES = ("evidence-packs",)
+_EXTERNAL_SUBTREES = ("evidence-packs", "starter-packs")
 
 
 def _is_external(rel: pathlib.Path) -> bool:

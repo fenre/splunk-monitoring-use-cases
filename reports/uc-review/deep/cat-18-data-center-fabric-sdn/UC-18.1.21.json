@@ -1,0 +1,117 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "612ac9b9749d863d81a541cbdda90c0afa724fa81dc89bd5ae9ec6c7f25b0dfb",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.1.21.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/1897",
+      "explanation": "Splunkbase 4022 is 'Technical Addon for the Metricator application for Nmon (HEC)'. The Cisco ACI add-on was TA_cisco-ACI (1897), archived in favour of Cisco DC Networking (7777). 4022 is repeated in implementation, detailedImplementation and references.",
+      "field": "app",
+      "quote": "**Splunk_TA_cisco-aci** ([Splunkbase **4022**](https://splunkbase.splunk.com/app/4022)) for **`cisco:aci:syslog`**, **`cisco:aci:audit`**, and **`cisco:aci:endpoint`** parsers",
+      "severity": "blocker",
+      "suggested_fix": "Point to Cisco DC Networking (Splunkbase 7777) for APIC endpoint collection, note TA_cisco-ACI (1897) as deprecated, and remove 4022."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The SPL alerts when (ep_events>=180 AND ratio_e>=5) OR (mac_moves>=50 AND ratio_m>=4) OR churn_raw>=max(350,6*(med_e+med_m+1)). The description turns the ANDs into ORs and presents med_e>0 and med_m>0, which only guard against division by zero, as thresholds.",
+      "field": "description",
+      "quote": "compares against `med_e` > 0, `med_m` > 0, `ep_events` >= 180, or `ratio_e` >= 5",
+      "severity": "major",
+      "suggested_fix": "State the three alert branches exactly as the where clause defines them."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/datacenter-fabric-sdn.md",
+      "explanation": "Endpoint learn and delete records have no flow fields (src, dest, ports, bytes). The schema field itself calls the mapping 'indirect' and dependent on acllog feeds the UC does not ingest.",
+      "field": "cimModels",
+      "quote": "\"Network_Traffic\"",
+      "severity": "major",
+      "suggested_fix": "Remove Network_Traffic. Keep Inventory for endpoint objects and Change for audit rows only if the SPL uses them."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Neither ID is in the cached Splunkbase catalogue, and no VMware or NSX data is used by the SPL. The nsx, vmware and vmware_ta_vmware equipment tags rest only on this optional mention.",
+      "field": "app",
+      "quote": "optional **Splunk_TA_vmware-nsxt** ([Splunkbase **4856**](https://splunkbase.splunk.com/app/4856)) and **Splunk_TA_vmware** ([Splunkbase **1810**](https://splunkbase.splunk.com/app/1810))",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm the real Splunkbase IDs, or drop the VMware/NSX add-ons and equipment tags."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "The APIC GUI exposes endpoint history under Operations > EP Tracker. There does not appear to be an 'Operations → Endpoints' view.",
+      "field": "detailedImplementation",
+      "quote": "Compare **churn_raw** peaks to APIC Operations → Endpoints views",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the navigation path for the APIC release in use (likely Operations > EP Tracker) and cite it."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The markdown is broken, and the check needs `| metadata type=sourcetypes` because the items listed are sourcetypes. The text also says the lane flags read 'zero', but the left joins leave them null when a lane is silent.",
+      "field": "detailedImplementation",
+      "quote": "Run ****metadata type=sources** on **cisco_aci** for the day—verify **`cisco:aci:endpoint`**, **`cisco:aci:epm`**",
+      "severity": "minor",
+      "suggested_fix": "Use `| metadata type=sourcetypes index=cisco_aci`, and add `fillnull value=0` on the *_lane_ok flags or describe them as blank when a lane is silent."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "Both Cisco references point at the cisco.com and developer.cisco.com home pages rather than the epmMacEp MIM page or the APIC REST API guide.",
+      "field": "references",
+      "quote": "\"title\": \"Cisco APIC REST API Class Query — epmMacEp.json\",\n      \"url\": \"https://www.cisco.com/c/en/us/\"",
+      "severity": "major",
+      "suggested_fix": "Link the APIC MIM reference entry for epmMacEp and the APIC REST API Configuration Guide chapter on class queries."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "An automated agent reviewed the UC ('agent-handcraft-2026-04-29'), and it still has a wrong add-on ID and placeholder references.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until an SME validates the endpoint feed and fields."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`dc(mac_norm) as mac_moves` counts distinct MACs with any learn or delete verb in the bucket, not MAC moves. ratio_m and the 'mac_moves>=50' gate therefore measure endpoint breadth, not mobility, and the field name and prose mislead readers.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "In the fault subsearch, `sev_f` coalesces `code` into severity, and the filter `OR match(sev_f,\"major|critical|warning\")` counts every open fault fabric-wide. So open_ep_faults is not endpoint-specific, and lc 'cleared' is not an APIC lifecycle value (retaining is).",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "`eventstats median(...) by tenant` sets one baseline across all EPG/BD rows in a tenant, so large EPGs always beat the ratio gates and small EPGs never do. Compute the baseline by tenant, epg and bd.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0013-UC-18.1.21",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The endpoint-churn logic is coherent, but the UC cites the wrong Splunkbase ID, lists VMware add-ons and a Network_Traffic model the search never uses, describes the alert gate with the wrong boolean logic, and calls distinct MAC counts 'moves'. Two references are placeholder home-page URLs.",
+  "tier": "deep",
+  "uc_id": "UC-18.1.21",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,97 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "af0048bc37d7b9b1a2d0e9a4745c6d3bf20e5086a57993c69b6732e77d7cf090",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.2.1.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/9.3.1/Forwarding/Typesofforwarders",
+      "explanation": "The Universal Forwarder is a separately downloaded Splunk binary, not a Splunkbase app (splunkbase.splunk.com/app/617 returns 404), and it has no bundled Python, so it cannot run the Python SNMP modular input that 'Poll via SNMP every minute' implies.",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+      "severity": "blocker",
+      "suggested_fix": "Name the real collector: Splunk Connect for SNMP (Splunkbase 6266) or the SNMP Modular Input (Splunkbase 1537) on a heavy forwarder, or BMS/BACnet export, landing sourcetype=sensor:temperature with fields zone, rack, sensor_position, temp_f."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://www.ashrae.org/file%20library/technical%20resources/bookstore/supplemental%20files/therm-gdlns-5th-r-e-refcard.pdf",
+      "explanation": "18–27°C (64.4–80.6°F) is the ASHRAE TC 9.9 recommended envelope shared by classes A1–A4; the A1 allowable limits are 15–32°C (59–89.6°F). Calling 64–80°F the 'A1 limits' overstates a recommended range as a hard class limit.",
+      "field": "implementation",
+      "quote": "Alert on exceedance of ASHRAE A1 limits (64-80°F intake).",
+      "severity": "minor",
+      "suggested_fix": "Say 'alert when intake air leaves the ASHRAE recommended envelope (18–27°C / 64.4–80.6°F)' and optionally add a second, higher-severity tier at the A1 allowable limits (15–32°C)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "description claims a count grouped by entity, but the SPL returns raw events (zone, rack, sensor_position, temp_f) with no aggregation; dataSources lists intake, exhaust and ambient sensors while implementation scopes the ASHRAE limit to intake only, and the SPL applies it to every sensor.",
+      "field": "cross_field",
+      "quote": "grouped by `entity`. Outputs `count` each `the scheduled window`",
+      "severity": "major",
+      "suggested_fix": "Describe the real output (one row per out-of-range reading with zone, rack, sensor position and °F) and state that only intake / cold-aisle sensors should be evaluated against the ASHRAE band."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/datacenter-physical.md",
+      "explanation": "dataSources never names the index/sourcetype (`environment` / `sensor:temperature`) or the fields `zone`, `rack`, `sensor_position`, `temp_f` that the SPL needs; the grounding guide uses index dc_environmental, sourcetype snmp:envmon and Celsius `temp_c`.",
+      "field": "dataSources",
+      "quote": "Environmental sensors (intake, exhaust, ambient temperature)",
+      "severity": "major",
+      "suggested_fix": "State the sourcetype and field names explicitly, note that temperatures must be in °F (or convert from temp_c), and align the index name with the guide or explain the deviation."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The scenarios reference fields (`src`, `host`, `count`, `span=1h`) that the SPL never uses and describe no real cause of spurious temperature alerts.",
+      "field": "knownFalsePositives",
+      "quote": "Scheduled automation elevates `src` without crossing `temp_f` > 80",
+      "severity": "major",
+      "suggested_fix": "List real causes: exhaust/hot-aisle sensors evaluated against the intake band, sensors dislodged or placed near a door or blanking-panel gap, door-open events during maintenance, a CRAC/CRAH failover or defrost cycle, and °C readings ingested into temp_f."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "A critical temperature alert over a 24-hour window re-reports day-old readings; the text also says 'Default poll interval 300–900 seconds' against implementation's 'Poll via SNMP every minute', and Steps 1–4 are duplicated with 'Step 4 — Operationalize' repeated four times.",
+      "field": "detailedImplementation",
+      "quote": "Schedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages.",
+      "severity": "major",
+      "suggested_fix": "Deduplicate the steps, schedule every 5 minutes over the last 5–10 minutes (or use latest reading per sensor), keep one poll interval, and throttle on zone+rack."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "Implementation describes polled sensor readings, not SNMP traps.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_trap\"",
+      "severity": "minor",
+      "suggested_fix": "Use the polled SNMP environmental sensor model (or the specific sensor vendors) instead of snmp_trap."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The where clause applies the 64/80°F intake band to every sensor, including exhaust/hot-aisle sensors listed in dataSources that normally run well above 80°F, so the alert will fire continuously; add a sensor_position filter (intake / cold aisle). Despite the title 'per Zone', there is no per-zone aggregation (e.g. latest or max temp_f by zone, rack).",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0032-UC-15.2.1",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 1
+  },
+  "summary": "A simple, workable inlet-temperature threshold alert, but the collection path names a non-existent Splunkbase Universal Forwarder app, the 64–80°F band is mislabelled as the ASHRAE A1 limit, and the description, false positives and implementation steps are template text that does not match the SPL or the ASHRAE intake-only scope.",
+  "tier": "deep",
+  "uc_id": "UC-15.2.1",
+  "verdict": "incorrect"
+}

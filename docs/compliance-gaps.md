@@ -8,8 +8,8 @@ This report inverts the compliance coverage audit: for every regulation-version 
 
 | Tier | Clauses | Covered | Coverage % | Priority weight | Priority covered | Priority % |
 |------|--------:|--------:|-----------:|----------------:|------------------:|-----------:|
-| tier-1 | 450 | 450 | 100.00 | 418.6000 | 418.6000 | 100.00 |
-| tier-2 | 221 | 221 | 100.00 | 210.5000 | 210.5000 | 100.00 |
+| tier-1 | 450 | 449 | 99.78 | 418.6000 | 417.6000 | 99.76 |
+| tier-2 | 221 | 220 | 99.55 | 210.5000 | 209.5000 | 99.52 |
 | tier-3 | 2 | 2 | 100.00 | 1.7000 | 1.7000 | 100.00 |
 
 ## Tier 1 frameworks
@@ -158,7 +158,7 @@ _Cybersecurity Law of the People's Republic of China, Data Security Law, Persona
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
-| `CSL-Art-21` | Network operator obligations — tiered protection, technical security measures, contingency plans (MLPS as implementation vehicle) | 1.00 | ✔ 2 | full | 22.61.1, 22.61.12 |
+| `CSL-Art-21` | Network operator obligations — tiered protection, technical security measures, contingency plans (MLPS as implementation vehicle) | 1.00 | ✔ 1 | full | 22.61.12 |
 | `CSL-Art-21-3` | Universal log retention — ≥6 months for network operational status and security incidents | 1.00 | ✔ 1 | full | 22.61.13 |
 | `CSL-Art-25` | Cybersecurity incident emergency response plan + reporting to authorities | 1.00 | ✔ 1 | full | 22.61.3 |
 | `CSL-Art-37` | CIIO data localization — personal information and important data collected in PRC must be stored in PRC | 1.00 | ✔ 1 | full | 22.61.4 |
@@ -171,8 +171,8 @@ _Cybersecurity Law of the People's Republic of China, Data Security Law, Persona
 | `PIPL-Art-55` | Personal Information Impact Assessment (PIPIA) — required for high-risk processing | 1.00 | ✔ 2 | full | 22.61.8, 22.61.9 |
 | `CIIO-Reg-Art-8` | CIIO designation by sectoral protection departments (sector-by-sector) | 1.00 | ✔ 1 | full | 22.61.2 |
 | `CIIO-Reg-Art-14` | Cybersecurity Review for CIIO procurement of network products and services | 1.00 | ✔ 1 | full | 22.61.10 |
-| `MLPS-2-0-L3` | MLPS 2.0 Level 3 controls — technical and administrative security baseline for important national systems | 1.00 | ✔ 3 | full | 22.61.1, 22.61.11, 22.61.12 |
-| `MLPS-2-0-annual` | Annual MLPS assessment by MPS-accredited testing organisation (Level 3+) | 1.00 | ✔ 2 | full | 22.61.1, 22.61.11 |
+| `MLPS-2-0-L3` | MLPS 2.0 Level 3 controls — technical and administrative security baseline for important national systems | 1.00 | ✔ 2 | full | 22.61.11, 22.61.12 |
+| `MLPS-2-0-annual` | Annual MLPS assessment by MPS-accredited testing organisation (Level 3+) | 1.00 | ✔ 1 | full | 22.61.11 |
 
 ### DO-326A / ED-202A — `do-326a`
 
@@ -272,7 +272,7 @@ _General Data Protection Regulation_
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
-| `Art.5` | Principles of processing | 1.00 | ✔ 3 | full | 22.1.1, 22.49.1, 22.49.2 |
+| `Art.5` | Principles of processing | 1.00 | ✔ 2 | full | 22.1.1, 22.49.2 |
 | `Art.6` | Lawful basis | 1.00 | ✔ 6 | partial | 10.4.75, 10.4.79, 10.7.154, 11.3.11, 22.1.1, 22.37.1 |
 | `Art.7` | Conditions for consent | 0.70 | ✔ 16 | full | 10.4.111, 10.4.114, 10.4.115, 10.4.24, 10.4.39, 10.4.45, 10.7.137, 10.7.166 |
 | `Art.15` | Right of access | 1.00 | ✔ 2 | full | 22.1.2, 22.36.1 |
@@ -314,7 +314,7 @@ _HIPAA Security Rule_
 | `§164.308(a)(7)` | Contingency plan | 1.00 | ✔ 3 | partial | 17.1.47, 22.10.8, 22.45.2 |
 | `§164.308(a)(8)` | Evaluation | 0.70 | ✔ 1 | partial | 22.10.9 |
 | `§164.310(a)(1)` | Facility access controls | 1.00 | ✔ 1 | partial | 22.10.31 |
-| `§164.310(d)(1)` | Device and media controls | 0.70 | ✔ 4 | full | 17.1.50, 22.10.29, 22.49.1, 22.49.2 |
+| `§164.310(d)(1)` | Device and media controls | 0.70 | ✔ 3 | full | 17.1.50, 22.10.29, 22.49.2 |
 | `§164.312(a)(1)` | Access control | 1.00 | ✔ 3 | partial | 22.10.21, 22.10.24, 22.10.25 |
 | `§164.312(a)(2)(iv)` | Encryption and decryption | 0.70 | ✔ 2 | full | 22.10.16, 22.41.1 |
 | `§164.312(b)` | Audit controls | 1.00 | ✔ 6 | full | 10.12.16, 17.1.43, 22.10.17, 22.10.36, 22.10.58, 22.10.59 |
@@ -418,7 +418,7 @@ _ISO/IEC 27001 — ISMS_
 | `9.2` | Internal audit | 1.00 | ✔ 1 | full | 22.6.50 |
 | `A.5.7` | Threat intelligence (2022 new) | 0.70 | ✔ 3 | contributing | 17.1.33, 17.1.81, 22.6.11 |
 | `A.5.15` | Access control | 1.00 | ✔ 1 | full | 22.40.2 |
-| `A.5.18` | Access rights review | 1.00 | ✔ 5 | full | 17.1.44, 17.1.79, 22.12.36, 22.12.37, 22.40.3 |
+| `A.5.18` | Access rights review | 1.00 | ✔ 4 | full | 17.1.44, 22.12.36, 22.12.37, 22.40.3 |
 | `A.5.23` | Information security in cloud services (2022 new) | 1.00 | ✔ 1 | contributing | 22.6.13 |
 | `A.5.24` | Incident management planning | 1.00 | ✔ 3 | full | 22.11.105, 22.3.44, 22.6.51 |
 | `A.5.25` | Assessment and decision on events | 1.00 | ✔ 3 | full | 17.1.30, 22.6.52, 22.8.34 |
@@ -467,7 +467,7 @@ _EU NIS2 Directive_
 | `Art.21(4)` | Art.21(4) | 1.00 | ✔ 1 | partial | 22.2.48 |
 | `Art.21(5)` | Art.21(5) | 1.00 | ✔ 1 | partial | 22.2.56 |
 | `Art.22` | Art.22 | 0.60 | ✔ 1 | partial | 22.2.50 |
-| `Art.23` | Reporting obligations | 1.00 | ✔ 10 | full | 22.2.1, 22.2.33, 22.2.45, 22.2.49, 22.26.22, 22.26.9, 22.3.44, 22.39.1 |
+| `Art.23` | Reporting obligations | 1.00 | ✔ 9 | full | 22.2.1, 22.2.33, 22.2.49, 22.26.22, 22.26.9, 22.3.44, 22.39.1, 22.39.2 |
 | `Art.23(1)` | Legacy NIS2 mapping already present in the catalogue | 1.00 | ✔ 1 | partial | 22.2.49 |
 | `Art.23(2)` | Legacy NIS2 mapping already present in the catalogue | 1.00 | ✔ 2 | partial | 22.2.49, 22.2.7 |
 | `Art.23(3)(a)` | Art.23(3)(a) | 1.00 | ✔ 1 | partial | 22.2.49 |
@@ -513,7 +513,7 @@ _NIST SP 800-53 Rev. 5_
 |--------|-------|---------:|----:|---------------|------------|
 | `AC-2` | Account management | 1.00 | ✔ 4 | full | 17.1.51, 22.14.16, 22.40.3, 5.13.49 |
 | `AC-3` | Access enforcement | 1.00 | ✔ 3 | contributing | 17.1.55, 17.1.68, 22.14.17 |
-| `AC-6` | Least privilege | 1.00 | ✔ 5 | full | 17.1.79, 22.14.19, 22.40.1, 22.40.2, 5.13.47 |
+| `AC-6` | Least privilege | 1.00 | ✔ 4 | full | 22.14.19, 22.40.1, 22.40.2, 5.13.47 |
 | `AU-2` | Event logging | 1.00 | ✔ 975 | full | 17.1.43, 22.14.1, 22.35.6, 22.40.6, 4.1.100, 4.1.101, 4.1.102, 4.1.103 |
 | `AU-3` | Content of audit records | 1.00 | ✔ 2 | partial | 22.14.2, 5.13.50 |
 | `AU-6` | Audit review, analysis, and reporting | 1.00 | ✔ 4 | full | 17.1.42, 22.14.5, 22.14.82, 5.13.50 |
@@ -556,8 +556,8 @@ _NIST Cybersecurity Framework_
 #### NIST CSF@2.0
 
 - Common clauses: **17**
-- Covered: **17** (100.00%)
-- Priority-weighted coverage: **100.00%** (16.1000 / 16.1000)
+- Covered: **16** (94.12%)
+- Priority-weighted coverage: **93.79%** (15.1000 / 16.1000)
 - Authoritative source: https://www.nist.gov/cyberframework
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
@@ -571,7 +571,7 @@ _NIST Cybersecurity Framework_
 | `PR.AA-05` | Access permissions | 1.00 | ✔ 1 | full | 22.7.4 |
 | `PR.DS-01` | Data-at-rest protection | 1.00 | ✔ 1 | partial | 22.7.26 |
 | `PR.DS-02` | Data-in-transit protection | 1.00 | ✔ 1 | partial | 22.7.27 |
-| `PR.PS-04` | Log generation | 1.00 | ✔ 1 | full | 22.7.32 |
+| `PR.PS-04` | Log generation | 1.00 | ✖ 0 | — | — |
 | `DE.AE-02` | Anomalies and events analysis | 1.00 | ✔ 2 | full | 22.7.37, 22.7.51 |
 | `DE.CM-01` | Network monitoring | 1.00 | ✔ 2 | full | 22.7.31, 22.7.51 |
 | `DE.CM-03` | Personnel activity monitoring | 1.00 | ✔ 2 | full | 22.14.82, 22.7.33 |
@@ -579,6 +579,14 @@ _NIST Cybersecurity Framework_
 | `RS.MA-01` | Incident management | 1.00 | ✔ 1 | partial | 22.7.39 |
 | `RS.AN-03` | Incident analysis | 1.00 | ✔ 1 | full | 22.7.6 |
 | `RC.RP-01` | Recovery plan execution | 1.00 | ✔ 1 | partial | 22.7.46 |
+
+<details><summary>Top gaps (ranked by priority weight)</summary>
+
+| Priority | Clause | Topic |
+|---------:|--------|-------|
+| 1.00 | `PR.PS-04` | Log generation |
+
+</details>
 
 ### PCI DSS — `pci-dss`
 
@@ -850,8 +858,8 @@ _APRA CPS 234 Information Security_
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
 | `15` | Policy framework | 0.70 | ✔ 1 | partial | 22.30.21 |
-| `23` | Incident management | 1.00 | ✔ 12 | partial | 16.1.20, 16.3.6, 22.30.19, 22.30.20, 22.30.23, 22.30.24, 22.30.25, 22.31.14 |
-| `36` | Notification of incidents | 1.00 | ✔ 4 | partial | 16.1.20, 16.3.6, 22.30.22, 22.31.16 |
+| `23` | Incident management | 1.00 | ✔ 11 | partial | 16.3.6, 22.30.19, 22.30.20, 22.30.23, 22.30.24, 22.30.25, 22.31.14, 22.31.15 |
+| `36` | Notification of incidents | 1.00 | ✔ 3 | partial | 16.3.6, 22.30.22, 22.31.16 |
 
 ### ASD E8 — `asd-e8`
 
@@ -869,7 +877,7 @@ _ASD Essential Eight Maturity Model_
 | `E8.01` | Application control | 1.00 | ✔ 2 | partial | 12.3.10, 22.31.6 |
 | `E8.03` | Configure MS Office macro settings | 1.00 | ✔ 2 | partial | 22.31.13, 22.31.7 |
 | `E8.05` | Restrict administrative privileges | 1.00 | ✔ 3 | partial | 22.31.9, 9.1.3, 9.4.1 |
-| `E8.06` | Patch operating systems | 1.00 | ✔ 3 | partial | 12.3.2, 22.31.10, 3.1.5 |
+| `E8.06` | Patch operating systems | 1.00 | ✔ 2 | partial | 12.3.2, 22.31.10 |
 | `E8.08` | Regular backups | 1.00 | ✔ 5 | full | 22.31.12, 5.1.24, 6.3.1, 6.3.13, 6.3.23 |
 
 ### AU Privacy Act — `au-privacy-act`
@@ -949,7 +957,7 @@ _California Consumer Privacy Act / CPRA_
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
-| `§1798.100` | Consumer right to know | 1.00 | ✔ 5 | full | 10.11.62, 22.36.1, 22.37.2, 22.4.1, 22.49.1 |
+| `§1798.100` | Consumer right to know | 1.00 | ✔ 4 | full | 10.11.62, 22.36.1, 22.37.2, 22.4.1 |
 | `§1798.105` | Consumer right to delete | 1.00 | ✔ 4 | full | 22.36.2, 22.4.1, 22.4.24, 22.4.25 |
 | `§1798.150` | Private right of action for data breaches | 0.70 | ✔ 1 | partial | 22.39.3 |
 
@@ -1126,8 +1134,8 @@ _EU Cyber Resilience Act_
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
-| `Art.13` | Obligations of manufacturers | 1.00 | ✔ 4 | partial | 12.1.4, 12.3.10, 12.3.2, 3.1.5 |
-| `Art.14` | Reporting of actively exploited vulnerabilities | 1.00 | ✔ 22 | full | 12.3.2, 22.23.1, 22.23.10, 22.23.11, 22.23.12, 22.23.13, 22.23.14, 22.23.15 |
+| `Art.13` | Obligations of manufacturers | 1.00 | ✔ 3 | partial | 12.1.4, 12.3.10, 12.3.2 |
+| `Art.14` | Reporting of actively exploited vulnerabilities | 1.00 | ✔ 21 | full | 12.3.2, 22.23.1, 22.23.10, 22.23.11, 22.23.12, 22.23.13, 22.23.14, 22.23.15 |
 
 ### FCA SM&CR — `fca-smcr`
 
@@ -1376,7 +1384,7 @@ _MAS Technology Risk Management Guidelines_
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
 | `§4.1.1` | Technology risk governance | 1.00 | ✔ 9 | partial | 12.2.17, 16.4.1, 22.30.1, 22.30.2, 22.30.3, 22.30.4, 22.30.5, 22.30.7 |
-| `§8.1.1` | IT operations — incident mgmt | 1.00 | ✔ 2 | partial | 16.1.20, 22.30.6 |
+| `§8.1.1` | IT operations — incident mgmt | 1.00 | ✔ 1 | partial | 22.30.6 |
 | `§11.1.1` | System resilience | 1.00 | ✔ 1 | partial | 22.50.5 |
 
 ### MiFID II — `mifid-ii`
@@ -1402,8 +1410,8 @@ _NCA Operational Technology Cybersecurity Controls_
 #### NCA OTCC@1:2022
 
 - Common clauses: **28**
-- Covered: **28** (100.00%)
-- Priority-weighted coverage: **100.00%** (26.2000 / 26.2000)
+- Covered: **27** (96.43%)
+- Priority-weighted coverage: **96.18%** (25.2000 / 26.2000)
 - Authoritative source: https://nca.gov.sa/en/regulatory-documents/controls-list/3
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
@@ -1425,7 +1433,7 @@ _NCA Operational Technology Cybersecurity Controls_
 | `OTCC-2-9-1-1` | OT backup integrity and recovery testing | 1.00 | ✔ 1 | full | 22.51.22 |
 | `OTCC-2-10-1-1` | OT vulnerability assessment and management | 1.00 | ✔ 1 | partial | 22.51.7 |
 | `OTCC-2-10-2-1` | OT patch management with safety validation | 1.00 | ✔ 1 | full | 22.51.8 |
-| `OTCC-2-12-1-1` | OT event logging completeness and retention | 1.00 | ✔ 1 | full | 22.51.13 |
+| `OTCC-2-12-1-1` | OT event logging completeness and retention | 1.00 | ✖ 0 | — | — |
 | `OTCC-2-12-2-1` | OT industrial protocol monitoring | 1.00 | ✔ 1 | full | 22.51.14 |
 | `OTCC-2-12-3-1` | OT-tier phishing and email-borne threat detection | 0.70 | ✔ 1 | partial | 22.51.15 |
 | `OTCC-2-13-1-1` | OT cybersecurity incident detection and classification | 1.00 | ✔ 1 | full | 22.51.16 |
@@ -1436,6 +1444,14 @@ _NCA Operational Technology Cybersecurity Controls_
 | `OTCC-3-1-2-1` | OT recovery time and recovery point objectives | 0.70 | ✔ 1 | full | 22.51.21 |
 | `OTCC-4-1-1-1` | Third-party and supply-chain cybersecurity assurance for OT | 1.00 | ✔ 1 | full | 22.51.23 |
 | `OTCC-4-2-1-1` | OT cloud and hosting cybersecurity assurance | 0.70 | ✔ 1 | full | 22.51.28 |
+
+<details><summary>Top gaps (ranked by priority weight)</summary>
+
+| Priority | Clause | Topic |
+|---------:|--------|-------|
+| 1.00 | `OTCC-2-12-1-1` | OT event logging completeness and retention |
+
+</details>
 
 ### NERC CIP — `nerc-cip`
 
@@ -1803,7 +1819,7 @@ _UK Network and Information Systems Regulations 2018_
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
 | `Reg.10` | OES security duties | 1.00 | ✔ 9 | partial | 22.27.1, 22.27.10, 22.27.2, 22.27.3, 22.27.5, 22.27.6, 22.27.7, 22.27.8 |
-| `Reg.11` | Incident reporting | 1.00 | ✔ 3 | partial | 16.1.20, 16.3.6, 22.27.4 |
+| `Reg.11` | Incident reporting | 1.00 | ✔ 2 | partial | 16.3.6, 22.27.4 |
 
 ### UN R155 — `unece-r155`
 

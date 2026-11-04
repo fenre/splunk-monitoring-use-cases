@@ -1,0 +1,86 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "7d9748d10c69a1c4dd77b793410b212c6e06fadf5847d8fcd74ef33c20e3b5bb",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.2.6.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://www.splunk.com/en_us/download/universal-forwarder.html",
+      "explanation": "The Universal Forwarder is downloaded from splunk.com, not Splunkbase; app 617 returns 404 and is not in the cached catalogue, and the forwarder has no BMS modular input. A reader cannot install the stated add-on.",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll",
+      "severity": "blocker",
+      "suggested_fix": "Name the real BMS/CRAC collection path (SNMP Modular Input, Splunkbase 1537, or Splunk Connect for SNMP, Splunkbase 6266, for CRAC SNMP agents; BACnet via Edge Hub; or DB Connect/REST from the BMS/DCIM) and state the sourcetype and fields it yields (cooling_output_kw, cooling_capacity_kw)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "implementation and dataSources (\"IT heat load calculations\") describe deriving load from IT power and alerting at 80%, but the SPL only averages BMS-reported cooling_output_kw and cooling_capacity_kw per day with no IT-power input and no threshold. That IT-load comparison is what sibling UC-15.2.14 (power:it_heat) does.",
+      "field": "cross_field",
+      "quote": "Calculate cooling load from IT power consumption (1 watt IT ≈ 3.41 BTU/h heat). Compare against total cooling capacity. Track utilization percentage. Alert when approaching 80% capacity.",
+      "severity": "major",
+      "suggested_fix": "Either describe the SPL as it is (daily trend of BMS cooling output vs rated capacity, utilization_pct) and point to UC-15.2.14 for IT-load-derived heat, or state that an 80% `where utilization_pct>80` condition must be added when saving as an alert."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL is a site-wide `timechart span=1d` with no split-by field, so there is no `entity` grain and it does not alert; it produces one row per day.",
+      "field": "description",
+      "quote": "Alerts on 'Cooling Capacity Planning' patterns ... aggregation grain: `entity`; metrics: `output`, `capacity`.",
+      "severity": "major",
+      "suggested_fix": "Say: trends daily average cooling output and rated capacity across all reporting units in index=cooling and computes utilization_pct; add a split-by (e.g. room or unit) if per-zone planning is required."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The scenarios are template text; the SPL does not group on host. Real distortions for this metric are units in standby/maintenance reporting zero output, nameplate vs derated capacity, seasonal outdoor-temperature effects, and missing polls lowering the daily average.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `host`** — Health checks in `cooling` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List capacity-planning specific caveats: standby/maintenance units, derated capacity at high ambient, economizer periods, and data gaps; explain how each skews utilization_pct."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "clarity",
+      "explanation": "Steps 1–4 are duplicated with the Step 4 heading repeated four times, and the second pass is generic (user/action fields, vendor API 401/429, throttle per entity) and unrelated to a daily capacity trend.",
+      "field": "detailedImplementation",
+      "quote": "Spot-check two known entities for field presence (`host, user, action`).",
+      "severity": "major",
+      "suggested_fix": "Keep one step sequence specific to this UC: confirm each CRAC/CRAH reports output and rated capacity in kW, validate totals against the BMS, schedule a daily/weekly report, and review the trend in capacity planning meetings."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "For capacity planning, usable capacity should exclude redundant (N+1/2N) standby units; comparing against total installed capacity overstates headroom.",
+      "field": "implementation",
+      "quote": "Compare against total cooling capacity.",
+      "severity": "minor",
+      "suggested_fix": "Compare load against redundant-safe capacity (total minus the largest unit or standby units) and note this in the utilization definition."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "No threshold or split-by: the SPL cannot produce the 80% alert or per-entity rows described in prose; avg(cooling_capacity_kw) is the mean per-unit capacity, so it equals site capacity only when every unit reports equally often. Consider sum per time bucket of the latest value per unit.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0044-UC-15.2.6",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 1,
+    "overclaiming": 3,
+    "specificity": 1
+  },
+  "summary": "The SPL is a simple daily trend of BMS cooling output versus capacity, but the prose describes an entity-grained alert with an 80% threshold and an IT-heat-load calculation the SPL never performs, and the collection path cites a non-existent Splunkbase app.",
+  "tier": "deep",
+  "uc_id": "UC-15.2.6",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,129 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "caf65d5b29f2533c83336180119a1851aced8b49b45a529579b039b04fdeae6e",
+  "file": "content/cat-10-security-infrastructure/UC-10.4.81.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "clarity",
+      "explanation": "It never says what is detected: an Exchange Online mailbox folder read permission being assigned to another account. It describes the risk-lookup drilldown, and '168h lookback' is not an alert condition. The `$user$` token is a drilldown placeholder that the text does not explain.",
+      "field": "description",
+      "quote": "using datamodel `Risk.All_Risk`, grouped by `normalized_risk_object`. Outputs `firstTime`, `lastTime` each `the scheduled window`; alert when 168h lookback.",
+      "severity": "major",
+      "suggested_fix": "State that the ESCU detection looks at Office 365 audit events for folder permission changes that grant read access and adds risk to the user. Say that the shown search is the Risk drilldown used to investigate that user over the last 168 hours."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/email-security.md",
+      "explanation": "The data is Office 365 audit activity. The grounding guide collects it with the Splunk Add-on for Microsoft Office 365 (Splunkbase 4055), which `implementation` itself names. ESCU is the content pack, not the collector, and the Universal Forwarder is not a Splunkbase app.",
+      "field": "app",
+      "quote": "Splunk Security Essentials / ESCU — Universal Forwarder (Splunkbase 617)",
+      "severity": "major",
+      "suggested_fix": "Name the Splunk Add-on for Microsoft Office 365 as the data source app and ESCU with Splunk Enterprise Security as the content that runs the detection."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/email-security.md",
+      "explanation": "The product is called the Splunk Add-on for Microsoft Office 365. The grounding guide gives Splunkbase 4055, while sibling UCs in this subcategory cite 4054. Check which ID is current.",
+      "field": "implementation",
+      "quote": "You must install the Splunk Microsoft Office 365 Add-on",
+      "severity": "needs_verification",
+      "suggested_fix": "Use the exact add-on name and the confirmed Splunkbase ID."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "evidence_ref": "docs/guides/email-security.md",
+      "explanation": "This is an Exchange audit operation, not a data source. It gives no sourcetype, workload or the permission operations that matter (for example the AccessRights values).",
+      "field": "dataSources",
+      "quote": "O365 ModifyFolderPermissions",
+      "severity": "minor",
+      "suggested_fix": "Give the Office 365 management activity sourcetype used in your environment, the Exchange workload, and the audit operations the detection reads."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "Steps 1 to 5 at the end are generic collector boilerplate ('see SPL', `index=main`, HEC token, vendor rate limits, 'vendor admin UI inventory count'). They contradict the earlier ES Content Management deployment steps for an ESCU correlation search. The validation paragraph also names Proofpoint TAP, Mimecast and Cisco ESA, which do not apply.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=see SPL into index=main.",
+      "severity": "major",
+      "suggested_fix": "Remove the generic steps and the unrelated gateway products. Keep the ESCU enablement steps and add Office 365 ingestion verification for the folder-permission audit events."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "`target_sourcetype` is an unfilled placeholder. The test feeds the risk index rather than creating the real trigger, an Exchange folder permission change that grants read access, so it does not test the detection.",
+      "field": "controlTest",
+      "quote": "ingest synthetic events into `index=risk` sourcetype='target_sourcetype'",
+      "severity": "major",
+      "suggested_fix": "Describe a safe test: grant a test account read permission on a test mailbox folder, wait for the audit event, and confirm the correlation search writes a risk event."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The false positives describe ES and risk-index mechanics (`$dest$` hosts, sibling rule interference, macro drift) and not real causes. The actual benign causes are missing: executives delegating to assistants, shared mailbox set-up, mailbox migrations and calendar sharing.",
+      "field": "knownFalsePositives",
+      "quote": "Stale `$dest$` macro binding for UC-10.4.81",
+      "severity": "major",
+      "suggested_fix": "List the real benign causes of folder read permissions and say how to exclude approved delegates."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "overclaiming",
+      "explanation": "The same text says folder permissions are often set for legitimate reasons, so high fidelity is not supported. The detection type label and the 'Splunk ES 7.x' minimum are stated without a source.",
+      "field": "detailedImplementation",
+      "quote": "identifies known adversary behaviors with high fidelity",
+      "severity": "minor",
+      "suggested_fix": "Drop 'high fidelity', and check the ESCU detection type and the ES version requirement against the ESCU content page."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "consistency",
+      "explanation": "The text refers to a CIM Email model, but the search uses the ES Risk data model and `detailedImplementation` says the data is normalised to CIM.",
+      "field": "cimModels",
+      "quote": "this use case is not built on a CIM Email `All_Email` summary",
+      "severity": "minor",
+      "suggested_fix": "Say that the search uses the ES Risk data model and that the detection reads Office 365 audit data, and correct the data model acceleration note."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "grandma_fidelity",
+      "explanation": "It is generic and does not mention mailbox folder permissions. It also promises to catch phishing, which this UC does not do.",
+      "field": "grandmaExplanation",
+      "quote": "watch email, identity, and related infrastructure together so we catch phishing, data theft, and misuse",
+      "severity": "major",
+      "suggested_fix": "Say that it warns when someone gives another person permission to read folders in a mailbox, since attackers use this to quietly read mail."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The shown SPL is the Risk drilldown for one user (`$user$` token, `starthoursago=168`), not the detection. Run as a saved search it needs a user value and does not detect permission changes.",
+      "severity": "major"
+    },
+    {
+      "field": "criticality",
+      "issue": "'high' for a detection that only contributes risk and is often benign needs justification.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0067-UC-10.4.81",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 1,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The ESCU/RBA narrative in `detailedImplementation` is useful, but the visible fields describe the Risk drilldown search rather than the mailbox folder permission detection. The collection text points at the wrong app, and the tail of the implementation is generic boilerplate that contradicts the ES content workflow.",
+  "tier": "triage",
+  "uc_id": "UC-10.4.81",
+  "verdict": "rewrite"
+}

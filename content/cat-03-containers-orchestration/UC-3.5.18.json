@@ -1,0 +1,69 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "3.5.18",
+  "title": "Cisco Isovalent Shell and Package Tool Execution in Containers",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "exclusions": "Covers one Isovalent event type. Risk-framework drill-downs that mention Isovalent are a different search.",
+  "evidence": "Daily counts of the matching events for 30 days, with the pod and binary columns from the search.",
+  "controlTest": {
+    "positiveScenario": "Run the test action described in the validation step inside a non-production pod. The next search shows that pod and binary.",
+    "negativeScenario": "Stop the Isovalent HEC export. The search returns no rows for the following hour."
+  },
+  "dataSources": "`index=containers sourcetype=cisco:isovalent:processExec` from the Cisco Security Cloud (7404) Isovalent input over HEC. Field names are the ones Splunk Security Content lists for this sourcetype: process_exec.process.binary, pod_name, pod_namespace, cluster_name.",
+  "app": "Cisco Security Cloud (`CiscoSecurityCloud`, [Splunkbase 7404](https://splunkbase.splunk.com/app/7404)), Isovalent input.",
+  "spl": "index=containers sourcetype=\"cisco:isovalent:processExec\" earliest=-24h\n| where match('process_exec.process.binary', \"(?i)/(sh|bash|dash|zsh|curl|wget|nc|ncat|python|python3|perl|apk|apt|apt-get|yum|dnf)$\")\n| stats count as execs by cluster_name, pod_namespace, pod_name, process_exec.process.binary\n| sort - execs",
+  "description": "Lists containers that started a shell, a downloader, or a package manager. The binary path is process_exec.process.binary, the pod is pod_name and pod_namespace, and the cluster is cluster_name, which are fields Splunk Security Content documents for cisco:isovalent:processExec.",
+  "value": "Shells and package tools inside a production container are how an attacker explores a cluster after a foothold. This list puts those process starts, with the pod that ran them, in front of the team that owns the namespace.",
+  "implementation": "Enable the Isovalent HEC input in Cisco Security Cloud into index=containers. Schedule this search hourly.",
+  "visualization": "Table of the stats output, sorted by the count column, plus a timechart of the count.",
+  "cimModels": [],
+  "schema": "OCSF: process_activity",
+  "references": [
+    {
+      "title": "Cisco Security Cloud (Splunkbase 7404)",
+      "url": "https://splunkbase.splunk.com/app/7404",
+      "retrieved": "2026-11-04"
+    },
+    {
+      "title": "Cisco Security Cloud App for Splunk User Guide",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/cisco-secure-cloud-app/user-guide/cisco-security-cloud-user-guide.pdf",
+      "retrieved": "2026-11-04"
+    },
+    {
+      "title": "Splunk Security Content data source for this Isovalent event",
+      "url": "https://github.com/splunk/security_content/blob/develop/data_sources/cisco_isovalent_process_exec.yml",
+      "retrieved": "2026-11-04"
+    }
+  ],
+  "knownFalsePositives": "1. **Health probes and package caches** — kube-system DaemonSets run shells and connect to the API server. Exclude `pod_namespace=kube-system` once you have confirmed those pods.\n\n**Suppression:** exclude the namespaces your platform team owns.",
+  "detectionType": "Hunting",
+  "securityDomain": "endpoint",
+  "requiredFields": [
+    "process_exec.process.binary",
+    "pod_name",
+    "pod_namespace",
+    "cluster_name"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_isovalent"
+  ],
+  "capabilities": [
+    "isovalent.process_execution"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Cisco Security Cloud (`CiscoSecurityCloud`, Splunkbase 7404) on the search heads and on the heavy forwarder that exposes the HEC token.\n• Isovalent Runtime Security (Tetragon) sending process events to the Splunk integration, and a HEC token scoped to index=containers.\n• A role with srchIndexesAllowed on index=containers.\n\nStep 1 — Configure data collection\n• In Cisco Security Cloud open the Isovalent card and create the HEC input. The add-on writes `cisco:isovalent:processExec`.\n• Confirm fields: `index=containers sourcetype=\"cisco:isovalent:processExec\" | fieldsummary process_exec.process.binary`.\n\nStep 2 — Create the search\n```spl\nindex=containers sourcetype=\"cisco:isovalent:processExec\" earliest=-24h\n| where match('process_exec.process.binary', \"(?i)/(sh|bash|dash|zsh|curl|wget|nc|ncat|python|python3|perl|apk|apt|apt-get|yum|dnf)$\")\n| stats count as execs by cluster_name, pod_namespace, pod_name, process_exec.process.binary\n| sort - execs\n```\n\nUnderstanding this SPL\n• The where clause keeps binaries whose path ends in a shell, a downloader, or a package manager. Those names are the process_exec.process.binary values Tetragon records.\n• Arguments are available as process_exec.process.arguments and can be added to the table when an investigation needs the command line.\n\nStep 3 — Validate\n• In a non-production namespace, run the action this search looks for and confirm the pod name appears.\n• Compare the pod name with `kubectl get pods -A` so a deleted pod is not investigated as live.\n\n• Confirm in the vendor console that the same hour shows the same kind of event before trusting a zero or a spike.\n\nStep 4 — Operationalize\n• Hourly search, table on the container-security dashboard.\n• Alert on counts above an agreed baseline per namespace, throttled on pod_namespace for 1 hour.\n\nStep 5 — Troubleshooting\n• No events: the HEC token or the Isovalent export URL is wrong. The user guide also notes an Edge Processor variant that is alpha; this page uses the HEC input.\n• Events exist but the fields are empty: the sourcetype is not `cisco:isovalent:processExec`. Splunk Security Content documents this casing, not an all-lowercase name.\n• No data for this sourcetype, with an input error in the Cisco Security Cloud log, means the credential or token is incorrect.\n",
+  "grandmaExplanation": "We list containers that started a shell or a package tool, so unexpected activity inside a running application is visible.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}

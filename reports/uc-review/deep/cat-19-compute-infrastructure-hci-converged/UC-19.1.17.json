@@ -1,0 +1,139 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "686368bef0d5cf21aa4bee4bf196d899bb92bad1456700f29453abd03de90307",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.1.17.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/",
+      "explanation": "The Splunk Add-on for Cisco UCS gives all data the single sourcetype `cisco:ucs` and sets `source` to `cisco:ucs:<classId>`. There is no shipped `cisco:ucs:inventory` sourcetype; it only exists if an admin overrides the Source Type on an input. The repository guide repeats the same unsupported name.",
+      "field": "dataSources",
+      "quote": "Primary: `index=cisco_ucs` and sourcetype `cisco:ucs:inventory` from the Splunk Add-on for Cisco UCS",
+      "severity": "blocker",
+      "suggested_fix": "State that the add-on emits `sourcetype=cisco:ucs` with `source=cisco:ucs:biosVf...` / `cisco:ucs:lsServer` per classId. If the site overrides the input sourcetype, say so explicitly as a local convention."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://ciscoucs.github.io/ucsmsdk_docs/_modules/ucsmsdk/mometa/bios/BiosVfIntelVirtualizationTechnology.html",
+      "explanation": "Each UCSM biosVf class carries its own token-specific property (for example `biosVfIntelVirtualizationTechnology` has `vpIntelVirtualizationTechnology`, `biosVfPatrolScrub` has `vpPatrolScrub`). There is no generic `vpEnable`/`vpValue`, so most token rows would have no current value.",
+      "field": "dataSources",
+      "quote": "The effective token value is usually in `vpEnable` and/or `vpValue` with occasional vendor renames",
+      "severity": "blocker",
+      "suggested_fix": "Explain that the value property is `vp<TokenName>` per class, and that the search must pick the matching `vp*` field (for example with `foreach vp*` or a classId-to-property lookup)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/ConfigureInputs/",
+      "explanation": "This is backwards. The Splunkbase catalog lists the app name as `Splunk_TA_cisco-ucs`, and the add-on docs reference `$SPLUNK_HOME/etc/apps/Splunk_TA_cisco-ucs/default/props.conf`. The `inputs.conf` path in detailedImplementation (`Splunk_TA_cisco_ucs/local/inputs.conf`) points to a directory that does not exist.",
+      "field": "app",
+      "quote": "The on-disk app id is `Splunk_TA_cisco_ucs` (underscores); older install bundles may still show a hyphen in the file name only.",
+      "severity": "blocker",
+      "suggested_fix": "Use `Splunk_TA_cisco-ucs` as the on-disk app directory in `app`, dataSources and the detailedImplementation config paths."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://www.cisco.com/c/en/us/td/docs/unified_computing/ucs/c/sw/cli/config/guide/4_1/b_Cisco_UCS_C-Series_CLI_Configuration_Guide_41/b_Cisco_UCS_C-Series_CLI_Configuration_Guide_41_appendix_010010.html",
+      "explanation": "Several baseline token names are not real UCSM classes. Hyper-threading is `biosVfIntelHyperThreadingTech` and memory RAS is `biosVfSelectMemoryRASConfiguration`. `biosVfBootMode`, `biosVfAesNi` and `biosVfTrustedPlatformModuleSupport` also do not match Cisco's class list, and UEFI boot mode lives in the boot policy, not a BIOS token. Because the lookup matches on exact `classId`, these rows never match.",
+      "field": "detailedImplementation",
+      "quote": "hft,biosVfHyperThreading,disabled,low,... default,biosVfMemoryRas,mirror,high,...",
+      "severity": "blocker",
+      "suggested_fix": "Seed the CSV from the Cisco BIOS token table (XML Object column), for example `biosVfIntelHyperThreadingTech`, `biosVfSelectMemoryRASConfiguration`, `biosVfTrustedPlatformModule`, `biosVfIntelVirtualizationTechnology`. Confirm every name against your UCSM release's MIM."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/",
+      "explanation": "The detection never uses CIM. The add-on maps only computeBlade/computeRackUnit/storageLocalDisk/etherPIo to Inventory, not biosVf classes, and the cimSpl itself admits BIOS tokens are not an Inventory node. Listing Inventory implies a CIM path that does not exist.",
+      "field": "cimModels",
+      "quote": "\"Inventory\"",
+      "severity": "major",
+      "suggested_fix": "Leave cimModels empty, or describe Inventory only as optional context for server identity (computeBlade/computeRackUnit)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/inventory",
+      "explanation": "The CIM Inventory model has no Configuration dataset (its datasets are All_Inventory, CPU, Memory, Network, Storage, OS, User, Virtual_OS). Its internal name is `Compute_Inventory`.",
+      "field": "dataModelAcceleration",
+      "quote": "biosVf token fields are not a stock Inventory.Configuration leaf",
+      "severity": "minor",
+      "suggested_fix": "Say that BIOS tokens do not map to any Compute_Inventory dataset, and drop the acceleration advice."
+    },
+    {
+      "dimension": "specificity",
+      "explanation": "The 'XML API Reference ... MIM: biosVf* MO classes' entry links to the Cisco home page, not the document it names.",
+      "field": "references",
+      "quote": "\"url\": \"https://www.cisco.com/c/en/us/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the UCSM XML API Programmer's Guide or the ucsmsdk BiosVf class reference instead."
+    },
+    {
+      "dimension": "clarity",
+      "explanation": "The UCSM GUI navigation is vague ('or equivalent panel') and leaves out the Equipment tab.",
+      "field": "detailedImplementation",
+      "quote": "**Server** → your **Server** object → **Inventory** → the BIOS or equivalent panel",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the exact UCSM 4.2/4.3 path to the server's actual BIOS settings (Equipment tab > Chassis/Rack-Mounts > Server > ...), and to the service profile's BIOS policy under the Servers tab, then state both precisely."
+    },
+    {
+      "dimension": "overclaiming",
+      "explanation": "The UC relies on a nonexistent sourcetype, a nonexistent value property and invented token class names. It cannot have been run against real data, so `verified` is unsupported.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft or community until the search is validated against a live UCSM feed and an SME signs off."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/",
+      "field": "spl",
+      "issue": "The search filters on `sourcetype=\"cisco:ucs:inventory\"`, which the add-on does not emit; all add-on data is `sourcetype=cisco:ucs`, with the class in `source`. As shipped, the search returns zero rows.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://ciscoucs.github.io/ucsmsdk_docs/_modules/ucsmsdk/mometa/bios/BiosVfIntelVirtualizationTechnology.html",
+      "field": "spl",
+      "issue": "`current_value` is read only from `vpEnable`/`vpValue`. UCSM biosVf classes expose token-specific properties (`vpIntelVirtualizationTechnology`, `vpPatrolScrub`, ...), so almost every token row is dropped by `where current_value!=\"\"`.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The baseline lookup keys on the exact `sp_tier` with no fallback to `default`. Servers classified as hft, trading or db_prod lose every default-tier rule (VT, TPM, AES), and db_prod has no CSV rows at all, so those servers are never checked. Also, the hard-coded `match(token_name, \"IntelVirtual|TrustedPlatform|Aes\")` raises TPM to critical even though the CSV says high, and `sort ... severity_bucket` sorts alphabetically, not by severity.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "Confirm that the add-on's events carry a `classId` field. UCSM XML puts the class in the element name, and the add-on stores it in `source` (`cisco:ucs:<classId>`). If there is no `classId` attribute, the classId filters and the lsServer subsearch match nothing.",
+      "severity": "needs_verification"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/inventory",
+      "field": "cimSpl",
+      "issue": "`from datamodel=Inventory where nodename=Inventory` uses the wrong names. The model's internal name is `Compute_Inventory` and its root dataset is `All_Inventory`. The `appendcols [... | head 0]` adds nothing. The query is a non-functional placeholder.",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0009-UC-19.1.17",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The detection idea is sound and the implementation narrative is detailed, but it is built on facts that are wrong. The add-on does not emit a `cisco:ucs:inventory` sourcetype or an underscore-named app directory. UCSM BIOS tokens do not carry a generic `vpEnable`/`vpValue` property, and several class names in the baseline CSV do not exist. Followed as written, the search returns nothing.",
+  "tier": "deep",
+  "uc_id": "UC-19.1.17",
+  "verdict": "incorrect"
+}

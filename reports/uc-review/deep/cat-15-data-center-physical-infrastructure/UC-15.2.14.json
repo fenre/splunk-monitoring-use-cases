@@ -1,0 +1,95 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "6d77cd442dbc4b2204a269dbfb5ae881281fb92f1e39a2cc72051afcd57417d2",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.2.14.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/9.3.1/Forwarding/Typesofforwarders",
+      "explanation": "The Universal Forwarder is a separately downloaded Splunk binary, not a Splunkbase app (splunkbase.splunk.com/app/617 returns 404), and it does not bundle Python for modular inputs.",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+      "severity": "blocker",
+      "suggested_fix": "Describe the real paths: BMS cooling capacity/output via BACnet, Edge Hub or DB Connect (Splunkbase 2686), and IT load from PDU/UPS SNMP via Splunk Connect for SNMP (Splunkbase 6266)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "dataSources lists `power:it_heat`, but the SPL searches only `bms:cooling_capacity` and expects `it_load_kw` to already be on those events; nothing explains how IT load reaches the BMS events or how zones are matched.",
+      "field": "cross_field",
+      "quote": "`sourcetype=\"bms:cooling_capacity\"` `sourcetype=\"power:it_heat\"`",
+      "severity": "major",
+      "suggested_fix": "Either state that it_load_kw is joined into bms:cooling_capacity per zone (and how), or describe a search that combines both sourcetypes by zone. List the required fields: zone, cooling_capacity_tons, cooling_output_tons, it_load_kw."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL compares margin with 15% of the current IT heat load, not a peak forecast; no forecast exists anywhere in the UC.",
+      "field": "implementation",
+      "quote": "Alert when margin <15% of peak load forecast.",
+      "severity": "major",
+      "suggested_fix": "Say 'alert when remaining capacity is below 15% of current IT heat load', or add the forecasting step (e.g. predict on daily peak it_load_kw) and say where the forecast comes from."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "description claims a count by entity, but the SPL returns raw rows per zone with no aggregation, and the 15% threshold appears only in the SPL and implementation.",
+      "field": "cross_field",
+      "quote": "Rolls up `count` grouped by `entity` over `the scheduled window` and alerting when configured threshold.",
+      "severity": "major",
+      "suggested_fix": "Describe the output: one row per zone where installed capacity minus delivered cooling is less than 15% of the IT heat load expressed in tons."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The scenarios reference `host`, which the SPL does not use, and name no real cause of a misleading margin.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `host`** — Health checks in `cooling` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List real causes: a CRAC/CRAH in maintenance reducing installed capacity, nameplate capacity not derated for site conditions, IT kW including non-heat loads or double-counted A/B feeds, and zone mismatches between BMS and PDU data."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "Validation points at the PDU UI for a BMS capacity search, spot-checks irrelevant fields (`host, user, action`), and the body duplicates Steps 1–4 with 'Step 4 — Operationalize' repeated four times.",
+      "field": "detailedImplementation",
+      "quote": "Compare with the PDU UI or SNMP poll for the same devices, readings, and time range.",
+      "severity": "major",
+      "suggested_fix": "Deduplicate and validate against the BMS cooling capacity screen and DCIM IT load for the same zone; spot-check zone, cooling_capacity_tons, cooling_output_tons, it_load_kw."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The monitored equipment is the cooling plant / BMS and PDUs, not Splunk.",
+      "field": "equipment",
+      "quote": "\"splunk\"",
+      "severity": "minor",
+      "suggested_fix": "Use the BMS / cooling and PDU equipment slugs."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`margin_tons = cooling_capacity_tons - cooling_output_tons` measures capacity against delivered cooling, so IT load only scales the threshold; the title promises capacity vs IT load (capacity - it_heat_tons). Capacity is not reduced by the largest unit, so the result does not reflect N+1 margin. The 0.284345 tons/kW factor is correct.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0036-UC-15.2.14",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 1
+  },
+  "summary": "The kW-to-tons conversion is correct, but the SPL compares capacity with cooling output rather than IT load, ignores the `power:it_heat` source it lists, and uses current load instead of the peak forecast the implementation promises; the collection path names a non-existent Splunkbase Universal Forwarder app.",
+  "tier": "deep",
+  "uc_id": "UC-15.2.14",
+  "verdict": "incorrect"
+}

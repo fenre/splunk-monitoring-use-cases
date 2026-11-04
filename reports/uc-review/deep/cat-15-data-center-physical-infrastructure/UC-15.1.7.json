@@ -1,0 +1,116 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "2e4352f05f615c9290637aff3398b0f627bd2fd85adba42649816bddd4750969",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.1.7.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "http://oidref.com/1.3.6.1.4.1.318.1.1.26.9.4.3.1.6",
+      "explanation": "The rPDU2 switched-outlet status table has Index, Module, Name, Number, State, CommandPending and ExternalLink, but no Current column. Per-outlet current is `rPDU2OutletMeteredStatusCurrent` (1.3.6.1.4.1.318.1.1.26.9.4.3.1.6) in the metered-outlet table, which only metered-by-outlet models populate. The implementation and detailedImplementation fields repeat the wrong name.",
+      "field": "dataSources",
+      "quote": "APC PowerNet-MIB (rPDU2OutletSwitchedStatusCurrent, rPDU2OutletSwitchedStatusState)",
+      "severity": "blocker",
+      "suggested_fix": "Use `rPDU2OutletMeteredStatusCurrent` (tenths of amps) for outlet current, joined on outlet index with `rPDU2OutletSwitchedStatusState` for on/off state, and note that outlet current requires an APC metered-by-outlet (or switched metered-by-outlet) rack PDU."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "evidence_url": "http://oidref.com/1.3.6.1.4.1.318.1.1.26.9.4.3.1.6",
+      "explanation": "The implementation field promises a 10 A threshold, but the SPL compares the raw value `> 10` without dividing by 10. Because the MIB reports tenths of amps, the SPL fires above 1.0 A. The description repeats the bare '> 10' without units.",
+      "field": "cross_field",
+      "quote": "Map rPDU2OutletSwitchedStatusCurrent (0.1A resolution) ... Alert on outlets exceeding threshold (e.g., 10A)",
+      "severity": "major",
+      "suggested_fix": "State the threshold in amps and make clear the raw value must be divided by 10 (10 A = raw 100). Ask a human editor to align the SPL."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The SPL produces no `count` and no `entity` grouping. It lists individual outlet readings (pdu_name, outlet_id, outlet_label, current, state) sorted by current. The description also omits the second trigger, outlets in the off state.",
+      "field": "description",
+      "quote": "grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `rPDU2OutletSwitchedStatusCurrent` > 10.",
+      "severity": "major",
+      "suggested_fix": "Say the search lists APC rack PDU outlets whose current exceeds the amp threshold or that are switched off, with PDU, outlet ID and label, current and state, highest draw first."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "A Universal Forwarder does not poll SNMP. The text does not say how `snmp:apc:pdu` events are produced, or how `pdu_name`, `outlet_id` and `outlet_label` are derived (for example from sysName, the table index and `rPDU2OutletSwitchedStatusName`).",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+      "severity": "major",
+      "suggested_fix": "Name the SNMP collector used by sibling UCs (Splunk Connect for SNMP, Splunkbase 6266, or SNMP Modular Input, Splunkbase 1537), the target `index=power sourcetype=snmp:apc:pdu`, and the field mapping for pdu_name, outlet_id and outlet_label."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The implementation field says 'unexpected' off-state, but nothing in the SPL or data sources defines which outlets should be on. Every off outlet, including spare outlets, would be reported.",
+      "field": "cross_field",
+      "quote": "Alert on outlets exceeding threshold (e.g., 10A) or unexpected off-state.",
+      "severity": "minor",
+      "suggested_fix": "Describe an expected-state lookup (for example from DCIM outlet assignments) and say that only assigned outlets found off are alertable."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "None of the scenarios names a real cause, and the SPL does not group on `host`.",
+      "field": "knownFalsePositives",
+      "quote": "Synthetic probe on `host` — Health checks in `power` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List real causes: unused or spare outlets that are intentionally off, outlets switched off deliberately during decommissioning or remote reboot (with a command pending), inrush current at server power-on, and load shifting onto this PDU when the partner feed of a dual-corded device fails."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "This UC polls outlet status tables and does not use SNMP traps.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_trap\"",
+      "severity": "minor",
+      "suggested_fix": "Remove `snmp_trap` or replace it with the polling-based model ID."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "One heading is repeated four times, and the pipeline walkthrough is generic ('often to normalize units, derive a ratio').",
+      "field": "detailedImplementation",
+      "quote": "Step 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize",
+      "severity": "minor",
+      "suggested_fix": "Keep one Operationalize heading and explain the specific eval (state enum to text) and the amp conversion."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The outlet-state mapping is inverted. PowerNet-MIB defines `rPDU2OutletSwitchedStatusState` as off(1), on(2) (see mibs.observium.org/object/PowerNet-MIB/rPDU2OutletSwitchedStatusState), but the SPL maps 1 to 'on' and 2 to 'off', so `outlet_state=\"off\"` returns every powered-on outlet.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "It references the non-existent `rPDU2OutletSwitchedStatusCurrent` (the real object is `rPDU2OutletMeteredStatusCurrent`) and compares the raw tenths-of-amps value to 10, which is 1.0 A rather than the documented 10 A.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "There is no latest-per-outlet reduction (for example `stats latest(...) by pdu_name, outlet_id`), so every poll in the window produces a duplicate row per outlet.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0029-UC-15.1.7",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 1,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The UC is built on a PowerNet-MIB object that does not exist (`rPDU2OutletSwitchedStatusCurrent`). The SPL's outlet-state mapping is inverted against the MIB, and the '10A' threshold in prose does not match the raw tenths-of-amps comparison. The rest is template residue.",
+  "tier": "deep",
+  "uc_id": "UC-15.1.7",
+  "verdict": "incorrect"
+}

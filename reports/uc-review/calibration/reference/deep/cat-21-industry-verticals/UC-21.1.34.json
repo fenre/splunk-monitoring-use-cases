@@ -1,0 +1,102 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "7ab529c313d558c617b67c8687b86ab4600cf0575b31fce872f49a7d26009bc5",
+  "file": "content/cat-21-industry-verticals/UC-21.1.34.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://www.nerc.com/globalassets/standards/reliability-standards/cip/cip-008-6.pdf",
+      "explanation": "CIP-008-6 R4 Table 4.2 requires initial notification to the E-ISAC and CISA (formerly NCCIC) within one hour after a Reportable Cyber Security Incident is determined, and by the end of the next calendar day for attempts to compromise. Measuring that needs incident-determination and notification timestamps, not SCADA alarm counts; the description, dataSources and SPL (counts by substation_id) describe a detection that cannot show a reporting timeline.",
+      "field": "cross_field",
+      "quote": "Monitors nerc cip-008 cyber incident report timeline using `scada:alarm` telemetry in `index=scada` to surface operational risk before it impacts energy and utilities service delivery.",
+      "severity": "blocker",
+      "suggested_fix": "Re-scope description and dataSources to incident-response records (for example ES notables / SOAR containers or ServiceNow security incidents) that carry a CIP-008 R1 Part 1.2 determination timestamp and E-ISAC/CISA notification timestamps. Describe the check as elapsed time from determination to notification, flagged above 1 hour for reportable incidents and past the end of the next calendar day for attempts."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "The SPL uses neither app. Splunkbase 5151 (DA-ESS-OTSecurity) requires Splunk Enterprise Security, and 5180 is an edge/OT data-onboarding app. Neither is needed to time incident notifications. splunkbaseApps lists 5180 as 'primary' too.",
+      "field": "app",
+      "quote": "Splunk OT Intelligence (Splunkbase 5180), OT Security Add-on (Splunkbase 5151)",
+      "severity": "major",
+      "suggested_fix": "List only the add-ons that feed the incident and notification records the corrected search reads. If ES or the OT Security Add-on is truly required, say why and add it to premiumApps."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The Step 2 SPL is a different search from the sidecar `spl` (split by _time instead of substation_id, different output fields). 'applies `*`' is template residue. Step 3 tells the reader to compare against 'SCADA HMI, EHR interface engine, POS gateway, OSS/BSS console', which is a cross-vertical boilerplate list. Also check whether `stats ... by _time span=1h` is accepted; the usual pattern is `bin _time span=1h` first.",
+      "field": "detailedImplementation",
+      "quote": "| stats count as event_count dc(host) as distinct_hosts by _time span=1h ... The search scopes `scada:alarm` in `index=scada` and applies `*` to surface `NERC CIP-008 cyber incident report timeline`.",
+      "severity": "major",
+      "suggested_fix": "Embed the same SPL as the `spl` field. Explain what each stage computes for the notification timeline, and give one concrete validation step: reconcile one past reportable incident's E-ISAC submission time against the search output."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "None of these causes a false late-notification finding. Real causes include CIP-008 R2 tabletop or functional exercises logged as incidents, notification submitted through E-ISAC portal or phone without a ticket timestamp, and an incident later reclassified as not reportable.",
+      "field": "knownFalsePositives",
+      "quote": "Planned maintenance windows, vendor pack updates, DR exercises, and seasonal demand patterns excluded via asset/schedule lookup.",
+      "severity": "major",
+      "suggested_fix": "List timeline-specific false positives: test or exercise incidents, notifications made out-of-band and recorded late, reclassification after determination, and clock or time-zone mismatch between ticketing and portal receipts."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "Generic vertical boilerplate. Moving crews and budget has nothing to do with proving that reportable incidents were notified within CIP-008 deadlines.",
+      "field": "value",
+      "quote": "use signals from NERC CIP-008 cyber incident report timeline to move crews, budget, and customer or regulator communications",
+      "severity": "major",
+      "suggested_fix": "State the value as continuous evidence that each reportable cyber security incident was notified to E-ISAC/CISA within one hour of determination, with early warning before a deadline is missed."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "grandma_fidelity",
+      "explanation": "It repeats the lowercase title with the acronym unexplained. It does not say what is checked: that serious cyber incidents are reported to the authorities within an hour.",
+      "field": "grandmaExplanation",
+      "quote": "We watch energy and utilities systems for signs of nerc cip-008 cyber incident report timeline so your team can act early",
+      "severity": "major",
+      "suggested_fix": "For example: 'When a serious cyber incident is confirmed, the power company must tell the industry security centre and the government within an hour. We check each incident and warn when that report is late or missing.'"
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "It counts scada:alarm events by substation_id with `where event_count > 0`, which matches any substation with any alarm. `table _time alarm_id priority shelved` after stats returns empty columns. There is no determination or notification timestamp and no 1-hour or next-calendar-day logic, so the search cannot evidence a CIP-008 reporting timeline.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "mitreAttack",
+      "issue": "T0809 (ICS Data Destruction) is unrelated to measuring incident-report timeliness.",
+      "severity": "major"
+    },
+    {
+      "field": "compliance",
+      "issue": "mode 'satisfies' / assurance 'contributing' for CIP-008 is not supported by a search that cannot see notification timestamps. evidenceArtifact names saved search 'UC-21.1.34' while the evidence field names `21_1_34_evidence`.",
+      "severity": "major"
+    },
+    {
+      "field": "splunkPillar",
+      "issue": "'Observability' for a UC typed Security/Audit that evidences a NERC CIP reporting obligation; Security is the expected pillar.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0122-UC-21.1.34",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 1,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 2,
+    "specificity": 1
+  },
+  "summary": "Template-generated UC: the title promises a CIP-008 incident-report timeline, but every field describes a generic count of SCADA alarms per substation that cannot measure notification timeliness. Apps, false positives, value and plain-language text are boilerplate unrelated to incident reporting.",
+  "tier": "deep",
+  "uc_id": "UC-21.1.34",
+  "verdict": "incorrect"
+}

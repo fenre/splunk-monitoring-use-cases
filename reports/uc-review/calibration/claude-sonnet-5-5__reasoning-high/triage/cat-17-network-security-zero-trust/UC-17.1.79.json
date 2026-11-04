@@ -1,0 +1,106 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "8ebaa1635ef18f29823b94d466d5bf518ed0712776089386227caa5d902e1502",
+  "file": "content/cat-17-network-security-zero-trust/UC-17.1.79.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/cisco-ise.md",
+      "explanation": "The reference is labelled as the source of the ISE data, but Splunkbase app 1352 is the App for Cisco Network Data (cisco_ios), not the Cisco Identity Services add-on. The grounding guide gives the Splunk Add-on for Cisco Identity Services as Splunkbase 1915. The same wrong ID is used in dataSources ('Splunk Add-on for Cisco Security (Splunkbase 1352)') and in detailedImplementation, so the reader is told to install the wrong app.",
+      "field": "references",
+      "quote": "https://splunkbase.splunk.com/app/1352",
+      "severity": "blocker",
+      "suggested_fix": "Point the reference, dataSources and detailedImplementation at Splunk Add-on for Cisco Identity Services, Splunkbase 1915 (Splunk_TA_cisco-ise), or Splunk Connect for Syslog for syslog onboarding."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/cisco-ise.md",
+      "explanation": "I do not recognise MatchedPolicyName or MatchedRuleName as ISE syslog or add-on field names. ISE passed-authentication messages, as I recall, carry AuthorizationPolicyMatchedRule, ISEPolicySetName and SelectedAuthorizationProfiles. The grounding guide shows MessageCode 5200 only, and the code 5236 used in the SPL is not confirmed. SecurityGroup, dACL and VLAN are also not shown to be present as fields in cisco:ise:syslog.",
+      "field": "dataSources",
+      "quote": "`MatchedPolicyName`, `MatchedRuleName`, `AuthorizationProfile`, `SecurityGroup`, `dACL`, `VLAN`",
+      "severity": "needs_verification",
+      "suggested_fix": "Check a real cisco:ise:syslog passed-authentication event and the add-on's field extractions. Use the actual attribute names, and confirm what MessageCode 5236 means before including it."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The title promises a funnel from match to final result, and the implementation promises a 'funnel-drop chart in the ISE Authorization Funnel dashboard'. The SPL only counts events and distinct users per matched rule and profile. It has no funnel stages, no dashboard exists in the UC, and a dead-rule list cannot come from event counts because unused rules produce no events. That needs the policy inventory, for example from the ERS or OpenAPI policy endpoints listed in the guide. The grandma text repeats this by promising to show 'which aren't' used.",
+      "field": "cross_field",
+      "quote": "Dead-rule list. Catch-all rule top-N.",
+      "severity": "major",
+      "suggested_fix": "Describe the real output: hit counts per rule and profile. Say that finding unused rules needs an additional policy inventory input, and either specify that input or remove the dead-rule and funnel claims."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "All four scenarios describe authentication failures, failure bursts and failure reasons. The SPL counts passed-authentication and authorize-only events grouped by matched rule, so there is no failure signal for these to explain. The scenarios do not name any real cause of misleading authorization-rule counts, for example policy-set renames, new policy rollout or onboarding waves shifting hits.",
+      "field": "knownFalsePositives",
+      "quote": "Clients fail EAP-TLS during staged cert deployment",
+      "severity": "major",
+      "suggested_fix": "Replace them with causes that change rule hit counts: staged policy rollouts and rule reorderings, onboarding waves that move hits to a new profile, and test or scanner traffic hitting default rules."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The implementation opens with 'Standard pattern.' and then uses boilerplate steps that would fit any UC. The text says to schedule with earliest=-24h@h and throttle per entity, and that joins and lookups enrich owner data, while the implementation says to run daily over 7 days and the SPL has no join, lookup or time bound. Nothing explains how to read the funnel or what a bad result looks like.",
+      "field": "detailedImplementation",
+      "quote": "Standard pattern.",
+      "severity": "major",
+      "suggested_fix": "Rewrite the steps for this UC: how to confirm the ISE authorization fields, the search window, how to read rule hit distributions, and which patterns (a catch-all rule dominating, a rule with zero hits) need action."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "specificity",
+      "explanation": "The reference titled 'Cisco ISE 3.4 — Authorization Policies' points at the Cisco site root, and the 'Cisco Security documentation' entry is a generic landing page. Neither documents the policy fields or log messages the UC relies on.",
+      "field": "references",
+      "quote": "https://www.cisco.com/c/en/us/",
+      "severity": "minor",
+      "suggested_fix": "Link the ISE 3.4 administrator guide section on authorization policies and the ISE syslog message reference."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "The reviewer is a generic team handle. No SME sign-off is shown, and the add-on ID, field names and message codes above are unverified.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to a non-verified value until a Cisco ISE SME confirms the fields and message codes on real syslog."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "compliance",
+      "issue": "Three mappings use mode 'satisfies' (PCI DSS 7.2.2, ISO 27001 A.5.18, NIST 800-53 AC-6) with an evidenceArtifact of 'UC-17.1.79 alert log', but the search has no alert and shows only how often authorization rules matched. It does not demonstrate least privilege or access rights review. 'Satisfies' overstates what the detection proves, and the evidence artifact does not exist.",
+      "severity": "major"
+    },
+    {
+      "field": "mitreAttack",
+      "issue": "The value 'N/A (SLO monitoring — measures user enrollment funnel completion, no adversary technique)' is template text that describes enrollment funnels, not authorization-policy hit analysis. It is also not a technique ID.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "The search has no time bound, no threshold and no comparison between stages. The description says 'alert when configured threshold', but nothing in the SPL can alert. It also does not use the Authentication data model that cimModels and dataModelAcceleration claim.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0049-UC-17.1.79",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The idea of an authorization-policy funnel is understandable, but the data source points to the wrong Splunkbase app and the field names look guessed. The SPL cannot produce the funnel or dead-rule views the text describes. The false-positive scenarios describe failed authentications while the search counts successful ones, and the compliance mappings claim more than the search shows.",
+  "tier": "triage",
+  "uc_id": "UC-17.1.79",
+  "verdict": "incorrect"
+}

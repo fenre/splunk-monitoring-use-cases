@@ -1,0 +1,77 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.3.72",
+  "title": "Cisco Secure Access Cloud IPS High-Severity Signatures",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "exclusions": "Covers traffic inspected by the Secure Access cloud IPS. Encrypted traffic is only inspected where decryption is on, and local branch traffic is not seen.",
+  "evidence": "Saved alert results with signatures and CVEs, plus the patch, block, or false-positive decision for each.",
+  "controlTest": {
+    "positiveScenario": "From a test device behind a Secure Access tunnel with IPS in IDS mode, send a request to a test server you own that matches a published high-severity signature (for example a Log4Shell test string in a header). Within the S3 delay the event is indexed with `severity` HIGH and operation mode IDS, and the search returns a row with `allowed=yes`.",
+    "negativeScenario": "Send a normal request to the same server. No intrusion event is created and the search returns no row."
+  },
+  "dataSources": "`index=sse sourcetype=cisco:cloud_security:intrusion` from the Secure Access S3 log bucket, read by the Cisco Secure Access Add-on (7569). One CSV line per intrusion event from the Secure Access cloud IPS, documented by Cisco in this order: timestamp, identities, identity types, generator id, signature id, signature message, signature list id, severity, attack classification, cves, ip protocol, session id, source ip, source port, destination ip, destination port, action, operation mode, and later columns.",
+  "app": "Cisco Secure Access Add-on for Splunk ([Splunkbase 7569](https://splunkbase.splunk.com/app/7569)), which reads Cisco Secure Access and Cisco Umbrella logs from the S3 log bucket and maps the web proxy log to the CIM Web data model. The companion Cisco Secure Access App (Splunkbase 5558) adds dashboards.",
+  "spl": "index=sse sourcetype=\"cisco:cloud_security:intrusion\"\n| rex field=_raw \"^\\\"(?<ts>[^\\\"]*)\\\",\\\"(?<identities>[^\\\"]*)\\\",\\\"(?<identity_types>[^\\\"]*)\\\",\\\"(?<generator_id>[^\\\"]*)\\\",\\\"(?<signature_id>[^\\\"]*)\\\",\\\"(?<signature_message>[^\\\"]*)\\\",\\\"(?<signature_list_id>[^\\\"]*)\\\",\\\"(?<severity>[^\\\"]*)\\\",\\\"(?<classification>[^\\\"]*)\\\",\\\"(?<cves>[^\\\"]*)\\\",\\\"(?<ip_protocol>[^\\\"]*)\\\",\\\"(?<session_id>[^\\\"]*)\\\",\\\"(?<src_ip>[^\\\"]*)\\\",\\\"(?<src_port>[^\\\"]*)\\\",\\\"(?<dest_ip>[^\\\"]*)\\\",\\\"(?<dest_port>[^\\\"]*)\\\",\\\"(?<ips_action>[^\\\"]*)\\\",\\\"(?<operation_mode>[^\\\"]*)\\\"\"\n| eval severity=upper(severity), ips_action=lower(replace(ips_action, \" \", \"_\"))\n| where severity IN (\"HIGH\", \"MEDIUM\")\n| stats count values(signature_message) as signatures values(classification) as classifications values(cves) as cves values(ips_action) as actions values(operation_mode) as modes dc(dest_ip) as dest_count by identities src_ip severity\n| eval allowed=if(match(mvjoin(actions, \",\"), \"would_block|warn\"), \"yes\", \"no\")\n| sort - severity, - count",
+  "description": "Lists high- and medium-severity intrusion signatures from the Secure Access cloud IPS per identity and source address, with the signature messages, attack classifications, CVEs, and whether the IPS blocked the traffic or only logged it (IDS mode or would-block).",
+  "value": "The cloud IPS gives remote users and branches the same exploit detection the data centre has. The important rows are the ones the IPS did not block, because it runs in IDS mode or the rule only warns; those attacks reached the target.",
+  "implementation": "Collect the Secure Access IPS log with the 7569 add-on into `index=sse`. Schedule every 15 minutes and alert on rows with `allowed=yes`; report blocked rows daily.",
+  "visualization": "Alert table: identities, src_ip, severity, count, signatures, classifications, cves, actions, modes, allowed. Supporting panels: IPS events by classification over 7 days (stacked column), top signatures (bar chart).",
+  "cimModels": [],
+  "schema": "OCSF: detection_finding",
+  "references": [
+    {
+      "title": "Cisco Secure Access Add-on for Splunk (Splunkbase 7569)",
+      "url": "https://splunkbase.splunk.com/app/7569",
+      "retrieved": "2026-11-02"
+    },
+    {
+      "title": "Cisco Secure Access: Log Formats and Versioning",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/secure-access/secure-access-help/CiscoSecureAccessHelp/logging-intro/log_formats_and_versioning.html",
+      "retrieved": "2026-11-02"
+    },
+    {
+      "title": "Splunk: Integrated Enterprise Value for Cisco data (supported source types)",
+      "url": "https://help.splunk.com/en/splunk-cloud-platform/get-started/get-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data",
+      "retrieved": "2026-11-02"
+    }
+  ],
+  "knownFalsePositives": "1. **Scanners** — approved vulnerability scanners trigger many signatures. Keep their addresses in a lookup.\n\n2. **Generic signatures** — some policy or protocol-anomaly signatures fire on legitimate but unusual applications. Tune by `signature_id` after review.\n\n**Suppression:** a lookup of scanner sources and reviewed signature IDs; throttle per source and signature for 4 hours.",
+  "mitreAttack": [
+    "T1190"
+  ],
+  "detectionType": "TTP",
+  "securityDomain": "network",
+  "requiredFields": [
+    "severity",
+    "signature_message",
+    "classification",
+    "cves",
+    "identities",
+    "src_ip",
+    "dest_ip",
+    "ips_action",
+    "operation_mode"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_umbrella"
+  ],
+  "capabilities": [
+    "secure_access.intrusion_prevention"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Cisco Secure Access Add-on for Splunk (Splunkbase 7569) on the search heads and on the heavy forwarder or Inputs Data Manager that reads the S3 bucket.\n• Log export to Amazon S3 enabled in the Secure Access or Umbrella dashboard (Admin > Log Management), either a Cisco-managed bucket or your own, with the access key and secret for Splunk.\n• An index for Secure Access and Umbrella data (this page uses `index=sse`) and a role with `srchIndexesAllowed` on it for the network security team.\n\nStep 1 — Configure data collection\n• In the Cisco Secure Access Add-on (Splunkbase 7569) create an S3 modular input for the **IPS** log folder with the bucket name, region, access key, and secret, and set the index to `sse`. The add-on writes `sourcetype=cisco:cloud_security:intrusion`.\n• Logs reach S3 in batches, so events usually arrive in Splunk 10 to 15 minutes after the activity.\n• Secure Access writes this log as CSV with every value in double quotes, in a fixed column order that Cisco documents per log version. The search reads the columns it needs from `_raw` with `rex` in that documented order, so it works whether or not the add-on's own field names match. New columns are only added at the end in later versions, so the leading columns stay in place.\n• Check the column order on one event: run `index=sse sourcetype=\"cisco:cloud_security:intrusion\" | head 1 | table _raw` and confirm the eighth quoted value is a severity (HIGH, MEDIUM, LOW, or VERY LOW).\n\nStep 2 — Create the search and alert\n```spl\nindex=sse sourcetype=\"cisco:cloud_security:intrusion\"\n| rex field=_raw \"^\\\"(?<ts>[^\\\"]*)\\\",\\\"(?<identities>[^\\\"]*)\\\",\\\"(?<identity_types>[^\\\"]*)\\\",\\\"(?<generator_id>[^\\\"]*)\\\",\\\"(?<signature_id>[^\\\"]*)\\\",\\\"(?<signature_message>[^\\\"]*)\\\",\\\"(?<signature_list_id>[^\\\"]*)\\\",\\\"(?<severity>[^\\\"]*)\\\",\\\"(?<classification>[^\\\"]*)\\\",\\\"(?<cves>[^\\\"]*)\\\",\\\"(?<ip_protocol>[^\\\"]*)\\\",\\\"(?<session_id>[^\\\"]*)\\\",\\\"(?<src_ip>[^\\\"]*)\\\",\\\"(?<src_port>[^\\\"]*)\\\",\\\"(?<dest_ip>[^\\\"]*)\\\",\\\"(?<dest_port>[^\\\"]*)\\\",\\\"(?<ips_action>[^\\\"]*)\\\",\\\"(?<operation_mode>[^\\\"]*)\\\"\"\n| eval severity=upper(severity), ips_action=lower(replace(ips_action, \" \", \"_\"))\n| where severity IN (\"HIGH\", \"MEDIUM\")\n| stats count values(signature_message) as signatures values(classification) as classifications values(cves) as cves values(ips_action) as actions values(operation_mode) as modes dc(dest_ip) as dest_count by identities src_ip severity\n| eval allowed=if(match(mvjoin(actions, \",\"), \"would_block|warn\"), \"yes\", \"no\")\n| sort - severity, - count\n```\n\nUnderstanding this SPL\n• `rex` reads the first 18 documented columns; `ips_action` is the 17th (block, warn, or would block) and `operation_mode` the 18th (IDS or IPS).\n• `replace` and `lower` normalise \"Would Block\" to `would_block`.\n• `allowed=yes` marks rows where the IPS only logged or warned, which means the traffic reached its destination.\n\nStep 3 — Validate\n• Compare with the Secure Access dashboard under Reporting > Activity Search, filtered to Intrusion Prevention and the same time range: signature counts should match within the S3 delay.\n• Pick three events in Splunk and compare each extracted field with the same row in the CSV file in the S3 bucket.\n• Run `index=sse sourcetype=\"cisco:cloud_security:intrusion\" | timechart span=1h count` over 7 days; gaps longer than an hour point to S3 input failures.\n\nStep 4 — Operationalize\n• Schedule every 15 minutes over the last 30 minutes and throttle on `src_ip` plus `signatures` for 4 hours.\n• Route `allowed=yes` rows to the SOC; patch or block the target, and consider switching the IPS profile to IPS mode.\n• Review the top signatures monthly with the network team.\n\nStep 5 — Troubleshooting\n• No proxy events and S3 access errors (403 AccessDenied) in the add-on log: the access key cannot read the bucket or the region is wrong.\n• Events arrive hours late: the input polling interval is long, or the bucket path prefix is wrong and the input scans the whole bucket.\n• Empty fields after `rex`: the log export is set to an older log version with a different column order, or the line has a header row. Check the version in Admin > Log Management and compare one `_raw` line with Cisco's column list.\n• No IPS events at all: the log type is not enabled in Admin > Log Management, or the S3 input path does not include its folder.\n",
+  "grandmaExplanation": "The company's cloud security checks traffic for known attack tricks. We list the serious ones, and especially any that were spotted but not stopped.",
+  "prerequisiteUseCases": [],
+  "wave": "walk"
+}

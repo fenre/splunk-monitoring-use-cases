@@ -1,0 +1,109 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "a45dbd33e3ba5f3660e0ef0bb134903bd4ce5db0bb4f71fd1832e4274063141c",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.1.21.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/CiscoUcs/intersight-python/blob/master/docs/CondHclStatus.md",
+      "explanation": "cond.HclStatus exposes `Status`/`ComponentStatus` with the values Validated, Not-Listed, Incomplete and Not-Evaluated. It reports facts as pairs of Hcl* and Inv* fields: `HclModel`/`InvModel`, `HclOsVendor`/`InvOsVendor`, `HclOsVersion`/`InvOsVersion`, `HclFirmwareVersion`/`InvFirmwareVersion` and `HclProcessor`/`InvProcessor`. `Reason` is an enum (Missing-Os-Info, Incompatible-Components, Compatible, Not-Evaluated). The server link is the `ManagedObject` relationship. There is no `ServerMoid`.",
+      "field": "dataSources",
+      "quote": "`ServerMoid` (join key to server inventory), `Status` (for example `Validated`, `NotValidated`, `NotListed`, `Incomplete`, `ServiceUnavailable`), `Reason` ..., `HardwareStatus`, `SoftwareStatus`, `OsVendor`, `OsVersion`, `Model`, `ProcessorPrefix`, `ServerFirmwareVersion`",
+      "severity": "blocker",
+      "suggested_fix": "Replace the field list with the real cond.HclStatus properties, and join on `ManagedObject.Moid`."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/get-data-in/get-started-with-getting-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data",
+      "explanation": "The add-on publishes a fixed sourcetype set (alarms, auditrecords, compute, fabric, network, profiles, pools, targets, contracts, advisories, licenses, metrics, custom:inventory, custom:metrics). `cisco:intersight:condhclstatus` and `cisco:intersight:computephysicalsummary` are not among them. The exclusions text even tells users to delete the real `cisco:intersight:compute` pattern.",
+      "field": "dataSources",
+      "quote": "The Splunk Add-on for Cisco Intersight (`Splunk_TA_Cisco_Intersight`, Splunkbase 7828) builds sourcetypes as `cisco:intersight` plus the lowercased MO class name with dots removed, so the HCL object type is not ingested on a catch-all `cisco:intersight:compute` sourcetype.",
+      "severity": "blocker",
+      "suggested_fix": "Say where HCL status actually lands (for example `cisco:intersight:compute` or a custom inventory input on `cisco:intersight:custom:inventory` filtered by `ObjectType=\"cond.HclStatus\"`), confirmed against a real event. Remove the 'delete the compute pattern' guidance from exclusions."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://intersight.com/help/saas/resources/compliance_with_hcl",
+      "explanation": "This runbook repeats the invented statuses while warning against fake statuses. Cisco documents Validated, Not-Listed, Incomplete and Not-Evaluated. The runbook's `NotValidated` and `ServiceUnavailable` branches describe states that never occur.",
+      "field": "detailedImplementation",
+      "quote": "`fieldsummary Status` to confirm the vocabulary you see in documentation (`Validated`, `NotValidated`, `NotListed`, `Incomplete`, `ServiceUnavailable`—do not hard-code a fake status the API never returns)",
+      "severity": "blocker",
+      "suggested_fix": "Rewrite the status vocabulary and the runbook branches around Validated / Not-Listed / Incomplete / Not-Evaluated, and use the `Reason` enum for the cause."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "The input stanza scheme and the `mo_class_filter`/`sourcetype_prefix` keys are not documented add-on settings, yet they are presented as reference config. The props override with INDEXED_EXTRACTIONS and TRUNCATE=0 on add-on sourcetypes is also unfounded.",
+      "field": "detailedImplementation",
+      "quote": "[intersight://prod_hcl_inventory]\\naccount = intersight_readonly_7828\\nendpoint = https://intersight.com/api/v1\\nmo_class_filter = cond.HclStatus,compute.PhysicalSummary",
+      "severity": "major",
+      "suggested_fix": "Point readers to the add-on's Inputs page (inventory or custom-inventory input) and remove the invented stanzas and props."
+    },
+    {
+      "dimension": "consistency",
+      "explanation": "detailedImplementation describes a KeyId/Secret API key pair, while `app` says OAuth2. The two auth models differ.",
+      "field": "app",
+      "quote": "OAuth2 API key to your Intersight account",
+      "severity": "minor",
+      "suggested_fix": "State the one authentication method the add-on's account page actually takes."
+    },
+    {
+      "dimension": "overclaiming",
+      "explanation": "The status values and join key do not exist in the API, so the UC cannot have been run against real data.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until validated."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://github.com/CiscoUcs/intersight-python/blob/master/docs/CondHclStatus.md",
+      "field": "spl",
+      "issue": "`ServerMoid=coalesce(ServerMoid, server_moid, 'Server.Moid', \"\")` is always empty, because cond.HclStatus links to the server through `ManagedObject`. The following `where ... ServerMoid!=\"\"` therefore drops every event.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://github.com/CiscoUcs/intersight-python/blob/master/docs/CondHclStatus.md",
+      "field": "spl",
+      "issue": "The severity `case` compares against `NotListed`, `NotValidated` and `ServiceUnavailable`. The real values are `Not-Listed`, `Incomplete` and `Not-Evaluated`, so critical and high can never fire and everything falls to the default `medium`. `Model`, `OsVendor`, `OsVersion`, `ServerFirmwareVersion` and `ProcessorPrefix` are also not cond.HclStatus fields; use the Hcl*/Inv* pairs.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Search/Comments",
+      "field": "spl",
+      "issue": "The search starts with a `// ...` line. SPL has no `//` comment syntax, so that text becomes literal search terms. Use triple-backtick comments.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/get-data-in/get-started-with-getting-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data",
+      "field": "spl",
+      "issue": "`sourcetype=\"cisco:intersight:condhclstatus\"` and `cisco:intersight:computephysicalsummary` are not published by the Cisco Intersight Add-on for Splunk.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "Filtering out `Validated` before `stats latest(...)` means a server that has since returned to Validated keeps its last non-validated row for the whole 7-day window, and the alert keeps firing. Compute the latest status per server first, then filter.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0014-UC-19.1.21",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 3,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The HCL-posture idea fits the use case well, but nearly every product fact in the data model is wrong. cond.HclStatus has no `ServerMoid`, `Model`, `OsVendor`, `ServerFirmwareVersion` or `ProcessorPrefix` field. Its status values are hyphenated (`Not-Listed`, `Not-Evaluated`), and there is no `NotValidated` or `ServiceUnavailable`. The add-on also does not publish a `cisco:intersight:condhclstatus` sourcetype. The search returns no rows, and even if it did, its severity mapping would never match.",
+  "tier": "deep",
+  "uc_id": "UC-19.1.21",
+  "verdict": "incorrect"
+}

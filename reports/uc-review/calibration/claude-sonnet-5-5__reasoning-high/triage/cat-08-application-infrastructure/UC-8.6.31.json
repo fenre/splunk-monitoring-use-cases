@@ -1,0 +1,95 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "967f408dc27a9ed56423c14e94bd9e83d5192be359ba3447e1efec0f0268e15b",
+  "file": "content/cat-08-application-infrastructure/UC-8.6.31.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL, description and `controlTest` use a fixed threshold (`redeliver_rate` > 5) over 5-minute buckets. Nothing in the search computes a per-queue p95 or a 15-minute duration.",
+      "field": "implementation",
+      "quote": "Alert when redeliver rate exceeds historical p95 for 15 minutes.",
+      "severity": "major",
+      "suggested_fix": "Describe the fixed threshold that the search applies (and its unit, messages per second), or say how to replace it with a baseline."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "In the SPL the `where redeliver_rate > 5` filter runs before the `timechart`, not after it. Only rows above the threshold are bucketed, and the unit of the threshold is not stated.",
+      "field": "description",
+      "quote": "Summarises `redeliver_eps` grouped by `vhost`, `name` across `5m` before applying `redeliver_rate` > 5.",
+      "severity": "minor",
+      "suggested_fix": "State that individual samples with a redelivery rate above 5 per second are kept and then summed per 5-minute bucket for each queue."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "There is no RabbitMQ-specific collection step: enabling the `rabbitmq_management` plugin, the API port, the monitoring user and permissions, the `/api/queues` call, or how the JSON is flattened. The text also refers to a modular input, 'tunable macros' and a vendor admin UI inventory that do not exist for this UC.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=rabbitmq:queue into messaging. ... verify ... HTTP 401/429 from the vendor endpoint configured in inputs.conf.",
+      "severity": "major",
+      "suggested_fix": "Describe the real path: enable the management plugin, create a read-only monitoring user, poll `/api/queues` on an interval, and index the JSON as `rabbitmq:queue`. Replace the generic troubleshooting with RabbitMQ checks."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "The Universal Forwarder is not a Splunkbase app and ID 617 is not in the cached catalog. The poller and the sourcetype `rabbitmq:queue` are custom, which the text does not say.",
+      "field": "app",
+      "quote": "RabbitMQ management plugin + scripted/HEC poller (`sourcetype=rabbitmq:queue`) — Universal Forwarder (Splunkbase 617)",
+      "severity": "needs_verification",
+      "suggested_fix": "Say that the sourcetype comes from a custom scripted or HEC poller, and drop the Splunkbase ID or name a real add-on."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "clarity",
+      "explanation": "It is not clear which names to expect. The SPL mixes the nested name `message_stats.redeliver_details.rate` and a flat `redeliver_rate`.",
+      "field": "implementation",
+      "quote": "Normalize field names after JSON extraction (some collectors flatten with underscores).",
+      "severity": "minor",
+      "suggested_fix": "State the exact field the poller produces and use only that name in the SPL and the implementation text."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "grandma_fidelity",
+      "explanation": "Grammatical error ('to surfaces'), and 'consumers', 'retry storms' and 'broker' are jargon. It does not say messages that were handed out again are being counted.",
+      "field": "grandmaExplanation",
+      "quote": "We use this to surfaces flaky consumers and retry storms that waste broker resources",
+      "severity": "minor",
+      "suggested_fix": "Say in plain words that it warns when many messages in a queue are being delivered again because the programs reading them keep failing."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`timechart ... by vhost, name` uses two split-by fields, but `timechart` accepts only one, so the search will error or not run as intended. Combine the fields into one key first.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "In `eval`, the dotted field `message_stats.redeliver_details.rate` is not quoted with single quotes, so it is not read as a field name. The `coalesce` also reads `redeliver_rate` while assigning to it. The `where` before `timechart` drops all samples at or below 5, so quiet periods show as gaps.",
+      "severity": "major"
+    },
+    {
+      "field": "id",
+      "issue": "RabbitMQ is placed in 8.6 Network Service Availability. The grounding guide only lists RabbitMQ and ActiveMQ as 'referenced' in that guide.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0065-UC-8.6.31",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 3,
+    "overclaiming": 4,
+    "specificity": 2
+  },
+  "summary": "The RabbitMQ management API fields (`message_stats.redeliver`, `redeliver_details.rate`) and the references are on target. The implementation text is generic collector boilerplate, contradicts the SPL on thresholding, and the description describes a different order of steps than the search uses.",
+  "tier": "triage",
+  "uc_id": "UC-8.6.31",
+  "verdict": "rewrite"
+}

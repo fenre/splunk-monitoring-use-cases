@@ -6,23 +6,42 @@
 
 ## Current release
 
+**v8.28.0 — Cisco portfolio, review corrections, and guided onboarding (16,731 use cases)** *(shipped 2026-11-04)*
+
+Theme: **Cisco products with a published sourcetype have a use case, reviewed
+text names the product it describes, and a new reader can start from a pack.**
+
+### Shipped outcomes
+
+- **Cisco portfolio map** and **40** new use cases for Duo, Secure Endpoint, Secure Access, XDR, and the tier 2–4 products that publish a sourcetype or syslog mnemonic. Hyperfabric and Industrial Ethernet stay on the coverage backlog.
+- **Reviewed text corrections.** Wrong Splunkbase numbers and invented add-on names are corrected. Searches were left unchanged. cat-25 stays deferred.
+- **15** draft starter packs and a **Start-here wizard** at `#start`. MCP grows to **14** tools: `list_starter_packs`, `get_starter_pack`, `plan_rollout`.
+- **Two draft use cases:** Kubernetes OOMKilled (UC-3.2.47) and Palo Alto HA failover (UC-10.11.131).
+
+See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.28.0 release entry.
+
+---
+
+## Previous releases
+
+**v8.27.0 — Splunk product per use case + evidence-based Cisco tags (16,689 use cases)** *(shipped 2026-11-03)*
+
+Theme: **every use case says which Splunk product implements it, and a Cisco
+product tag means the search reads that product's data.**
+
+- **Splunk product registry (ADR-0017)** and **37** draft Splunk Agent Observability use cases (13.8).
+- **Cisco model tags** need a sourcetype, index, macro, or add-on CIM model in the search; `audit-cisco-tag-evidence --check` gates every pull request.
+- **15** draft Secure Firewall `splVariants` (uc.schema 1.10.0) and six new Cisco models (Duo, Umbrella / Secure Access, Secure Email, Isovalent, Secure Client / NVM, AI Defense).
+
+See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.27.0 release entry.
+
 **v8.26.0 — Permanent use case identifiers (16,652 use cases)** *(shipped 2026-10-28)*
 
 Theme: **a UC identifier, once published, always refers to the same use case.**
 The identity ledger records every identifier ever issued from the v8.25.0
 baseline onward, and CI blocks reuse and unmanifested bulk renumbering.
 
-### Shipped outcomes
-
-- **`data/id-ledger.json`** — 19,074 identifiers (16,652 active, 2,422 removed) with append-only title + SPL fingerprint history.
-- **348** identifiers edited between v8.25.0 and v8.26.0 classified in a committed migration manifest.
-- **`audit-uc-ids`** and **`audit-uc-id-migration-blast`** gate every pull request.
-
 See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.26.0 release entry.
-
----
-
-## Previous releases
 
 **v8.25.0 — Industry expansion + Fun Stuff consolidation (16,644 use cases)** *(shipped 2026-07-24)*
 
@@ -234,7 +253,7 @@ deadband, SKU tier, …) and routes through a registry of pure
 `(driverValues, profile) → {eps, bytesPerEvent}` functions in
 `tools/data-sizing/compute-functions.js`. The 206-source catalogue
 ships with 24 fully-calibrated drivers (every driver carries ≥ 1
-vendor / Splunkbase<sup class="ref">[<a href="#ref-7">7</a>]</sup> / Lantern citation drawn from a curated
+vendor / Splunkbase / Lantern citation drawn from a curated
 whitelist); the remaining sources route through a generic
 fall-through with explicit "pending calibration" provenance so the UI
 can mark them and the regression test snapshot can track them.
@@ -320,7 +339,7 @@ ED-202A).** v8.6.3 lands three tier-1 frameworks in a single release:
    SPDI Rules 2011. Carries the **6-hour incident-reporting clock —
    the shortest such clock in any major jurisdiction**. 8 hand-
    written gold-tier UCs.
-3. **IEC 61508 / 61511 + ISA-TR84.00.09 + IEC 62443<sup class="ref">[<a href="#ref-3">3</a>]</sup>-3-2 / 62443-3-3**
+3. **IEC 61508 / 61511 + ISA-TR84.00.09 + IEC 62443<sup class="ref">[<a href="#ref-4">4</a>]</sup>-3-2 / 62443-3-3**
    — the universally-recognised Good Engineering Practice (RAGAGEP)
    for Safety Instrumented Systems in the process industries,
    incorporated by reference into OSHA PSM (29 CFR 1910.119), EPA
@@ -736,7 +755,7 @@ rises to 14 frameworks.
   quality with curated `equipmentModels[]` for the US surface-
   transportation stack (ServiceNow CMDB, Microsoft AD, Cisco ISE for
   OT segmentation, Claroty / Dragos / Nozomi for pipeline and rail
-  OT monitoring, OSIsoft PI for SCADA telemetry, Splunk SOAR<sup class="ref">[<a href="#ref-6">6</a>]</sup> for
+  OT monitoring, OSIsoft PI for SCADA telemetry, Splunk SOAR<sup class="ref">[<a href="#ref-7">7</a>]</sup> for
   CISA submission, ServiceNow Records Management for the TSA 5-year
   retention regime, CyberArk PSM / BeyondTrust for vendor remote
   access, Tenable / Qualys for vulnerability scoring), the Singapore
@@ -961,7 +980,7 @@ correct and every quality signal transparently measured.
 
 - 100 % references coverage across 6,304 UCs
 - 100 % KFP coverage on security categories
-- MITRE ATT&CK<sup class="ref">[<a href="#ref-4">4</a>]</sup> coverage ≥80 % on security categories
+- MITRE ATT&CK<sup class="ref">[<a href="#ref-5">5</a>]</sup> coverage ≥80 % on security categories
 - Weekly link-check workflow
 - Per-UC quality metadata chips (Status, Last reviewed, Splunk versions)
 
@@ -1141,15 +1160,15 @@ See [`GOVERNANCE.md`](GOVERNANCE.md) for the full decision-making process.
 
 <a id="ref-2"></a>**[2]** European Parliament and Council of the European Union. (2022, December). *Regulation (EU) 2022/2554 — Digital Operational Resilience Act (DORA)*. Official Journal of the European Union, L 333. ELI: reg/2022/2554. https://eur-lex.europa.eu/eli/reg/2022/2554/oj
 
-<a id="ref-3"></a>**[3]** International Electrotechnical Commission. (2018). *IEC 62443 — Industrial communication networks — Network and system security*. IEC. https://webstore.iec.ch/en/publication/7029
+<a id="ref-3"></a>**[3]** Gerhards, R. (2009, March). *The Syslog Protocol*. Internet Engineering Task Force. RFC 5424. https://www.rfc-editor.org/rfc/rfc5424
 
-<a id="ref-4"></a>**[4]** MITRE Corporation. (2026). *MITRE ATT&CK Knowledge Base*. MITRE Engenuity. https://attack.mitre.org/
+<a id="ref-4"></a>**[4]** International Electrotechnical Commission. (2018). *IEC 62443 — Industrial communication networks — Network and system security*. IEC. https://webstore.iec.ch/en/publication/7029
 
-<a id="ref-5"></a>**[5]** Splunk Inc. (2026). *Splunk IT Service Intelligence Administration Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/ITSI
+<a id="ref-5"></a>**[5]** MITRE Corporation. (2026). *MITRE ATT&CK Knowledge Base*. MITRE Engenuity. https://attack.mitre.org/
 
-<a id="ref-6"></a>**[6]** Splunk Inc. (2026). *Splunk SOAR (Cloud) Documentation*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/SOARonprem
+<a id="ref-6"></a>**[6]** Splunk Inc. (2026). *Splunk IT Service Intelligence Administration Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/ITSI
 
-<a id="ref-7"></a>**[7]** Splunk Inc. (2026). *Splunkbase — the Splunk app marketplace*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://splunkbase.splunk.com/
+<a id="ref-7"></a>**[7]** Splunk Inc. (2026). *Splunk SOAR (Cloud) Documentation*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/SOARonprem
 
 <a id="ref-8"></a>**[8]** Standing Committee of the National People's Congress (China). (2021). *Personal Information Protection Law of the People's Republic of China*. National People's Congress. http://en.npc.gov.cn.cdurl.cn/2021-12/29/c_694559.htm
 

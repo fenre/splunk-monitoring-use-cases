@@ -1,0 +1,77 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.3.71",
+  "title": "Cisco Secure Access Cloud Firewall Blocks by Identity and Destination Port",
+  "criticality": "medium",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "exclusions": "Covers traffic sent through Secure Access tunnels or the roaming client to the cloud firewall. Local traffic inside a branch never reaches it.",
+  "evidence": "Hourly alert results and daily report with identities, ports, and rules, plus the rule change or incident record for each finding.",
+  "controlTest": {
+    "positiveScenario": "From a test device behind a Secure Access tunnel, connect to 25 different external addresses on a TCP port your firewall policy blocks. Within the S3 delay the blocks are indexed, and the search returns a row for the tunnel identity and that port with `dest_count` of at least 20.",
+    "negativeScenario": "Connect from the same device to one allowed destination on port 443. The connection is logged with an allow action, and the search returns no row."
+  },
+  "dataSources": "`index=sse sourcetype=cisco:cloud_security:firewall` from the Secure Access S3 log bucket, read by the Cisco Secure Access Add-on (7569). One event per connection the cloud-delivered firewall handled, with `action`, `identity`, `identity_type`, `src_ip`, `dest_ip`, `dest_port`, `protocol`, `rule_id`, `bytes_in`, `bytes_out`, `datacenter`, and `tunnel_id`.",
+  "app": "Cisco Secure Access Add-on for Splunk ([Splunkbase 7569](https://splunkbase.splunk.com/app/7569)), which reads Cisco Secure Access and Cisco Umbrella logs from the S3 log bucket and maps the web proxy log to the CIM Web data model. The companion Cisco Secure Access App (Splunkbase 5558) adds dashboards.",
+  "spl": "index=sse sourcetype=\"cisco:cloud_security:firewall\"\n| eval action=lower(action)\n| where match(action, \"^block\")\n| stats count as blocks dc(dest_ip) as dest_count values(dest_ip) as dest_ips values(rule_id) as rules values(datacenter) as datacenters by identity identity_type dest_port protocol\n| where blocks >= 50 OR dest_count >= 20\n| sort - blocks",
+  "description": "Counts connections the Secure Access cloud firewall blocked per identity (user, network tunnel, or roaming device) and destination port, and flags identities with at least 50 blocks or blocks to 20 or more different destinations on one port. Each row shows the destinations, the firewall rules that blocked them, and the Secure Access data centres involved.",
+  "value": "A burst of blocks from one identity on one port is either a misconfigured application that needs a rule, or a device trying to reach things it should not: scanning, or calling out on a port that malware uses. Seeing it per identity and port separates the two quickly.",
+  "implementation": "Collect the Secure Access firewall log with the 7569 add-on into `index=sse`. Schedule hourly. Alert on rows where `dest_count` is high (scanning) and report the rest daily to the network team.",
+  "visualization": "Table: identity, identity_type, dest_port, protocol, blocks, dest_count, rules, datacenters. Supporting panels: blocks per hour by dest_port over 7 days (stacked column), top identities by blocks (bar chart).",
+  "cimModels": [],
+  "schema": "OCSF: network_activity",
+  "references": [
+    {
+      "title": "Cisco Secure Access Add-on for Splunk (Splunkbase 7569)",
+      "url": "https://splunkbase.splunk.com/app/7569",
+      "retrieved": "2026-11-02"
+    },
+    {
+      "title": "Splunk Security Content data source: Cisco Secure Access Firewall",
+      "url": "https://github.com/splunk/security_content/blob/develop/data_sources/cisco_secure_access_firewall.yml",
+      "retrieved": "2026-11-02"
+    },
+    {
+      "title": "Cisco Secure Access: Log Formats and Versioning",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/secure-access/secure-access-help/CiscoSecureAccessHelp/logging-intro/log_formats_and_versioning.html",
+      "retrieved": "2026-11-02"
+    }
+  ],
+  "knownFalsePositives": "1. **New applications** — an application rolled out before its firewall rule produces steady blocks to a few destinations. These show a small `dest_count`.\n\n2. **Default-deny rules** — the final deny rule catches everything not explicitly allowed, including harmless broadcast or discovery traffic from branch tunnels.\n\n3. **Approved scanners** — vulnerability scanners behind a tunnel hit many destinations.\n\n**Suppression:** a lookup of known identity and port pairs with an owner.",
+  "mitreAttack": [
+    "T1046",
+    "T1571"
+  ],
+  "detectionType": "Anomaly",
+  "securityDomain": "network",
+  "requiredFields": [
+    "action",
+    "identity",
+    "identity_type",
+    "dest_ip",
+    "dest_port",
+    "protocol",
+    "rule_id",
+    "datacenter"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_umbrella"
+  ],
+  "capabilities": [
+    "secure_access.cloud_firewall"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Cisco Secure Access Add-on for Splunk (Splunkbase 7569) on the search heads and on the heavy forwarder or Inputs Data Manager that reads the S3 bucket.\n• Log export to Amazon S3 enabled in the Secure Access or Umbrella dashboard (Admin > Log Management), either a Cisco-managed bucket or your own, with the access key and secret for Splunk.\n• An index for Secure Access and Umbrella data (this page uses `index=sse`) and a role with `srchIndexesAllowed` on it for the network security team.\n\nStep 1 — Configure data collection\n• In the Cisco Secure Access Add-on (Splunkbase 7569) create an S3 modular input for the **Firewall** log folder with the bucket name, region, access key, and secret, and set the index to `sse`. The add-on writes `sourcetype=cisco:cloud_security:firewall`.\n• Logs reach S3 in batches, so events usually arrive in Splunk 10 to 15 minutes after the activity.\n• Check the fields this search needs: run `index=sse sourcetype=\"cisco:cloud_security:firewall\" | stats count by action identity_type` over 1 day. The raw log writes ALLOW or BLOCK, so the search lowercases `action`.\n\nStep 2 — Create the search and alert\n```spl\nindex=sse sourcetype=\"cisco:cloud_security:firewall\"\n| eval action=lower(action)\n| where match(action, \"^block\")\n| stats count as blocks dc(dest_ip) as dest_count values(dest_ip) as dest_ips values(rule_id) as rules values(datacenter) as datacenters by identity identity_type dest_port protocol\n| where blocks >= 50 OR dest_count >= 20\n| sort - blocks\n```\n\nUnderstanding this SPL\n• `lower(action)` and `match(action, \"^block\")` accept BLOCK, Block, blocked, or block, whichever the add-on version writes.\n• `stats` by identity, port, and protocol puts each traffic pattern on one row.\n• `dest_count >= 20` points to scanning; `blocks >= 50` with few destinations points to a missing rule.\n\nStep 3 — Validate\n• Compare with the Secure Access dashboard under Reporting > Activity Search, filtered to Firewall, Blocked, and the identity: the counts should match within the S3 delay.\n• Look up one `rule_id` in Secure > Access Policy and confirm it is a block rule.\n• Run `index=sse sourcetype=\"cisco:cloud_security:firewall\" | timechart span=1h count` over 7 days; gaps longer than an hour point to S3 input failures.\n\nStep 4 — Operationalize\n• Schedule hourly over the last 70 minutes and throttle on `identity` plus `dest_port` for 24 hours.\n• Route scanning rows (high `dest_count`) to the SOC and missing-rule rows to the network team.\n• Review the identity and port lookup quarterly.\n\nStep 5 — Troubleshooting\n• No proxy events and S3 access errors (403 AccessDenied) in the add-on log: the access key cannot read the bucket or the region is wrong.\n• Events arrive hours late: the input polling interval is long, or the bucket path prefix is wrong and the input scans the whole bucket.\n• No firewall events: firewall logging is not enabled in the access policy rules, or the S3 input path does not include the firewall folder.\n",
+  "grandmaExplanation": "The company's cloud firewall stops connections that are not allowed. We look for a computer or office that keeps getting stopped, because it is either set up wrong or doing something it should not.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}

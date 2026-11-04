@@ -1,0 +1,101 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "1be8ea6bde3e0f1901b31dac2793b91390bfebdddf09547796f4b3092e2c3d3d",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.3.31.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.cisco.com/docs/cisco-spaces-firehose/event-types/",
+      "explanation": "Firehose has separate `DEVICE_COUNT` (Wi-Fi, 1-minute) and `CAMERA_COUNT` (Meraki camera people count) event types, not a 'COUNT' type. `DEVICE_COUNT` nests its values as `deviceCounts.associatedCount`, `deviceCounts.estimatedProbingCount` and `deviceCounts.location.name`, so no flat `deviceCount`, `building` or `floor` field exists. `capacity_pct` is computed by the search, not delivered by the source.",
+      "field": "dataSources",
+      "quote": "Cisco Spaces Firehose API (COUNT events — device counts, camera people counts) Indexes: cisco_spaces. Sourcetypes: cisco:spaces:occupancy. Key fields: _time, building, capacity_pct, floor.",
+      "severity": "blocker",
+      "suggested_fix": "Name the event types `DEVICE_COUNT` and/or `CAMERA_COUNT`, list the real JSON paths (for example `deviceCounts.associatedCount` and `deviceCounts.location.name`), and explain how building and floor are derived from the location hierarchy, for example via a locationId-to-building/floor lookup. Drop `capacity_pct` from the source field list."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "Third-party setup notes for `ta_cisco_spaces` (Splunkbase 8485) list `cisco:spaces:firehose`, `cisco:spaces:firehose:health` and `cisco:spaces:log` as the sourcetypes the add-on writes. I could not confirm that the add-on emits `cisco:spaces:occupancy`.",
+      "field": "dataSources",
+      "quote": "Sourcetypes: cisco:spaces:occupancy.",
+      "severity": "needs_verification",
+      "suggested_fix": "Check props.conf / inputs.conf of the current Spaces Add-On for Splunk. If firehose events land as `cisco:spaces:firehose`, say so and filter on `eventType=\"DEVICE_COUNT\"` (or CAMERA_COUNT), or document the custom sourcetype rename needed."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The implementation tells the reader to keep `max_capacity` in a lookup, but nothing says to add a `lookup` command, and the SPL never runs one. As written, `capacity_pct` is null and the search returns no rows. The 95% critical tier in the prose also has no counterpart in the SPL.",
+      "field": "cross_field",
+      "quote": "Floor capacity limits should be maintained in a lookup table (`building_capacity.csv`) with building, floor, and max_capacity columns. Set alerts at 80% capacity for warning and 95% for critical.",
+      "severity": "major",
+      "suggested_fix": "Give the explicit enrichment step, for example `| lookup building_capacity.csv building floor OUTPUT max_capacity`, before computing `capacity_pct`. Describe how the 80% and 95% tiers are produced, for example a `severity` eval, or keep only the single 80% threshold the search implements."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "The UC uses no data model and no tstats or mstats, the validation step points at a BMS console instead of Cisco Spaces, and the 'Step 4' heading appears four times. These are template artefacts that mislead the implementer.",
+      "field": "detailedImplementation",
+      "quote": "Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nCompare with the BMS console for the same equipment, sensors, and time range.\n\n\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize",
+      "severity": "major",
+      "suggested_fix": "Remove the acceleration paragraph and the duplicate headings. Validate against the Cisco Spaces dashboard's floor occupancy or device-count view for the same location and 15-minute window."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The search uses a Wi-Fi device count, which is not a headcount: people carry zero to several devices, MAC randomisation inflates probing counts, and the 15-minute max is an estimate. It cannot support fire-safety occupancy compliance, and the search has no zone grain.",
+      "field": "detailedImplementation",
+      "quote": "Provides real-time and historical people counts per building, floor, and zone using data from Meraki APs and cameras. Supports compliance with fire safety capacity limits",
+      "severity": "major",
+      "suggested_fix": "Describe the output as an estimated occupancy indicator from Wi-Fi device counts (or camera counts if `CAMERA_COUNT` is used), suitable for space-utilisation trending. State that it is not a certified headcount for fire-code limits."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The scenarios do not describe real occupancy distortions, and keying suppression on `_time` makes no sense. Real causes include multiple devices per person, MAC-randomised probing devices, Wi-Fi devices on adjacent floors or outside the building, stale capacity lookup values after a floor refit, and events or all-hands meetings.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `_time`, `building`, `floor`** — Health checks in `cisco_spaces` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List occupancy-specific causes like those above and suppress them per building and floor with a calendar of planned events, not a generic exception register."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The search reads only the Cisco Spaces index. Meraki AP and camera data reaches this UC through Cisco Spaces, not through Splunk_TA_cisco_meraki, so listing 5580 as required overstates the install footprint.",
+      "field": "app",
+      "quote": "`Cisco Meraki Add-on for Splunk` (Splunkbase 5580)",
+      "severity": "minor",
+      "suggested_fix": "List only the Spaces Add-On for Splunk (8485) as required. Mention that Meraki devices must be connected to Cisco Spaces, which is a Spaces-side prerequisite."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://developer.cisco.com/docs/cisco-spaces-firehose/event-types/",
+      "field": "spl",
+      "issue": "`max_capacity` is never introduced (no `lookup building_capacity.csv ...`), so `capacity_pct` is always null and `where capacity_pct > 80` returns nothing. `deviceCount`, `building` and `floor` are not top-level fields in Cisco Spaces DEVICE_COUNT events, which nest values under `deviceCounts.*` (https://developer.cisco.com/docs/cisco-spaces-firehose/event-types/).",
+      "severity": "blocker"
+    },
+    {
+      "field": "criticality",
+      "issue": "'high' criticality for an occupancy trending and capacity-planning report built on estimated device counts looks inflated. Consider 'medium' or 'low'.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0070-UC-15.3.31",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 1,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The intent (floor-level occupancy against a capacity lookup) is clear, but the data-source facts do not match Cisco Spaces Firehose: there is no 'COUNT' event type and no flat `deviceCount`/`building`/`floor` fields. The capacity lookup the implementation relies on is never applied in the search, and the detailed implementation carries pasted boilerplate (data-model acceleration, BMS console, a repeated 'Step 4' heading).",
+  "tier": "deep",
+  "uc_id": "UC-15.3.31",
+  "verdict": "incorrect"
+}

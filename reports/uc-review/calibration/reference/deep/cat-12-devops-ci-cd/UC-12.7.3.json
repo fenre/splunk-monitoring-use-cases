@@ -1,0 +1,121 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "ccb9451987cc6efc9a4994ef8b1eaf24887e0f7ec9f7fb3c4be2dd239a542e9e",
+  "file": "content/cat-12-devops-ci-cd/UC-12.7.3.json",
+  "findings": [
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://github.com/argoproj/argo-cd/issues/2934",
+      "explanation": "No 'Splunk Add-on for Argo CD' appears in the cached Splunkbase catalogue. Argo CD maintainers describe Splunk log forwarding as a cluster-level job (Splunk Connect for Kubernetes or the OpenTelemetry Collector), not an Argo-specific add-on. The add-on may not exist.",
+      "field": "app",
+      "quote": "Splunk Add-on for Argo CD, Kubernetes log collector with pod labels",
+      "severity": "needs_verification",
+      "suggested_fix": "Search Splunkbase for an Argo CD add-on. If none exists, name the actual collector, for example the Splunk OpenTelemetry Collector for Kubernetes (Splunkbase 6264), which collects `argocd-repo-server` container logs with pod labels. Drop the Universal Forwarder (617) wording."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by a generic `catalog-team` reviewer, yet its description, value, knownFalsePositives, controlTest, evidence, exclusions and detailedImplementation are all unedited template text. A suppression register is even keyed on `_time`. Nothing suggests an SME validated the detection.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft until an SME validates the SPL against real repo-server logs and the template fields are rewritten."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The `implementation` rule (sustained errors over 15 minutes, miss rate compared with a 7-day baseline) is not what the SPL does. The SPL fires on any single 5-minute bucket with `conn_errors > 0` or a fixed `miss_rate > 15`. `description` and `controlTest` repeat the SPL logic, so the fields disagree about when the alert fires.",
+      "field": "cross_field",
+      "quote": "Alert on sustained conn_err > 0 for a single host over 15 minutes or cache miss_rate spikes versus 7-day baseline.",
+      "severity": "major",
+      "suggested_fix": "Make `implementation` describe the shipped logic (any 5-minute bucket with a connection error, or more than 15% of repo-server log lines reporting a cache miss). Present the sustained or baseline variant as an optional tuning step."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/argoproj/argo-cd/blob/master/reposerver/repository/repository.go",
+      "explanation": "`miss_rate` is the share of all repo-server log lines that mention a cache miss, not the share of cache lookups that missed. The repo-server does not log cache hits, so the denominator moves with general log volume and verbosity. Calling it a 'manifest cache miss rate' misleads the reader.",
+      "field": "description",
+      "quote": "pages when `conn_errors` > 0, or `miss_rate` > 15",
+      "severity": "major",
+      "suggested_fix": "Describe it as 'percentage of repo-server log lines reporting a manifest or revision-metadata cache miss'. Point to the repo-server Prometheus metrics if a true hit/miss ratio is needed."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "clarity",
+      "explanation": "Repo-server log lines do not carry a `repo_url_host` field. Some messages embed the repository URL (for example 'revision metadata cache miss: <repo>/<revision>'), but the generic 'manifest cache miss' line does not. Because the SPL groups by `repo_url_host`, any line without that field is dropped. The UC gives no extraction method.",
+      "field": "implementation",
+      "quote": "Ensure repo URL hostnames are extracted to repo_url_host.",
+      "severity": "major",
+      "suggested_fix": "Provide the extraction, for example a props.conf EXTRACT or `rex` that pulls the host from `repo=` or `https://<host>/` patterns. State that lines without a repository URL (including plain 'manifest cache miss') are excluded unless `fillnull value=unknown repo_url_host` is applied."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "clarity",
+      "explanation": "`argocd-server` (the API server) and `argocd-repo-server` are separate components. Reusing the `argocd:server` sourcetype for repo-server logs invites confusion with the API-server sibling UCs.",
+      "field": "dataSources",
+      "quote": "`sourcetype=argocd:server` (repo-server pod logs)",
+      "severity": "minor",
+      "suggested_fix": "Either document that all Argo CD component logs share `argocd:server` and are separated by `component` or `pod_name`, or use a distinct `argocd:repo-server` sourcetype."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "Template text. Real benign triggers are missing: a cold Redis cache after a repo-server or Redis restart (miss bursts are expected), hard refreshes, a new commit on a monorepo invalidating many manifests, the broad 'rpc error' regex matching ordinary gRPC cancellations, and 'repository not found' from a deleted repository still referenced by a stale Application.",
+      "field": "knownFalsePositives",
+      "quote": "Planned work for 'Argo CD Repo-Server Connection Errors and Manifest Cache Miss Rate' shifts `conn_errors`, `cache_misses` over `span=5m`",
+      "severity": "major",
+      "suggested_fix": "List those Argo CD-specific causes, with mitigations such as suppressing for N minutes after a repo-server pod restart and tightening the `rpc error` match."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "grandma_fidelity",
+      "explanation": "Generic GitOps text. It does not say the UC catches the deployment tool failing to reach its code repositories, or repeatedly rebuilding settings it should have remembered.",
+      "field": "grandmaExplanation",
+      "quote": "We watch GitOps sync and Argo signals so clusters stay aligned with the desired configuration in Git.",
+      "severity": "major",
+      "suggested_fix": "For example: 'We alert when our deployment system cannot reach the place where our settings are stored, or keeps redoing work it should have remembered, because both slow down or block releases.'"
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/argoproj/argo-cd/blob/master/docs/operator-manual/high_availability.md",
+      "explanation": "The repo-server section heading on that page is 'argocd-repo-server', so the `#repo-server` anchor does not resolve to it.",
+      "field": "references",
+      "quote": "https://argo-cd.readthedocs.io/en/stable/operator-manual/high_availability/#repo-server",
+      "severity": "minor",
+      "suggested_fix": "Use the `#argocd-repo-server` anchor."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`stats ... by _time, repo_url_host` silently drops every event without `repo_url_host`. This includes the plain 'manifest cache miss' line, so cache misses are undercounted. `miss_rate` uses total log lines as the denominator, which is not a cache miss rate.",
+      "severity": "major"
+    },
+    {
+      "field": "criticality",
+      "issue": "`critical` seems high for a crawl-wave signal that fires on any single connection-error line in 5 minutes. Consider high, with sustained-error escalation.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0077-UC-12.7.3",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 2,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The detection targets real Argo CD repo-server log messages, but the prose is mostly template text. The implementation describes different alert logic than the SPL, and the 'miss rate' is not a cache miss rate. The UC also claims `status: verified` while its key fields are unedited skeletons.",
+  "tier": "deep",
+  "uc_id": "UC-12.7.3",
+  "verdict": "rewrite"
+}

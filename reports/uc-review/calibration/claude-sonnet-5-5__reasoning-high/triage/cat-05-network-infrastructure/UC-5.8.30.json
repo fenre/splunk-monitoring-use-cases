@@ -1,0 +1,108 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "a86a79f629c136016dd73ced98d8c923e4fe1e9704d0f299f69bc4708b240ec8",
+  "file": "content/cat-05-network-infrastructure/UC-5.8.30.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The `spl` groups by `admin` and `object` in `index=dns`. `detailedImplementation` uses `admin_name`, `object_type`, `object_name`, `result` and `source_ip` in `index=infoblox` (or `dns`). The two cannot both be right for the same sourcetype.",
+      "field": "cross_field",
+      "quote": "stats count values(action) as actions latest(_time) as last by host, admin, object",
+      "severity": "major",
+      "suggested_fix": "Check the real field names of `infoblox:audit` in the add-on and use one set and one index in the SPL, `dataSources` and `detailedImplementation`."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The restart search looks back 7 days (`earliest=-7d`) and rates severity from the total count (`events > 10` is CRITICAL). The alert text uses a 24-hour window with a threshold of 5. The description says the alert fires at `count` >= 1.",
+      "field": "detailedImplementation",
+      "quote": "Critical (DNS service restart > 5 times in 24 hours on same member)",
+      "severity": "major",
+      "suggested_fix": "Use one window and threshold in the SPL, the alert text and the description, or say which search drives which alert."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "clarity",
+      "explanation": "The quoted filter ends in a dangling `OR` where the `critical` term was cut off. The same broken text appears in `controlTest` and `knownFalsePositives`. The keyword filter is also broad: 'failed' matches login failures and other noise, not only DNS service restarts.",
+      "field": "description",
+      "quote": "Uses filter `restart OR stopped OR failed OR \"Named\" OR \"DNS Service\" OR `.",
+      "severity": "major",
+      "suggested_fix": "Quote the filter exactly as it appears in the SPL, including `critical`, and explain that the keywords are a broad filter that needs tuning to the NIOS audit message wording."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "Check how NIOS audit messages really map to the `action` and `object_type` fields that the add-on extracts. If restarts are logged as free text, these matches will return nothing.",
+      "field": "detailedImplementation",
+      "quote": "where match(action, \"(?i)(restart|start|stop)\") AND match(object_type, \"(?i)(dns|named|service)\")",
+      "severity": "needs_verification",
+      "suggested_fix": "Compare with real `infoblox:audit` events and adjust the field names and values, or search the raw message text."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "I could not confirm a 'Resource Allocation' screen or a DNS process memory limit setting in NIOS Grid Manager. The path 'Grid > Members > Restart Services' and the 'HA Status' path also need checking against the NIOS version in use.",
+      "field": "detailedImplementation",
+      "quote": "Grid > Members > select member > Resource Allocation. Consider increasing the DNS process memory limit or reducing the cache TTL.",
+      "severity": "needs_verification",
+      "suggested_fix": "Check each UI path against the NIOS admin guide for the supported version and correct or remove the ones that do not exist."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "overclaiming",
+      "explanation": "The restart duration and the claimed OOM and watchdog causes are stated as facts without a source.",
+      "field": "detailedImplementation",
+      "quote": "typically 5-30 seconds",
+      "severity": "minor",
+      "suggested_fix": "Remove the figure or cite Infoblox documentation. Present the causes as possibilities to check."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "A keyword search over audit logs is not a canonical signal for DNS service health, and nothing supports the claim.",
+      "field": "description",
+      "quote": "Operations operators treat UC-5.8.30 as the canonical signal.",
+      "severity": "minor",
+      "suggested_fix": "Delete the sentence."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "grandma_fidelity",
+      "explanation": "'Grid' and 'audit events' are jargon, and it does not say the search is a keyword match on audit logs.",
+      "field": "grandmaExplanation",
+      "quote": "a DNS service on the grid restarts or throws serious audit events",
+      "severity": "minor",
+      "suggested_fix": "Say that it watches the logs of the company's name-lookup servers and flags times when one is restarted or logs a serious problem."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The `search restart OR stopped OR failed OR \"Named\" ...` keyword filter is broad, `where count>=1` is redundant, and `stats` runs after a free-text search so it does not distinguish restarts from failed logins. It also does not use the fields that the detailed searches use.",
+      "severity": "major"
+    },
+    {
+      "field": "title",
+      "issue": "The title promises restarts and critical audit events, but the SPL is one generic keyword filter and does not separate the two.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0062-UC-5.8.4",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The detailed implementation is specific to Infoblox and well organised, but its field names, index and alert thresholds disagree with the SPL, and the description and tests contain a broken keyword filter. Some NIOS UI paths and behaviours need checking.",
+  "tier": "triage",
+  "uc_id": "UC-5.8.30",
+  "verdict": "rewrite"
+}

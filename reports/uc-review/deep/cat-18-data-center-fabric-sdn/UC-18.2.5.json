@@ -1,0 +1,119 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "a2bc3929f6f65c812f0b561426013b8c3ada14a1c8bbe390f7d6e46d9b62dd56",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.2.5.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/4856",
+      "explanation": "Splunkbase 4856 is the community 'Metrics Add-on for Infrastructure'; no Splunk-built `Splunk_TA_vmware-nsxt` exists. NSX options on Splunkbase are the VMware NSX-T Splunk App (4241) and TA-nsx (6805). `Splunk_TA_vmware` is Splunkbase 3215, not 1810 (Hunk App for MongoDB). Repeated in dataSources, detailedImplementation and references.",
+      "field": "app",
+      "quote": "**`Splunk_TA_vmware-nsxt`** ([Splunkbase 4856](https://splunkbase.splunk.com/app/4856), current 1.x stream covering VMware NSX 4.x and NSX-T 3.2.x syslog)",
+      "severity": "blocker",
+      "suggested_fix": "Replace with real IDs: Splunk Add-on for VMware 3215; NSX via Splunkbase 4241/6805 or a custom syslog/REST input."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/AddOns/released/VMWesxilogs/Install",
+      "explanation": "The Universal Forwarder is not supported on ESXi; ESXi logs reach Splunk by syslog to a collector (Splunk Add-on for VMware ESXi Logs). detailedImplementation also tells readers to point UF tails at NSX Manager and Edge appliance log paths, which are closed appliances that are configured to send syslog instead.",
+      "field": "dataSources",
+      "quote": "Universal Forwarder tails on ESXi `vmkernel.log`, `/var/log/syslog.log`, `/var/log/nsx-*.log` for host transport-node diagnostics",
+      "severity": "blocker",
+      "suggested_fix": "Configure ESXi `Syslog.global.logHost` and NSX Manager/Edge syslog servers to send to SC4S or a syslog-receiving forwarder; remove UF-on-appliance instructions."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/AddOns/released/VMW/Sourcetypes",
+      "explanation": "No such sourcetype exists in the Splunk Add-on for VMware; maintenance/DRS correlation comes from `vmware:events` / `vmware:tasks`, inventory from `vmware:inv:hostsystem`. Repeated in detailedImplementation Step 2.",
+      "field": "dataSources",
+      "quote": "optional **`vmware:vmware:vsphere:vcenter`** (**Splunkbase 1810**) supplies maintenance correlation",
+      "severity": "blocker",
+      "suggested_fix": "Use `vmware:events` and `vmware:tasks` (Splunk Add-on for VMware, Splunkbase 3215)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/NetworkTraffic",
+      "explanation": "Tunnel/BFD state and transport-node install/config status are not flow records. dataModelAcceleration proposes mapping tunnel peers into src_ip/dest_ip 'flows', which would pollute Network_Traffic with status events.",
+      "field": "cimModels",
+      "quote": "\"Network_Traffic\",",
+      "severity": "blocker",
+      "suggested_fix": "Drop Network_Traffic and its acceleration note; Inventory (or no CIM model) fits the transport-node state signal."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://techdocs.broadcom.com/us/en/vmware-cis/nsx/vmware-nsx/4-2/installation-guide/transport-zones-and-transport-nodes/mtu-guidance.html",
+      "explanation": "NSX documents 1600 bytes as the minimum required TEP/underlay MTU and 1700 as the recommended (and default global TEP) value. Calling 1700 the floor (and naming the risk class `mtu_below_geneve_floor`) will page on supported 1600–1699 configurations.",
+      "field": "detailedImplementation",
+      "quote": "roughly fifty-byte overhead guiding MTU floors near **1700 bytes** versus legacy **1500-byte** fabrics",
+      "severity": "minor",
+      "suggested_fix": "State: minimum 1600, recommended 1700 (default), 9000 for jumbo underlays; treat <1600 as a fault and 1600–1699 as a warning."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL flags eight risk classes (tunnel/BFD down, degraded/INIT, runtime abnormal, lifecycle failed, config not synced, manager API state bad, MTU below 1700, failover syslog); the MTU test is `> 0 AND < 1700`, not OR. The description gives readers no idea what a result row means.",
+      "field": "description",
+      "quote": "with thresholds `tep_mtu_num` > 0, or `tep_mtu_num` < 1700",
+      "severity": "major",
+      "suggested_fix": "List the risk_bucket classes and their triggers, one row per transport node and class over the last 4 hours."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/datacenter-fabric-sdn.md",
+      "explanation": "The grounding guide places VMware virtualization in cat 2.1, not cat-19. 'NSX for Windows / NSX for AWS / NSX for Azure' are also not product names (the cloud offering is NSX Cloud).",
+      "field": "exclusions",
+      "quote": "Standalone vSphere environments without NSX (use cat-19 vSphere UCs)",
+      "severity": "minor",
+      "suggested_fix": "Point to cat 2.1 for vSphere and name NSX Cloud if cloud deployments are meant."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "In NSX 4.x remote syslog for appliances is configured under System → Fabric → Profiles → Node Profiles (or via `set logging-server` CLI); the quoted path does not appear to exist. NSX 4.2 GA date ('October 2024') also looks wrong (4.2.0 shipped mid-2024).",
+      "field": "detailedImplementation",
+      "quote": "Configure **NSX Manager** Admin → System → Settings → Manage Settings → Syslog Servers",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the NSX 4.2 Administration Guide 'Configure Remote Logging' page and correct the UI path and GA date."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "Marked verified by an automated agent while recommending an unsupported forwarder deployment and wrong add-on IDs.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until SME validation."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`tn_uuid` coalesces to \"\" so every syslog line without a transport-node ID collapses into one empty-key row; `tz_overlay_flag` matches any 'VLAN'/'OVERLAY' substring in _raw; `operational_state IN (...) AND operational_state!=\"SUCCESS\"` is redundant; the `failover_or_tunnel_syslog` regex ('standby', 'failover') will match routine Edge HA chatter. MTU class uses 1700 where NSX's documented minimum is 1600.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0036-UC-18.2.5",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The transport-node risk taxonomy (tunnel/BFD down, runtime, install, config sync, MTU) and the Manager API paths are reasonable, but the add-on identities are wrong, the text tells readers to put Universal Forwarders on ESXi and NSX appliances, Network_Traffic is a poor CIM fit, and the description reduces eight risk classes to a garbled MTU threshold.",
+  "tier": "deep",
+  "uc_id": "UC-18.2.5",
+  "verdict": "incorrect"
+}

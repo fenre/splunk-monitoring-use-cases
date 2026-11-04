@@ -1,0 +1,146 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "9e875d6b46eb8534f4a2b4f85b5488019271b8a3ee5b2d08c8cd520e8bc8f350",
+  "file": "content/cat-03-containers-orchestration/UC-3.3.10.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/openshift/api/blob/master/operator/v1/types_csi_cluster_driver.go",
+      "explanation": "ClusterCSIDriver objects exist only for CSI driver operators that OpenShift installs by default, and the object name must come from a fixed enum (ebs.csi.aws.com, csi.vsphere.vmware.com, disk.csi.azure.com and so on). ODF/Ceph drivers and OLM-installed partner drivers never appear as ClusterCSIDriver rows. The same mistaken scope appears in Step 1 ('any partner CSI installed through Operator Lifecycle Manager').",
+      "field": "detailedImplementation",
+      "quote": "emitting sourcetype=ocp_clustercsidriver with one row per driver such as ebs.csi.aws.com, csi.vsphere.vmware.com, disk.csi.azure.com, pd.csi.storage.gke.io, openshift-storage.cephfs.csi.ceph.com, or partner-specific names installed through OLM",
+      "severity": "blocker",
+      "suggested_fix": "List only the OpenShift-managed driver names. State that ODF and partner CSI drivers must be monitored through their own operator CRs, CSIDriver/CSINode objects and pod health, not ClusterCSIDriver."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "ClusterCSIDriver status uses the library-go OperatorStatus convention. Its condition types are controller-prefixed (for example AWSEBSDriverControllerServiceControllerAvailable or ...NodeServiceControllerDegraded), not bare OperatorAvailable/OperatorDegraded, so the exporter mapping and the oc custom-columns example may match nothing.",
+      "field": "detailedImplementation",
+      "quote": "Flatten status.conditions types OperatorAvailable, OperatorProgressing, and OperatorDegraded",
+      "severity": "needs_verification",
+      "suggested_fix": "Check 'oc get clustercsidriver <name> -o yaml' on a 4.16+ cluster and document the real condition types. Aggregate them with a suffix match on Available, Progressing or Degraded."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/data-management/common-information-model/6.0/data-models/application-state-deprecated",
+      "explanation": "The Application State data model has been deprecated since CIM 4.12.0. It covers ports, processes and services, with no state or info fields, so it does not fit CSI driver or storage-operator condition telemetry. Inventory, which covers hardware and software asset inventory, is also a weak fit for health conditions.",
+      "field": "cimModels",
+      "quote": "\"Application_State\"",
+      "severity": "blocker",
+      "suggested_fix": "Remove Application_State. Either declare the UC not CIM-mapped, or use Change only for the StorageClass and ClusterCSIDriver audit mutations."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The fenced SPL in Step 3 does not match the spl field. The fence builds strings with strcat(\"csinode_\",node), strcat(\"storageclass_\",sc), strcat(mn,\"=\",...) and strcat(reason,\" \",msg), while spl uses the '.' concatenation operator in those places. Readers cannot tell which version is canonical.",
+      "field": "detailedImplementation",
+      "quote": "Fenced SPL must match the spl JSON field exactly",
+      "severity": "major",
+      "suggested_fix": "Regenerate the fenced block from the spl field so the two are byte-identical."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The prose treats VolumeSnapshotCreated as an informational success event kept for correlation, but the SPL sets evt_storage=1 and deg_f=1 for it, so every successful snapshot produces a warn row.",
+      "field": "detailedImplementation",
+      "quote": "Retain reason and message for ProvisioningFailed, AttachVolumeFailed, FailedMount, VolumeSnapshotCreated informational storms you still want for correlation",
+      "severity": "major",
+      "suggested_fix": "Describe VolumeSnapshotCreated as context only, and note that it must be excluded from the degraded flag (an SPL change for the human owner)."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://kubernetes.io/docs/concepts/storage/volume-snapshot-classes/",
+      "explanation": "The VolumeSnapshotClass field is deletionPolicy (Delete or Retain), not deletePolicy.",
+      "field": "detailedImplementation",
+      "quote": "Confirm VolumeSnapshotClass deletePolicy",
+      "severity": "minor",
+      "suggested_fix": "Write 'VolumeSnapshotClass deletionPolicy'."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "No metric with this name is documented for cluster-storage-operator. The documented CSI sidecar and kubelet metrics are csi_sidecar_operations_seconds and csi_operations_seconds (histograms).",
+      "field": "detailedImplementation",
+      "quote": "storage_operator_cluster_csi_driver_degraded_count style series",
+      "severity": "needs_verification",
+      "suggested_fix": "Query the in-cluster Prometheus for metric names that start with storage_operator or csi_ and list only names that exist. Otherwise drop the example."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL only searches prometheus:openshift in index=ocp_metrics, so this index and sourcetype pairing does not exist in the detection. controlTest repeats the same pairing for its synthetic events.",
+      "field": "description",
+      "quote": "using `index=ocp_audit` sourcetype `prometheus:openshift`",
+      "severity": "minor",
+      "suggested_fix": "Name the primary lanes as the SPL defines them: ocp_clusteroperator (name=storage) and ocp_clustercsidriver snapshots, plus ocp_metrics for Prometheus lines."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified, but the SPL cannot execute and the text names driver objects that cannot exist, so no SME validation against a real cluster can have happened.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft or community until the search has run on a live cluster."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The checklist names 21 columns, and the table command emits 24, including cluster_tier, owner_team and environment. The comment's tunable va_stuck_warn_min=25 is never used either, since va_stuck goes straight to page at 45 minutes.",
+      "field": "detailedImplementation",
+      "quote": "for nineteen analyst-visible columns",
+      "severity": "minor",
+      "suggested_fix": "Drop the column count, and describe the VolumeAttachment threshold as a single 45-minute page."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.0/search-commands/multisearch",
+      "field": "spl",
+      "issue": "multisearch accepts only purely streaming subsearches, but its subsearches contain sort, streamstats and stats, and the last subsearch is a '| mstats' generating search. Splunk rejects the whole search. The eval expressions also use 'sourcetype=~\"...\"', which is not a Splunk eval operator (use match() or like()).",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "In the csi_metrics and mstats arms, met_peak is the max of any csi_sidecar_*, csi_operations_* or storage_operator_* series, including histogram _bucket and _count samples. Those reach 20 almost immediately, so any cluster with CSI metrics pages permanently. kube_pod_container_status_restarts_total>=8 is a lifetime counter, not a restart rate.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The StorageClass governance arm matches 'gp3|ebs.csi.aws.com' against the StorageClass name instead of the provisioner. It flags gp3_iops_gap whenever 'iops' is absent, but gp3 provides a 3000 IOPS baseline without that parameter, so the default gp3-csi class is flagged on every run.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The storage ClusterOperator dwell uses streamstats window=2 current=t last(_time), which returns the current event's time or at most one poll interval. prog_dwell_min therefore cannot reach the 45- and 120-minute thresholds. ltt_epoch is parsed but not used for dwell.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/data-management/common-information-model/6.0/data-models/application-state-deprecated",
+      "field": "cimSpl",
+      "issue": "The Inventory and Application_State data models have the root datasets All_Inventory and All_Application_State, so nodename=Inventory/Application_State and Inventory.dest/Application_State.state return nothing. Application_State is deprecated and has no state or info fields.",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0074-UC-3.3.10",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The storage-plane scoping in detailedImplementation is thoughtful, but the SPL cannot run (non-streaming commands and an mstats generator inside multisearch), several severity rules fire on healthy objects, and ClusterCSIDriver facts are wrong (partner and ODF drivers do not get ClusterCSIDriver objects). The fenced SPL also differs from the spl field, and the CIM mapping uses a deprecated model with wrong dataset names.",
+  "tier": "deep",
+  "uc_id": "UC-3.3.10",
+  "verdict": "incorrect"
+}

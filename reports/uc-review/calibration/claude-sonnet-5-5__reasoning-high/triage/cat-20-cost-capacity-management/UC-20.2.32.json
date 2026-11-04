@@ -1,0 +1,104 @@
+{
+  "confidence": 0.7,
+  "content_sha256": "105af44abc0502719cb23c55c6dd17953d27c94eca78e19221c27546a4ea1ff3",
+  "file": "content/cat-20-cost-capacity-management/UC-20.2.32.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL marks a host as underused only when fleet_avg < 35 AND fleet_p95 < 70, and alerts on that OR fleet_p95 > 92. The prose lists three independent OR conditions, so the underuse rule is described wrongly. The description also says results come 'each 1h' and include `avg_sm`, but the final table has one row per host with host, fleet_avg and fleet_p95.",
+      "field": "description",
+      "quote": "alert when `fleet_avg` < 35, `fleet_p95` < 70, or `fleet_p95` > 92",
+      "severity": "major",
+      "suggested_fix": "State that a host is flagged as underused when average SM utilization is below 35% and its peak hourly p95 is below 70%, and as saturated when the peak hourly p95 is above 92%. List the real output columns."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL looks at only the last 7 days (`earliest=-7d`) and keeps no history of earlier results, so it cannot show that underuse persisted for fourteen days. The scheduling step in detailedImplementation also says `earliest=-24h@h`, a third window.",
+      "field": "implementation",
+      "quote": "Right-size node pools when underused persists fourteen days",
+      "severity": "major",
+      "suggested_fix": "Use one window. Either run over 14 days, or save results to a summary index or lookup and alert after two consecutive weekly flags."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The title and text speak about a GPU 'pool' and workload type, but the SPL groups by host only. There is no lookup, tag or field for pool or workload type anywhere in the search, and `fleet_*` names suggest a fleet-wide value though they are per host.",
+      "field": "cross_field",
+      "quote": "Tag hosts with workload type such as training versus inference.",
+      "severity": "major",
+      "suggested_fix": "Either add the pool/workload lookup to the documented steps and search, or reword the UC as per-host GPU utilization and drop the pool language. Explain how nodes are assigned to pools."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "NVIDIA DCGM exporter publishes Prometheus-format metrics (for example DCGM_FI_DEV_GPU_UTIL, DCGM_FI_PROF_SM_ACTIVE). `dcgm:gpu`, `gpu_sm_utilization` and `sm_util_pct` are not documented DCGM names, and DCGM_FI_DEV_GPU_UTIL is overall GPU utilization rather than SM utilization. The description presents them as established fields.",
+      "field": "dataSources",
+      "quote": "`index=ml_infra` `sourcetype=\"dcgm:gpu\"`",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the DCGM exporter field reference and your collector's output. State which metric maps to `gpu_sm_utilization`, and say that `dcgm:gpu` is a custom sourcetype (or switch to the collector's real metric names)."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/finops-cost-capacity.md",
+      "explanation": "A Universal Forwarder cannot scrape a Prometheus endpoint, and Splunkbase 617 is not in the cached catalog. The grounding names the Splunk OpenTelemetry Collector as the capacity-metrics source. The app field also lists three alternatives without saying which one produces `dcgm:gpu`.",
+      "field": "app",
+      "quote": "NVIDIA DCGM exporter, Kubernetes GPU metrics, cloud GPU monitoring — Universal Forwarder (Splunkbase 617)",
+      "severity": "needs_verification",
+      "suggested_fix": "Name the real collection path (for example the Splunk OpenTelemetry Collector Prometheus receiver or a scripted input sending to HEC), and the exact ingest sourcetype or metric index. Drop the Universal Forwarder / 617 label unless verified."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The validation step is copied from a cloud-cost template. This UC reads DCGM GPU telemetry and has no billing data. The second Step 1-5 block (inventory count +/-5%, vendor admin UI, 'joins/lookups enrich owner', 'KPI tiles') is also generic and contradicts the SPL, which has no joins or lookups.",
+      "field": "detailedImplementation",
+      "quote": "compare with the cloud billing console for the same scope, accounts, and time range.",
+      "severity": "major",
+      "suggested_fix": "Validate by comparing a host's avg and p95 values with `nvidia-smi dmon` or the DCGM dashboard for the same hour. Keep one set of steps and remove the generic block."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "No job queue data is part of the data sources or the SPL, and the search output is a per-host table, not a time series.",
+      "field": "visualization",
+      "quote": "Timechart (job queue depth if ingested)",
+      "severity": "minor",
+      "suggested_fix": "Remove the queue-depth timechart, or add the scheduler data source and document it. Use a table for the host list and a utilization trend for the chart."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "clarity",
+      "explanation": "The thresholds 35, 70 and 92 are given without rationale, and there is no guidance on adjusting them for bursty inference versus training hosts.",
+      "field": "implementation",
+      "quote": "scale out when fleet_p95 exceeds ninety-two",
+      "severity": "minor",
+      "suggested_fix": "Explain where the thresholds come from and how to tune them per workload type."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`fleet_p95` is `max(p95_sm)` over the hourly p95 values of each host, so it is the worst hourly p95, not a 95th percentile, and `fleet_avg` is a per-host average, not a fleet value. The field names mislead readers and also hide the per-GPU detail (gpu_index is aggregated away).",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0084-UC-20.2.32",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 2,
+    "overclaiming": 4,
+    "specificity": 2
+  },
+  "summary": "A useful GPU right-sizing idea, but the thresholds in the description are not the logic the SPL uses, the 14-day persistence rule has no matching search window, and the 'pool' concept is never defined. The DCGM sourcetype and field names are unverified, and the validation steps come from an unrelated cloud-billing template.",
+  "tier": "triage",
+  "uc_id": "UC-20.2.32",
+  "verdict": "rewrite"
+}

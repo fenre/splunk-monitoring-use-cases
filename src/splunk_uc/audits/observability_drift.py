@@ -109,11 +109,12 @@ def validate_quality(quality: dict[str, Any]) -> list[Issue]:
             dist = block.get("distribution", {})
             if isinstance(dist, dict) and total:
                 pct_sum = sum(dist.get(t, 0.0) for t in tiers if isinstance(dist.get(t), (int, float)))
-                if abs(pct_sum - 100.0) > 0.1:
+                # Four shares rounded to one decimal can each be off by 0.05.
+                if abs(pct_sum - 100.0) > 0.2 + 1e-9:
                     issues.append(
                         Issue(
                             "quality-distribution",
-                            f"category {cat} criticality {crit}: distribution sums to {pct_sum:.1f}, expected 100 ± 0.1",
+                            f"category {cat} criticality {crit}: distribution sums to {pct_sum:.1f}, expected 100 ± 0.2",
                         )
                     )
 

@@ -7,7 +7,7 @@
 
 Sorted by target path. Linking pages appear in alphabetical order.
 
-_251 pages indexed; 135 have at least one inbound link; 461 unique source→target edges._
+_255 pages indexed; 135 have at least one inbound link; 461 unique source→target edges._
 
 ---
 
@@ -1247,6 +1247,10 @@ _No inbound links yet._
 
 _No inbound links yet._
 
+## `docs/starter-packs.md`
+
+_No inbound links yet._
+
 ## `docs/stewardship-digest.md`
 
 - [`docs/build-artefacts-reference.md`](build-artefacts-reference.md)
@@ -1264,6 +1268,10 @@ _No inbound links yet._
 _No inbound links yet._
 
 ## `docs/superpowers/plans/2026-07-22-cat-25-mega-expansion.md`
+
+_No inbound links yet._
+
+## `docs/superpowers/plans/2026-10-26-uc-text-quality-review.md`
 
 _No inbound links yet._
 
@@ -1286,6 +1294,14 @@ _No inbound links yet._
 ## `docs/uc-quality-mandate.md`
 
 - [`docs/mitre-attack-mapping.md`](mitre-attack-mapping.md)
+
+## `docs/uc-review-findings.md`
+
+_No inbound links yet._
+
+## `docs/uc-text-review-rubric.md`
+
+_No inbound links yet._
 
 ## `docs/url-scheme.md`
 

@@ -1,0 +1,77 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "d7d0163b0169cd570946c39faa1e4144438027c92a443fb9dc57294e1dc66884",
+  "file": "content/cat-06-storage-backup/UC-6.1.13.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "ONTAP/Cisco SAN wording was pasted into a TrueNAS UC, and the scripted-input example uses `your_sourcetype`, `index = main` and a dummy `echo \"metric=value\"` script, not the TrueNAS API poll the UC needs.",
+      "field": "detailedImplementation",
+      "quote": "Point on-call to the ONTAP or array runbook, Cisco SAN references, and SNMP/REST credentials already used in production",
+      "severity": "major",
+      "suggested_fix": "Replace with a real collector for /api/v2.0/pool using an API key (script and inputs.conf using sourcetype truenas:pool and index storage) and TrueNAS runbook pointers."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "evidence_url": "https://www.truenas.com/docs/api/",
+      "explanation": "The pool API object exposes a boolean `healthy` and `status` plus a nested `scan` object (function, state, errors, percentage); the fields `health`, `used_pct`, `resilver_progress` and `scrub_status` used in the SPL do not appear to exist, so `health!=\"HEALTHY\"` would be true whenever the field is missing.",
+      "field": "dataSources",
+      "quote": "TrueNAS API (/api/v2.0/pool, /api/v2.0/pool/id/X)",
+      "severity": "needs_verification",
+      "suggested_fix": "Check a real /api/v2.0/pool response and rewrite the fields (healthy, status, scan.*) in dataSources, implementation and SPL."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "Template scenarios; the real benign causes are the scheduled scrub and resilver after a disk replacement, which the SPL itself treats as alerts.",
+      "field": "knownFalsePositives",
+      "quote": "Scheduled automation elevates `health_status` without crossing configured threshold for UC-6.1.13.",
+      "severity": "major",
+      "suggested_fix": "Describe scheduled scrubs, planned disk replacement and pool imports, and how to separate progress states from faults."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "grandma_fidelity",
+      "explanation": "Generic text shared with other UCs; says nothing about disks in a storage pool failing or rebuilding.",
+      "field": "grandmaExplanation",
+      "quote": "We help you see how your arrays and related gear are doing",
+      "severity": "minor",
+      "suggested_fix": "Explain that the storage box keeps data across many disks and we warn when the group is damaged or rebuilding."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "Implementation alerts only on unhealthy pools, while the SPL also returns anything mentioning scrub or resilver; ETA is not computed anywhere.",
+      "field": "implementation",
+      "quote": "Alert on health != HEALTHY or status != ONLINE. Track resilver progress and ETA during rebuilds.",
+      "severity": "minor",
+      "suggested_fix": "Align the search with the stated alert condition and drop the ETA claim or add it."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`search status!=\"ONLINE\" OR health!=\"HEALTHY\" OR \"resilver\" OR \"scrub\"`: `!=` also matches events where the field is absent, and the free-text terms match the word scrub/resilver anywhere in the raw JSON (the pool object always contains a scan section), so healthy pools will almost always be returned.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0009-UC-6.1.6",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 4,
+    "specificity": 2
+  },
+  "summary": "Sensible TrueNAS pool-health intent and the right API endpoints, but the search matches the words 'scrub'/'resilver' in every pool event and uses field names that do not look like the API's, and the detailed text contains copy-paste ONTAP and generic scripted-input placeholders.",
+  "tier": "triage",
+  "uc_id": "UC-6.1.13",
+  "verdict": "rewrite"
+}

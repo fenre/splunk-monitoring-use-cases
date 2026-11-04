@@ -151,9 +151,36 @@ and what unlocks last (run).
 
 **User intent:** "I just bought Splunk. What do I deploy first?"
 
-The catalog ships an `implementationRoadmap` keyed by category and wave
-(crawl / walk / run). Surface the crawl bucket per category for a
-beginner-friendly rollout plan.
+Start with the starter packs: short, ordered use-case lists per goal
+(security or operations) and technology, matched to the sourcetypes the
+user already has. The same planner runs in the site's "Start here"
+wizard (`#start`), so the agent and the browser agree. Packs still in
+curation carry `status=draft` and are hidden unless you opt in.
+
+### MCP
+
+```
+list_starter_packs(goal="operations")
+plan_rollout(goal="operations", level="beginner",
+             sourcetypes=["splunkd", "WinEventLog:System"],
+             indexes=["_internal"], equipment=["windows"])
+get_starter_pack(pack_id="windows-ops", include_drafts=true)
+```
+
+Ask the user to run
+`| tstats count where (index=* OR index=_*) by index, sourcetype` and
+pass the result as `paste=` to `plan_rollout`; it is parsed the same
+way as the wizard's paste box.
+
+### JSON
+
+```bash
+curl -s https://fenre.github.io/splunk-monitoring-use-cases/api/v1/starter-packs/index.json \
+  | jq '.packs[] | {id, goal, status, steps: [.steps[].ucId]}'
+```
+
+For a broader plan, the catalog also ships an `implementationRoadmap`
+keyed by category and wave (crawl / walk / run).
 
 ### Prompt
 

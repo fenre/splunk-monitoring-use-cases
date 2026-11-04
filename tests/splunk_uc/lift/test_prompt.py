@@ -144,3 +144,64 @@ def test_main_returns_1_with_stderr_for_unknown_uc(capsys, tmp_path: Path):
     assert "lift-prompt:" in captured.err
     assert "UC-99.99.99" in captured.err
     assert captured.out == ""
+
+
+def test_findings_section_splits_fixable_and_readonly(capsys, tmp_path: Path):
+    content_root = _stage_minimal_sidecar(tmp_path)
+    record = {
+        "tier": "deep",
+        "model": "claude-opus-5-5@reasoning=high",
+        "content_sha256": "0" * 64,
+        "findings": [
+            {
+                "field": "dataSources",
+                "dimension": "correctness",
+                "severity": "blocker",
+                "explanation": "UPS-MIB has no battery-replace indicator.",
+                "evidence_url": "https://mibs.observium.org/",
+            },
+            {"field": "premiumApps", "dimension": "overclaiming", "severity": "major", "explanation": "UBA not needed."},
+        ],
+        "firewalled_field_flags": [{"field": "spl", "issue": "timechart split twice", "severity": "blocker"}],
+    }
+    record_path = tmp_path / "record.json"
+    record_path.write_text(json.dumps(record))
+    exit_code = prompt.main(
+        ["UC-15.1.1", "--content-root", str(content_root), "--findings", str(record_path)]
+    )
+    text = capsys.readouterr().out
+    assert exit_code == 0
+    assert "# REVIEW FINDINGS TO FIX (deep review by claude-opus-5-5@reasoning=high; recorded against an older" in text
+    fixable = json.loads(re.search(r"## Fix in this diff.*?```json\n(.*?)\n```", text, re.DOTALL).group(1))
+    readonly = json.loads(re.search(r"## Leave unchanged.*?```json\n(.*?)\n```", text, re.DOTALL).group(1))
+    assert [f["field"] for f in fixable] == ["dataSources"]
+    assert [f["field"] for f in readonly] == ["premiumApps", "spl"]
+
+
+def test_findings_auto_without_record_fails(capsys, tmp_path: Path):
+    content_root = _stage_minimal_sidecar(tmp_path)
+    exit_code = prompt.main(["UC-15.1.1", "--content-root", str(content_root), "--findings", "auto"])
+    assert exit_code in (0, 1)
+    if exit_code == 1:
+        assert "no review record" in capsys.readouterr().err
+
+
+def test_handcraft_lists_v2_families(capsys, tmp_path: Path):
+    cat = tmp_path / "content" / "cat-15-data-center-physical-infrastructure"
+    cat.mkdir(parents=True)
+    (cat / "UC-15.1.1.json").write_text(
+        json.dumps(
+            {
+                "id": "15.1.1",
+                "title": "T",
+                "description": "Detects UC-15.1.1 on UPS feeds.",
+                "value": "v",
+                "dataSources": "d",
+                "spl": "index=x",
+                "detailedImplementation": "s",
+            }
+        )
+    )
+    prompt.main(["UC-15.1.1", "--content-root", str(tmp_path / "content"), "--handcraft"])
+    text = capsys.readouterr().out
+    assert "v2 template families: v2_description_selfref" in text

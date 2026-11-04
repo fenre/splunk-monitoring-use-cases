@@ -84,6 +84,8 @@ SKIP: set[str] = {
     "docs/samples-coverage.md",
     "docs/license-inventory.md",
     "docs/uc-migration-report.md",
+    "docs/uc-review-findings.md",
+    "reports/cisco-coverage/matrix.md",
 }
 
 # URL exclusion patterns — these aren't real sources, just badges /

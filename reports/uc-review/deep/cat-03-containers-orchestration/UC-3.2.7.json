@@ -1,0 +1,166 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "33f653a69198b938fa9b0e302386217bac8d40a0bef7f5f9a95a73b9cd5125be",
+  "file": "content/cat-03-containers-orchestration/UC-3.2.7.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/5167",
+      "explanation": "Splunkbase app 5167 is 'Upgrade Universal Forwarder (Windows)', a third-party app unrelated to Kubernetes. Splunk Connect for Kubernetes was never a Splunkbase app; it is an archived Helm chart on GitHub. The Splunkbase listing for the OTel Collector chart in the cached catalog is 6264.",
+      "field": "app",
+      "quote": "Splunk Connect for Kubernetes (Splunkbase 5167)",
+      "severity": "blocker",
+      "suggested_fix": "Name the Splunk OpenTelemetry Collector for Kubernetes Helm chart (github.com/signalfx/splunk-otel-collector-chart; Splunkbase listing 6264 per data/splunkbase-catalog.json) as the collector and drop the 5167 reference."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/AddOns/released/Kubernetes/About",
+      "explanation": "The linked Splunk Add-on for Kubernetes was deprecated in March 2019 and only shipped knowledge objects for Splunk Connect for Kubernetes. It is not documentation for the OTel Collector chart, and Splunk Connect for Kubernetes itself has reached end of support.",
+      "field": "app",
+      "quote": "Splunk OpenTelemetry Collector for Kubernetes ([Splunk Add-on for Kubernetes documentation](https://docs.splunk.com/Documentation/AddOns/released/Kubernetes/About))",
+      "severity": "major",
+      "suggested_fix": "Link the Splunk OTel Collector for Kubernetes chart documentation instead. Remove the add-on link and the Splunk Connect for Kubernetes routing option, or label them as legacy and deprecated. Apply the same change to the matching references entry."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/5167",
+      "explanation": "Prometheus scrapes are not collected by a Splunk modular input or a scripted poll. Earlier in the same field the UC says the Splunk OTel Collector prometheus receiver ships them over HEC, so this sentence contradicts that and repeats the wrong Splunkbase ID.",
+      "field": "dataSources",
+      "quote": "Collected via Splunk Connect for Kubernetes (Splunkbase 5167) modular input or scripted poll into the index named in the SPL.",
+      "severity": "major",
+      "suggested_fix": "Delete the sentence, or replace it with: 'Shipped over HEC by the Splunk OpenTelemetry Collector for Kubernetes splunk_hec exporter.'"
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.aws.amazon.com/eks/latest/userguide/view-raw-metrics.html",
+      "explanation": "On EKS the kube-apiserver /metrics endpoint can be scraped (kubectl get --raw /metrics). On 1.28+, scheduler and controller-manager metrics are exposed under metrics.eks.amazonaws.com, and core control-plane metrics are published in CloudWatch under the AWS/EKS namespace. Container Insights is not the control-plane metric source. detailedImplementation Step 1 repeats the same claim.",
+      "field": "dataSources",
+      "quote": "supplement with AWS CloudWatch Container Insights metrics for Amazon EKS control-plane surfaces where customer scraping of the apiserver pod is impossible",
+      "severity": "blocker",
+      "suggested_fix": "For EKS: scrape the apiserver /metrics endpoint plus /apis/metrics.eks.amazonaws.com/v1/ksh/container/metrics (scheduler) and /apis/metrics.eks.amazonaws.com/v1/kcm/container/metrics (controller-manager) with the metrics.eks.amazonaws.com RBAC grant, or ingest CloudWatch AWS/EKS namespace metrics through the Splunk Add-on for AWS. Note that etcd metrics are not exposed."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/common-information-model/8.5/data-models/application-state-deprecated",
+      "explanation": "The CIM Application State data model has been deprecated since CIM 4.12.0 (replaced by Endpoint). Neither model describes Prometheus control-plane metrics such as apiserver_request_total or etcd_server_has_leader, and the primary SPL does not use any data model.",
+      "field": "cimModels",
+      "quote": "\"Application_State\",\n    \"Performance\"",
+      "severity": "blocker",
+      "suggested_fix": "Remove Application_State. Either leave cimModels empty (raw prometheus:scrape:metrics has no CIM fit) or keep Performance only as an optional node CPU/memory overlay, and say so explicitly."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The SPL fails on submission because of multisearch's streaming-only rule, so the UC cannot have been run and verified as written. The only reviewer recorded is the generic catalogue handle.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft or community until the SPL is fixed and an SME has run it against real control-plane scrapes."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "explanation": "The stanza calls a base saved search, uc_3_2_7_control_plane_health_base, that is defined nowhere. alert.comparator is not a savedsearches.conf setting; the threshold comparison is set with counttype, relation and quantity. Pasted as is, this alert would not run the UC's SPL.",
+      "field": "detailedImplementation",
+      "quote": "search = | savedsearch uc_3_2_7_control_plane_health_base\n...\nalert.comparator = >",
+      "severity": "major",
+      "suggested_fix": "Put the UC SPL in the search key of [uc_3_2_7_control_plane_health], or define the _base stanza. Remove alert.comparator and keep counttype/relation/quantity or alert_condition."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://kubernetes.io/docs/reference/config-api/apiserver-audit.v1/",
+      "explanation": "This rule logs full request and response bodies for every resource, including Secrets and ConfigMaps, which writes secret material into Splunk. Because the first matching rule wins, the later rule for events never applies to update, patch or delete requests on events.",
+      "field": "detailedImplementation",
+      "quote": "- level: RequestResponse\n    verbs: [\"update\", \"patch\", \"delete\"]\n    resources:\n      - group: \"*\"\n        resources: [\"*\"]",
+      "severity": "major",
+      "suggested_fix": "Add an earlier rule at level Metadata for secrets, configmaps and tokenreviews. Scope RequestResponse to the cluster-scoped resources the UC needs (for example clusterroles, clusterrolebindings, nodes, CRDs). Cite the Kubernetes auditing task page."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL ladder degrades etcd at wal_fsync_ms >= 20 (score 75) and >= 50 (score 50). The runbook threshold of 10 ms never appears in the search, and 'fysnc' is misspelled in the same case.",
+      "field": "detailedImplementation",
+      "quote": "Etcd disk fsync above ten milliseconds for more than five minutes",
+      "severity": "minor",
+      "suggested_fix": "Align the runbook case with the SPL thresholds (20 ms and 50 ms), or state that 10 ms is the upstream p99 target, not the alert threshold. Fix the 'fysnc' typo."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "Sibling UC-3.2.8 says etcd members are scraped over HTTPS on 2379, or on 2381, with mTLS client certificates. kubeadm etcd exposes metrics on 127.0.0.1:2381 only, so a pod-network PodMonitor on a named 'metrics' port normally finds nothing.",
+      "field": "detailedImplementation",
+      "quote": "kind: PodMonitor\nmetadata:\n  name: etcd-metrics\n...\n    - port: metrics\n      scheme: http",
+      "severity": "minor",
+      "suggested_fix": "Align with UC-3.2.8: document the listen-metrics-urls setting (or HTTPS 2379 with an etcd client certificate) and the host-network or static-pod scrape requirement."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/splunk-enterprise/spl-search-reference/9.4/search-commands/multisearch",
+      "field": "spl",
+      "issue": "Every multisearch subsearch contains non-streaming commands (bucket/stats, and in the etcd arm sort and streamstats). Splunk rejects this with 'Multisearch subsearches may only contain purely streaming operations', so the search never returns a row. Use append, or move the aggregation after the multisearch.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.aws.amazon.com/eks/latest/userguide/view-raw-metrics.html",
+      "field": "spl",
+      "issue": "The scheduler arm counts scheduler_scheduling_attempts_failed_total, which kube-scheduler does not export. The real counter is scheduler_schedule_attempts_total with result=unschedulable|error|scheduled, so sched_fail_cnt is always 0.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://kubernetes.io/docs/reference/config-api/apiserver-audit.v1/",
+      "field": "spl",
+      "issue": "The audit join filters on scope=\"cluster\" derived from objectRef_scope. The audit ObjectReference has no scope field (only resource, namespace, name, uid, apiGroup, apiVersion, resourceVersion, subresource), so the join never matches and audit_last_change is always null. Cluster-scoped objects are the ones with an empty objectRef.namespace. Splunk JSON extraction also names the fields objectRef.namespace, not objectRef_scope.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://prometheus.io/docs/concepts/metric_types/#histogram",
+      "field": "spl",
+      "issue": "Histogram metrics are matched by their base names (etcd_disk_wal_fsync_duration_seconds, etcd_network_peer_round_trip_time_seconds, apiserver_request_duration_seconds). Prometheus exports histograms only as _bucket/_sum/_count series, so wal_fsync_ms is always 0. request_p99_ms is perc95 of cumulative _sum values, which is neither a p99 nor a latency. Error rate and REST 5xx are sums of cumulative counter values, not windowed deltas.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/splunk-enterprise/spl-search-reference/9.4/search-commands/streamstats",
+      "field": "spl",
+      "issue": "The etcd leader-change delta sorts -_time and then takes cur_chg - prev_chg with window=2. On descending rows that is older minus newer, which is negative for a growing counter and clamped to 0 by max(0, ...). leader_changes_5m therefore never detects leader churn. Sort ascending, or use delta/streamstats in time order.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://kubernetes.io/docs/reference/instrumentation/metrics/",
+      "field": "spl",
+      "issue": "The arms are selected by metric prefix with OR, so they bleed into each other. kube-apiserver also exports etcd_* client metrics (for example etcd_request_duration_seconds) that enter the etcd arm, and every component exports workqueue_* and rest_client_* metrics that enter the controller-manager arm. Scope each arm by job or instance, not by metric-name prefix.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/common-information-model/8.6/data-models/performance",
+      "field": "cimSpl",
+      "issue": "The cimSpl uses invalid dataset paths. Application_State is deprecated and its root dataset is All_Application_State, so 'nodename=Application_State' and the Application_State.state, .info and .app fields do not exist. The Performance root dataset is All_Performance, so Performance.cpu_load_percent, Performance.mem_free and Performance.host return nothing.",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0070-UC-3.2.7",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The detailed implementation is thorough, but the SPL cannot run: multisearch arms contain stats, sort and streamstats. Several facts are also wrong: Splunkbase 5167, the deprecated Application_State model, the scheduler metric name, the audit objectRef scope field, and the EKS control-plane metric source. A UC in this state should not be marked verified.",
+  "tier": "deep",
+  "uc_id": "UC-3.2.7",
+  "verdict": "incorrect"
+}

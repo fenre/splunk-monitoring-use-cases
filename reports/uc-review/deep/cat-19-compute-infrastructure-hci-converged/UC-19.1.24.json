@@ -1,0 +1,161 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "e645f88f33681f7ff4a60144c0d6a83b2d080f124fb070d46190a9a680c7b256",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.1.24.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/CiscoDevNet/intersight-go/blob/main/model_asset_contract_information.go",
+      "explanation": "dataSources, implementation, detailedImplementation (inputs.conf `endpoint = /api/v1/asset/ContractInformations`, Step 3 API parity call) and references all name asset.ContractInformation as a top-level managed object. In the Intersight model it is a complex type with only BillTo, BillToGlobalUltimate, ContractNumber and LineStatus, embedded as the `Contract` property of asset.DeviceContractInformation. The listable resource is `GET /api/v1/asset/DeviceContractInformations`.",
+      "field": "cross_field",
+      "quote": "projection of the Intersight `asset.ContractInformation` managed object from `GET /api/v1/asset/ContractInformations`",
+      "severity": "blocker",
+      "suggested_fix": "Rebase every field on asset.DeviceContractInformation (`/api/v1/asset/DeviceContractInformations`): ServiceEndDate, ServiceStartDate, WarrantyEndDate, WarrantyType, ServiceLevel, ContractStatus, ContractStatusReason, DeviceId (serial), PlatformType, Contract.ContractNumber, Contract.LineStatus, RegisteredDevice. Update the reference URL to the DeviceContractInformations model page."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/CiscoDevNet/intersight-go/blob/main/model_asset_device_contract_information.go",
+      "explanation": "On asset.DeviceContractInformation, ContractStatus is a calculated enum of `Active`, `Expiring Soon`, `Not Covered` and `Unknown`, with the reason (`Line Item Expired`/`Line Item Terminated`) in ContractStatusReason. The dates are ServiceStartDate/ServiceEndDate (plus WarrantyEndDate), not StartDate/EndDate, and ContractNumber sits under `Contract`.",
+      "field": "dataSources",
+      "quote": "**ContractStatus** (for example `Active`, `Expired`, `NotCovered`, `Unknown`), **ContractNumber**, **EndDate** and **StartDate** in ISO-8601",
+      "severity": "blocker",
+      "suggested_fix": "List the real enum values and field names, and mention that the object also has WarrantyEndDate, which the title (\"Warranty\") implies the UC should evaluate."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "evidence_url": "https://github.com/jerewill-cisco/intersight-splunk-addon",
+      "explanation": "The text claims certainty about the 7828 add-on sourcetype naming without evidence. The community Intersight add-on writes this endpoint as `cisco:intersight:assetDeviceContractInformations` (camelCase, DeviceContract), which differs from both names in the UC.",
+      "field": "dataSources",
+      "quote": "The templated name `cisco:intersight:contracts` is *not* a vendor sourcetype in current TA 7828 builds.",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Cisco Intersight Add-on for Splunk user guide (intersight.com/help/saas/resources#intersight_add-on_for_splunk) or a lab `| metadata type=sourcetypes index=cisco_intersight` and state the real sourcetype for the contract inventory option; drop the unverified assertion."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase 7828 is titled \"Cisco Intersight Add-on for Splunk\" and is built by Cisco, not a Splunk-built \"Splunk Add-on\"; the text inverts which is the marketing label.",
+      "field": "app",
+      "quote": "Install the Splunk Add-on for Cisco Intersight on disk as `Splunk_TA_Cisco_Intersight`",
+      "severity": "minor",
+      "suggested_fix": "Name it \"Cisco Intersight Add-on for Splunk (Splunk_TA_Cisco_Intersight, Splunkbase 7828)\" in app, references and detailedImplementation."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL does no count aggregation; it tiers each contract row by days to expiry against lookup thresholds (30/60/180 days) and contract status. The description misstates both the grain and the threshold.",
+      "field": "description",
+      "quote": "Combines `count` by `regdev_moid`, `]` and compares against `days_to_expiry` < 0.",
+      "severity": "major",
+      "suggested_fix": "Describe one row per device contract whose service end date is past or within the tiered warning window from intersight_contract_thresholds, or whose ContractStatus is Not Covered/Unknown."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "All four scenarios are about count bursts, hourly spans, synthetic probes and onboarding baselines, none of which apply to a contract-date report. Real causes (partner renewal not yet synced to Cisco CCW, RMA replacement serials, co-termed renewals, stale ContractUpdatedTime) appear only in detailedImplementation.",
+      "field": "knownFalsePositives",
+      "quote": "Planned work for 'Intersight Contract and Warranty Compliance' shifts `count` over `span=1h` while `regdev_moid`, `]` remains in-scope.",
+      "severity": "major",
+      "suggested_fix": "Replace with contract-specific false positives: renewal booked but not yet reflected in Intersight, RMA'd serial with a new contract on the replacement, decommissioned but still-claimed devices, and devices showing Unknown because CCW lookup is retrying (ContractUnavailableRetryCount)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "visualization and the detailedImplementation alerting policy (throttle per `contract_moid`, page only when `change_ticket_required` is 1 and `asset_role` is production) rely on fields the SPL's final `table` drops; the CSV also stores 1/0, not true.",
+      "field": "cross_field",
+      "quote": "distinct `asset_name` with `change_ticket_required=true` from the threshold lookup",
+      "severity": "minor",
+      "suggested_fix": "Either reference only the columns the table outputs, or note that those fields must be added to the table for the panel and throttle to work, and use `change_ticket_required=1`."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "Contract coverage in Intersight is shown on server and Fabric Interconnect inventory views, not under Service Profiles; the panel name looks invented.",
+      "field": "detailedImplementation",
+      "quote": "open **Service Profiles** → the **Coverage & contracts** (wording can vary) panel",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm the current Intersight UI location for contract status (e.g. the Contract Status column / server detail view) in the Intersight Help Center and cite it."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The app field says the add-on authenticates with an Intersight API key pair (Key ID and secret key), which is how Intersight add-on inputs are configured; the OAuth2 comment contradicts it.",
+      "field": "detailedImplementation",
+      "quote": "# Heavy Forwarder — OAuth2 account configured in the add-on UI",
+      "severity": "minor",
+      "suggested_fix": "Say the account uses an Intersight API key (Key ID plus PEM secret) created under a read-only role."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "An Intersight contract-entitlement report has nothing to do with SNMP-monitored UPS hardware; the `snmp` equipment tag is equally unrelated.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_ups\"",
+      "severity": "minor",
+      "suggested_fix": "Keep cisco_intersight and cisco_ucs; remove snmp_ups and the snmp equipment tag."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "spelling",
+      "explanation": "Subject-verb disagreement (\"Assets ... is excluded\", \"Rows ... is excluded\") and the object name repeats the wrong class.",
+      "field": "exclusions",
+      "quote": "Assets that have never been claimed in Intersight, so they never get a `RegisteredDevice` link on the **asset.ContractInformation** object, is excluded",
+      "severity": "minor",
+      "suggested_fix": "Use \"are excluded\" and refer to asset.DeviceContractInformation."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "Marked verified with a generic reviewer handle although the UC targets a non-existent API resource and field names; no SME sign-off evidence.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "minor",
+      "suggested_fix": "Set status to draft/unverified until the SPL is validated against real asset.DeviceContractInformation events."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://github.com/CiscoDevNet/intersight-go/blob/main/model_asset_device_contract_information.go",
+      "field": "spl",
+      "issue": "The SPL reads top-level EndDate, LineStatus and ContractNumber, which do not exist on asset.DeviceContractInformation (ServiceEndDate, Contract.LineStatus, Contract.ContractNumber). end_epoch and days_to_expiry are therefore always null. Also `csl==\"notcovered\"` never matches the real value \"Not Covered\" (lowercased contains a space) and \"Expiring Soon\" is unhandled, so the search returns only Unknown rows and misses expired and expiring contracts.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Table",
+      "field": "spl",
+      "issue": "`table ... ` drops `sev_n` before `sort 0 - sev_n days_to_expiry`, so the severity ordering the comment promises does nothing.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://github.com/jerewill-cisco/intersight-splunk-addon",
+      "field": "spl",
+      "issue": "A 7-day window over an inventory feed polled several times a day, with no `dedup Moid` or `stats latest(...) by Moid`, returns one row per poll per contract, which inflates counts and tickets.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "Bucket labels do not match their thresholds: with default warn_days=180, `warning_90d` covers 61–180 days and `low_180d` covers 181–360 days (warn_days*2). The `Unknown` contract status is also labelled `expired`, which overstates the finding.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0017-UC-19.1.24",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The UC builds on the wrong Intersight object: asset.ContractInformation is an embedded complex type (BillTo, ContractNumber, LineStatus), while the queryable resource is asset.DeviceContractInformation with ServiceEndDate, WarrantyEndDate and a different ContractStatus enum, so the SPL and every implementation step target fields that do not exist. Description, controlTest and knownFalsePositives are template residue that does not describe a contract-expiry report.",
+  "tier": "deep",
+  "uc_id": "UC-19.1.24",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,166 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "6488193499e2522370d501b0b8a8078a33a930c724156065a4299860c8f5b1bb",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.4.12.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/4022",
+      "explanation": "Splunkbase 4022 is 'Technical Addon for the Metricator application for Nmon (HEC)' (TA-metricator-hec-for-nmon), 4856 is the Metrics Add-on for Infrastructure, and 1810 is the Hunk App for MongoDB. None of them is a Cisco ACI, NSX or VMware add-on. The same wrong IDs appear in references, implementation and detailedImplementation.",
+      "field": "app",
+      "quote": "optional **Splunk Add-on for Cisco ACI** ([Splunkbase **4022**](https://splunkbase.splunk.com/app/4022)), **Splunk Add-on for VMware NSX** ([Splunkbase **4856**](https://splunkbase.splunk.com/app/4856)), **Splunk Add-on for VMware** ([Splunkbase **1810**](https://splunkbase.splunk.com/app/1810))",
+      "severity": "blocker",
+      "suggested_fix": "Drop the three optional add-ons (they add nothing to an NDI noise search), or replace them with the correct listings, e.g. Splunk Add-on for VMware (Splunkbase 3215), after checking each ID on Splunkbase. Update references, implementation and detailedImplementation to match."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.cisco.com/docs/nexus-dashboard-insights/6-2-2/api-changelog/",
+      "explanation": "The NDI API changelogs list anomaly endpoints as /sedgeapi/v1/cisco-nir/api/api/telemetry/anomalies/details.json (and summary.json, buckets.json, etc.) and, in newer releases, /sedgeapi/v1/cisco-nir/api/api/v1/anomalies/details, which requires siteName, siteGroupName or siteNameList. There is no documented bare /telemetry/anomalies or /telemetry/alerts collection endpoint; the only documented alerts paths are /v1/alerts/rootcause/*. Inputs configured as written will not return the data the search expects. The same paths are repeated in implementation and detailedImplementation (including the '/telemetry/anomalies?limit=5' validation call, which also uses a parameter name the API does not document; it uses count/offset).",
+      "field": "dataSources",
+      "quote": "NDI REST **`GET /sedgeapi/v1/cisco-nir/api/api/telemetry/alerts`** and **`GET /sedgeapi/v1/cisco-nir/api/api/telemetry/anomalies`**",
+      "severity": "blocker",
+      "suggested_fix": "Poll GET /sedgeapi/v1/cisco-nir/api/api/v1/anomalies/details?siteName=<site>&startDate=...&count=... (or telemetry/anomalies/details.json on older releases), and name the NDI release the paths were checked against. Remove the separate 'alerts' input unless a documented endpoint is identified, or ingest NDI alerts through the NDI export (Kafka/syslog/email) feature instead."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "dataSources, implementation and Step 1 say the NDI feeds are pulled by the REST API Modular Input (1546) on heavy forwarders. Troubleshooting and Validate ('duplicated HEC acknowledgements') then assume NDI pushes to HEC. These are two different ingest architectures with different failure modes, and a reader cannot tell which one to build.",
+      "field": "detailedImplementation",
+      "quote": "Missing **cisco:ndi:alerts** events: validate **External Streaming** targets, TLS trust to **HEC**, and TCP/443 from forwarders to the cluster VIP.",
+      "severity": "major",
+      "suggested_fix": "Pick one ingest path. If it is REST polling, troubleshoot poll errors, auth and pagination. If it is NDI export to HEC, rewrite dataSources, implementation and Step 1 to describe the export configuration instead of modular input 1546."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The search aggregates fabric_key away in its stats (only dc(fabric_key) as fabric_card survives), so no fabric_key column exists to tabulate, pass as a token, or throttle on. detailedImplementation repeats this ('throttle 15m per **fabric_key**', 'passing **fabric_key** and **bucket_cat** as tokens'). Per-fabric throttling and drilldown cannot work against this output.",
+      "field": "visualization",
+      "quote": "(3) Table of fabric_key, bucket_cat, z_like, surge for NOC.",
+      "severity": "major",
+      "suggested_fix": "Either describe per-hour, per-category output only (throttle on bucket_cat), or note that a per-fabric variant of the search, adding fabric_key to the stats BY clause, is needed for per-fabric tables and throttling."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
+      "explanation": "The CIM Performance data model is for host and device resource metrics (CPU, memory, storage, network interface, OS uptime). It has no place for alert-count rates computed at search time. The SPL also uses no data model at all, so listing Alerts/Change/Performance and an acceleration plan suggests CIM integration the UC does not deliver.",
+      "field": "cimModels",
+      "quote": "Performance for time-bucketed rate anomalies describing Insights churn.",
+      "severity": "major",
+      "suggested_fix": "Keep Alerts (NDI anomalies) and Change (NDFC audit) as optional normalization targets, remove Performance, and say plainly that the detection runs on raw sourcetypes."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "The SPL contains an unbalanced parenthesis and would fail to parse, the REST paths are not documented NDI endpoints, and three app IDs are wrong. The UC cannot have been run end to end, so 'verified' (and the evidence field's claim of an existing saved search, dashboard panel and 13-month CSV archive) overstates its maturity.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status to draft/community until the search runs against real NDI data, and describe evidence as recommended artifacts rather than existing ones."
+    },
+    {
+      "confidence": 0.95,
+      "dimension": "specificity",
+      "explanation": "The URL is the Cisco home page, not the user guide named in the title, so the reference cannot be followed.",
+      "field": "references",
+      "quote": "\"title\": \"Cisco Nexus Dashboard Insights User Guide 6.4\", \"url\": \"https://www.cisco.com/c/en/us/\"",
+      "severity": "major",
+      "suggested_fix": "Link the actual NDI 6.4 user guide page on cisco.com, or the NDI API reference page for the anomalies details endpoint."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The category_norm regexes contain no 'operation' token, so an 'Operations' category falls through to general_ndi, not change or configuration. Categories such as 'Hardware' or 'System' also land in general_ndi, so the validation guidance does not match the search.",
+      "field": "detailedImplementation",
+      "quote": "Resources maps to capacity-family normalization, Compliance maps to compliance, Connectivity maps to connectivity, and Operations may land in change or configuration depending on payload wording.",
+      "severity": "minor",
+      "suggested_fix": "State that unmatched NDI categories (e.g. Operations, Hardware, System) fall into general_ndi, or add explicit match() clauses for them."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "ACI, NSX and vSphere add-ons do not provide maintenance or change calendars (detailedImplementation says they 'add maintenance calendars'). Nothing in the SPL consumes such data either.",
+      "field": "app",
+      "quote": "for hybrid calendars.",
+      "severity": "minor",
+      "suggested_fix": "Remove the calendar claim, or point to the actual source of maintenance windows (ITSM change records or a maintenance lookup)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "Nothing in this UC involves Microsoft 365 or NetFlow; these tags make the UC show up in unrelated equipment filters.",
+      "field": "equipment",
+      "quote": "\"m365\", \"netflow\"",
+      "severity": "minor",
+      "suggested_fix": "Limit equipment to cisco (and syslog if NDFC syslog stays in scope)."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "grandma_fidelity",
+      "explanation": "The search counts alerts per category per hour and flags surges or a dominant category. It does not identify repeat alarms (uniq_keys is computed but never compared with evt), and it does not judge which alerts are real problems.",
+      "field": "grandmaExplanation",
+      "quote": "so your team can trim repeat alarms without missing a real fabric problem.",
+      "severity": "minor",
+      "suggested_fix": "e.g. 'We count Nexus Insights alerts by type every hour and flag when the total suddenly jumps or one type crowds out the rest, so the team can see where alert noise comes from.'"
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "Most of these field names appear nowhere in the SPL or in NDI's documented anomaly schema, so the list reads as filler rather than actionable props guidance.",
+      "field": "detailedImplementation",
+      "quote": "**Field hygiene** — Track alertCategory, ruleFamily, insightCategory, siteLabel, fabricLabel, workflowId, publishJobId, grpcStatus, haRole, maintenanceTag, pollIntervalSec, streamOffset, certExpEpoch, ndWorkerId, and sourcetypeOverride",
+      "severity": "minor",
+      "suggested_fix": "List only the payload fields the search coalesces (e.g. category, severity, fabricName/siteName, anomalyId) and map each to its normalized name."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval",
+      "field": "spl",
+      "issue": "Unbalanced parentheses: '| eval alert_id=trim(coalesce(alert_id,...,primary_key)))' opens two parentheses and closes three, so the search fails to parse and returns no results. The same broken line is copied into detailedImplementation.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Where",
+      "field": "spl",
+      "issue": "The alert condition fires on nearly every hour. 'mix_pct>=32' is always true for at least one row whenever an hour has three or fewer categories (some category must hold at least one third). 'evt>=12' is met by any busy category. Over a 14-day window the output is dominated by routine hours and is then truncated by 'head 400', so this 'noise' detector itself generates noise.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eventstats",
+      "field": "spl",
+      "issue": "The baseline is skewed. After 'where is_ndi=1' there is one row per hour per category, so 'eventstats median(ndi_hr_total)' and 'stdev(ndi_hr_total)' weight each hour by its number of categories, and the baseline includes the hour being scored. Compute per-hour totals first (e.g. a separate stats by hr) before taking the median and stdev.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "fabric_pressure counts cisco:ndfc:fabric_status inventory polls in ndfc_hr_total. That volume depends on poll cadence, not operator churn, so the ratio mostly reflects input configuration.",
+      "severity": "minor"
+    },
+    {
+      "field": "title",
+      "issue": "'Alert Noise' suggests deduplication or repeat-alert analysis, but the search only measures hourly volume and category share.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0064-UC-18.4.12",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 3,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The idea of watching NDI alert volume and category mix is sound, but the SPL will not parse because of an unbalanced parenthesis, the NDI REST paths are not the documented ones, three of the Splunkbase IDs point to unrelated apps, and the alert thresholds fire on almost every hour. The text also contradicts itself on ingest method (REST poll vs HEC streaming) and references a fabric_key output the search never produces.",
+  "tier": "deep",
+  "uc_id": "UC-18.4.12",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,138 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "5b1ab02b096c12ba8491af766e600ee0cd186a6775399ff71beb8d90c40d6ecf",
+  "file": "content/cat-03-containers-orchestration/UC-3.2.31.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://istio.io/latest/docs/ambient/usage/add-workloads/",
+      "explanation": "Sidecarless 'ambient' enrolment is an Istio feature controlled by the label istio.io/dataplane-mode=ambient on a namespace or pod; there is no io.cilium.ambient/enabled label. Cilium's own service mesh is sidecarless by design and is not toggled by such a label. The same invented label recurs in detailedImplementation, the validation steps, Case 4 and the governance CSV.",
+      "field": "dataSources",
+      "quote": "kube_namespace_labels (istio-injection, istio.io/rev, io.cilium.ambient/enabled)",
+      "severity": "blocker",
+      "suggested_fix": "Replace io.cilium.ambient/enabled with istio.io/dataplane-mode=ambient (Istio ambient). Describe Cilium service mesh separately as a mesh_flavor exemption recorded in the lookup, not as a label."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://raw.githubusercontent.com/kubernetes/kube-state-metrics/main/docs/metrics/workload/pod-metrics.md",
+      "explanation": "kube_pod_info carries no phase label (its labels are pod, namespace, host_ip, pod_ip, node, created_by_*, uid, priority_class, host_network); phase is exposed by kube_pod_status_phase. The Running-inventory design described in dataSources and Step 3 therefore cannot work as written.",
+      "field": "dataSources",
+      "quote": "kube_pod_info Running phases",
+      "severity": "blocker",
+      "suggested_fix": "Describe Running inventory as kube_pod_status_phase{phase=\"Running\"} == 1, joined to kube_pod_container_info on namespace and pod."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://raw.githubusercontent.com/kubernetes/kube-state-metrics/main/docs/metrics/cluster/namespace-metrics.md",
+      "explanation": "RBAC alone is not enough. kube_namespace_labels emits only labels allowed via --metric-labels-allowlist, and kube_pod_annotations only annotations allowed via --metric-annotations-allowlist; by default neither istio-injection nor sidecar.istio.io/inject is exported. The exported names also carry label_/annotation_ prefixes.",
+      "field": "detailedImplementation",
+      "quote": "Deploy kube-state-metrics with RBAC that can list namespaces, pods, containers, and annotations so kube_namespace_labels, kube_pod_info, kube_pod_container_info, and kube_pod_annotations series appear",
+      "severity": "major",
+      "suggested_fix": "Add the required flags, e.g. --metric-labels-allowlist=namespaces=[istio-injection,istio.io/rev,istio.io/dataplane-mode] and --metric-annotations-allowlist=pods=[sidecar.istio.io/inject], and show the resulting label_istio_injection / annotation_sidecar_istio_io_inject names."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "explanation": "The same field says the data comes from the Splunk OpenTelemetry Collector prometheus receiver over HEC. A Universal Forwarder modular input or scripted poll plays no part in this pipeline, so the sentence is template residue that contradicts the rest of the field.",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+      "severity": "major",
+      "suggested_fix": "Delete the sentence and the '— Universal Forwarder (Splunkbase 617)' suffix in app."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "Linkerd proxy metrics are generally unprefixed (e.g. tcp_open_total with a tls label, request_total), and a metric with this exact name does not appear in the Linkerd proxy metrics reference.",
+      "field": "dataSources",
+      "quote": "Linkerd linkerd_proxy_inbound_tls_handshake_total",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Linkerd proxy metrics reference for your release and substitute a real TLS indicator (e.g. tcp_open_total{tls=\"true\"} or request_total{tls=\"true\"})."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "Recent Consul on Kubernetes releases inject a consul-dataplane container rather than envoy-sidecar. Istio with native sidecars enabled runs istio-proxy as an init container, which kube_pod_container_info does not list. Both cases would be reported as false gaps.",
+      "field": "detailedImplementation",
+      "quote": "proxy containers named istio-proxy, linkerd-proxy, linkerd2-proxy, or envoy-sidecar classes",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm the injected container names for each supported mesh version; add consul-dataplane, and cover native-sidecar istio-proxy via kube_pod_init_container_info."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/common-information-model/8.5/data-models/application-state-deprecated",
+      "explanation": "Application_State has been deprecated since CIM 4.12.0 and models host process and service inventory. Change.All_Changes.dest is a host, yet the SPL renames it to cluster. Neither model represents mesh-proxy attachment on pods.",
+      "field": "cimModels",
+      "quote": "\"Application_State\",\n    \"Change\"",
+      "severity": "major",
+      "suggested_fix": "Drop Application_State. Keep Change only if the SPL correlates real Kubernetes audit changes (namespace label patches) mapped to Change, and explain the join key."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified under a generic reviewer handle, but the Step 4 'synthetic mesh gap' test could never yield compliance_gap=1, because the Running join returns no rows.",
+      "field": "cross_field",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until the search is run against a lab mesh, and record the SME reviewer."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/search-commands/multisearch",
+      "field": "spl",
+      "issue": "Arms 2–4 of multisearch contain join and stats, but multisearch allows only streaming commands in its subsearches, so the search is rejected.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://raw.githubusercontent.com/kubernetes/kube-state-metrics/main/docs/metrics/workload/pod-metrics.md",
+      "field": "spl",
+      "issue": "The Running filters on kube_pod_info use rex phase=... and phase=\"Running\", but kube_pod_info has no phase label. The inner join and the running_pod_cnt arm return nothing, so missing_proxy_pod_cnt and running_pod_cnt are always 0.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://istio.io/latest/docs/ambient/usage/add-workloads/",
+      "field": "title",
+      "issue": "'Cilium Ambient' names a mode that does not exist as described; ambient sidecarless mode is Istio's (istio.io/dataplane-mode=ambient).",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "pilot_proxy_convergence_time is a histogram, and taking max() of raw values across _bucket/_sum/_count lines yields a meaningless number. Separately, streamstats window=3 BY cluster,namespace runs after stats has left one row per key, so missing_proxy_ma3 always equals missing_proxy_pod_cnt.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://attack.mitre.org/techniques/T1562/008/",
+      "field": "mitreAttack",
+      "issue": "T1562.008 is 'Impair Defenses: Disable or Modify Cloud Logs'. Missing mesh sidecars are not log tampering; review whether any ATT&CK mapping applies (e.g. T1562.001 or none).",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/common-information-model/8.5/data-models/application-state-deprecated",
+      "field": "cimSpl",
+      "issue": "It queries Application_State.info, Application_State.status and Application_State.app under nodename=Application_State. The deprecated model's root is All_Application_State and defines no info or app fields.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0052-UC-3.2.31",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The mesh-injection gap idea is useful, but the ambient-mode signal is built on a label (io.cilium.ambient/enabled) that does not exist; Istio ambient uses istio.io/dataplane-mode=ambient. The Running-pod join filters kube_pod_info on a phase label it does not carry, so the core missing-proxy count is always zero. The prose also omits that kube-state-metrics exposes namespace labels and pod annotations only through allowlists.",
+  "tier": "deep",
+  "uc_id": "UC-3.2.31",
+  "verdict": "incorrect"
+}

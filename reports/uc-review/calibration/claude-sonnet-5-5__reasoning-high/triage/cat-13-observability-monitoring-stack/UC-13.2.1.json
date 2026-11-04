@@ -1,0 +1,122 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "4f9d1acfe2c2cf0e1cfde66c181dfa9a4e8401520f0e8e4a7a6c735f6dbb57ca",
+  "file": "content/cat-13-observability-monitoring-stack/UC-13.2.1.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/1841",
+      "explanation": "Splunk IT Service Intelligence is Splunkbase app 1841, not 617, and it is a premium app installed on the search head tier, not something delivered through a Universal Forwarder. Splunkbase 617 is not in the repository catalog.",
+      "field": "app",
+      "quote": "Splunk IT Service Intelligence (ITSI) — Universal Forwarder (Splunkbase 617)",
+      "severity": "blocker",
+      "suggested_fix": "Cite Splunk IT Service Intelligence (Splunkbase 1841) as a premium app installed on the search head cluster, and remove the 'Universal Forwarder (Splunkbase 617)' wording."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked `status: verified`, but its SPL contains a multisearch pattern that cannot run as written, and the field names it relies on in itsi_summary are guessed. Nothing in the UC shows that an ITSI SME ran it.",
+      "field": "status",
+      "quote": "verified",
+      "severity": "major",
+      "suggested_fix": "Set status to draft until the search has been run on a real ITSI deployment and a named reviewer has signed off."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The description joins the conditions with 'or', and `health_score_latest <= 56 or >= 44` is always true. In the SPL, 44 to 56 is a band combined with AND and with no open episodes and a prolonged low streak (the severity-blind floor). The real paging rules (avg_60m <= 40, or a streak with avg_60m <= 50) are not mentioned at all.",
+      "field": "description",
+      "quote": "alert when `hs15` <= 60, `low_window_streak` >= 3, `health_score_latest` <= 56, or `health_score_latest` >= 44.",
+      "severity": "major",
+      "suggested_fix": "Describe the actual rules: page when the 60-minute average is at or below 40, or at or below 50 after a three-window low streak. Warn on a score between 44 and 56 with no open episode, or an average of 60 or less."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/splunk-itsi.md",
+      "explanation": "The repository guide places itsi_searchlog in the _internal index, and the SPL reads it from `index=_internal`. itsi_summary holds KPI and health-monitor rows. The description and controlTest name a combination that does not exist.",
+      "field": "description",
+      "quote": "using `index=itsi_summary` sourcetype `itsi_searchlog`",
+      "severity": "major",
+      "suggested_fix": "Say the search reads itsi_summary (health score rows), itsi_grouped_alerts, itsi_tracked_alerts and index=_internal sourcetype=itsi_searchlog."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/splunk-itsi.md",
+      "explanation": "The guide lists itsi_kpi and itsi_health_monitor as sourcetypes in itsi_summary. The SPL tests `source==\"itsi_health_monitor\"` and `like(sourcetype,\"%itsi%summary%\")`, which are neither. Check the real field names ITSI uses for service and score, since sibling UCs refer to serviceid, kpiid, alert_value and alert_level while the SPL coalesces service_id, service_key, health_score, itsi_health_score and score.",
+      "field": "dataSources",
+      "quote": "index=itsi_summary (KPI summary index where ITSI writes itsi_health_monitor and Service Health Score rows)",
+      "severity": "needs_verification",
+      "suggested_fix": "Inspect real itsi_summary events for Service Health Score rows and use their actual sourcetype and field names (and add serviceid and alert_value if those are the real names)."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_ref": "content/cat-13-observability-monitoring-stack/UC-13.2.10.json",
+      "explanation": "UC-13.2.10 in this subcategory is 'Fluentd / Fluent Bit Buffer Overflow'. The KPI base search performance UC is UC-13.2.5. The exclusions, detailedImplementation and prerequisiteUseCases all point the reader to the wrong UC.",
+      "field": "prerequisiteUseCases",
+      "quote": "UC-13.2.10 focuses on KPI base search skip rate and scheduler pressure on the search tier",
+      "severity": "major",
+      "suggested_fix": "Replace UC-13.2.10 with UC-13.2.5 in exclusions, detailedImplementation and prerequisiteUseCases, after confirming the intended sibling."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "The REST calls and the optional itsi_metrics mstats lane are listed as data sources, but the SPL uses neither. The inventory comes only from itsi_service_inventory.csv.",
+      "field": "dataSources",
+      "quote": "REST GET /services/itoa_interface/service and /services/itoa_interface/notable_event_group on the search head for inventory freshness",
+      "severity": "minor",
+      "suggested_fix": "Mark the REST and mstats lanes as optional extensions, or add them to the SPL."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "specificity",
+      "explanation": "None of the four scenarios names a real cause of Service Health Score dips. The detailedImplementation lists real ones (planned maintenance, adaptive threshold retraining, KPI base search skips, service template changes), but the false-positive field does not.",
+      "field": "knownFalsePositives",
+      "quote": "Health checks in `itsi_summary` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.",
+      "severity": "major",
+      "suggested_fix": "Move the real causes into knownFalsePositives: maintenance windows, adaptive threshold retraining, skipped KPI base searches that look like recovery, and dependency refactors."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The search wraps `stats` arms and an `inputlookup` arm in `multisearch`. multisearch only accepts purely streaming subsearches, so the arms with stats (episodes, tracked alerts, kpi_skip) will fail, and a generating command such as inputlookup is not supported there either. Use append or appendcols to combine the lanes.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "After `sort 0 service_id - _time` the rows are newest first, so the streamstats windows (3 and 4 rows, current=t) contain only the newest row when the latest value is taken. health_score_avg_15m and health_score_avg_60m then equal hs15, and low_window_streak is at most 1, so prolonged_low_dwell never fires. Sort ascending by _time before streamstats.",
+      "severity": "major"
+    },
+    {
+      "field": "cimSpl",
+      "issue": "The CIM search joins Application_State and Performance by host and does not compute or compare Service Health Score. It is not the same detection as the primary SPL. ITSI service health does not map to Application_State. The Performance fields are also referenced at the root dataset (cpu_load_percent is in the CPU dataset, mem_used in Memory).",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The search starts with the `comment(...)` macro. Confirm that a `comment` macro exists on the target search heads, since it is not guaranteed in a default Splunk install.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0020-UC-13.2.1",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The long ITSI health-regression write-up is detailed in its operational guidance, but the app ID is wrong, the search uses multisearch arms that contain non-streaming commands, and it is marked verified. The description misstates its own thresholds and cross-references the wrong sibling UC.",
+  "tier": "triage",
+  "uc_id": "UC-13.2.1",
+  "verdict": "incorrect"
+}

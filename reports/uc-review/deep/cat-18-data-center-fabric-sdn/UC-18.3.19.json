@@ -1,0 +1,137 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "5846992c2122d74ec2240f97d3cda5fc51836ae0c34d1e3e5ee560cc0470001d",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.3.19.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/4241",
+      "explanation": "Splunkbase 4241 is the \"VMware NSX-T Splunk App\", a VMware-built dashboard app. It is not a Splunk add-on, and it has nothing to do with ECMP member counters.",
+      "field": "app",
+      "quote": "**Splunk Add-on for VMware NSX** ([Splunkbase 4241](https://splunkbase.splunk.com/app/4241))",
+      "severity": "blocker",
+      "suggested_fix": "Drop 4241 (and the NSX/VMware compute overlays) from app, detailedImplementation and references, or name it correctly as \"VMware NSX-T Splunk App\" if it is really needed."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase 1897 is \"Cisco ACI Add-on for Splunk Enterprise (deprecated)\" (TA_cisco-ACI). It is not called \"Splunk Add-on for Cisco ACI\", and it is deprecated. The same wrong name appears in detailedImplementation and references.",
+      "field": "app",
+      "quote": "**Splunk Add-on for Cisco ACI** ([Splunkbase 1897](https://splunkbase.splunk.com/app/1897))",
+      "severity": "blocker",
+      "suggested_fix": "Use the catalogue display name and say the add-on is deprecated, or point to the current Cisco DC Networking app (7777) for ACI context."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "In the Splunkbase catalogue, 4022 is \"Technical Addon for the Metricator application for Nmon (HEC)\", not an ACI add-on. The app field cites 1897 for ACI, so the two fields also disagree.",
+      "field": "dataSources",
+      "quote": "enrich APIC leaves with 4022, use 4241/3215 only for correlated compute motion calendars",
+      "severity": "blocker",
+      "suggested_fix": "Remove the 4022 reference and cite the same ACI package that the app field names."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/NetworkTraffic",
+      "explanation": "CIM Network_Traffic models network sessions and flows (src/dest, bytes per connection). It does not model per-interface bitrate counters from switch polling. The schema claim that it \"aligns bytes-per-second semantics and interface identifiers\" is misleading, and the SPL uses no data model at all.",
+      "field": "cimModels",
+      "quote": "\"Performance\",\n    \"Network_Traffic\"",
+      "severity": "blocker",
+      "suggested_fix": "Remove Network_Traffic. Keep Performance only if the interface counters are actually mapped to the Performance Network dataset, or otherwise state that no CIM model applies."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL fires when skew_pts>=18 AND (imbalance_ratio>=2.2 OR polar_hint==1 OR skew_pts>=25). The alert design in detailedImplementation describes different thresholds and logic, and the SPL has no consecutive-run requirement.",
+      "field": "cross_field",
+      "quote": "Fire when **`skew_pts ≥ 25`** for two consecutive runs or **`imbalance_ratio ≥ 3.5`** with **`bundle_total`** above the floor.",
+      "severity": "major",
+      "suggested_fix": "Make the alert design text describe the SPL's actual conditions, or document the extra alert-side filter as a separate saved search with its own SPL."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "In a typical Clos fabric, a leaf's ECMP next hops are the different spines. Grouping by spine_peer counts only the links to one spine, so this measures port-channel (LACP hash) member balance toward a single spine, not ECMP spread across spines. With one link per spine, ecmp_width is 1 and the search can never fire. The title, description and grandmaExplanation all describe ECMP balance.",
+      "field": "cross_field",
+      "quote": "eventstats sum(avg_svc_bps) AS bundle_total dc(member_if) AS ecmp_width BY _time fabric_token leaf spine_peer",
+      "severity": "major",
+      "suggested_fix": "Either describe the UC as port-channel member balance per leaf–spine bundle, or explain that ECMP balance needs grouping by leaf only, across spine uplinks. Raise the SPL change with the human owner."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "On NX-OS, `show forwarding distribution` is documented mainly for multicast and L2 distribution. It is unclear that it exposes per-next-hop ECMP share percentages such as `member_tx_share_pct` or `fwd_tx_skew_pct`. ECMP hash inspection is usually done with `show routing hash`.",
+      "field": "detailedImplementation",
+      "quote": "Ingest structured output from **`show forwarding distribution`** (and interface-scoped variants) that exposes per-next-hop share or bucket weighting for ECMP groups",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Nexus 9000 show-command reference for a command that returns per-next-hop ECMP share. If none exists, describe nxos:ecmp_distribution as a custom collector output."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "The ECMP configuration guide reference points to the Cisco homepage, not to the cited document.",
+      "field": "references",
+      "quote": "\"url\": \"https://www.cisco.com/c/en/us/\"",
+      "severity": "major",
+      "suggested_fix": "Link the actual Nexus 9000 NX-OS Unicast Routing Configuration Guide ECMP section, or remove the entry."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified, but the only reviewer is an automated agent. There is no evidence of SME sign-off, and the UC contains wrong add-on IDs and an SPL syntax error.",
+      "field": "status",
+      "quote": "\"status\": \"verified\", ... \"reviewer\": \"agent-handcraft-2026-04-29\"",
+      "severity": "major",
+      "suggested_fix": "Set status to a draft or community state until an SME reviews it."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "The Splunkbase catalogue lists 7777 as \"Cisco DC Networking\".",
+      "field": "app",
+      "quote": "**Cisco Data Center Networking for Splunk Platform** ([Splunkbase **7777**]",
+      "severity": "minor",
+      "suggested_fix": "Use the listed display name \"Cisco DC Networking\"."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval",
+      "field": "spl",
+      "issue": "Unbalanced parentheses in `| eval member_if=trim(coalesce(member_if,interface_name,if_name,port_channel_member,\"\")))`: there are three closing parens for two opening parens, so the search fails to parse. The same line is copied into detailedImplementation.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The ECMP width and share are computed BY spine_peer, which measures member balance within one leaf-to-spine bundle rather than ECMP spread across spines. In single-link-per-spine Clos designs, ecmp_width=1 and skew_pts=0, so the search never returns rows.",
+      "severity": "major"
+    },
+    {
+      "field": "title",
+      "issue": "\"ECMP Member Utilization Balance\" mixes ECMP (L3 next hops) with port-channel members. The SPL actually measures port-channel member balance toward one spine.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0049-UC-18.3.19",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The detailed implementation is substantive, but the add-on IDs and names are wrong or mismatched, the CIM choice of Network_Traffic does not fit interface-rate counters, alert thresholds in prose disagree with the SPL, and the SPL has an unbalanced parenthesis and groups by spine peer, so it measures port-channel member balance rather than ECMP spread across spines.",
+  "tier": "deep",
+  "uc_id": "UC-18.3.19",
+  "verdict": "incorrect"
+}

@@ -183,6 +183,14 @@ register(
 )
 register(
     Verb(
+        name="audit-cisco-coverage",
+        module="audits.cisco_coverage",
+        help="Ratchet gate: Cisco portfolio capabilities covered by UCs (waivers + shrinking backlog).",
+        category="audits",
+    )
+)
+register(
+    Verb(
         name="audit-legal-review-signoffs",
         module="audits.legal_review_signoffs",
         help="Validate data/provenance/legal-review-signoffs.json schema + cross-references.",
@@ -440,6 +448,14 @@ register(
 )
 register(
     Verb(
+        name="audit-text-quality",
+        module="audits.text_quality",
+        help="Deterministic UC text-quality pre-pass: template families, skeleton clusters, CIM/Splunkbase/premium-app mismatches, spelling.",
+        category="audits",
+    )
+)
+register(
+    Verb(
         name="audit-baseline-clause-grammar-free",
         module="audits.baseline_clause_grammar_free",
         help="Phase F drift guard: refuse `clause-grammar` fingerprints in audit-baseline.json.",
@@ -662,6 +678,14 @@ register(
 )
 register(
     Verb(
+        name="audit-cisco-tag-evidence",
+        module="audits.cisco_tag_evidence",
+        help="Classify Cisco-tagged UCs by whether their SPL can see the tagged model's data.",
+        category="audits",
+    )
+)
+register(
+    Verb(
         name="audit-equipment-models",
         module="audits.equipment_models",
         help="Validate equipment[] slugs and equipmentModels[] against SSOT registry.",
@@ -673,6 +697,14 @@ register(
         name="audit-equipment-app-map",
         module="audits.equipment_app_map",
         help="Validate data/equipment-app-map.json (Splunkbase apps, DSA ids, UC corroboration).",
+        category="audits",
+    )
+)
+register(
+    Verb(
+        name="audit-starter-packs",
+        module="audits.starter_packs",
+        help="Validate data/starter-packs/*.json (goal, pairs, step order, data coverage).",
         category="audits",
     )
 )
@@ -756,6 +788,14 @@ register(
 )
 register(
     Verb(
+        name="generate-cisco-coverage",
+        module="generators.cisco_coverage",
+        help="Write reports/cisco-coverage/ (capability matrix + gap list) from data/cisco-portfolio.json.",
+        category="generators",
+    )
+)
+register(
+    Verb(
         name="generate-evidence-signatures",
         module="generators.sign_evidence",
         help="Generate dist/evidence manifests and optional GPG signatures (Phase C-2).",
@@ -767,6 +807,14 @@ register(
         name="generate-evidence-packs",
         module="generators.evidence_packs",
         help="Build per-regulation evidence packs (docs/evidence-packs/*.{md,json}).",
+        category="generators",
+    )
+)
+register(
+    Verb(
+        name="generate-starter-packs",
+        module="generators.starter_packs",
+        help="Build api/v1/starter-packs/*.json from data/starter-packs/ (guided onboarding).",
         category="generators",
     )
 )
@@ -1094,5 +1142,36 @@ register(
         module="tools.lift.batch",
         help="Pick N UCs from a category sorted by depth for the lift loop.",
         category="lift",
+    )
+)
+
+# ----------------------------------------------------------------------
+# UC text-quality review -- tiered review of every UC's text (deterministic
+# pre-pass, fast-model triage, heavy-model deep review, cross-model
+# adjudication). See docs/uc-text-review-rubric.md and
+# docs/superpowers/plans/2026-10-26-uc-text-quality-review.md.
+# ----------------------------------------------------------------------
+register(
+    Verb(
+        name="review-prompt",
+        module="review.prompt",
+        help="Emit the UC review prompt for one tier (triage batch / deep / adjudication).",
+        category="review",
+    )
+)
+register(
+    Verb(
+        name="generate-uc-review-report",
+        module="review.report",
+        help="Roll the UC review ledger up into summary.json, fix-queue.json and docs/uc-review-findings.md.",
+        category="review",
+    )
+)
+register(
+    Verb(
+        name="review-fix-scripted",
+        module="review.fix_scripted",
+        help="Mechanical fixes for UC review families (controltest-variant, purpose-built, premium-app-mismatch); dry run by default.",
+        category="review",
     )
 )

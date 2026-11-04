@@ -1,0 +1,115 @@
+{
+  "confidence": 0.65,
+  "content_sha256": "08e376aeacb45817274becce333e818052a7cd94336dc0e488187bb312e35752",
+  "file": "content/cat-07-database-data-platforms/UC-7.4.9.json",
+  "findings": [
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/nosql-cloud-databases.md",
+      "explanation": "The collection path is contradictory and wrong. DB Connect and the Universal Forwarder are different products, and the Universal Forwarder is not a Splunkbase app. The grounding guide gives DB Connect as Splunkbase 2686 and describes Snowflake collection as a custom REST modular input or the Snowflake connector sending to HEC. A reader would install the wrong thing.",
+      "field": "app",
+      "quote": "Snowflake SQL via DB Connect, `ACCOUNT_USAGE` export — Universal Forwarder (Splunkbase 617)",
+      "severity": "blocker",
+      "suggested_fix": "Name one real path: Splunk DB Connect (Splunkbase 2686) running SQL against SNOWFLAKE.ACCOUNT_USAGE, or a custom REST input or connector sending to HEC. Remove the Universal Forwarder and 617."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "This is PostgreSQL boilerplate and does not apply to Snowflake. The validation step also lists every database engine (SQL Server, Oracle, MySQL, MongoDB and others), and later text refers to a Data Model Acceleration, `tstats`/`mstats`, 'tunable macros' and 'vendor admin UI inventory count' that this UC does not use.",
+      "field": "detailedImplementation",
+      "quote": "In operations we confirm in pgAdmin, psql, and `pg_stat*` views, or the managed PostgreSQL console.",
+      "severity": "major",
+      "suggested_fix": "Replace with Snowflake-specific prerequisites and validation, such as comparing daily credits in Snowsight or `SNOWFLAKE.ACCOUNT_USAGE.WAREHOUSE_METERING_HISTORY` against the Splunk results. Delete the unrelated engines, acceleration and macro text."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "With a 24-hour search window and `bin _time span=1d`, each warehouse has one or two daily buckets, so `eventstats` gives an average equal to the value and a null or zero deviation. The `credits > avg_c + 3*s` test then never fires. The 3-sigma baseline needs many days of history.",
+      "field": "detailedImplementation",
+      "quote": "Schedule the SPL with earliest=-24h@h and throttle per entity",
+      "severity": "major",
+      "suggested_fix": "Say the search must run over a multi-week window (for example 30 days) and alert only on the latest day, or compute the baseline separately."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/nosql-cloud-databases.md",
+      "explanation": "The detailed steps say 'Default poll interval 300–900 seconds'. The grounding guide notes ACCOUNT_USAGE data lags by 45 to 180 minutes, so a sub-hourly poll adds little and the daily load is the better description.",
+      "field": "implementation",
+      "quote": "Daily load from `ACCOUNT_USAGE.WAREHOUSE_METERING_HISTORY`.",
+      "severity": "minor",
+      "suggested_fix": "Use one polling interval, consistent with the daily bucket, and mention the ACCOUNT_USAGE lag."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "consistency",
+      "explanation": "The SPL only reads `snowflake:warehouse_metering`. QUERY_HISTORY is not used. Check whether QUERY_HISTORY has a per-query credit column at all (it exposes cloud-services credits, not warehouse credits).",
+      "field": "dataSources",
+      "quote": "`WAREHOUSE_METERING_HISTORY`, `QUERY_HISTORY` (credits)",
+      "severity": "minor",
+      "suggested_fix": "List only WAREHOUSE_METERING_HISTORY with its `CREDITS_USED` column, unless the search uses QUERY_HISTORY."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The SPL has no role dimension. It groups by warehouse and day only.",
+      "field": "detailedImplementation",
+      "quote": "Credits consumed per warehouse and role drive chargeback and right-sizing.",
+      "severity": "minor",
+      "suggested_fix": "Drop 'and role' or add a role breakdown to the search."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "Steps 1 to 4 appear twice, with a generic version and then a second set that is also generic. A reader cannot tell which one to follow.",
+      "field": "detailedImplementation",
+      "quote": "Step 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field",
+      "severity": "minor",
+      "suggested_fix": "Merge them into one Snowflake-specific sequence of steps."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "grandma_fidelity",
+      "explanation": "It repeats the title and says nothing about what is detected. It never mentions that the search flags days when a Snowflake warehouse spent unusually many credits.",
+      "field": "grandmaExplanation",
+      "quote": "keep this part of the data platform within the capacity and quality targets our teams expect",
+      "severity": "major",
+      "suggested_fix": "Say in plain words that it watches the daily spending of each Snowflake compute warehouse and flags a day that is far above its usual level."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "Field names `credits_used` and `warehouse_name` are lowercase, but the grounding guide's `snowflake:warehouse_metering` searches use uppercase `CREDITS_USED` and `WAREHOUSE_NAME`. Field names are case-sensitive in SPL, so the search may return nothing unless the input lowercases them.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The `bin _time span=1d` plus `eventstats` baseline has no earliest bound, so the baseline depends on the saved search time range, and the `table` omits the standard deviation `s` that the description claims to output.",
+      "severity": "minor"
+    },
+    {
+      "field": "criticality",
+      "issue": "'high' for a cost-spike alert looks too high and does not match the Performance and Capacity monitoring types.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0063-UC-7.4.9",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 1
+  },
+  "summary": "The idea (3-sigma spike in daily Snowflake warehouse credits) is sound, but the collection path is wrongly named, the implementation carries PostgreSQL and multi-engine boilerplate, and the scheduling advice would stop the SPL from ever matching. The text is mostly template residue.",
+  "tier": "triage",
+  "uc_id": "UC-7.4.9",
+  "verdict": "incorrect"
+}

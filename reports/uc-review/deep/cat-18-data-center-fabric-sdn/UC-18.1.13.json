@@ -1,0 +1,149 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "238df2cf9db28600fe8bb8f91650a96eb6e0c03438cda78cd3e2b483be99de6b",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.1.13.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase 4022 is 'Technical Addon for the Metricator application for Nmon (HEC)'. The Cisco ACI add-on is TA_cisco-ACI (Splunkbase 1897, deprecated in favour of Cisco DC Networking, Splunkbase 7777). The ID is repeated in dataSources, implementation, detailedImplementation and references.",
+      "field": "app",
+      "quote": "**Splunk_TA_cisco-aci** ([Splunkbase **4022**](https://splunkbase.splunk.com/app/4022), package **`Splunk_TA_cisco-aci`**)",
+      "severity": "blocker",
+      "suggested_fix": "Cite Cisco DC Networking (Splunkbase 7777) as the supported collector, with TA_cisco-ACI (1897, deprecated) as legacy, and remove every 4022 reference."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://cobra.readthedocs.io/en/latest/install.html",
+      "explanation": "The Cisco APIC Python SDK ships as the acicobra and acimodel .whl files, downloaded from https://<apic>/cobra/_downloads/. 'pip install cobra' installs an unrelated PyPI package, and 'python-aci-sdk' is not a product name. The app field repeats 'python-aci-sdk'.",
+      "field": "detailedImplementation",
+      "quote": "Python collectors built atop **python-aci-sdk** with **cobra** bindings (`pip install cobra`)",
+      "severity": "blocker",
+      "suggested_fix": "Say to download acicobra and acimodel from https://<apic>/cobra/_downloads/ and pip-install both wheels (SDK first), or use plain REST via rest_ta or requests."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "fvRsBd is the EPG-to-BD relation and is a child of fvAEPg, not fvBD. fvDhcpRelayP is a tenant-level relay policy; the BD references it through a dhcpLbl child. A fvBD children query will not return either object.",
+      "field": "detailedImplementation",
+      "quote": "so each **fvBD** Distinguished Name inherits **fvSubnet**, **fvDhcpRelayP**, and **fvRsBd** children inline",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the containment of fvRsBd, fvDhcpRelayP and dhcpLbl in the APIC MIM. Describe querying fvBD children for fvSubnet/dhcpLbl, and reaching endpoints through EPGs whose fvRsBd targets the BD."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "I could not confirm F2378 or F1296 as DHCP-relay or BD-mismatch faults, and APIC syslog carries fault codes rather than 'mnemonic' strings.",
+      "field": "dataSources",
+      "quote": "captures **F2378** dhcp-relay failures and **F1296** BD mismatch strings",
+      "severity": "needs_verification",
+      "suggested_fix": "Look both codes up in the Cisco ACI System Messages Reference Guide. Replace them with the correct codes, or remove them."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "ip_in_use is a bridge-domain-wide endpoint (MAC) count, but used_pct divides it by one subnet's address count. A BD with several subnets therefore over-reports utilisation for every subnet, and fvCEp counts MAC endpoints, not IP addresses (those are fvIp children).",
+      "field": "cross_field",
+      "quote": "dataSources: \"counting **fvCEp** rows grouped by **fvRsBd** ancestry into **ip_in_use** per bridge domain\"; SPL groups by bd_dn subnet_ip and divides ip_in_use by that subnet's total_ips",
+      "severity": "major",
+      "suggested_fix": "Count fvIp addresses per subnet (match each IP to its subnet prefix) and use that as ip_in_use, or document that the metric is a BD-level approximation."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL's where clause keeps every row at 75% or above (urgency elevated_ge75), so a 'results > 0' alert fires at 75%, not 85%. The description cites yet another threshold ('peak_pct >= 93').",
+      "field": "implementation",
+      "quote": "schedule capacity alerts at **85%**/**95%**",
+      "severity": "major",
+      "suggested_fix": "Either state that 75% rows are returned for watch-only dashboards and the alert trigger must filter on urgency in (urgent_ge95, critical_ge85), or align all fields on one threshold."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
+      "explanation": "The CIM Performance datamodel covers host CPU, memory, storage, network interface and OS metrics. It has no place for IP-pool utilisation of an ACI bridge domain, and the SPL uses no datamodel.",
+      "field": "cimModels",
+      "quote": "\"cimModels\": [\"Performance\", \"Inventory\"]",
+      "severity": "major",
+      "suggested_fix": "Remove Performance (and say the search runs on raw sourcetypes), or name a datamodel that actually fits."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "This link points to the Cisco homepage, and the 4022 reference links to an Nmon add-on.",
+      "field": "references",
+      "quote": "\"title\": \"Cisco APIC Fundamentals Guide (Release 6.x)\", \"url\": \"https://www.cisco.com/c/en/us/\"",
+      "severity": "major",
+      "suggested_fix": "Link the APIC 6.x Basic Configuration Guide section on bridge domains and subnets, and replace the 4022 link with app 7777 or 1897."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Authorizeconf",
+      "explanation": "srchIndexesAllowed in authorize.conf grants access to indexes, not sourcetypes.",
+      "field": "detailedImplementation",
+      "quote": "plus **srchIndexesAllowed** entries covering scripted sourcetypes **cisco:aci:bd_stats** and **cisco:aci:endpoint**",
+      "severity": "minor",
+      "suggested_fix": "Say the role's srchIndexesAllowed must include the index (cisco_aci) that holds these sourcetypes."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "'exchange' (Microsoft Exchange) has nothing to do with ACI bridge-domain capacity.",
+      "field": "equipment",
+      "quote": "\"equipment\": [\"cisco\", \"exchange\", \"syslog\"]",
+      "severity": "minor",
+      "suggested_fix": "Remove 'exchange'."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "spelling",
+      "explanation": "Every step heading uses a stray semicolon and a double space instead of a dash.",
+      "field": "detailedImplementation",
+      "quote": "Step 1 ;  Configure data collection",
+      "severity": "minor",
+      "suggested_fix": "Use 'Step 1 — Configure data collection' and so on."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "An automated agent marked the UC verified, with no SME sign-off, while it still carries a wrong add-on and wrong SDK installation steps.",
+      "field": "status",
+      "quote": "\"status\": \"verified\", ... \"reviewer\": \"agent-handcraft-2026-04-29\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft/unverified until an SME validates the collector and the maths."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "used_pct = ip_in_use / total_ips with stats grouped by bd_dn and subnet_ip. ip_in_use is a BD-level endpoint count, so multi-subnet BDs report every subnet at the BD total. total_ips also ignores the pervasive gateway address that the fvSubnet ip itself consumes.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The where clause keeps urgency 'elevated_ge75' rows, so the scheduled alert pages at 75% while every prose field says 85%/95%.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0004-UC-18.1.13",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "BD subnet capacity is a useful detection and the fvBD attributes are real, but the UC names the wrong Splunkbase add-on, gives a wrong install command for the Cobra SDK, and misplaces APIC objects. The utilisation maths divides a bridge-domain-wide endpoint count by a single subnet's size.",
+  "tier": "deep",
+  "uc_id": "UC-18.1.13",
+  "verdict": "incorrect"
+}

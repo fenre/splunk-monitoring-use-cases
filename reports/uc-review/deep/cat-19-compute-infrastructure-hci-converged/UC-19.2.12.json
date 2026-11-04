@@ -1,0 +1,150 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "e44a6fac850727f663d051e2636d2d9c444c31df8c88137ac82097a36cbb600b",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.2.12.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The search groups the subsearch BY pc_u = coalesce(pc_uuid, pcUuid, cluster_uuid, uuid, id) and joins on pc_uuid. The reference poller emits only serviceName, serviceStatus and pc_host, so every services event has a null pc_u and is dropped by stats. The 'hard data-plane gate' (bad_aplos and bad_mercury) therefore never fires for operators who follow this recipe.",
+      "field": "detailedImplementation",
+      "quote": "line = {\"sourcetype\": \"nutanix:prism_central:services\", \"event\": {\"serviceName\": name, \"serviceStatus\": state, \"pc_host\": \"pc01.example.corp\"}}",
+      "severity": "major",
+      "suggested_fix": "Have the poller emit pc_uuid (the PC cluster UUID from the lookup or from /clusters/list) on every services event, and say in Step 1 that it is the join key."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "The Prism Central v3 API exposes per-service endpoints (for example /services/microseg or /services/oss/status) rather than a general service-state list with entities[].status.name and state. Whether this endpoint exists, and whether it returns Aplos, Mercury, Magneto and similar process states, is unconfirmed. The same applies to the session-gated v2.0 /cluster/services fallback.",
+      "field": "detailedImplementation",
+      "quote": "call `GET https://<pc_fqdn>:9440/api/nutanix/v3/services` with Basic auth",
+      "severity": "needs_verification",
+      "suggested_fix": "Check against the PC v3/v4 API reference on nutanix.dev. If there is no list endpoint, collect process state from `genesis status` or the services API your PC release actually documents, and describe that path."
+    },
+    {
+      "confidence": 0.45,
+      "dimension": "correctness",
+      "explanation": "Several role descriptions look wrong. Magneto is generally the Leap/DR recovery-plan orchestration service, and Anduril is associated with ESXi VM management through vCenter, not with LCM. Insights is the IDF entity database rather than an 'analytics database'. Operators triaging a bad_* bit will look in the wrong place if these labels are wrong.",
+      "field": "detailedImplementation",
+      "quote": "Magneto (fault and lifecycle event plumbing), Insights (analytics database), Genesis (bootstrap/supervisor), Hera (Pulse-style telemetry), Anduril (LCM coordinator on PC for fleet moves)",
+      "severity": "needs_verification",
+      "suggested_fix": "Check each service role against Nutanix KB or Prism Central documentation, and keep descriptions to what the vendor documents."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "explanation": "The validation step uses -k (TLS verification off) and the admin account with an empty password. Step 1 says TLS verification must never be disabled and that the account should be a read-only Cluster Viewer, never break-glass admin.",
+      "field": "detailedImplementation",
+      "quote": "`curl -k -u admin:'' -X POST -H \"Content-Type: application/json\" -d \"{}\" \"https://<pc>:9440/api/nutanix/v3/clusters/list\"`",
+      "severity": "minor",
+      "suggested_fix": "Use `curl --cacert <chain.pem> -u svc_splunk` (prompting for the password) with the same read-only account the input uses."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "Validation items 6–8, and the 'Together, cat-19 now covers alarms (.26), lifecycle compliance (.27)...' paragraph, are catalogue meta-commentary rather than steps an operator performs.",
+      "field": "detailedImplementation",
+      "quote": "(6) This validation is intentionally not a single “open the same panel elsewhere and eyeball the chart” hand-wave — you must show Prism UI, SSH, and API in one runbook. (7) Re-read UC-19.2.7 to remember you are not validating CVM `services_status` here",
+      "severity": "minor",
+      "suggested_fix": "Delete items 6–8 and the cat-19 coverage sentence. Keep the one-line scope contrast with UC-19.2.25 and UC-19.2.7 in the Prerequisites section."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase 5076 is not in the repository's Splunkbase catalogue. That catalogue lists 'TA for Nutanix Prism' as 3103 (folder TA-nutanix) and 'TA for Nutanix Prism Central' as 8349 (folder TA-nutanix-PC). For a Prism Central UC, 8349 is the obvious candidate. The sourcetype names (nutanix:prism_central:cluster, :alerts) and the inputs.conf stanza are presented as TA defaults without confirmation. The same id and name recur in dataSources, exclusions, implementation and references.",
+      "field": "app",
+      "quote": "Install the add-on folder `Splunk_TA_nutanix` — Splunk Add-on for Nutanix Prism ([Splunkbase 5076](https://splunkbase.splunk.com/app/5076))",
+      "severity": "major",
+      "suggested_fix": "Reference TA for Nutanix Prism Central (Splunkbase 8349, TA-nutanix-PC) or whichever add-on is actually deployed, and take the sourcetype names and input stanza from that add-on's documentation."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "Those alert-age tests only produce high, medium or low rows. The real critical conditions are Aplos or Mercury down, PC unreachable for more than 30 minutes, or fewer registered PE clusters than expected_pe_count. The 'Title terms' list is token residue.",
+      "field": "description",
+      "quote": "Alert logic enforces `t_crit_max` > 3600, `t_warn_max` > 14400, or `t_info_max` > 86400. Title terms: Nutanix, Prism, Central, Management, Plane.",
+      "severity": "major",
+      "suggested_fix": "Describe the lookup-seeded per-PC composite: critical on Aplos/Mercury down, no events for 30 minutes, or PE registration loss; high for Insights/Magneto/Hera down, PE count drift or a critical alert open more than 1 h; lower tiers for Calm/Karbon/Anduril and stale alerts; freeze demotes everything except the hard breaks."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "Microsoft 365, SNMP and ITSI have no role in this UC, and equipmentModels adds snmp_ups. These tags will surface the UC in unrelated equipment pickers.",
+      "field": "equipment",
+      "quote": "\"equipment\": [\n    \"itsi\",\n    \"m365\",\n    \"nutanix\",\n    \"snmp\"\n  ]",
+      "severity": "major",
+      "suggested_fix": "Keep nutanix in equipment and nutanix_prism_central (plus nutanix_prism_element if wanted) in equipmentModels. Remove itsi, m365, snmp and snmp_ups."
+    },
+    {
+      "confidence": 0.45,
+      "dimension": "correctness",
+      "explanation": "Recent pc.2022+/2023+ sizing guides list the small PC VM at about 6 vCPU and 26–28 GB RAM. 4 vCPU and 16 GB is an older 5.x-era figure.",
+      "field": "hardware",
+      "quote": "small (about 4 vCPU, 16 GB RAM), large (about 10 vCPU, 44 GB), and X-large (about 14 vCPU, 60 GB)",
+      "severity": "needs_verification",
+      "suggested_fix": "Quote the PC sizing table for the PC releases the UC claims to support (2022.6–2024.x), or drop the figures."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The Splunk and nutanix.dev entries are home pages and add nothing a reader can act on.",
+      "field": "references",
+      "quote": "\"title\": \"Splunk Enterprise Documentation\",\n      \"url\": \"https://docs.splunk.com/Documentation/Splunk\"",
+      "severity": "minor",
+      "suggested_fix": "Replace them with the Prism Central add-on's documentation, the PC v3 clusters/list and alerts/list API reference pages, and the Splunk inputlookup/join reference pages."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The canonical SPL fails at parse time (inputlookup is not the first command), and the reference poller cannot feed the join. The search cannot have been verified end to end.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade the status until the SPL has been fixed and run against a lab Prism Central."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/search-commands/inputlookup",
+      "field": "spl",
+      "issue": "The search starts `| localop | inputlookup nutanix_prism_central_owner`. inputlookup is an event-generating command and must be the first command of a search or subsearch (unless append=true), so Splunk rejects the search. Put `| inputlookup nutanix_prism_central_owner` first. localop is unnecessary here; if kept, it belongs after inputlookup.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats",
+      "field": "spl",
+      "issue": "t_crit, t_warn and t_info are computed as now()-_time, the age of the poll event, not the alert's creation time. The subsearch window is earliest=-2h@h, so the values never exceed about 2–3 h. The warn (>14400 s) and info (>86400 s) staleness tiers can never fire, and the crit (>3600 s) tier measures poll lag. Use the alert's created_time or creation_time_usecs field.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/ConditionalFunctions",
+      "field": "spl",
+      "issue": "/clusters/list returns one entity per PE cluster (and the PC itself), each keyed by its own uuid. pc_u therefore takes each PE's UUID, and only the PC's own row joins to the lookup. pe_raw defaults to \"0\" when no pe_count-style field exists, so pe_count=0 and pe_loss=1 (critical) for every PC that has expected_pe_count>0. Count distinct PE entity UUIDs per PC instead, which needs a PC identifier stamped on each event, and keep missing counts null rather than 0. The alert events' uuid is likewise the alert's id, not the PC's.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/SplunkCloud/latest/Search/Comments",
+      "field": "spl",
+      "issue": "A `comment(...)` macro precedes the leading generating command. Splunk warns that comments before a generating command can cause errors or incorrect results.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0048-UC-19.2.12",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The design is well scoped: a lookup-seeded Prism Central management-plane composite with an Aplos/Mercury hard gate, a PE-registration count and freeze handling, plus a useful troubleshooting section and a TLS-verifying poller sketch. The SPL is broken, though. It places inputlookup after localop, which Splunk rejects. Its reference poller emits no PC UUID, so the service gate can never join. Its 4 h and 24 h alert-age tiers cannot fire in a 2 h window. The add-on id and name do not match the Splunkbase catalogue, the equipment tags are padded, and 'verified' is overclaimed.",
+  "tier": "deep",
+  "uc_id": "UC-19.2.12",
+  "verdict": "incorrect"
+}

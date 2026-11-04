@@ -95,7 +95,7 @@ _SCRIPTS_DIR = REPO_ROOT / "scripts"
 if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 try:
-    from equipment_lib import compile_patterns, match_equipment
+    from equipment_lib import compile_patterns, load_equipment, match_equipment
 
     _EQUIPMENT_LIB_OK = True
 except Exception:  # pragma: no cover - defensive for bootstrap paths
@@ -633,10 +633,19 @@ _EQUIPMENT_PATTERNS_CACHE: list[Any] | None = None
 
 
 def _equipment_patterns() -> list[Any]:
-    """Lazy-load the EQUIPMENT pattern list once per audit run."""
+    """Lazy-load the EQUIPMENT pattern list once per audit run.
+
+    Vendors with an ``evidence`` block are tagged from what the search
+    reads, not from narrative mentions, so they are left out here exactly
+    as ``generate-equipment-tags`` leaves them out.
+    """
     global _EQUIPMENT_PATTERNS_CACHE
     if _EQUIPMENT_PATTERNS_CACHE is None and _EQUIPMENT_LIB_OK:
-        _EQUIPMENT_PATTERNS_CACHE = compile_patterns()
+        equipment = load_equipment()
+        gated_ids = {e["id"] for e in equipment if e.get("evidence")}
+        _EQUIPMENT_PATTERNS_CACHE = [
+            p for p in compile_patterns(equipment) if p[1] not in gated_ids
+        ]
     return _EQUIPMENT_PATTERNS_CACHE or []
 
 

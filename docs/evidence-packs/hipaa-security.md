@@ -42,7 +42,7 @@ Applies to covered entities (health plans, healthcare clearinghouses, most healt
 - **Clauses tracked**: 15
 - **Clauses covered by at least one UC**: 15 / 15 (100.0%)
 - **Priority-weighted coverage**: 100.0%
-- **Contributing UCs**: 47
+- **Contributing UCs**: 46
 
 Coverage methodology is documented in [`docs/coverage-methodology.md`](../coverage-methodology.md). Priority weights come from `data/regulations.json` commonClauses entries (see [`data/regulations.json`](../../data/regulations.json) priorityWeightRubric).
 
@@ -60,7 +60,7 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 | [`§164.308(a)(7)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.308(a)(7)) | Contingency plan | 1.0 | `partial` | [UC-17.1.47](#uc-17-1-47), [UC-22.10.8](#uc-22-10-8), [UC-22.45.2](#uc-22-45-2) |
 | [`§164.308(a)(8)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.308(a)(8)) | Evaluation | 0.7 | `partial` | [UC-22.10.9](#uc-22-10-9) |
 | [`§164.310(a)(1)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.310(a)(1)) | Facility access controls | 1.0 | `partial` | [UC-22.10.31](#uc-22-10-31) |
-| [`§164.310(d)(1)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.310(d)(1)) | Device and media controls | 0.7 | `full` | [UC-17.1.50](#uc-17-1-50), [UC-22.10.29](#uc-22-10-29), [UC-22.49.1](#uc-22-49-1), [UC-22.49.2](#uc-22-49-2) |
+| [`§164.310(d)(1)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.310(d)(1)) | Device and media controls | 0.7 | `full` | [UC-17.1.50](#uc-17-1-50), [UC-22.10.29](#uc-22-10-29), [UC-22.49.2](#uc-22-49-2) |
 | [`§164.312(a)(1)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.312(a)(1)) | Access control | 1.0 | `partial` | [UC-22.10.21](#uc-22-10-21), [UC-22.10.24](#uc-22-10-24), [UC-22.10.25](#uc-22-10-25) |
 | [`§164.312(a)(2)(iv)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.312(a)(2)(iv)) | Encryption and decryption | 0.7 | `full` | [UC-22.10.16](#uc-22-10-16), [UC-22.41.1](#uc-22-41-1) |
 | [`§164.312(b)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.312(b)) | Audit controls | 1.0 | `full` | [UC-10.12.16](#uc-10-12-16), [UC-17.1.43](#uc-17-1-43), [UC-22.10.17](#uc-22-10-17), [UC-22.10.36](#uc-22-10-36), [UC-22.10.58](#uc-22-10-58), [UC-22.10.59](#uc-22-10-59) |
@@ -322,12 +322,6 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
   - Source: [``](../../)
-<a id='uc-22-49-1'></a>
-- **UC-22.49.1** —
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 0
-  - Source: [``](../../)
 <a id='uc-22-49-2'></a>
 - **UC-22.49.2** —
   - Control family: `—`
@@ -477,7 +471,7 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 **Generation metadata**
 
 ```
-catalogue_version: 8.26.0
+catalogue_version: 8.28.0
 generator_script:  scripts/generate_evidence_packs.py
 inputs_sha256:     814d8942aebac696b8a91a00bbaff8e9c140b5479dcca51606fbeb99bf25f762
 ```

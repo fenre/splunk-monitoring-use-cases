@@ -1,0 +1,130 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "e375c111dd1face736f11f3a04e08fd7442d5a47668f1ecf528df6ad360a4f4f",
+  "file": "content/cat-23-business-analytics/UC-23.8.3.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/append",
+      "explanation": "Each append subsearch ends in `stats count`, so it returns one row; the row cap never limits how many notables are counted. append also has its own maxout (default 50000) separate from limits.conf; the real risk is the 60-second maxtime auto-finalize, which silently undercounts.",
+      "field": "detailedImplementation",
+      "quote": "default `subsearch_maxout` (ten thousand) can clip a high-volume `` `notable` `` `append` if your estate generates more than the cap in thirty days; raise `maxout` under `limits.conf` `[subsearch]`",
+      "severity": "blocker",
+      "suggested_fix": "Replace with: long-running append subsearches are auto-finalized after maxtime (default 60 s), which truncates the counted events; set `append maxtime=` explicitly or pre-aggregate notable counts into a summary index."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-it-service-intelligence/splunk-it-service-intelligence/administer/5.0/itsi-indexes/itsi-summary-index-reference",
+      "explanation": "The ITSI-documented macro for pulling full KPI rows from itsi_summary is `get_full_itsi_summary_kpi(<kpi_id>)`; `get_full_kpi_summary` is not a documented ITSI macro. The same wrong name appears in dataSources.",
+      "field": "detailedImplementation",
+      "quote": "`get_full_kpi_summary` requires supported ITSI releases",
+      "severity": "blocker",
+      "suggested_fix": "Use `` `get_full_itsi_summary_kpi(<kpi_id>)` `` in both detailedImplementation and dataSources, or query `index=itsi_summary` with `indexed_itsi_kpi_id::<id>` directly."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Multisearch",
+      "explanation": "multisearch only accepts streaming subsearches; every append block here ends in `stats`, so the suggested swap would fail as written.",
+      "field": "detailedImplementation",
+      "quote": "long `append` chains run subsearches serially; for sub-second dashboards, shift to `multisearch`",
+      "severity": "major",
+      "suggested_fix": "Recommend the summary-index collector approach (already mentioned) and drop the multisearch suggestion, or state that each subsearch must be reduced to streaming commands before multisearch and the stats moved after it."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "The ITSI summary index reference documents `kpi` (KPI title), `alert_level`/`alert_severity`, `alert_value` and `health_score`; `kpi_name` may not be a documented itsi_summary field.",
+      "field": "detailedImplementation",
+      "quote": "using documented `kpi_name`, `alert_severity`, and `health_score` fields",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the ITSI summary index reference for the KPI-title field name and use `kpi` and `alert_value` if `kpi_name` is not listed; recommend `alert_level` for filtering, as the doc does."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The scenarios refer to `span=1h`, `host` grouping, synthetic probes and onboarding baselines. None of these exist in a monthly aggregate heatmap with no host or span. The real causes are already in detailedImplementation Step 5: threshold recalibration, thin NPS samples, quarter-end pull-forward, ESCU enablement spikes, and stale feeds.",
+      "field": "knownFalsePositives",
+      "quote": "shifts `value`, `nps_avg`, `terms_90d` over `span=1h` while `host` remains in-scope",
+      "severity": "major",
+      "suggested_fix": "Rewrite the KFPs from the Step 5 causes (threshold_version change, NPS response_count < 30, quarter-end revenue artefacts, newly enabled ES content inflating notables, missing snow:incident feed) and remove the host/span text."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The reviewer is an automated agent (`agent-handcraft-2026-04-28`) and nothing records SME sign-off, yet the SPL has logic defects (see the SLA-ratio flag).",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to a non-verified state until a named SME validates the SPL against live data."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "Nothing in the UC uses Cisco ACI data; the `cisco` equipment tag is likewise unsupported by any data source.",
+      "field": "equipmentModels",
+      "quote": "\"equipmentModels\": [\"cisco_aci\"]",
+      "severity": "major",
+      "suggested_fix": "Remove `cisco_aci` from equipmentModels and `cisco` from equipment."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL's lookup outputs only green_threshold, amber_threshold and direction, and the final table drops threshold_version, so the panel cannot show it without SPL changes.",
+      "field": "visualization",
+      "quote": "Risk-register table showing `risk_metric`, `risk_level`, `delta_to_amber`, `threshold_version`",
+      "severity": "minor",
+      "suggested_fix": "Note that `threshold_version` must be added to the lookup OUTPUT and table, or remove it from the panel description."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "This count appears in detailedImplementation Step 2 and does not match the SPL, which has six append subsearches.",
+      "field": "implementation",
+      "quote": "so dashboards do not re-run seven subsearches on every page load",
+      "severity": "minor",
+      "suggested_fix": "Say six subsearches, or 'each domain subsearch'."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats",
+      "field": "spl",
+      "issue": "SLA breach rate is computed on events already filtered to `sla_breached=\"true\"`, so `breached` counts all breached incidents while `total` counts only breached-and-not-closed ones. The ratio is meaningless and can exceed 100%. The base search should drop the breach filter and use `count(eval(sla_breached=\"true\")) AS breached, count AS total`.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The metric labelled `DSO` is `avg(days_overdue)` of open invoices. That is not Days Sales Outstanding (AR / revenue × days), and it goes negative for invoices not yet due. Likewise `NPS Score` is `avg(score)` of 0–10 responses, not promoters minus detractors. The thresholds and board labels will be misread; rename the metrics (e.g. 'Avg Days Past Due', 'Avg Survey Score') or compute the true formulas.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`sla_breached` is not a standard ServiceNow incident column (the incident table exposes `made_sla`; breach detail lives in `task_sla.has_breached`). Check the Splunk Add-on for ServiceNow `snow:incident` field list before relying on this filter.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "The leading `| inputlookup business_risk_thresholds.csv` rows have no `value`, so `where isnotnull(value)` removes them all; the inputlookup does nothing and makes the search harder to read. Start with the first subsearch (or `makeresults`) instead.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0049-UC-23.8.3",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 5,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The detailed implementation and data-source text are substantive and mostly accurate, but the SPL has a broken SLA-breach ratio and mislabelled DSO/NPS metrics, the troubleshooting advice misstates append/subsearch limits and multisearch behaviour, the ITSI macro name is wrong, and the templated sections (description, value, KFP, evidence, controlTest) describe a different detection.",
+  "tier": "deep",
+  "uc_id": "UC-23.8.3",
+  "verdict": "incorrect"
+}

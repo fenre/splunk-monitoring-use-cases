@@ -1,0 +1,74 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "10.11.131",
+  "title": "Palo Alto HA Failover and HA1 Control-Link Health",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Fault"
+  ],
+  "splunkPillar": "Observability",
+  "owner": "Head of IT Operations",
+  "exclusions": "Does not replace UC-10.11.19 threat-log severity analysis, UC-10.11.94 log-forwarding connectivity, or FortiGate HA (UC-10.11.8). Does not cover Prisma Access portal health (UC-10.11.92).",
+  "evidence": "Saved search uc_10_11_131_pan_ha_failover, weekly CSV of HA state changes, correlation with pan:system event IDs for HA1/HA2 path.",
+  "controlTest": {
+    "positiveScenario": "In a lab active/passive pair, suspend the active firewall or pull HA1; expect pan:system HA events (path-monitoring, peer-down, moved-to-active) and a row from uc_10_11_131_pan_ha_failover with failover_count>=1.",
+    "negativeScenario": "Leave the pair stable for thirty minutes with HA1/HA2 up; confirm no peer-down or moved-to-active rows."
+  },
+  "dataSources": "index=pan sourcetype=pan:system for HA event IDs (HA group, HA1 heartbeat, path-monitor, preempt); optional sourcetype=pan:config for HA configuration changes; Splunk_TA_paloalto field extractions eventid, severity, opaque_data, device_name.",
+  "app": "`Splunk_TA_paloalto` (Splunkbase 2757) on heavy forwarders and search heads; PAN-OS syslog or HTTP log forwarding of System logs including HA subtype.",
+  "spl": "`comment(\"UC-10.11.131 PAN-OS HA failover and HA1 health. Index pan; sourcetype pan:system\")`\n| search index=pan sourcetype=\"pan:system\" earliest=-4h@m latest=now\n| eval evid=lower(trim(toString(coalesce(eventid, event_id, id, \"\"))))\n| eval msg=lower(trim(toString(coalesce(opaque, opaque_data, description, _raw, \"\"))))\n| where match(evid, \"ha\") OR match(msg, \"high availability|ha1|ha2|peer.*(down|up)|moved to active|path monitoring|preempt\")\n| eval ha_signal=case(\n    match(msg, \"moved to active|became active|failover\"), \"failover\",\n    match(msg, \"peer.*down|ha1.*(down|fail)|heartbeat.*(lost|fail)\"), \"ha1_down\",\n    match(msg, \"path monitoring\"), \"path_monitor\",\n    match(msg, \"preempt\"), \"preempt\",\n    true(), \"ha_other\")\n| stats count AS event_count latest(_time) AS last_seen values(ha_signal) AS ha_signals BY device_name, ha_signal\n| eval failover_count=if(ha_signal=\"failover\", event_count, 0)\n| where event_count>0\n| eval severity=case(ha_signal=\"failover\" OR ha_signal=\"ha1_down\", \"critical\", ha_signal=\"path_monitor\", \"high\", true(), \"medium\")\n| table device_name ha_signal event_count failover_count last_seen severity",
+  "description": "Detects PAN-OS high-availability failovers and HA1 control-link or heartbeat loss from system logs so operators see when the passive peer took traffic or when the HA pair is split-brain-adjacent.",
+  "value": "An unnoticed HA failover hides the original hardware or path failure and can leave the pair without a healthy spare. Watching HA1/HA2 and moved-to-active events is the difference between a contained NIC fault and a second outage during the next maintenance window.",
+  "implementation": "Forward PAN-OS System logs with HA subtype to Splunk via Splunk_TA_paloalto. Save uc_10_11_131_pan_ha_failover every five minutes. Page on failover and ha1_down. Correlate with path-monitor targets and recent pan:config HA edits.",
+  "visualization": "Timeline of HA signals by device_name; single value of failovers in 24h; table of current ha_signal severity.",
+  "cimModels": [
+    "Change",
+    "Alerts"
+  ],
+  "cimSpl": "| tstats summariesonly=t count FROM datamodel=Alerts WHERE nodename=Alerts earliest=-4h@h latest=@h BY Alerts.src, Alerts.signature\n| rename Alerts.src AS device_name Alerts.signature AS signature\n| where match(lower(signature), \"ha|failover|heartbeat\")",
+  "schema": "CIM",
+  "dataModelAcceleration": "Accelerate CIM Alerts (and Change when pan:config HA edits are mapped) so tstats overlays remain available during incident review.",
+  "references": [
+    {
+      "title": "PAN-OS Administrator's Guide — High Availability",
+      "url": "https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-admin/high-availability",
+      "retrieved": "2026-09-19"
+    },
+    {
+      "title": "PAN-OS System log reference",
+      "url": "https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-admin/monitoring/use-syslog-for-monitoring/syslog-field-descriptions/system-log-fields",
+      "retrieved": "2026-09-19"
+    },
+    {
+      "title": "Splunk Add-on for Palo Alto Networks",
+      "url": "https://splunkbase.splunk.com/app/2757",
+      "retrieved": "2026-09-19"
+    }
+  ],
+  "knownFalsePositives": "Lab failovers and planned preempt tests; suppress with a change-window lookup. HA1 flaps during ISP maintenance on path-monitor IPs that are not actually the peer link. Panorama-managed template pushes can emit HA configuration system logs without a dataplane failover.",
+  "detectionType": "indicator",
+  "securityDomain": "network",
+  "equipment": [
+    "paloalto",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "paloalto_pan_firewall"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-09-19",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Step 1 — Prerequisites\n\nNetwork security operations owns this control with the firewall engineering team that maintains PAN-OS HA pairs. Install Splunk_TA_paloalto. Enable System log forwarding including HA events. UC-10.11.19 remains threat logs. UC-10.11.94 remains log-forwarding path health. Do not reuse FortiGate HA searches (UC-10.11.8).\n\nStep 2 — Configure data collection\n\nOn each HA member: Device → Log Settings → System → syslog or HTTP to the Splunk heavy forwarder. Confirm sourcetype=pan:system and fields eventid, device_name, opaque. Optional: forward pan:config for HA configuration diffs.\n\nStep 3 — Create the search and alert\n\n```spl\n`comment(\"UC-10.11.131 PAN-OS HA failover and HA1 health. Index pan; sourcetype pan:system\")`\n| search index=pan sourcetype=\"pan:system\" earliest=-4h@m latest=now\n| eval evid=lower(trim(toString(coalesce(eventid, event_id, id, \"\"))))\n| eval msg=lower(trim(toString(coalesce(opaque, opaque_data, description, _raw, \"\"))))\n| where match(evid, \"ha\") OR match(msg, \"high availability|ha1|ha2|peer.*(down|up)|moved to active|path monitoring|preempt\")\n| eval ha_signal=case(\n    match(msg, \"moved to active|became active|failover\"), \"failover\",\n    match(msg, \"peer.*down|ha1.*(down|fail)|heartbeat.*(lost|fail)\"), \"ha1_down\",\n    match(msg, \"path monitoring\"), \"path_monitor\",\n    match(msg, \"preempt\"), \"preempt\",\n    true(), \"ha_other\")\n| stats count AS event_count latest(_time) AS last_seen values(ha_signal) AS ha_signals BY device_name, ha_signal\n| eval failover_count=if(ha_signal=\"failover\", event_count, 0)\n| where event_count>0\n| eval severity=case(ha_signal=\"failover\" OR ha_signal=\"ha1_down\", \"critical\", ha_signal=\"path_monitor\", \"high\", true(), \"medium\")\n| table device_name ha_signal event_count failover_count last_seen severity\n```\n\nSave uc_10_11_131_pan_ha_failover, cron */5 * * * *, suppress device_name+ha_signal for 30m.\n\nStep 4 — Validate\n\nLab: suspend active member or disconnect HA1. Confirm moved-to-active and peer-down rows. Negative: idle pair for thirty minutes with no rows.\n\nStep 5 — Operationalize & Troubleshoot\n\nCase 1 — Failover plus HA1 down: treat as control-link or member crash; inspect cables and peer logs.\nCase 2 — Path-monitor only: check monitored IP reachability, not necessarily HA1.\nCase 3 — Preempt after recovery: expected if preempt is enabled; document to avoid double-failovers.\nCase 4 — Split dataplane vs control: HA1 up but HA2 down can still pass sessions incorrectly; escalate.\nCase 5 — Config push during failover: freeze Panorama commits.\nCase 6 — Virtual wire vs L3 HA: confirm event text still matches.\nCase 7 — Multi-vsys: group by device_name still holds.\nCase 8 — Log forwarding gap: if pan:system is silent, follow UC-10.11.94 first.\nCase 9 — Cloud NGFW / VM-Series on unstable hosts: correlate hypervisor events.\nCase 10 — Repeated failovers: look for flapping path-monitor IPs.\nCase 11 — HA3 session owner issues: add session-owner logs if present.\nCase 12 — Planned failover: suppress via change calendar lookup.\n",
+  "grandmaExplanation": "Two firewalls share the job so that if one fails the other takes over. We watch the messages that say the spare just became the main unit, or that the private link between them is broken, because that is when a second failure would take the network down.",
+  "prerequisiteUseCases": [
+    "UC-10.11.94"
+  ],
+  "subcategory": "10.11",
+  "wave": "crawl"
+}

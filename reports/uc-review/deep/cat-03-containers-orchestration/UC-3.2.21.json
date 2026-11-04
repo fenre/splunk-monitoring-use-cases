@@ -1,0 +1,160 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "652ca365a42b38064a4d6e5f6a7e2592013a172207e879ef938bf5dd7e59af59",
+  "file": "content/cat-03-containers-orchestration/UC-3.2.21.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://raw.githubusercontent.com/kubernetes/kubernetes/master/staging/src/k8s.io/apiserver/pkg/admission/plugin/webhook/validating/dispatcher.go",
+      "explanation": "In kube-apiserver a webhook call failure, including a timeout, is recorded with error_type=calling_webhook_error (only when failurePolicy is Fail); apiserver_internal_error is reserved for other internal errors. The UC's 'apiserver gave up waiting' signal therefore points at the wrong label value.",
+      "field": "detailedImplementation",
+      "quote": "apiserver_admission_webhook_rejection_count with error_type apiserver_internal_error indicates the apiserver gave up waiting, which is distinct from policy denial rejections",
+      "severity": "blocker",
+      "suggested_fix": "Describe timeouts as error_type=\"calling_webhook_error\" on apiserver_admission_webhook_rejection_count (fail-closed hooks), and apiserver_admission_webhook_fail_open_count for failurePolicy=Ignore hooks; keep apiserver_internal_error only as a separate internal-fault signal. Apply the same correction in dataSources."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/data-management/common-information-model/6.4/data-models/application-state-deprecated",
+      "explanation": "Application State is deprecated since CIM 4.12.0 and models host process/service/port inventory; it has no app, info or state fields and nothing in kube-apiserver webhook histograms maps to it or to Performance. The implementation and dataModelAcceleration text ('accelerate CIM Application_State and Performance for cluster entities') repeats the same misfit.",
+      "field": "cimModels",
+      "quote": "\"cimModels\": [\"Performance\", \"Application_State\"]",
+      "severity": "blocker",
+      "suggested_fix": "Drop the CIM models (the detection is raw Prometheus metrics with no CIM mapping) or state plainly that no CIM datamodel applies; remove the acceleration instructions from implementation and dataModelAcceleration."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "description states a 'greater than zero' paging rule and an Application_State source, but the SPL reads raw Prometheus metrics and tiers severity on p99_ms versus the per-hook budget, frac_wall_pct (20/35/45%), shed_rpm (2/5/20) and internal_rej >= 3.",
+      "field": "cross_field",
+      "quote": "from datamodel `Application_State`. Rolls up `calls_5m`, `cum_at_le`, `p50_le` by `cluster`, `hook_name`, `hook_type`, `op` across `5m` and pages when `wh_cnt` > 0, `histo_total` > 0, `step_cnt` > 0, or `hook_avg_ms` > 0",
+      "severity": "major",
+      "suggested_fix": "Describe the real logic: per cluster, webhook, type and operation in 5-minute windows, flag hooks whose P99 approaches or exceeds the p99_budget_ms from k8s_webhook_latency_budget.csv, whose share of apiserver request time exceeds 20/35/45%, or that coincide with 429/504 shedding."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "explanation": "dataSources (and app, plus the trailing detailedImplementation Step 1 'Enable the modular input ... poll interval 300–900 seconds') describe a forwarder modular input, while the rest of the UC and the Kubernetes guide describe the Splunk OTel Collector prometheus receiver sending to HEC at 15–60 s scrape intervals.",
+      "field": "cross_field",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+      "severity": "major",
+      "suggested_fix": "State a single collection path: Splunk OpenTelemetry Collector for Kubernetes prometheus receiver scraping kube-apiserver /metrics, exported over HEC to k8s_metrics. Remove the Universal Forwarder and modular-input wording."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "After the UC-specific Steps 1-5 and closing checklist, a second generic Step 1-5 block is appended that contradicts them (earliest=-24h@h vs -30m@m, 300–900 s polling vs 15–60 s scrapes, comparing counts to a 'vendor admin UI inventory', checking HTTP 401/429 'from the vendor endpoint').",
+      "field": "detailedImplementation",
+      "quote": "Step 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages.",
+      "severity": "major",
+      "suggested_fix": "Delete the trailing generic Step 1–5 block so only the webhook-specific procedure remains."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The entries are templated and name no real cause of a slow-webhook alert; the genuine benign causes are already listed in detailedImplementation (policy-engine cold cache after upgrade, GitOps apply storms, managed control-plane maintenance windows).",
+      "field": "knownFalsePositives",
+      "quote": "Batch `sum` on `prometheus:scrape:metrics`** — Scheduled automation elevates `hook_name` without crossing `wh_cnt` > 0",
+      "severity": "major",
+      "suggested_fix": "Replace with concrete causes: Kyverno/Gatekeeper cache warm-up for one or two windows after an upgrade, GitOps or Helm mass-apply storms that multiply admission calls, provider control-plane maintenance, and deliberate load tests; say how to recognise each (change record, single-bucket spike, apply-controller user agent)."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The SPL fails at parse time (non-streaming commands inside multisearch) and joins on CIM fields that do not exist, so it cannot have been run end to end; the reviewer field is a generic repository handle, not an SME.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft or community until the search has been executed against real kube-apiserver metrics and signed off by a named reviewer."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://raw.githubusercontent.com/kubernetes/kubernetes/master/staging/src/k8s.io/apiserver/pkg/admission/plugin/webhook/validating/dispatcher.go",
+      "explanation": "kube-apiserver sets the type label to \"admit\" for mutating webhooks and \"validating\" for validating webhooks; there is no \"mutating\" value. The same text calls 429 and 504 'verbs' when they are HTTP codes.",
+      "field": "dataSources",
+      "quote": "apiserver_admission_webhook_request_total (operation, name, type mutating or validating)",
+      "severity": "minor",
+      "suggested_fix": "Write \"type (admit for mutating webhooks, validating for validating webhooks)\" and \"filtered to code 429 and 504\"."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The SPL closing table projects 18 columns (cluster through cim_app_state); the closing checklist repeats 'sixteen'.",
+      "field": "detailedImplementation",
+      "quote": "The closing table lists sixteen analyst columns.",
+      "severity": "minor",
+      "suggested_fix": "Say eighteen columns, or drop the column count."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "explanation": "The Splunk OTel Collector for Kubernetes is a Helm chart (Splunkbase 6790 per the guide), not a Splunk add-on; the linked 'Add-on for Kubernetes' page could not be confirmed and appears to document a different product, if it exists.",
+      "field": "app",
+      "quote": "Splunk OpenTelemetry Collector for Kubernetes ([Splunk Add-on for Kubernetes documentation](https://docs.splunk.com/Documentation/AddOns/released/Kubernetes/About))",
+      "severity": "needs_verification",
+      "suggested_fix": "Check that the docs.splunk.com URL resolves; if not, link the splunk-otel-collector-chart GitHub repo or Splunkbase 6790 and drop the add-on label (also in references)."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "kube-state-metrics does not expose apiserver admission metrics, and the sig-auth folder and controller-runtime manager.go links are not about the signals used here.",
+      "field": "references",
+      "quote": "kube-state-metrics — README",
+      "severity": "minor",
+      "suggested_fix": "Replace with the kube-apiserver admission metrics source or metrics reference entries and the ValidatingWebhookConfiguration timeoutSeconds/failurePolicy docs."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/search-commands/multisearch",
+      "field": "spl",
+      "issue": "multisearch only accepts purely streaming subsearches, but every arm contains stats (and the histogram arm also sort 0 and eventstats). Splunk fails with 'Multisearch subsearches may only contain purely streaming operations'. Restructure: one base search with the metric-name filter, then a single stats, or use append.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://prometheus.io/docs/concepts/metric_types/#counter",
+      "field": "spl",
+      "issue": "_total, _sum, _count and _bucket series are cumulative Prometheus counters, yet the SPL takes sum(mv) or max(mv) of raw samples per 5-minute bucket. calls_5m and shed_rpm become sums of counter readings (not per-window or per-minute counts), hook_avg_ms and frac_wall_pct become lifetime-since-restart ratios, and the histogram quantiles describe the whole process lifetime. Per-series deltas or rates (streamstats/delta by series, with reset handling) are needed before aggregating.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://raw.githubusercontent.com/kubernetes/kubernetes/master/staging/src/k8s.io/apiserver/pkg/admission/metrics/metrics.go",
+      "field": "spl",
+      "issue": "The internal_rej arm keeps only error_type apiserver_internal_error. Webhook timeouts and call failures are labelled calling_webhook_error, so the 'apiserver gave up waiting' critical tier (internal_rej>=3) will not fire on timeouts.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/data-management/common-information-model/6.4/data-models/application-state-deprecated",
+      "field": "cimSpl",
+      "issue": "The cimSpl and the SPL tstats join query Application_State.app/.info/.state with nodename=Application_State. The deprecated Application State model's root dataset is All_Application_State and has no app, info or state fields, so cim_app_state is always null. like() inside a tstats WHERE clause may also be rejected.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "field": "spl",
+      "issue": "The SPL uses an event search (search index=k8s_metrics ... __name__) while the Kubernetes guide queries k8s_metrics with mstats. If the splunk_hec exporter writes these Prometheus series to a metrics index, the event search returns nothing. Confirm the index type and the metric-name field before trusting the search.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0041-UC-3.2.21",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The detection idea (webhook latency share of apiserver wall time, plus 429/504 shedding) is well motivated, but the SPL cannot run as written (non-streaming commands inside multisearch), treats cumulative Prometheus counters as per-window values, misreads the webhook rejection error_type, and leans on a deprecated CIM model whose fields it invents. The prose also carries a second, generic Step 1-5 block that contradicts the first.",
+  "tier": "deep",
+  "uc_id": "UC-3.2.21",
+  "verdict": "incorrect"
+}

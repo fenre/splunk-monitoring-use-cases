@@ -40,9 +40,9 @@ Applies to entities operating Critical National Infrastructure (CNI) OT in the K
 ## 3. Catalogue coverage at a glance
 
 - **Clauses tracked**: 28
-- **Clauses covered by at least one UC**: 28 / 28 (100.0%)
-- **Priority-weighted coverage**: 100.0%
-- **Contributing UCs**: 28
+- **Clauses covered by at least one UC**: 27 / 28 (96.4%)
+- **Priority-weighted coverage**: 96.2%
+- **Contributing UCs**: 27
 
 Coverage methodology is documented in [`docs/coverage-methodology.md`](../coverage-methodology.md). Priority weights come from `data/regulations.json` commonClauses entries (see [`data/regulations.json`](../../data/regulations.json) priorityWeightRubric).
 
@@ -69,7 +69,7 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 | [`OTCC-2-9-1-1`](https://nca.gov.sa/en/regulatory-documents/controls-list/3#OTCC-2-9-1-1) | OT backup integrity and recovery testing | 1.0 | `full` | [UC-22.51.22](#uc-22-51-22) |
 | [`OTCC-2-10-1-1`](https://nca.gov.sa/en/regulatory-documents/controls-list/3#OTCC-2-10-1-1) | OT vulnerability assessment and management | 1.0 | `partial` | [UC-22.51.7](#uc-22-51-7) |
 | [`OTCC-2-10-2-1`](https://nca.gov.sa/en/regulatory-documents/controls-list/3#OTCC-2-10-2-1) | OT patch management with safety validation | 1.0 | `full` | [UC-22.51.8](#uc-22-51-8) |
-| [`OTCC-2-12-1-1`](https://nca.gov.sa/en/regulatory-documents/controls-list/3#OTCC-2-12-1-1) | OT event logging completeness and retention | 1.0 | `full` | [UC-22.51.13](#uc-22-51-13) |
+| [`OTCC-2-12-1-1`](https://nca.gov.sa/en/regulatory-documents/controls-list/3#OTCC-2-12-1-1) | OT event logging completeness and retention | 1.0 | `—` | _not yet covered_ |
 | [`OTCC-2-12-2-1`](https://nca.gov.sa/en/regulatory-documents/controls-list/3#OTCC-2-12-2-1) | OT industrial protocol monitoring | 1.0 | `full` | [UC-22.51.14](#uc-22-51-14) |
 | [`OTCC-2-12-3-1`](https://nca.gov.sa/en/regulatory-documents/controls-list/3#OTCC-2-12-3-1) | OT-tier phishing and email-borne threat detection | 0.7 | `partial` | [UC-22.51.15](#uc-22-51-15) |
 | [`OTCC-2-13-1-1`](https://nca.gov.sa/en/regulatory-documents/controls-list/3#OTCC-2-13-1-1) | OT cybersecurity incident detection and classification | 1.0 | `full` | [UC-22.51.16](#uc-22-51-16) |
@@ -107,12 +107,6 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Owner: `Head of OT Security`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.51.12.json`](../../content/cat-22-regulatory-compliance/UC-22.51.12.json)
-<a id='uc-22-51-13'></a>
-- **UC-22.51.13** — OT Event Logging Completeness, Continuity, and Retention
-  - Control family: `log-source-completeness`
-  - Owner: `Head of OT Security`
-  - Evidence fields declared in sidecar: 1
-  - Source: [`content/cat-22-regulatory-compliance/UC-22.51.13.json`](../../content/cat-22-regulatory-compliance/UC-22.51.13.json)
 <a id='uc-22-51-14'></a>
 - **UC-22.51.14** — Industrial Protocol Monitoring: Unauthorised Function Codes and Anomalous Operations
   - Control family: `regulation-specific`
@@ -348,7 +342,11 @@ OTCC compliance is mandatory under the NCA's enabling statutes. Non-compliance c
 
 ## 11. Pack gaps and remediation backlog
 
-All clauses tracked in `data/regulations.json` for this regulation version are covered by at least one UC. **100 % common-clause coverage**. Remaining work is assurance-upgrade (for example, moving `contributing` entries to `partial` or `full` via explicit control tests) rather than new clause authoring.
+Clauses tracked in `data/regulations.json` that are **not yet covered** by any UC in this catalogue are listed below. These are the backlog items for the next release. Priority order follows priorityWeight.
+
+| Clause | Topic | Priority |
+|---|---|---|
+| `OTCC-2-12-1-1` | OT event logging completeness and retention | 1.0 |
 
 ## 12. Questions an auditor should ask
 
@@ -399,7 +397,7 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 **Generation metadata**
 
 ```
-catalogue_version: 8.26.0
+catalogue_version: 8.28.0
 generator_script:  scripts/generate_evidence_packs.py
 inputs_sha256:     814d8942aebac696b8a91a00bbaff8e9c140b5479dcca51606fbeb99bf25f762
 ```

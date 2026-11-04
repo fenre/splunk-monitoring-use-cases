@@ -1,0 +1,84 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.3.68",
+  "title": "Cisco Secure Access DNS Queries to Rare Domains (CIM Network Resolution)",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Anomaly"
+  ],
+  "splunkPillar": "Security",
+  "exclusions": "Only covers DNS that goes through Secure Access or Umbrella. Devices using another resolver, or DNS over HTTPS to a third party, are not seen unless that resolver also feeds Network_Resolution.",
+  "evidence": "Daily report export of rare domains with the analyst's verdict per domain, and the lookup of reviewed domains with dates.",
+  "controlTest": {
+    "positiveScenario": "From one test device behind Secure Access, look up a test domain you own 25 times in an hour. The next day's run returns a row for that domain with `src_count` of 1 and `count` of at least 25, in both the raw and the tstats variant.",
+    "negativeScenario": "Look up a common domain (for example your company's public website) from the same device. Many devices query it, so `src_count` is above 2 and it is not returned."
+  },
+  "dataSources": "`index=sse sourcetype=cisco:cloud_security:dns` from the Secure Access or Umbrella S3 log bucket, read by the Cisco Secure Access Add-on (7569), which tags DNS events for the CIM Network_Resolution data model with `query`, `query_type`, `record_type`, `reply_code`, and `src`.",
+  "app": "Cisco Secure Access Add-on for Splunk ([Splunkbase 7569](https://splunkbase.splunk.com/app/7569)), which reads Cisco Secure Access and Cisco Umbrella logs from the S3 log bucket and maps the web proxy log to the CIM Web data model. The companion Cisco Secure Access App (Splunkbase 5558) adds dashboards.",
+  "spl": "index=sse sourcetype=\"cisco:cloud_security:dns\" earliest=-1d\n| eval query=lower(trim(query, \".\"))\n| stats dc(src) as src_count values(src) as src values(category) as categories values(action) as actions count by query\n| where src_count <= 2 AND count >= 20\n| sort - count",
+  "description": "Finds domains that only one or two source devices queried in the last day but queried at least 20 times. A domain few devices know about but one device keeps asking for is a common sign of malware calling home, or of DNS used to move data out. The accelerated variant runs the same test over the CIM Network_Resolution data model.",
+  "value": "Secure Access already blocks known-bad domains. This search finds the ones that are not known yet: rare, repeated lookups from a single device. Running it over the CIM data model keeps it fast across all DNS sources and lets the same search cover other resolvers that feed Network_Resolution.",
+  "implementation": "Collect the Secure Access DNS log with the 7569 add-on into `index=sse`, add `sse` to the `cim_Network_Resolution_indexes` macro, and accelerate Network_Resolution. Schedule daily, review the rows, and add confirmed-good domains to a lookup.",
+  "visualization": "Table: query, count, src_count, src, categories, actions. Supporting panel: count of rare-domain rows per day over 30 days (line chart).",
+  "cimModels": [
+    "Network_Resolution"
+  ],
+  "cimSpl": "| tstats summariesonly=true count dc(DNS.src) as src_count values(DNS.src) as src values(DNS.reply_code) as reply_codes from datamodel=Network_Resolution.DNS where index=sse by DNS.query\n| rename DNS.* as *\n| eval query=lower(trim(query, \".\"))\n| where src_count <= 2 AND count >= 20\n| sort - count",
+  "schema": "OCSF: dns_activity",
+  "dataModelAcceleration": "Network_Resolution (accelerated over index=sse, summary range at least 1 day)",
+  "references": [
+    {
+      "title": "Cisco Secure Access Add-on for Splunk (Splunkbase 7569)",
+      "url": "https://splunkbase.splunk.com/app/7569",
+      "retrieved": "2026-11-02"
+    },
+    {
+      "title": "Cisco Secure Access: Log Formats and Versioning",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/secure-access/secure-access-help/CiscoSecureAccessHelp/logging-intro/log_formats_and_versioning.html",
+      "retrieved": "2026-11-02"
+    },
+    {
+      "title": "Splunk Security Content data source: Cisco Secure Access DNS",
+      "url": "https://github.com/splunk/security_content/blob/develop/data_sources/cisco_secure_access_dns.yml",
+      "retrieved": "2026-11-02"
+    },
+    {
+      "title": "Splunk CIM: Network Resolution (DNS) data model",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/NetworkResolutionDNS",
+      "retrieved": "2026-11-02"
+    }
+  ],
+  "knownFalsePositives": "1. **Software update and telemetry domains** — a single application on one server can look up a vendor domain many times. These are usually stable from day to day; add them to an allow-list after review.\n\n2. **Internal or partner domains** — split-horizon names that only a few servers use.\n\n3. **CDN and randomised subdomains** — content delivery networks use per-session hostnames. Group by registered domain if these dominate.\n\n**Suppression:** a lookup of reviewed domains with an owner, applied after `stats`.",
+  "mitreAttack": [
+    "T1071.004",
+    "T1568"
+  ],
+  "detectionType": "Hunting",
+  "securityDomain": "network",
+  "requiredFields": [
+    "query",
+    "src",
+    "category",
+    "action",
+    "reply_code"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_umbrella"
+  ],
+  "capabilities": [
+    "secure_access.dns_security"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Cisco Secure Access Add-on for Splunk (Splunkbase 7569) on the search heads and on the heavy forwarder or Inputs Data Manager that reads the S3 bucket.\n• Log export to Amazon S3 enabled in the Secure Access or Umbrella dashboard (Admin > Log Management), either a Cisco-managed bucket or your own, with the access key and secret for Splunk.\n• An index for Secure Access and Umbrella data (this page uses `index=sse`) and a role with `srchIndexesAllowed` on it for the network security team.\n• Splunk Common Information Model (Splunkbase 1621) with Network_Resolution accelerated and `sse` added to the `cim_Network_Resolution_indexes` macro.\n\nStep 1 — Configure data collection\n• In the Cisco Secure Access Add-on (Splunkbase 7569) create an S3 modular input for the **DNS** log folder with the bucket name, region, access key, and secret, and set the index to `sse`. The add-on writes `sourcetype=cisco:cloud_security:dns`.\n• Logs reach S3 in batches, so events usually arrive in Splunk 10 to 15 minutes after the activity.\n• Check the CIM mapping: run `| tstats count from datamodel=Network_Resolution.DNS where index=sse by sourcetype` over 1 day and confirm `cisco:cloud_security:dns` appears.\n\nStep 2 — Create the search and alert\n```spl\nindex=sse sourcetype=\"cisco:cloud_security:dns\" earliest=-1d\n| eval query=lower(trim(query, \".\"))\n| stats dc(src) as src_count values(src) as src values(category) as categories values(action) as actions count by query\n| where src_count <= 2 AND count >= 20\n| sort - count\n```\n\nUnderstanding this SPL\n• `trim(query, \".\")` removes the trailing dot Secure Access writes on domain names, so `example.com.` and `example.com` count as one.\n• `dc(src)` counts distinct source devices per domain; `count` is the number of lookups.\n• The thresholds (at most 2 devices, at least 20 lookups per day) are a starting point; raise `count` in very large estates.\n\nAccelerated variant over the CIM data model:\n```spl\n| tstats summariesonly=true count dc(DNS.src) as src_count values(DNS.src) as src values(DNS.reply_code) as reply_codes from datamodel=Network_Resolution.DNS where index=sse by DNS.query\n| rename DNS.* as *\n| eval query=lower(trim(query, \".\"))\n| where src_count <= 2 AND count >= 20\n| sort - count\n```\n• `summariesonly=true` reads only the accelerated summaries, so the search runs in seconds over a day of DNS.\n• Network_Resolution has no allow/block field, so the CIM variant does not show `actions`; use the raw search when you need them.\n\nStep 3 — Validate\n• Compare with the Secure Access dashboard (or the Umbrella dashboard) under Reporting > Activity Search, filtered to DNS and one listed domain: the lookup count and identities should match within the S3 delay.\n• Run the raw and the tstats variant over the same day; the domain lists should match once acceleration has caught up.\n• Run `index=sse sourcetype=\"cisco:cloud_security:dns\" | timechart span=1h count` over 7 days; gaps longer than an hour point to S3 input failures.\n\nStep 4 — Operationalize\n• Schedule daily at 02:00 over the previous day and send the report to the SOC.\n• For each domain with no clear owner, check its registration age and hosting, and block it in Secure Access if it is not needed.\n• Review the allow-list quarterly.\n\nStep 5 — Troubleshooting\n• No proxy events and S3 access errors (403 AccessDenied) in the add-on log: the access key cannot read the bucket or the region is wrong.\n• Events arrive hours late: the input polling interval is long, or the bucket path prefix is wrong and the input scans the whole bucket.\n• The tstats variant returns nothing while the raw search works: Network_Resolution is not accelerated over `index=sse`, or the `cim_Network_Resolution_indexes` macro does not include it.\n• Missing values in `src`: the event came from an identity without an internal IP (for example a roaming client behind NAT). Use `identities` for those.\n",
+  "grandmaExplanation": "We look for website names that almost nobody in the company asks for, but one computer keeps asking for again and again, because hidden bad software often does that.",
+  "prerequisiteUseCases": [],
+  "wave": "walk"
+}

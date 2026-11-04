@@ -1,0 +1,126 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "d058e5d36287df8c5edf95e64e4c8c7da5a3afd3c1ea2b07dfcfc7856ffa8fd5",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.3.6.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase 4022 is 'Technical Addon for the Metricator application for Nmon (HEC)' (TA-metricator-hec-for-nmon), not a Cisco ACI add-on. The same wrong ID is repeated in dataSources, implementation, detailedImplementation and references.",
+      "field": "app",
+      "quote": "**Splunk_TA_cisco-aci** ([Splunkbase **4022**](https://splunkbase.splunk.com/app/4022), package **`Splunk_TA_cisco-aci`**)",
+      "severity": "blocker",
+      "suggested_fix": "Name the real ACI collector: Cisco DC Networking (Splunkbase 7777, cisco_dc_networking_app_for_splunk), which collects ACI via API, or the deprecated Cisco ACI Add-on (Splunkbase 1897, TA_cisco-ACI). Remove every '4022' reference."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://www.cisco.com/c/en/us/support/docs/software/aci-data-center/220573-address-aci-fault-f1394-interface-physi.html",
+      "explanation": "F1394 is ethpm-if-port-down-fabric (a leaf-to-spine fabric port is physically down). F2301 is fltAnalyticsRsProfAttResolveFail (an analytics relation that does not resolve). Neither one signals contract deny pressure or shadow-EPG deployment failure. The same mislabelling appears in dataSources and in the 'Understanding this SPL' text.",
+      "field": "detailedImplementation",
+      "quote": "Poll `faultInst` filtered to at least **F1394** (policy enforcement pressure) and **F2301** (binding or deployment failures)",
+      "severity": "blocker",
+      "suggested_fix": "Replace these with fault codes that are actually tied to contract or zoning-rule deployment (look them up in the APIC System Messages Reference), or drop the fault lane. If F1394 is kept, describe it as fabric-link down context."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/agccie/aci-contract-parser/blob/master/contract_parser.py",
+      "explanation": "actrlRuleHit5min is a leaf-local stats child. Its DN looks like sys/actrl/scope-<id>/rule-<id>-s-<pcTag>-d-<pcTag>-f-<flt>/CDactrlRuleHit5min, and its attributes are ingrPktsCum/egrPktsCum/ingrPktsLast/egrPktsLast. There is no tn-/brc-/subj- segment and no actEntry/sClass/dClass attribute. sPcTag/dPcTag/fltId/action belong to the parent actrlRule.",
+      "field": "dataSources",
+      "quote": "REST-polled **`actrlRuleHit5min`** JSON (**ingrPkts**, **egrPkts**, **actEntry**, **sClass**, **dClass**, **fltId**, **scopeId**, **dn** paths with **tn-**/**brc-**/**subj-** segments)",
+      "severity": "blocker",
+      "suggested_fix": "Document the real attributes. Explain that you get a contract name by joining actrlRule (sPcTag, dPcTag, fltId, scopeId) to vzBrCP/fvEPg through pcTag and VRF scope lookups, not by parsing the rule DN."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://www.cisco.com/c/en/us/td/docs/dcn/aci/apic/6x/security-configuration/cisco-apic-security-configuration-guide-61x/security-policies-61x.html",
+      "explanation": "ACL log MOs use srcIp, dstIp, protocol, srcPort, dstPort, srcPcTag, dstPcTag and srcEpgName/dstEpgName. Their DNs are topology/pod-N/node-N/ndbgs/acllog/tn-<tenant>/ctx-<vrf>/..., not actrlRule DNs. There is also no action attribute, because the class name itself encodes drop or permit.",
+      "field": "dataSources",
+      "quote": "**`acllogDropL3Pkt`**/**`acllogPermitL3Pkt`** five-tuples (**sIp**, **dIp**, **prot**, **sProt**, **dProt**) tied to **actrlRule** DNs",
+      "severity": "blocker",
+      "suggested_fix": "Use the documented attribute names, and state that the collector must stamp action from the class name (acllogDrop* vs acllogPermit*). Note that permit logging needs EX/FX or later leaves."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats",
+      "explanation": "The SPL groups stats by intersite_hint and then tests values(intersite_hint) for 'orch_meta'. So risk_shadow_gap can only fire on rows made up entirely of cisco:aci:multisite events. Deny counters and ACL drops land in different rows. The search never correlates an NDO deploy with denies, so the prose describes a correlation the search does not perform.",
+      "field": "detailedImplementation",
+      "quote": "**`risk_shadow_gap`** surfaces successful **NDO** deploy keywords coinciding with rising denies",
+      "severity": "blocker",
+      "suggested_fix": "Describe what the SPL actually computes, or flag to SPL owners that the grouping must drop intersite_hint before the correlation can work."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "Contract rule hit statistics (actrlRuleHit5min) are collected per zoning rule on the leaf. I could not confirm that vzSubj has a statsEnabled attribute or that it gates these counters. The APIC GUI path 'Contracts → {contract} → Subjects → Statistics' is also unverified.",
+      "field": "detailedImplementation",
+      "quote": "Turn on **statsEnabled=true** for stretched **vzSubj** instances",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the APIC MIM for vzSubj attributes and the 6.x GUI navigation, and state the real prerequisite: deny/permit logging is set with the 'log' directive on subject filters."
+    },
+    {
+      "dimension": "specificity",
+      "explanation": "The Multi-Site white paper and REST API guide entries point at generic cisco.com root paths, so a reader cannot follow them.",
+      "field": "references",
+      "quote": "\"url\": \"https://www.cisco.com/c/en/us/solutions/\"",
+      "severity": "major",
+      "suggested_fix": "Link the specific ACI Multi-Site Architecture white paper, the APIC REST API Configuration Guide, and the APIC Security Configuration Guide ACL logging page."
+    },
+    {
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by an agent reviewer while it carries a wrong Splunkbase ID, mislabelled fault codes and invented MO attributes, so there is no evidence of SME sign-off.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until a human SME validates against a live APIC."
+    },
+    {
+      "dimension": "consistency",
+      "explanation": "implementation and detailedImplementation use aci_maint_intersite.csv for suppression, while knownFalsePositives names a different register, so readers are told two different suppression mechanisms.",
+      "field": "cross_field",
+      "quote": "schedule **`aci_uc1836_intersite_contract_deny_core`** every five minutes with **`aci_maint_intersite.csv`** suppression",
+      "severity": "minor",
+      "suggested_fix": "Pick one suppression lookup and use it everywhere."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://github.com/agccie/aci-contract-parser/blob/master/contract_parser.py",
+      "field": "spl",
+      "issue": "tenant_tag/contract_tag/subject_tag are extracted from tn-/brc-/subj- DN segments. actrlRuleHit5min DNs (sys/actrl/scope-.../rule-...) and acllog DNs (no brc-/subj-) do not contain them. contract_path then evaluates to null, and stats BY contract_path discards those events, so the stats and flow lanes cannot produce rows. In addition, actEntry/ingrPkts do not exist on actrlRuleHit5min (they are ingrPktsCum etc.), so stats_penalty is always 0.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://www.cisco.com/c/en/us/support/docs/software/aci-data-center/220573-address-aci-fault-f1394-interface-physi.html",
+      "field": "spl",
+      "issue": "Hard-coded fault codes F1394 (fabric port down) and F2301 (analytics relation resolve failure) are unrelated to contract enforcement. Any F1394 fabric-link fault would set risk_fault_pair=1 and alert, provided its row survives the null contract_path grouping.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats",
+      "field": "spl",
+      "issue": "Because stats is grouped BY intersite_hint, values(intersite_hint) is always a single value equal to the group key. risk_shadow_gap therefore only evaluates multisite-only rows and never correlates NDO deploys with denies. The acl_log lane filters on an action field that ACI acllog MOs do not carry.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0057-UC-18.3.6",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "An ambitious multi-site contract-deny correlation built on wrong product facts. Splunkbase 4022 is the wrong add-on, F1394 and F2301 are not contract or shadow-EPG faults, and the actrlRuleHit5min and acllog field names and DN shapes are invented. As a result the tenant/contract DN parsing the SPL relies on cannot work.",
+  "tier": "deep",
+  "uc_id": "UC-18.3.6",
+  "verdict": "incorrect"
+}

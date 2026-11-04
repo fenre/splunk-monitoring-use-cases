@@ -1,0 +1,202 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "7125e61b1c2fc6b15c42969bc235c387fdebcf5d07bc4be705c6d134ef86dcac",
+  "file": "content/cat-03-containers-orchestration/UC-3.2.33.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_url": "https://kubernetes.io/docs/concepts/scheduling-eviction/api-eviction/",
+      "explanation": "Kubernetes documents that an allowed eviction returns 200 OK, not 201. A 429 means a PodDisruptionBudget blocked the eviction or the API server is rate limiting; resource quotas are not listed as a cause. A misconfiguration such as multiple PDBs selecting the same pod returns 500. Responders trained on this text will misread audit responseStatus.code values.",
+      "field": "detailedImplementation",
+      "quote": "teach responders the difference between Eviction API HTTP 201 successes, 429 Too Many Requests when PDBs or quotas block evictions",
+      "severity": "blocker",
+      "suggested_fix": "Teach responders that 200 OK means the eviction was allowed, 429 Too Many Requests means a PodDisruptionBudget blocked it (or the API server rate-limited the request), 500 Internal Server Error points to a misconfiguration such as overlapping PDBs, and 404 means the pod was already gone."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "explanation": "The stanza [uc_3_2_33_node_drain_audit_impact] sets its own search to `| savedsearch uc_3_2_33_node_drain_audit_impact`, so the saved search references itself and never runs the detection SPL. The same sketch sets dispatch.latest_time = now, while the narrative and the SPL use latest=@h.",
+      "field": "detailedImplementation",
+      "quote": "search = | savedsearch uc_3_2_33_node_drain_audit_impact | where severity IN",
+      "severity": "major",
+      "suggested_fix": "Put the full SPL in the search key, or save the base search under a different name and point a separate alert stanza at it. Align dispatch.latest_time with the SPL's @h snap."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "Eviction-arm rows have node_name=\"\", so the SPL gives them node_key=cluster_aggregate. The lookup join is keyed on cluster and node_key and so never matches those rows. As a result, every eviction during an approved, ticketed drain still has ticket_len=0 and an apiserver lane, and it lands in high_unplanned_drain_or_eviction. The negative test cannot pass as written.",
+      "field": "detailedImplementation",
+      "quote": "confirm severity lands in medium_ticketed_maintenance or informational wrappers rather than high_unplanned",
+      "severity": "major",
+      "suggested_fix": "Either fix the correlation, for example by deriving the node for each evicted pod from kube_pod_info or pod spec.nodeName before the lookup join, or state in the test that eviction rows stay unticketed until node attribution exists."
+    },
+    {
+      "confidence": 0.95,
+      "dimension": "consistency",
+      "explanation": "The closing table command projects eighteen fields: drain_started through severity.",
+      "field": "detailedImplementation",
+      "quote": "The closing table lists sixteen analyst columns",
+      "severity": "minor",
+      "suggested_fix": "Change the count to eighteen, or drop the count."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "clarity",
+      "explanation": "The closing code fence is glued to the last SPL token. Copying the block can carry the backticks into the search bar, and some renderers will not close the fence.",
+      "field": "detailedImplementation",
+      "quote": "lane_volume_hint severity```",
+      "severity": "minor",
+      "suggested_fix": "Put the closing ``` on its own line."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "The stanza timestamp parser in the OpenTelemetry filelog receiver defaults to strptime layouts. A Go reference-time layout like this one is only honoured with layout_type: gotime, so timestamp parsing fails as written.",
+      "field": "detailedImplementation",
+      "quote": "layout: '2006-01-02T15:04:05.999999999Z07:00'",
+      "severity": "minor",
+      "suggested_fix": "Add `layout_type: gotime` under timestamp, or use a strptime layout such as '%Y-%m-%dT%H:%M:%S.%fZ'."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "No macro exists. The SPL hard-codes the rule inline as window_end_epoch=0. It also treats any row with end=0 as standing approval, even when start is non-zero.",
+      "field": "detailedImplementation",
+      "quote": "Zero epochs for start and end mean your macro interprets standing approval",
+      "severity": "minor",
+      "suggested_fix": "Say that the SPL treats window_end_epoch=0 as standing approval, and recommend bounded windows."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "NodeNotSchedulable is a kubelet node event reason. NodeDrain does not appear to be an upstream Kubernetes event reason, and kubectl drain itself emits no events. The match is harmless but suggests coverage that may not exist.",
+      "field": "detailedImplementation",
+      "quote": "rs IN (\"NodeDrain\", \"NodeNotSchedulable\")",
+      "severity": "needs_verification",
+      "suggested_fix": "Name the operators that emit drain events (for example kured, Karpenter, or cloud node-pool upgraders) and their real reason strings, or drop NodeDrain from the narrative."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "The resource list [\"nodes\"] does not cover subresources, so nodes/status heartbeats fall to later rules rather than being logged here. That leaves cordon traffic in scope, but the Step 1 licensing claim ignores how many node patches come from kubelets. Separately, the SPL's URI match does catch status patches if they are logged under any rule.",
+      "field": "detailedImplementation",
+      "quote": "verbs: [\"patch\", \"update\"]\n    resources:\n      - group: \"\"\n        resources: [\"nodes\"]",
+      "severity": "minor",
+      "suggested_fix": "Add an explicit rule that logs nodes/status at None or Metadata, or exclude system:node:* users, and say so."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/common-information-model/8.5/data-models/application-state-deprecated",
+      "explanation": "Splunk deprecated the Application_State CIM data model in CIM 4.12.0. It also does not model Kubernetes node drain state. The guide maps kube:apiserver:audit to Change, which fits this UC.",
+      "field": "cimModels",
+      "quote": "Application_State",
+      "severity": "major",
+      "suggested_fix": "Keep Change and remove Application_State."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "A UPS SNMP model, and the snmp equipment entry, have nothing to do with Kubernetes drain auditing.",
+      "field": "equipmentModels",
+      "quote": "snmp_ups",
+      "severity": "minor",
+      "suggested_fix": "Remove snmp_ups from equipmentModels and snmp from equipment."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "kured moved from Weaveworks to the kubereboot organisation and is now a CNCF project, so the weaveworks URL is legacy.",
+      "field": "references",
+      "quote": "https://github.com/weaveworks/kured",
+      "severity": "minor",
+      "suggested_fix": "Use https://github.com/kubereboot/kured or https://kured.dev/docs/."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The reference is titled 'Surge upgrades for node pools' but points to the generic GKE concepts index.",
+      "field": "references",
+      "quote": "https://cloud.google.com/kubernetes-engine/docs/concepts/",
+      "severity": "minor",
+      "suggested_fix": "Link the GKE node pool upgrade strategies page (https://cloud.google.com/kubernetes-engine/docs/concepts/node-pool-upgrade-strategies)."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "The existence of a 'Splunk Add-on for Kubernetes' doc at this path could not be confirmed. Kubernetes collection is documented under the Splunk OpenTelemetry Collector for Kubernetes and the archived Splunk Connect for Kubernetes.",
+      "field": "references",
+      "quote": "https://docs.splunk.com/Documentation/AddOns/released/Kubernetes/About",
+      "severity": "needs_verification",
+      "suggested_fix": "Replace with the Splunk OpenTelemetry Collector for Kubernetes documentation or the splunk-otel-collector-chart repository."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by a generic reviewer handle, yet it contains a wrong HTTP code, a self-referencing saved search, a column-count mismatch, a deprecated CIM model, irrelevant equipment, and template residue.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft or community until a named reviewer has validated the SPL in a lab cluster."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/search-commands/eval",
+      "field": "spl",
+      "issue": "The kube:events arm evaluates `coalesce(involvedObject.kind, `involvedObject.kind`, kind, \"\")` and `coalesce(involvedObject.name, involvedObject_name, \"\")`. In eval, an unquoted dotted name is parsed as concatenation of the fields involvedObject and kind, not as the field 'involvedObject.kind', so it evaluates to null. Backticks invoke macro expansion, and no involvedObject.kind macro exists, so the search fails with a macro error. Dotted field names need single quotes, for example 'involvedObject.kind'.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The correlation keys cannot link evictions to drained nodes. Eviction rows get node_key=cluster_aggregate and node-patch rows get impact_ns=_clusterwide, then stats groups BY cluster node_key impact_ns. As a result, distinct_evicted_pods on node rows is dc(\"\")=1, the lookup join never tickets eviction rows, and the pending_pod_units join on impact_ns never matches node rows. The same 'unquoted dotted name' issue affects the fallback terms objectRef.resource, user.username and responseStatus.code, but the quoted variants come first in each coalesce.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://kubernetes.io/docs/concepts/architecture/nodes/",
+      "field": "spl",
+      "issue": "The node-patch filter `OR match(uri, \"/api/v1/nodes/\")` accepts every node patch, including kubelet .status heartbeat patches (subresource status, user system:node:*). These have no ticket, carry an apiserver lane, and are classified high_unplanned_drain_or_eviction. There is no objectRef.subresource exclusion.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://raw.githubusercontent.com/kubernetes/kube-state-metrics/main/docs/metrics/workload/pod-metrics.md",
+      "field": "spl",
+      "issue": "pending_pod_units is sum(mv) over every kube_pod_status_phase{phase=\"Pending\"} sample in a 4h window. That metric is a per-pod 0/1 gauge, so the sum scales with scrape count (about 480 samples per pod at a 30s interval). The >20 and >30 thresholds therefore have no stable meaning, and reschedule_pressure_score inherits the inflation.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "in_window compares now() rather than drain_started or drain_ended against the approval window. A drain inside its window becomes unticketed once the window closes, while the 4h lookback still holds the events. Any row with window_end_epoch=0 counts as standing approval, regardless of window_start_epoch.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "Several severity details are off. Case order makes high_pending_after_unticketed_disruption and high_uncordon_outside_window reachable only by kube-event-only rows. The label high_uncordon_outside_window fires when kube_node_unsched_flag>0, which means the node is cordoned, not uncordoned. `where match(severity, \"high_|medium_\")` is always true because the true() fallback is medium_. max_eviction_http>=429 also catches 500 responses. change_plane_events is a single cluster-wide constant joined on a dummy key.",
+      "severity": "minor"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/change",
+      "field": "cimSpl",
+      "issue": "The Change part uses Change.user, Change.object and Change.action with nodename=Change, but the Change data model's root dataset is All_Changes, so these field paths do not resolve. The Application_State part queries a data model that has been deprecated since CIM 4.12.0, and its state and info fields do not exist in that model.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0054-UC-3.2.33",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The goal is a good one: tie node cordon and drain actions in the API audit log to evictions, pending pods, and change tickets. The execution has real faults. The training text gets the Eviction API success code wrong: it is 200, not 201. The savedsearches.conf sketch calls itself recursively. The narrative says sixteen output columns but the table has eighteen. The negative test promises an outcome the SPL cannot produce, because eviction rows never join to the node-keyed lookup. cimModels relies on the deprecated Application_State model. The sidecar is marked verified while carrying template residue and an irrelevant snmp_ups equipment model. In the firewalled SPL, the kube:events arm uses unquoted dotted eval fields and a backticked macro that does not exist. The correlation keys also s…",
+  "tier": "deep",
+  "uc_id": "UC-3.2.33",
+  "verdict": "incorrect"
+}

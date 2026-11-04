@@ -1,0 +1,141 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "143fb5a76e11563fcd6c5d998021e43de6e16313d51f5b7f3804f92666133468",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.3.1.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://learn.microsoft.com/en-us/troubleshoot/windows-server/high-availability/failover-clustering-system-log-events",
+      "explanation": "Microsoft's Failover Clustering event reference gives different meanings: 1554 is SERVICE_NETWORK_CONNECTIVITY_LOST (or SERVICE_RESTORE_INVALIDUSER). 1561 is 'node does not have the latest cluster configuration'. 1562 is a file share witness periodic health check failure. 1566 is RES_NETNAME_TIMEDOUT (network name resource timeout). 1571 is an authorization failure while joining. 1606 is a BitLocker CNO protector check failure. The actual 'quorum lost' event, 1177, is missing, and so is 1573 (witness not accessible when forming the cluster).",
+      "field": "dataSources",
+      "quote": "**1554** quorum arbitration failed, **1561–1562** witness online/offline transitions, **1564** file-share witness share inaccessible, **1566** cloud witness unreachable, **1571** CSV arbitration failure, **1606** quorum vote configuration changed",
+      "severity": "blocker",
+      "suggested_fix": "Rebuild the event table from the Microsoft reference: 1135 (node removed), 1177 (quorum lost), 1562/1563/1564 (file share witness health, online and arbitration failures), 1573 (form failed, witness inaccessible), 1069 for Cloud Witness resource failures, and 1146 (RHS terminated). Drop the mislabelled IDs."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://learn.microsoft.com/en-us/troubleshoot/windows-server/high-availability/failover-clustering-system-log-events",
+      "explanation": "Microsoft documents 1135, 1146, 1177, 1562, 1564 and the other quorum and witness events as System-log events with source FailoverClustering. Collecting only the FailoverClustering/Operational channel, as both the inputs.conf step and the SPL do, misses them.",
+      "field": "dataSources",
+      "quote": "Universal Forwarder WinEventLog inputs from `Microsoft-Windows-FailoverClustering/Operational` (cluster service, witness, quorum arbitration—event IDs include **1135** ...",
+      "severity": "major",
+      "suggested_fix": "Add [WinEventLog://System] (filtered to SourceName=Microsoft-Windows-FailoverClustering) to the inputs and search scope. Keep Operational only for the supplementary events it actually carries."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/WindowsAddOn/latest/User/SourcetypesandCIMdatamodelinfo",
+      "explanation": "Current Splunk_TA_windows releases (6.0+) assign sourcetype WinEventLog (or XmlWinEventLog when renderXml=true) and put the channel in source (source=\"WinEventLog:Microsoft-Windows-FailoverClustering/Operational\"). A sourcetype filter with the channel suffix returns nothing on a default TA install.",
+      "field": "dataSources",
+      "quote": "sourcetype=\"WinEventLog:Microsoft-Windows-FailoverClustering/Operational\"",
+      "severity": "major",
+      "suggested_fix": "Filter on (sourcetype=WinEventLog OR sourcetype=XmlWinEventLog) with source=\"*WinEventLog:System\" or source=\"*FailoverClustering/Operational\", plus SourceName=Microsoft-Windows-FailoverClustering."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "evidence_url": "https://learn.microsoft.com/en-us/powershell/module/failoverclusters/test-cluster",
+      "explanation": "86400 seconds is daily, not weekly, and the implementation field calls it 'nightly'. Running the full Test-Cluster suite daily against a production S2D cluster is also risky: storage validation can take in-use cluster disks and roles offline.",
+      "field": "detailedImplementation",
+      "quote": "interval = 86400 (**weekly Test-Cluster cadence**—full suites often 30–90 minutes; stagger nodes)",
+      "severity": "major",
+      "suggested_fix": "Separate a lightweight daily quorum and witness probe (Get-ClusterQuorum, Get-ClusterNode, Get-ClusterResource on the witness) from an on-demand or change-window Test-Cluster run that excludes storage tests, for example with -Include/-Ignore 'Storage'. State the interval consistently."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://techcommunity.microsoft.com/blog/failoverclustering/tuning-failover-cluster-network-thresholds/371834",
+      "explanation": "By default, Failover Clustering sends heartbeats every 1 second (SameSubnetDelay=1000 ms, CrossSubnetDelay=1000 ms), with thresholds counted in missed heartbeats (SameSubnetThreshold 10–20, CrossSubnetThreshold 20). There is no 5-second cadence.",
+      "field": "detailedImplementation",
+      "quote": "NetFT defaults (~five-second heartbeat cadence with ~ten-second tolerances on healthy fabrics)",
+      "severity": "minor",
+      "suggested_fix": "Say: heartbeats every 1 s by default; nodes are declared down after SameSubnetThreshold/CrossSubnetThreshold missed heartbeats (check with Get-Cluster | fl *Subnet*)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "The SPL fails at parse time because plain search terms are wrapped in macro backticks, and most event IDs are mislabelled, so the UC cannot have been verified.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade to draft until the SPL runs and the event IDs match the Microsoft reference."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "The search is a raw event and scripted-JSON posture search with no Inventory data model fields or tstats. The CIM tag does not describe the detection.",
+      "field": "cimModels",
+      "quote": "\"Inventory\"",
+      "severity": "minor",
+      "suggested_fix": "Remove Inventory, or leave cimModels empty and state why."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "Microsoft 365 plays no part in Azure Stack HCI quorum or witness monitoring.",
+      "field": "equipment",
+      "quote": "\"m365\"",
+      "severity": "minor",
+      "suggested_fix": "Remove m365. Keep windows and azure, or use an Azure Stack HCI / Azure Local slug if one exists."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "clarity",
+      "explanation": "This merges two separate products (Azure Stack Hub and AKS on Azure Stack HCI) into one phrase, which leaves unclear what is excluded.",
+      "field": "exclusions",
+      "quote": "Azure Stack Hub AKS-HCI lifecycle and disconnected stamps",
+      "severity": "minor",
+      "suggested_fix": "List them separately: 'Azure Stack Hub integrated systems; AKS hybrid (AKS on Azure Local) cluster lifecycle; disconnected Azure Local deployments'."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Knowledge/Usesearchmacros",
+      "field": "spl",
+      "issue": "Plain search terms are wrapped in backticks (`index=azure_stack_hci`, `sourcetype=\"...\"`, `earliest=-24h`). Splunk treats backtick-delimited text as a search macro invocation, so the search fails with a macro-not-found error. Remove the backticks.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats",
+      "field": "spl",
+      "issue": "`max(case(scripted_quorum_risk IN (...),1,0))` inside stats is not valid. Stats functions accept an eval expression only when it is wrapped as max(eval(...)), so the search errors.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/MultivalueEvalFunctions",
+      "field": "spl",
+      "issue": "posture uses mvfind(...)>0, but mvfind returns a 0-based index. Because values() sorts lexically, 'quorum_failure' is always at index 0 when present, and a lone 'witness_transport' or 'witness_state' is also at index 0. Real quorum failures and witness flaps therefore fall through to 'informational'. Use isnotnull(mvfind(...)) instead.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://learn.microsoft.com/en-us/troubleshoot/windows-server/high-availability/failover-clustering-system-log-events",
+      "field": "spl",
+      "issue": "The event-ID mapping uses the wrong meanings (1554, 1561, 1566, 1571, 1606), omits 1177 'quorum lost', and searches only the Operational channel, while these events are written to the System log.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "WinEventLog events have no cluster_name field, so cluster_name falls back to ComputerName. Results are therefore per node rather than per cluster, and reporting_nodes is always 1 for event-log rows. A node-to-cluster lookup is needed.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0079-UC-19.3.1",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The quorum and witness goal is right, but most of the Failover Clustering event IDs are mislabelled. The UC also collects the wrong channel: these events live in the System log, not FailoverClustering/Operational, and it omits 1177 'quorum lost'. On top of that, the SPL wraps plain search terms in macro backticks and uses invalid stats syntax, so it cannot run as written.",
+  "tier": "deep",
+  "uc_id": "UC-19.3.1",
+  "verdict": "incorrect"
+}

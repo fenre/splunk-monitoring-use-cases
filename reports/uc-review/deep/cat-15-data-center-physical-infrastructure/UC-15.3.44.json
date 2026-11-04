@@ -1,0 +1,91 @@
+{
+  "confidence": 0.7,
+  "content_sha256": "21b83d957a7f6d74f9336b7174c72365e73c05ca0e6402a73d1450a6af2e7156",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.3.44.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL has no hourly bin or two-period persistence check. It counts matches per host/camera_id/error_code over the whole scheduled window and fires on count > 5. A reader tuning from this text would expect behaviour the search does not have.",
+      "field": "implementation",
+      "quote": "alert when Splunk counts failures/hour stay above five for two rolling hours per camera",
+      "severity": "major",
+      "suggested_fix": "Describe the actual logic (more than 5 matching PTZ error lines per camera and error_code in the search window), or ask the SPL owner to add `bin _time span=1h` plus a two-consecutive-hour check and then keep this sentence."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "In the SPL, preset, Home, timeout and motor are free-text search keywords, not fields. The only fields the search needs are host, camera_id and error_code, and events lacking error_code or camera_id are silently dropped by `stats ... by`. detailedImplementation repeats the same requirement.",
+      "field": "dataSources",
+      "quote": "with Splunk-extracted fields **`preset`**, **`home`**, **`timeout`**, **`motor`**, and **`error_code`** tied to **`camera_id`**",
+      "severity": "major",
+      "suggested_fix": "State that the raw PTZ log lines must contain the keywords (preset, home, timeout, motor, stall, 'PTZ error'), and that camera_id and error_code must be extracted (error_code normalised via lookup) for the event to be counted."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-connect-for-syslog/main/architecture/",
+      "explanation": "SC4S is a containerised syslog-ng service deployed on its own Linux host near the sources, which sends events to Splunk over HEC. It is not an app installed on, or the usual companion of, a heavy forwarder.",
+      "field": "detailedImplementation",
+      "quote": "Splunk Connect for Syslog ([Splunkbase app 4740](https://splunkbase.splunk.com/app/4740)) on a hardened Heavy Forwarder is the usual pattern",
+      "severity": "major",
+      "suggested_fix": "Say: deploy SC4S on a dedicated Linux host in the camera/VMS VLAN, sending to Splunk HEC; alternatively, use a heavy forwarder with a TCP/UDP or TLS syslog input."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "These read like product integration names, but there is no evidence that Axis Companion or Device Manager forwards PTZ homing/preset diagnostics, or that a 'Hanwha diagnostic bridge' exists as a product. Most cameras instead support a remote syslog server directly.",
+      "field": "app",
+      "quote": "Milestone Recording Server bridges, Axis Companion/Device Manager feeds, Hanwha diagnostic bridges, or Hikvision SDK exporters",
+      "severity": "needs_verification",
+      "suggested_fix": "Check each vendor's documentation for which PTZ fault messages are logged and how they are exported (camera remote syslog, VMS event/alarm API). Name only confirmed mechanisms and the actual message text for preset/home failures."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "I could not confirm this page exists; the forwarding/receiving topics live under the Forwarding manual and syslog inputs under Data/Monitornetworkports. The docs site returned HTTP 403 to automated fetches.",
+      "field": "references",
+      "quote": "https://docs.splunk.com/Documentation/Splunk/latest/Data/ForwardingReception",
+      "severity": "needs_verification",
+      "suggested_fix": "Open the URL in a browser; if it 404s, replace it with https://docs.splunk.com/Documentation/Splunk/latest/Data/Monitornetworkports."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "clarity",
+      "explanation": "The sentence is dense and hard to act on: 'bodies' (camera housings) and the claim that Device Pack release notes define PTZ error integers are unclear and unsupported.",
+      "field": "implementation",
+      "quote": "Tier diagnostics verbosity on noisy Axis/Hanwha/Hikvision bodies first; normalize vendor integers into **`error_code`** via transforms lookup tables Milestone administrators align with Device Pack release notes.",
+      "severity": "minor",
+      "suggested_fix": "Split into concrete steps: reduce PTZ log verbosity outside calibration; build an error_code lookup from each vendor's documented PTZ fault codes (cite the source); and apply it via automatic lookup."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "title",
+      "issue": "The title promises 'Auto-Flip Failure' monitoring, but the SPL keyword filter (preset, Home, timeout, motor, stall, 'PTZ error') contains no auto-flip/flip token and nothing else in the UC describes auto-flip events.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "No time binning, so 'count > 5' depends on the schedule window rather than a stated rate. The bare keyword `Home` will match unrelated lines (for example web UI 'home' page requests) in nvr:diagnostic.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0083-UC-15.3.44",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "Exclusions, evidence and visualization are specific to PTZ cameras. However, the implementation's 'two rolling hours' persistence rule and the title's auto-flip failures are not in the SPL, dataSources presents search keywords as extracted fields, and the collection guidance mislocates SC4S on a heavy forwarder.",
+  "tier": "deep",
+  "uc_id": "UC-15.3.44",
+  "verdict": "rewrite"
+}

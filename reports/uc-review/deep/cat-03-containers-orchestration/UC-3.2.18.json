@@ -1,0 +1,164 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "d5c3471e9e52e9a100eb30f6a90398112487a306dde88e4ea02ae95a2b53f704",
+  "file": "content/cat-03-containers-orchestration/UC-3.2.18.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/service/endpoint-metrics.md",
+      "explanation": "kube_endpoint_address_available (and _not_ready) were deprecated in kube-state-metrics 2.x and are absent from 2.14.0 onward; current KSM exposes kube_endpoint_address with a ready label instead. detailedImplementation Step 2 tells readers to 'Confirm the following families appear ... kube_endpoint_address_available', which will fail on current KSM, and the endpoint-health axis silently disappears.",
+      "field": "dataSources",
+      "quote": "for kube_endpoint_address_available, kube_pod_status_ready condition true, kube_pod_container_status_ready, kube_pod_status_phase",
+      "severity": "blocker",
+      "suggested_fix": "Name kube_endpoint_address{ready=\"true\"} (count per endpoint/namespace) as the primary series and mention kube_endpoint_address_available only as a legacy series for KSM < 2.14; update Step 2 validation and Step 4 expectations accordingly."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
+      "explanation": "The CIM Performance datamodel covers CPU, Memory, Storage, Network, Facilities, OS, Uptime and Timesync and has no response_time field, so it does not fit HTTP upstream latency; request latency is Web.response_time. dataModelAcceleration repeats the error ('Accelerate ... Web and Performance data models ... mapped with url, status, response_time, and dest').",
+      "field": "cimModels",
+      "quote": "\"cimModels\": [\"Web\", \"Performance\"]",
+      "severity": "blocker",
+      "suggested_fix": "Keep only Web in cimModels and state in dataModelAcceleration that latency comes from Web.response_time (with Web.site or Web.dest for the vhost)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/log-format/",
+      "explanation": "In ingress-nginx, $ingress_name is the name of the Ingress resource, not its IngressClass. A reader copying this ConfigMap would populate ingress_class with Ingress object names, so the SPL's ingress_class grouping would be wrong.",
+      "field": "detailedImplementation",
+      "quote": "\"ingress_namespace\":\"$namespace\",\n    \"ingress_class\":\"$ingress_name\"}",
+      "severity": "blocker",
+      "suggested_fix": "Emit \"ingress_name\":\"$ingress_name\" and \"service_name\":\"$service_name\" (documented variables), and either drop ingress_class or set it as a static value per controller deployment or via collector enrichment."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "dataSources (envoy:access, AWS ALB/NLB, GKE HTTP(S) LB, Azure Application Gateway), detailedImplementation (scope list, controller_family values, Cases 6-9) and equipment (envoy, haproxy, azure) describe coverage that the SPL does not have: the multisearch contains only nginx:access and traefik:access arms, so only nginx_ingress and traefik can ever appear.",
+      "field": "cross_field",
+      "quote": "Document controller_family values in your runbook: nginx_ingress, traefik, envoy_ingress, haproxy_ingress, contour_envoy, aws_alb, gke_l7, aks_appgw.",
+      "severity": "major",
+      "suggested_fix": "Limit dataSources and the controller_family list to NGINX Ingress and Traefik, and move Envoy/HAProxy/ALB/GKE/AppGW to an 'extending the search' note that says a new multisearch arm is required for each."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "explanation": "The collector example only sets the index. Logs tailed by the Splunk OTel Collector filelog receiver arrive with a container-log sourcetype (the repository guide lists kube:container:logs), not nginx:access or traefik:access, so the SPL arms filtering on those sourcetypes would return nothing. The JSON fields also need extraction (KV_MODE=json or spath).",
+      "field": "detailedImplementation",
+      "quote": "exporters:\n  splunk_hec/web:\n    token: \"${SPLUNK_HEC_TOKEN_WEB}\"\n    endpoint: \"https://splunk.example.com:8088/services/collector\"\n    index: web",
+      "severity": "major",
+      "suggested_fix": "Show how to set the sourcetype for ingress-controller container logs (for example, a com.splunk.sourcetype pod annotation or a processor that sets the sourcetype attribute to nginx:access / traefik:access), and add a props.conf stanza with KV_MODE=json for those sourcetypes."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "evidence_ref": "content/cat-03-containers-orchestration/UC-3.2.27.json",
+      "explanation": "UC-3.2.27 is 'Kubernetes NetworkPolicy Default-Deny Coverage and Drift', not a per-URL upstream decomposition UC. Both exclusions and detailedImplementation Step 1 ('per-URL canary decomposition (UC-3.2.27 when implemented)') point readers to the wrong UC.",
+      "field": "cross_field",
+      "quote": "Does not replace UC-3.2.27 per-upstream URL decomposition when that UC is present.",
+      "severity": "major",
+      "suggested_fix": "Remove the UC-3.2.27 reference, or replace it with the correct UC ID if a per-URL ingress decomposition UC exists."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "description and controlTest present the rt_raw comparisons as alert conditions. In the SPL they only choose between seconds and milliseconds. The real gates are edge_cnt>=12 (ERR_FLOOR), upstream_5xx_hits>=3 or p90_latency_ms>=6000 (LAT_WARN_MS), followed by the severity case on endpoints and readiness.",
+      "field": "cross_field",
+      "quote": "alert when `rt_raw` > 0, `rt_raw` < 300, `rt_raw` >= 300, or `status_code` >= 502",
+      "severity": "major",
+      "suggested_fix": "State the actual thresholds: per 15-minute bucket per cluster/namespace/vhost, at least 12 edge 502-504 responses, or at least 3 upstream-originated 5xx, or p90 latency of at least 6000 ms, with severity raised by zero ready endpoints or a low pod-ready ratio. Use the same values in the controlTest scenarios."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The entries name no real cause of benign ingress 5xx. The genuine false-positive sources appear only in detailedImplementation Step 5: brief zero-backend windows during rolling updates, HPA scale-in, application rate limiting returning 503 with Retry-After, ALB target drain, and unknown_ns rows that widen the joins.",
+      "field": "knownFalsePositives",
+      "quote": "**Batch `sum` on `nginx:access`** — Scheduled automation elevates `cluster` without crossing `rt_raw` > 0 for UC-3.2.18.",
+      "severity": "major",
+      "suggested_fix": "Rewrite knownFalsePositives around those concrete causes (rolling deploy or scale-in windows, app-emitted 503 rate limiting, load-balancer target deregistration, synthetic probes against draining pods), each with how to recognise it in the output columns."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "evidence_url": "https://docs.splunk.com/Documentation/AddOns/released/Kubernetes/About",
+      "explanation": "The Splunk Add-on for Kubernetes (Splunkbase 3991) was deprecated in March 2019 and open-sourced. It only supplied knowledge objects for Splunk Connect for Kubernetes and plays no part in this pipeline. The app field also names no add-on or props configuration that produces the nginx:access, traefik:access or envoy:access sourcetypes the SPL depends on.",
+      "field": "app",
+      "quote": "Splunk Add-on for Kubernetes documentation for legacy HEC patterns",
+      "severity": "major",
+      "suggested_fix": "Drop the deprecated add-on. State that nginx:access and traefik:access are custom sourcetypes assigned at ingest with JSON field extraction (or name the add-on that provides them), next to the Splunk OpenTelemetry Collector for Kubernetes and kube-state-metrics."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "Nothing shows SME sign-off (the reviewer is a generic handle), and the SPL has defects that a validation run would expose: Traefik latency inflated by about one million times, a pod-ready ratio that can never fall below its thresholds, and a removed KSM series.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft or community until the SPL defects are fixed and the Step 4 lab scenarios have been run and recorded."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://doc.traefik.io/traefik/observability/access-logs/",
+      "explanation": "Traefik writes OriginStatus only in the json access-log format; the default CLF format omits it. Duration is in nanoseconds, which the text does not mention.",
+      "field": "detailedImplementation",
+      "quote": "Traefik static configuration should enable accessLog with fields DownstreamStatus, OriginStatus, Duration, RouterName, ServiceName, and RequestHost.",
+      "severity": "minor",
+      "suggested_fix": "Say accessLog.format must be json, and note that Duration and OriginDuration are in nanoseconds."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://doc.traefik.io/traefik/observability/access-logs/",
+      "field": "spl",
+      "issue": "The Traefik arm feeds Duration into rt_raw. Traefik Duration is in nanoseconds (https://doc.traefik.io/traefik/observability/access-logs/), so the 'rt_raw>=300 means already milliseconds' branch treats nanoseconds as milliseconds and p90_latency_ms is inflated by about 10^6. Every Traefik row with traffic passes LAT_WARN_MS=6000. Divide by 1e6 for Traefik.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The endpoint join filters on kube_endpoint_address_available, which kube-state-metrics removed in 2.14.0. On current KSM the join returns nothing, fillnull sets 999999, and the critical/high endpoint conditions can never fire. Use kube_endpoint_address with ready=\"true\".",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "kube_pod_ready_ratio = sum(ready_v)/dc(pod) over 24h of raw scrape samples, so the ratio is roughly samples-per-pod (hundreds or more), never below 0.4 or 0.85. Both endpoint and readiness joins also aggregate over the full 24h by cluster/namespace with no _time key, so every 15-minute bucket gets the same 24h min/ratio. Use the latest value per pod, or join on time bucket.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The severity case ends with true(), \"medium\", and the next where match(severity, \"critical|high|medium\") is always true, so the severity filter has no effect.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "The NGINX namespace coalesce falls back to proxy_upstream_name, whose format is upstream-<namespace>-<service>-<port>. That value never matches a KSM namespace label, so those rows silently get the 999999/1 defaults.",
+      "severity": "minor"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
+      "field": "cimSpl",
+      "issue": "Uses Performance.response_time, which is not a CIM Performance field (https://docs.splunk.com/Documentation/CIM/latest/User/Performance); latency is Web.response_time. It renames Web.url (a full URL) to vhost instead of using Web.site/Web.dest, and gates on edge_cnt>=3 where the primary SPL uses ERR_FLOOR=12.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0014-UC-3.2.18",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The detailedImplementation contains useful 502/503/504 triage material, but the UC depends on a kube-state-metrics series removed in current releases, maps latency to a CIM datamodel without that field, documents wrong ingress-nginx log variables, and claims Envoy/HAProxy/cloud-LB coverage the SPL does not implement. Description, controlTest and knownFalsePositives are template residue.",
+  "tier": "deep",
+  "uc_id": "UC-3.2.18",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,121 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "dacf617a63fb1412680690505e5066867896c47174220d221ef39a023fdc89a2",
+  "file": "content/cat-05-network-infrastructure/UC-5.4.11.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://en.wikipedia.org/wiki/List_of_WLAN_channels",
+      "explanation": "The SPL this describes labels only channels 1, 6 and 11 as 2.4 GHz and everything else as 5 GHz. 2.4 GHz uses channels 1–14 (so 2–5, 7–10 and 12–14 are misfiled as 5 GHz). 6 GHz channels reuse low numbers (1, 5, 9, ...), so a 6 GHz client on channel 1 is counted as 2.4 GHz. The resulting percentages are wrong on any site not using a strict 1/6/11 plan, and on any Wi-Fi 6E site.",
+      "field": "implementation",
+      "quote": "The query categorises clients by 2.4GHz vs 5GHz from the channel value in association events.",
+      "severity": "blocker",
+      "suggested_fix": "State that the band must come from an explicit band/radio field (slot or radio type on WLC, alertData.band on Meraki webhooks). If channel is the only input, it must be combined with radio type, because channel numbers alone cannot tell 2.4 GHz from 6 GHz."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The title promises steering effectiveness, but the SPL only reports the share of 'associated' events per band per SSID. That is a distribution proxy which also counts 2.4-only clients and repeat associations. detailedImplementation's 'steering attempt success rate' search is not part of the saved detection.",
+      "field": "cross_field",
+      "quote": "Band Steering Effectiveness ... | stats count by band, ssid | eventstats sum(count) as total by ssid",
+      "severity": "major",
+      "suggested_fix": "Describe the output honestly as 'band distribution of client associations per SSID (proxy for band-steering effectiveness)'. Note that it counts association events, not unique clients, and that 2.4-only devices lower the 5 GHz share."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The implementation field says the polled Meraki TA does not expose per-client band and that the Webhook Logs input (alertData.band) is required. Yet dataSources lists `meraki:devices`, a device-inventory sourcetype with no client band data.",
+      "field": "dataSources",
+      "quote": "`sourcetype=cisco:wlc:syslog`, `sourcetype=meraki:devices`",
+      "severity": "major",
+      "suggested_fix": "Replace `meraki:devices` with the Meraki webhook sourcetype used by sibling UC-5.4.19 (`meraki:webhook`), and say it is used only for Meraki MR estates."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/wireless-infrastructure.md",
+      "explanation": "Splunkbase 1352 is the Cisco Networks app/add-on (cisco_ios / TA-cisco_ios), which the repository guide names as the WLC syslog TA. It is not a Cisco Security add-on. The 'Cisco Security documentation' link is unrelated to wireless band steering.",
+      "field": "references",
+      "quote": "Splunk Add-on for Cisco Security (Splunkbase 1352)",
+      "severity": "blocker",
+      "suggested_fix": "Retitle to 'Cisco Networks Add-on for Splunk (TA-cisco_ios, Splunkbase 1352)'. Replace the Cisco Security and Lantern root links with the Cisco WLC/C9800 Band Select configuration guide and the Meraki band steering documentation."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/wireless-infrastructure.md",
+      "explanation": "The repository guide lists WLC / Catalyst 9800 syslog as handled by TA-cisco_ios (Splunkbase 1352) via SC4S. It lists no 'Splunk Add-on for Cisco WLC'.",
+      "field": "app",
+      "quote": "`Splunk Add-on for Cisco WLC` for WLC syslog",
+      "severity": "major",
+      "suggested_fix": "Use 'Cisco Networks Add-on for Splunk (TA-cisco_ios, Splunkbase 1352) via SC4S' for WLC, and 'Cisco Meraki Add-on for Splunk (Splunk_TA_cisco_meraki, Splunkbase 5580) Webhook Logs input' for Meraki."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The searches use `index=wireless` and fields radio_band/band/client_mac with 6 GHz support, while the saved SPL uses `index=network sourcetype=cisco:wlc:syslog` and a channel-derived two-band field. A second generic Step 1–5 block is appended with modular-input poll intervals and vendor-API 401/429 troubleshooting that do not apply to pushed syslog.",
+      "field": "detailedImplementation",
+      "quote": "index=wireless earliest=-4h\n| where isnotnull(radio_band) OR isnotnull(band)",
+      "severity": "major",
+      "suggested_fix": "Align index, sourcetype and band derivation with the saved SPL (or mark the band-score search as an extension), and delete the trailing generic Step 1–5 template."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "consistency",
+      "explanation": "Three different targets (70%, 80%, 60%) plus the 80/60/40 band_score cut-offs are given without saying which one the alert uses. The saved SPL applies no threshold at all.",
+      "field": "detailedImplementation",
+      "quote": "A healthy wireless environment should have > 70% of clients on 5GHz/6GHz ... corporate SSIDs should target > 80% ... Warning (5GHz percentage drops below 60% on corporate SSID)",
+      "severity": "minor",
+      "suggested_fix": "State a single alert threshold (for example a warning when the 5+6 GHz share on corporate SSIDs is below 60%) and treat the others as guidance."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "2.4 GHz is not reserved for any device class. Band steering only biases dual-band clients toward 5 GHz.",
+      "field": "detailedImplementation",
+      "quote": "The 2.4GHz band is reserved for legacy/IoT devices.",
+      "severity": "minor",
+      "suggested_fix": "Say: 'Band steering leaves 2.4 GHz mainly to legacy and IoT clients that cannot use 5 GHz.'"
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "grandma_fidelity",
+      "explanation": "It repeats the title jargon and describes outages. The UC actually shows how many devices end up on the faster Wi-Fi lanes versus the slower, crowded one.",
+      "field": "grandmaExplanation",
+      "quote": "We watch band steering effectiveness so we notice problems while they are still small, and we can fix them before Wi-Fi users get dropped calls or dead spots.",
+      "severity": "major",
+      "suggested_fix": "Something like: 'Wi-Fi has a crowded slow lane and faster lanes. We check, for each network name, how many devices end up on the faster lanes, so the team can tell whether the setting that nudges devices there is working.'"
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://en.wikipedia.org/wiki/List_of_WLAN_channels",
+      "field": "spl",
+      "issue": "`eval band=if(match(channel,\"^(1|6|11)$\"),\"2.4GHz\",\"5GHz\")` misclassifies 2.4 GHz channels 2–5, 7–10 and 12–14 as 5 GHz and 6 GHz low-numbered channels as 2.4 GHz. It has no 6 GHz bucket and counts events rather than distinct clients. It is not confirmed that WLC 'associated' syslog carries `channel` and `ssid` fields. Evidence: https://en.wikipedia.org/wiki/List_of_WLAN_channels",
+      "severity": "blocker"
+    },
+    {
+      "field": "title",
+      "issue": "'Band Steering Effectiveness' overstates what the SPL measures (band distribution of association events).",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0030-UC-5.4.11",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The saved logic measures band distribution, not steering effectiveness. Its channel-to-band rule (only channels 1/6/11 count as 2.4 GHz, everything else is 5 GHz) is wrong and ignores 6 GHz. detailedImplementation adds a useful band-score approach but uses a different index and fields and appends a generic duplicate Step 1–5 block.",
+  "tier": "deep",
+  "uc_id": "UC-5.4.11",
+  "verdict": "incorrect"
+}

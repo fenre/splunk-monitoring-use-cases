@@ -1,0 +1,106 @@
+{
+  "confidence": 0.82,
+  "content_sha256": "4e7e2207f6524be953fe34fe1a9c4dfee32dbd2a15957745d815230ea02aebc2",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.1.1.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://mibs.observium.org/object/PowerNet-MIB/upsAdvBatteryReplaceIndicator",
+      "explanation": "RFC 1628 UPS-MIB has no battery-replace indicator and no battery-age object. The replace flag is APC PowerNet-MIB upsAdvBatteryReplaceIndicator (.1.3.6.1.4.1.318.1.1.1.2.2.4, integer 1=noBatteryNeedsReplacing, 2=batteryNeedsReplacing). Battery age has to be derived, for example from APC upsBasicBatteryLastReplaceDate or from CMDB. A reader polling only UPS-MIB would never populate two of the SPL's fields.",
+      "field": "dataSources",
+      "quote": "Poll standard UPS-MIB battery variables ... carrying extracted fields battery_replace_indicator, charge_pct, runtime_min, ups_name, location, battery_status, battery_age_months",
+      "severity": "blocker",
+      "suggested_fix": "Map each field to its real source: charge_pct from UPS-MIB upsEstimatedChargeRemaining (or APC upsAdvBatteryCapacity), runtime_min from upsEstimatedMinutesRemaining, battery_status from upsBatteryStatus (1 unknown, 2 normal, 3 low, 4 depleted), battery_replace_indicator from vendor MIBs such as APC upsAdvBatteryReplaceIndicator, and battery_age_months computed from upsBasicBatteryLastReplaceDate or a CMDB lookup. State that location comes from sysLocation or a lookup."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-connect-for-snmp/main/configuration/splunk-configuration/",
+      "explanation": "Splunk Connect for SNMP is not installed on a Heavy Forwarder. It is a containerized service (Docker Compose or microk8s) that sends over HEC. By default it writes polled numeric values to the metrics index netmetrics as sourcetype sc4snmp:metric, and events to netops as sc4snmp:event. The `index=power sourcetype=snmp:ups | where ...` event search therefore does not work on SC4SNMP output without extra configuration. Only the SNMP Modular Input (1537) runs on a forwarder.",
+      "field": "detailedImplementation",
+      "quote": "Install SNMP TA (UPS-MIB) collection via Splunk Connect for SNMP (Splunkbase app ID 6266) **or** SNMP Modular Input (Splunkbase app ID 1537) on a Heavy Forwarder",
+      "severity": "blocker",
+      "suggested_fix": "Split the prerequisites by collector. For SNMP Modular Input (1537), use a Heavy Forwarder stanza with sourcetype=snmp:ups and index=power. For SC4SNMP (6266), describe the container deployment, HEC token, a UPS-MIB polling profile, and how UPS gauges land (metrics index with mstats, or overridden event index and sourcetype). Adjust the SPL guidance to match."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The implementation and detailedImplementation fields promise consecutive-poll logic ('consecutive polls', 'span at least three SNMP samples'). The SPL instead returns every raw poll row that crosses a threshold, with no per-UPS latest(), count, or streak logic. So one dip alerts, and each UPS can produce up to three duplicate rows per 15-minute run.",
+      "field": "cross_field",
+      "quote": "charge_pct stays below policy for consecutive polls",
+      "severity": "major",
+      "suggested_fix": "Either describe the SPL as it is (any single poll breaching a threshold alerts) or tell the reader to add per-ups_name aggregation (for example stats latest() and count of breaching polls) before alerting, and flag the SPL for human update."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The scenarios ('batch count', 'synthetic probe', 'onboarding burst', `src`) do not apply to polled UPS gauges. The real benign causes are missing: charge_pct stays below 80 for hours while batteries recharge after a utility outage or self-test, runtime_min drops when IT load rises with no battery fault, and runtime estimates jump after recalibration.",
+      "field": "knownFalsePositives",
+      "quote": "Scheduled automation elevates `src` without crossing `charge_pct` < 80",
+      "severity": "major",
+      "suggested_fix": "Replace the four scenarios with UPS-specific causes: post-outage and post-self-test recharge, load-driven runtime drops, runtime calibration runs, and UPS units in bypass or maintenance. Say how to tell each one apart (for example upsSecondsOnBattery or the last transfer event, load percentage, and maintenance windows)."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "This URL returned HTTP 404 when fetched. There does not appear to be a Splunk-supported 'SNMP' add-on manual under AddOns.",
+      "field": "references",
+      "quote": "https://docs.splunk.com/Documentation/AddOns/latest/SNMP/About",
+      "severity": "needs_verification",
+      "suggested_fix": "Replace it with the SNMP Modular Input Splunkbase page (https://splunkbase.splunk.com/app/1537) and the SC4SNMP documentation (https://splunk.github.io/splunk-connect-for-snmp/), after confirming both resolve."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "No Splunkbase add-on has this name. The real collectors are SNMP Modular Input (1537) and Splunk Connect for SNMP (6266).",
+      "field": "app",
+      "quote": "SNMP TA (UPS-MIB)",
+      "severity": "minor",
+      "suggested_fix": "Name the actual collector, for example 'SNMP Modular Input (Splunkbase 1537) or Splunk Connect for SNMP (Splunkbase 6266), polling UPS-MIB (RFC 1628) and vendor MIBs'."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "The UC is built entirely on polled gauges. No trap is used anywhere in the data sources or SPL.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_trap\"",
+      "severity": "minor",
+      "suggested_fix": "Drop snmp_trap unless trap-based battery alarms (for example upsTrapAlarmEntryAdded) are added to the data sources."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Summary indexing is not data model acceleration, so the sentence mixes two separate mechanisms.",
+      "field": "dataModelAcceleration",
+      "quote": "acceleration applies only if you voluntarily normalize metrics into custom indexes via summary indexing",
+      "severity": "minor",
+      "suggested_fix": "State only that no CIM data model applies. Optionally mention summary indexing or a metrics index as performance options, without calling them acceleration."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "battery_replace_indicator is compared to the string \"yes\", but the APC source object returns integer 1/2 (or batteryNeedsReplacing when MIB-translated). The SPL never checks battery_status=3 (low) or 4 (depleted). It has no per-UPS aggregation, so each breaching poll becomes its own row.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0001-UC-15.1.1",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 1,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The detection idea (low charge, low runtime, replace-battery flag) is sound, but the text attributes vendor-specific and CMDB-derived fields to the standard UPS-MIB and describes Splunk Connect for SNMP as a Heavy Forwarder add-on. Templated false-positive and test text adds little that is specific to UPS batteries.",
+  "tier": "deep",
+  "uc_id": "UC-15.1.1",
+  "verdict": "incorrect"
+}

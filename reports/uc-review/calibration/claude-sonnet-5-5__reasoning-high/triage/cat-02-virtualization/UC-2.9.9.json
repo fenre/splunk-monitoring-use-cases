@@ -1,0 +1,100 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "2ab1cab104b60bc1ff2570245ea8ff41229563335990aca7cb9872aa48b81e31",
+  "file": "content/cat-02-virtualization/UC-2.9.9.json",
+  "findings": [
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified with reviewer 'catalog-team', but there is no evidence of SME sign-off or a tested data feed, and the data collection is described only generically.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft (or the lowest accurate level) until an OpenStack SME has validated the collection and SPL, and name the reviewer."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "Linux boilerplate (Patch Tuesday, nightly backup I/O, Nagios probes, 'baseline unstable first 48h') does not describe real reasons an instance is legitimately slow in BUILD or ERROR, such as large image downloads, cold image caches, or intentionally retained ERROR instances awaiting cleanup.",
+      "field": "knownFalsePositives",
+      "quote": "Correlate with apt/yum logs in the same `openstack:nova` window.",
+      "severity": "major",
+      "suggested_fix": "List real causes: first boot of a large image on a cold compute node, volume-backed boot waiting on Cinder, instances in ERROR left for forensics, and planned scheduler maintenance. Key suppression on instance_uuid or project."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "grandma_fidelity",
+      "explanation": "The explanation describes OpenStack in general (and mentions logins, which this UC does not cover) rather than virtual machines that are stuck while starting or have failed.",
+      "field": "grandmaExplanation",
+      "quote": "We monitor the building blocks of your private cloud—computers, networks, disks, and logins",
+      "severity": "major",
+      "suggested_fix": "Say that we notice when a new virtual computer takes too long to start or has broken, so someone can fix it before users wait."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "The UC is about the OpenStack Nova API/state; tagging Hyper-V as equipment looks wrong unless the Nova compute driver is Hyper-V.",
+      "field": "equipment",
+      "quote": "\"hyperv\"",
+      "severity": "needs_verification",
+      "suggested_fix": "Check why hyperv is tagged; remove it unless Hyper-V compute nodes are specifically in scope."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "The Universal Forwarder is a Splunk product download, not a Splunkbase add-on, and it is not a collector for the Nova API or notifications; no TA, scripted input or HEC pipeline that produces `openstack:nova` events with `vm_state`/`state_changed_epoch` is named.",
+      "field": "app",
+      "quote": "Nova state audit from `nova list --fields` JSON or notifications — Universal Forwarder (Splunkbase 617)",
+      "severity": "needs_verification",
+      "suggested_fix": "Name the real collection method and add-on (Splunk Add-on for OpenStack if applicable, a scripted input, or notification forwarding) and drop the Splunkbase 617 reference."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "Implementation does not say how to snapshot Nova state, which field carries the state-change time, or how `image id` reaches the result (the SPL outputs only instance_uuid, host, state and max age); detailedImplementation is generic modular-input/HEC boilerplate with 'vendor endpoint 401/429' advice.",
+      "field": "implementation",
+      "quote": "Snapshot state every few minutes. Alert when age exceeds 15 minutes. Auto-open tickets with hypervisor and image id.",
+      "severity": "major",
+      "suggested_fix": "Describe the actual Nova data source (API poll or notification), the fields it must emit including the state change timestamp, and make the ticket fields match the SPL output."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The SPL relies on `state_changed_epoch`, and fallback fields `state` and `task`, none of which appear in the data sources; `power_state` is listed but unused.",
+      "field": "dataSources",
+      "quote": "`instance_uuid`, `vm_state`, `task_state`, `power_state`, `host`",
+      "severity": "minor",
+      "suggested_fix": "List the fields the SPL actually needs, including the state-change timestamp."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The SPL compares lower(vm_state) to \"build\", but Nova's vm_state value for a building instance is `building` (API status is `BUILD`); see https://docs.openstack.org/nova/latest/reference/vm-states.html. Verify which field/value the feed carries.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "Over a 6h window with no `latest` per instance, an instance that was stuck earlier and has since become active still returns rows; the `task_state` regex (scheduling|networking|block_device) also matches any instance in normal transitions older than 900 s, and null `state_changed_epoch` silently drops rows.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0003-UC-2.9.9",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 1,
+    "overclaiming": 2,
+    "specificity": 1
+  },
+  "summary": "A sensible idea (Nova instances stuck in build or error) wrapped in template boilerplate: Linux false positives, Linux-named evidence, a generic grandma sentence, and a 'verified' status without sign-off. The data feed is unspecified and the SPL's state values and age logic look unreliable.",
+  "tier": "triage",
+  "uc_id": "UC-2.9.9",
+  "verdict": "rewrite"
+}

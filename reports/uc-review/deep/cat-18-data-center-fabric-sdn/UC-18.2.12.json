@@ -1,0 +1,181 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "dd4557a0808e0b53a3a2217ad81aff69b81ca406011ab323de49f864ba8da694",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.2.12.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/4856",
+      "explanation": "Splunkbase 4856 is the community 'Metrics Add-on for Infrastructure' and 1810 is 'Hunk App for MongoDB'. The VMware NSX-T Splunk App is 4241 and the Splunk Add-on for VMware is 3215. The wrong IDs repeat in dataSources, detailedImplementation and references, and in the repository guide.",
+      "field": "app",
+      "quote": "Splunk_TA_vmware-nsxt ([Splunkbase 4856](https://splunkbase.splunk.com/app/4856)) on parsing/search tier; Splunk_TA_vmware ([Splunkbase 1810](https://splunkbase.splunk.com/app/1810))",
+      "severity": "blocker",
+      "suggested_fix": "Replace 4856 with 4241 (VMware NSX-T Splunk App) and 1810 with 3215 (Splunk Add-on for VMware) in every field and reference title; fix docs/guides/datacenter-fabric-sdn.md as well."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.broadcom.com/xapis/nsx-t-data-center-rest-api/latest/types_LogicalRouterStatusPerNode.html",
+      "explanation": "LogicalRouterStatus returns per_node_status entries with high_availability_status (ACTIVE, STANDBY, DOWN, SYNC, UNKNOWN, ADMIN_DOWN), service_router_id and transport_node_id. It is a point-in-time snapshot with no previous_state, new_state, failover_reason, failover_duration_ms or stateful_sync_status. Transitions can only be derived by comparing successive polls. The same claim is repeated in detailedImplementation (HTTPS collectors, Step 3 'API truth').",
+      "field": "dataSources",
+      "quote": "vmware:nsxt:edge_ha (REST-polled HA transitions keyed by ha_state, previous_state, new_state, failover_reason, edge_node_id, gateway_path, failover_duration_ms, stateful_sync_status mirroring GET /api/v1/logical-routers/{lr-id}/status)",
+      "severity": "blocker",
+      "suggested_fix": "Describe the collector as polling high_availability_status per transport_node_id and service_router_id, with transitions computed in Splunk (for example streamstats current=f last(high_availability_status) BY service_router_id transport_node_id). Drop failover_reason and failover_duration_ms unless a real source is named."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL keeps only rows where prev_s and new_s are non-empty (where is_transition=1 AND prev_s!=\"\" AND new_s!=\"\"). Syslog lines without parsed previous/new state fields are therefore always discarded, so the regex branch of is_transition never reaches the output and syslog-only estates get no results.",
+      "field": "detailedImplementation",
+      "quote": "syslog-only environments lean harder on regex role-change extraction in vmware:nsxt:syslog",
+      "severity": "major",
+      "suggested_fix": "State that the SPL needs structured previous/new state fields, or request an SPL change that keeps regex-matched syslog rows."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The stats has no gateway_path or lr_id in its BY clause, so every Tier-1 failover in the same minute merges into one row. That is the opposite of what this sentence claims, and it also blurs the per-gateway throttle the implementation describes.",
+      "field": "detailedImplementation",
+      "quote": "Splitting on **`_time`**, **`impact_class`**, **`tier_mark`** prevents unrelated tenants merging transitions.",
+      "severity": "major",
+      "suggested_fix": "Say that transitions are grouped per minute per tier, and recommend adding gateway path or logical router ID to the grouping (SPL change) for per-tenant rows."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "dur_ms > 0 is only a null guard. sla_breached fires only for unplanned_t0_takeover or unplanned_t1_takeover rows with observed_duration_sec > 6 or wall_clock_span_sec > 10. The same misreading appears in controlTest.",
+      "field": "description",
+      "quote": "alert when `dur_ms` > 0, `observed_duration_sec` > 6, or `wall_clock_span_sec` > 10",
+      "severity": "major",
+      "suggested_fix": "Say that a row alerts when an unplanned Tier-0 or Tier-1 takeover lasts more than 6 s (reported duration) or spans more than 10 s (first-to-last event in the minute)."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/datacenter-fabric-sdn.md",
+      "explanation": "vmware:nsxt:firewall carries distributed/gateway firewall packet logs (rule matches with 5-tuples), not HA role messages. Adding it to a failover detector brings in DFW noise without adding a real signal; the troubleshooting section already advises removing it.",
+      "field": "dataSources",
+      "quote": "supplemental vmware:nsxt:firewall when north-south log lines reference SR failover phrasing",
+      "severity": "major",
+      "suggested_fix": "Remove vmware:nsxt:firewall from the data sources, or name the actual firewall log line that records an SR failover."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/datacenter-fabric-sdn.md",
+      "explanation": "The grounding guide says the read-only Auditor role is enough for NSX collectors. Asking for a network-admin role for a polling account is excessive, and NETWORK_ADMIN is not an NSX role name.",
+      "field": "detailedImplementation",
+      "quote": "Service accounts need NETWORK_ADMIN or equivalent read scopes on NSX Policy",
+      "severity": "major",
+      "suggested_fix": "Specify the NSX Auditor (read-only) role, as the guide does."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The Splunk Add-on for VMware indexes tasks and events under sourcetypes such as vmware:tasks and vmware:events. 'vmware:vmware:vsphere:vcenter' does not look like a real sourcetype; it also appears in visualization panel 5 and detailedImplementation.",
+      "field": "dataSources",
+      "quote": "Splunk_TA_vmware ([Splunkbase 1810](https://splunkbase.splunk.com/app/1810)) vmware:vmware:vsphere:vcenter for Edge VM maintenance, vMotion, snapshot correlation",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Splunk Add-on for VMware sourcetype reference and use the real task/event sourcetype."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "evidence_url": "https://knowledge.broadcom.com/external/article/428449/apis-for-nsx-edge-and-tier0-monitoring.html",
+      "explanation": "There is no 'HA' sub-page under the gateway list. HA role per Edge is normally shown in the gateway's status/realization details or via the Tier-0 state API.",
+      "field": "detailedImplementation",
+      "quote": "In NSX Manager Networking → Tier-0 Gateways or Tier-1 Gateways → HA, confirm active node",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the NSX 4.2 UI and name the exact pane, or point to GET /policy/api/v1/infra/tier-0s/{id}/state, which returns per_node_status high_availability_status."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/NetworkTraffic",
+      "explanation": "HA role transitions are not network flow records, so Network_Traffic does not fit. The SPL uses no datamodel. Alerts is at most an optional overlay for the alert output.",
+      "field": "cimModels",
+      "quote": "\"Network_Traffic\",\n    \"Alerts\"",
+      "severity": "major",
+      "suggested_fix": "Drop Network_Traffic; keep only Alerts if the alert output is mapped there, or leave cimModels empty."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "The reviewer is an agent, the add-on IDs are wrong, the REST field list is invented and the SPL has parse errors. There is no sign of SME validation.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft until an NSX SME has run the search against real data."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The link points to the Broadcom techdocs home page, not an Edge cluster page.",
+      "field": "references",
+      "quote": "\"title\": \"VMware NSX 4.2 Edge Cluster Configuration\",\n      \"url\": \"https://techdocs.broadcom.com/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the NSX 4.2 Administration Guide page on Edge clusters or on Tier-0 HA modes."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "UC-18.2.16 now exists as 'Edge Cluster BFD and Uplink Session Health', so the 'stub' label is stale.",
+      "field": "exclusions",
+      "quote": "are reserved for UC-18.2.16 (stub) — not duplicated here",
+      "severity": "minor",
+      "suggested_fix": "Drop '(stub)'."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "specificity",
+      "explanation": "'EVT IDs' is undefined, and the saved-search and dashboard names are placeholders that nobody can check.",
+      "field": "evidence",
+      "quote": "alert nsxt_unplanned_t0_failover_sla routes to on-call bridge tickets with EVT IDs",
+      "severity": "minor",
+      "suggested_fix": "Describe the retained artefacts concretely: alert results with gateway path, Edge nodes, from/to role and duration, linked to incident or change ticket numbers."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Search",
+      "field": "spl",
+      "issue": "The base search uses match(lower(_raw), ...) inside the search clause before the first pipe. The search command does not evaluate eval functions, so the syslog and firewall branches do not filter as intended. Use term or wildcard filters, or move the regex test into a where clause.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/ConditionalFunctions",
+      "field": "spl",
+      "issue": "tier_mark=case(cond,\"T0\",cond,\"T1\",\"UNKNOWN\") passes an odd number of arguments; case() needs condition/value pairs, so the eval errors. Use 1=1,\"UNKNOWN\" as the final pair.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "where prev_s!=\"\" AND new_s!=\"\" removes every syslog-only transition that the regex branch of is_transition was meant to catch. The stats also groups by _time/impact_class/tier_mark only, so different gateways merge into one row and wall_clock_span_sec can be at most 60 s within a 1-minute bin.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://developer.broadcom.com/xapis/nsx-t-data-center-rest-api/latest/types_LogicalRouterStatusPerNode.html",
+      "field": "spl",
+      "issue": "Edge HA transitions are not available as previous/new state pairs from the logical-router status API (it returns a current high_availability_status per node). The SPL needs a transition-derivation step, such as streamstats over successive polls, before is_transition can work on REST data.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0026-UC-18.2.12",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The intent (Tier-0/Tier-1 SR HA failover timelines) is sound and the troubleshooting notes are useful. However, both Splunkbase IDs are wrong, the REST source is credited with transition fields it does not return, and the SPL cannot run as written: eval functions sit in the base search and a case() has an odd number of arguments. The SPL also drops the syslog-only path the text relies on.",
+  "tier": "deep",
+  "uc_id": "UC-18.2.12",
+  "verdict": "incorrect"
+}

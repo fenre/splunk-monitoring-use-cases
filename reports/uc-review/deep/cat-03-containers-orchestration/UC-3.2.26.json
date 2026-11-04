@@ -1,0 +1,193 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "038d0e0fa1fc9f2d2ad60d7b6a7622309f33b546379bd5aec2831d831a356369",
+  "file": "content/cat-03-containers-orchestration/UC-3.2.26.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/receiver/prometheusreceiver/README.md",
+      "explanation": "Inside an OpenTelemetry Collector config, `$` triggers environment-variable expansion, so `${1}` is not passed to Prometheus relabeling as a capture-group reference; the collector either fails to start or rewrites the address incorrectly.",
+      "field": "detailedImplementation",
+      "quote": "target_label: __address__\n              replacement: ${1}:2379",
+      "severity": "blocker",
+      "suggested_fix": "Escape the capture group as `$$1:2379` (and note the escaping rule) in the prometheus receiver relabel_configs."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/common-information-model/6.0/data-models/application-state-deprecated",
+      "explanation": "The detection reads raw etcd Prometheus series that are not mapped to any CIM model. Application_State has been deprecated since CIM 4.12.0, and neither it nor Performance describes Raft quorum or membership. The CIM joins only add unrelated, estate-wide counts.",
+      "field": "cimModels",
+      "quote": "\"cimModels\": [\n    \"Application_State\",\n    \"Performance\"",
+      "severity": "blocker",
+      "suggested_fix": "Drop Application_State. Either declare no CIM model (raw metrics) or keep Performance only if a real per-control-plane-host join on All_Performance.CPU is added. Describe the detection as raw Prometheus metrics."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/etcd-io/etcd/blob/main/etcdctl/README.md",
+      "explanation": "`endpoint status` against a single local endpoint returns only that one member. It cannot provide the live member list the text says it uses for membership drift audits.",
+      "field": "detailedImplementation",
+      "quote": "etcdctl --endpoints=https://127.0.0.1:2379 \\\n  --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/healthcheck-client.crt \\\n  --key=/etc/kubernetes/pki/etcd/healthcheck-client.key endpoint status -w json",
+      "severity": "major",
+      "suggested_fix": "Use `etcdctl endpoint status --cluster -w json` or `etcdctl member list -w json` so the payload contains every member."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "detailedImplementation and grandmaExplanation ('if a trainee member never graduates') both claim the UC detects stalled learner promotion. The SPL only shows is_learner, and neither the operational_state nor the severity case() has a learner-duration condition.",
+      "field": "cross_field",
+      "quote": "prolonged learner posture with promotion stalled is a distinct failure mode called out in severity ladders",
+      "severity": "major",
+      "suggested_fix": "Remove the learner-stall claim from detailedImplementation and grandmaExplanation, or state that learner duration is shown for context only and is not alerted on."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The detection runs over raw etcd Prometheus scrapes, not Application_State. `histo_total > 0` and `voting_members > 0` are guard clauses, not thresholds, and `]` is not a field. The real alert conditions (quorum_margin, leader_changes_5m>=4, peer_rtt_p95_ms>=800, commit skew>=2, mvcc_db_gb>=7) are never named.",
+      "field": "description",
+      "quote": "over datamodel `Application_State` with thresholds `histo_total` > 0, `health_fail_delta` > 0, `prop_failed_5m` > 3, or `voting_members` > 0. Groups `cum_at_window`, `q95_le`, `peer_rtt_p95_ms` by `cluster`, `etcd_member`, `win_time`, `]`",
+      "severity": "major",
+      "suggested_fix": "Describe the detection plainly: a per-cluster, per-five-minute calculation of quorum margin from voting members, plus leader churn, peer RTT p95, commit-latency skew and db size, each with its SPL threshold."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The entries are generated placeholders and name no real etcd cause. Real benign triggers are left out: rolling etcd or kubeadm control-plane upgrades, planned `move-leader`, member replacement or learner add, online defragmentation, and scrape-target churn after control-plane node IP changes.",
+      "field": "knownFalsePositives",
+      "quote": "**Batch `median` on `prometheus:scrape:metrics`** — Scheduled automation elevates `etcd_member` without crossing `histo_total` > 0",
+      "severity": "major",
+      "suggested_fix": "Replace the entries with those etcd-specific scenarios, and say how to recognise each one (change ticket, single leader increment, expected_etcd_voting_members update)."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "The closing checklist is authoring-QA residue about the document's own structure. The 'Supplemental owner notes' paragraph that follows is a list of generic 'When X' lines (Arm64 histogram defaults, OT/edge Kubernetes, Grafana links) that do not help anyone implement this detection.",
+      "field": "detailedImplementation",
+      "quote": "Closing checklist: five em-dash step headers are present; Step 3 includes a fenced SPL block matching the spl JSON field; Step 5 lists twelve Case entries;",
+      "severity": "major",
+      "suggested_fix": "Delete the closing checklist and cut the supplemental notes down to the items that apply to etcd quorum, such as scrape interval versus bucket width and external etcd labelling."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "evidence_url": "https://etcd.io/docs/latest/faq/",
+      "explanation": "In a healthy three-member cluster, quorum_margin is 3 - 2 = 1. A critical threshold of 'at or below one' (also used in the premiumApps ITSI note) would therefore keep the most common topology permanently critical.",
+      "field": "cross_field",
+      "quote": "For Splunk ITSI, map quorum_margin to a KPI with critical threshold at or below one for two consecutive samples.",
+      "severity": "major",
+      "suggested_fix": "Base critical on quorum_margin <= 0, or on margin below the design fault tolerance (expected members minus quorum), in both detailedImplementation and premiumApps."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The SPL cannot run as written (multisearch with stats/sort/eventstats), so it cannot have been validated against real data, and there is no SME sign-off evidence.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft or community until the SPL has been fixed and validated on a lab cluster."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "kubeadm-generated etcd manifests normally set --listen-metrics-urls=http://127.0.0.1:2381. That endpoint is plain HTTP and bound to localhost, so it cannot be reached remotely over HTTPS/mTLS without changing the manifest.",
+      "field": "dataSources",
+      "quote": "per-member scrapes of etcd HTTPS /metrics on 2379 or 2381 with mTLS where required",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the kubeadm etcd static-pod manifest. Then state that 2379 is HTTPS client/metrics with mTLS, and that 2381 is HTTP on localhost unless listen-metrics-urls is changed."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "explanation": "No 'Splunk Add-on for Kubernetes' appears in data/splunkbase-catalog.json, and the grounding guide names only the splunk-otel-collector Helm chart. The link label and target look invented.",
+      "field": "app",
+      "quote": "Splunk OpenTelemetry Collector for Kubernetes ([Splunk Add-on for Kubernetes](https://docs.splunk.com/Documentation/AddOns/released/Kubernetes/About))",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm that the docs page exists. If it does not, link the splunk-otel-collector-chart repository as the grounding guide does."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "The URL points to a generic repository folder, not the runtime-configuration page the title promises.",
+      "field": "references",
+      "quote": "\"title\": \"etcd — Runtime configuration (member operations)\",\n      \"url\": \"https://github.com/etcd-io/etcd/blob/main/Documentation/\"",
+      "severity": "minor",
+      "suggested_fix": "Use https://etcd.io/docs/latest/op-guide/runtime-configuration/."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The SPL hard-codes latest=@m, and it returns every five-minute window in the 30-minute range at every severity, including healthy, so each run re-alerts on old windows.",
+      "field": "detailedImplementation",
+      "quote": "Schedule uc_3_2_26_etcd_quorum_operational every five minutes with dispatch earliest=-30m@m and latest=now",
+      "severity": "minor",
+      "suggested_fix": "Match the dispatch window to the SPL, and tell readers to set the alert condition to severity IN (down, critical) for the latest window only."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/search-commands/multisearch",
+      "field": "spl",
+      "issue": "Both multisearch subsearches contain non-streaming commands (stats, sort, eventstats). multisearch allows only streaming operations in each subsearch, so the search fails to parse. Use union or append instead, or move the stats out of the subsearches.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://etcd.io/docs/latest/faq/",
+      "field": "spl",
+      "issue": "The severity case() returns 'critical' when quorum_margin<=1. A healthy three-member cluster has 3 healthy voters and needs 2, so its margin is 1 and it is paged critical in every window. The condition should key on margin <= 0, or on margin below the designed fault tolerance.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://kubernetes.io/docs/reference/instrumentation/metrics/",
+      "field": "spl",
+      "issue": "The first arm keeps every series matching ^etcd_ without filtering by job. kube-apiserver also exposes etcd_* client metrics (for example etcd_request_duration_seconds and etcd_requests_total). Because is_learner is null for those instances, each apiserver counts as a voting, healthy 'etcd_member', which inflates voting_members and quorum margin. Restrict to the etcd scrape job or to etcd_server_* families.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "voting_members counts only members that produced data in the window. A member that stops answering scrapes disappears from both the numerator and the denominator: two dead members of three show as voting=1, healthy=1, margin=0 ('quorum_barely_met') instead of quorum lost. The search is only correct when expected_etcd_voting_members is populated; quorum_needed should come from that expected size when it is available.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/data-management/common-information-model/8.6/data-models/performance",
+      "field": "spl",
+      "issue": "The Performance tstats uses nodename=Performance.CPU and Performance.cpu_load_percent, but the root dataset is All_Performance, so the field and node names should be All_Performance.CPU and All_Performance.CPU.cpu_load_percent. The join is also on win_time only, so avg_host_load is an estate-wide average rather than load on the control-plane hosts. The Application_State join has the same problem and targets a deprecated model.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "In each member's first window, streamstats window=2 sets prev equal to cur, so prop_committed_5m is 0 and proposal_backlog_ratio becomes prop_pend/0.001. Any non-zero pending value then trips proposal_backlog_hot, which maps to critical.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "The SPL reads metrics with an event-index `search` and the raw __name__/value fields. The splunk_hec exporter shown in detailedImplementation sends metric-format HEC payloads, which require a metrics index and mstats. Check which format actually lands in k8s_metrics.",
+      "severity": "needs_verification"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/common-information-model/6.0/data-models/application-state-deprecated",
+      "field": "cimSpl",
+      "issue": "cimSpl queries the deprecated Application_State model with nodename=Application_State and app/state/info fields, plus a 95% CPU check. It does not measure etcd quorum or membership at all, so it is not a CIM equivalent of the detection.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0046-UC-3.2.26",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 3,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The etcd metric names and the operational narrative are mostly sound, but the SPL cannot run as written (non-streaming commands inside multisearch), its severity ladder pages every healthy three-member cluster as critical, and the OTel collection snippet and CIM choices are wrong. Description, false positives and parts of detailedImplementation are template residue.",
+  "tier": "deep",
+  "uc_id": "UC-3.2.26",
+  "verdict": "incorrect"
+}

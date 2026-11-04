@@ -1,0 +1,107 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "4db95de81d76c2640646135156bd5fa464ca1dbc04d560ef01a4ef8ea652c2f2",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.4.10.json",
+  "findings": [
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.cisco.com/docs/nexus-dashboard-fabric-controller/12-1-2/api-changelog/",
+      "explanation": "The NDFC API documents image policy endpoints under /appcenter/cisco/ndfc/api/v1/imagemanagement/rest/policymgnt/ (policies, attached-policies, all-attached-policies). /imagemanagement/imagepolicies, /policies/{policyId}/devices and /imagemanagement/imageupgrades do not appear, so collectors built from this text will get 404s. The same paths repeat in app, implementation and detailedImplementation.",
+      "field": "dataSources",
+      "quote": "**`GET https://<nd-cluster>/appcenter/cisco/ndfc/api/v1/imagemanagement/imagepolicies`** plus **`GET …/imagemanagement/policies/{policyId}/devices`**",
+      "severity": "blocker",
+      "suggested_fix": "Replace them with the documented endpoints, for example GET …/imagemanagement/rest/policymgnt/policies and …/policymgnt/attached-policies?serialNumber=…, and look up the switch image-status and upgrade-status endpoints in the NDFC 12.x API reference."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/1917",
+      "explanation": "Splunkbase 1917 is 'Cisco Nexus 9k Add-on for Splunk Enterprise (deprecated)'. It is a Cisco-built add-on that Cisco says to replace with Cisco DC Networking (7777), and it does not parse NDFC syslog. The repository guide lists Splunk_TA_cisco-nexus as 6876, which is the 'Network Monitoring App', so the two sources also disagree.",
+      "field": "app",
+      "quote": "**`Splunk_TA_cisco-nexus`** (1917) for **NX-OS** syslog/telemetry corroboration",
+      "severity": "major",
+      "suggested_fix": "Name it 'Cisco Nexus 9k Add-on for Splunk Enterprise (deprecated, Splunkbase 1917)' or drop it in favour of 7777, and route NDFC syslog through SC4S."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "I could not confirm the NDI site_status/imageManagement endpoint or the IMAGE-MGMT-* syslog mnemonics on local6. They look invented.",
+      "field": "dataSources",
+      "quote": "**`NDI`** **`GET https://<nd-cluster>/sedgeapi/v1/site_status/imageManagement`** rollup (**`cisco:ndi:health`**) — **NDFC** syslog **`facility=local6`** lines bearing **`IMAGE-MGMT-INFO`** / **`IMAGE-MGMT-FAIL`** MNEMONICs",
+      "severity": "needs_verification",
+      "suggested_fix": "Check against the NDI API reference and the NDFC event/syslog forwarding documentation. Remove them if they cannot be confirmed."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "installer.dryRun/installer.commit, tmg_compatibility_score and 'policy:upgrade:install' topics are not documented NDFC fields as far as I can find. 'TMG' in Cisco usage normally refers to the Transceiver Module Group optics matrix, not software upgrade compatibility.",
+      "field": "detailedImplementation",
+      "quote": "this stream reveals **installer.dryRun**, **installer.commit**, rollback transitions, installer durations feeding **image_push_duration_seconds**",
+      "severity": "needs_verification",
+      "suggested_fix": "Replace these with the field names the NDFC upgrade-status API actually returns, and remove the TMG references unless a Cisco source ties them to NX-OS image upgrades."
+    },
+    {
+      "dimension": "consistency",
+      "explanation": "The SPL only emits issu_gate as a latest value per device, not stage counts per wave, so this panel cannot be built from the search output.",
+      "field": "visualization",
+      "quote": "**Horizontal funnel / stage tracker** — **`installer.dryRun`** → **`installer.commit`** → reload/post-check counts per ISSU wave",
+      "severity": "minor",
+      "suggested_fix": "Describe a panel built on issu_gate counts, or note that it needs a separate search."
+    },
+    {
+      "dimension": "specificity",
+      "explanation": "The NDFC guide and the NDFC REST API reference point at generic cisco.com and developer.cisco.com roots.",
+      "field": "references",
+      "quote": "\"title\": \"Cisco NDFC LAN Fabric Configuration Guide — Image Management (Release 12.4)\",\n      \"url\": \"https://www.cisco.com/c/en/us/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the NDFC 12.x Image Management chapter and https://developer.cisco.com/docs/nexus-dashboard-fabric-controller/."
+    },
+    {
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by an agent reviewer while API paths and field names do not match the vendor docs.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until it has been validated against an NDFC 12.x instance."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "fabric_in_sync = eventstats sum(insync) counts every In-Sync poll event over 24h (for example 288 five-minute polls per device), while devices_in_fabric is dc(device_name). fabric_compliance_pct therefore routinely exceeds 100%. Use dc(eval(if(insync=1,device_name,null()))) on the latest snapshot instead.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "vpc_drift compares running_version with eventstats latest(running_version) BY fabric_name vpc_peer. That groups a device's own events, which carry the peer's name, rather than the peer's own events, so peer_running is usually the device's own version and drift is rarely detected. 'fabric_name=fabric_name' is a tautology.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "'sort fabric_name straggler_flag - image_push_fail_events' sorts straggler_flag ascending, so compliant devices come first, and 'head 400' can truncate the Out-of-Sync and Failed rows the UC exists to surface. There is no where filter either.",
+      "severity": "minor"
+    },
+    {
+      "evidence_url": "https://attack.mitre.org/techniques/T1542/005/",
+      "field": "mitreAttack",
+      "issue": "T1542.005 is 'Pre-OS Boot: TFTP Boot'. Unapproved image pushes or drift through NDFC fit T1601 / T1601.001 (Modify System Image: Patch System Image) better.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0062-UC-18.4.10",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "A well-motivated golden-image compliance UC built on NDFC image-management API paths that do not match the documented /imagemanagement/rest/policymgnt/ tree. It also cites an invented syslog mnemonic, NDI endpoint and ISSU field names. The SPL's compliance percentage and vPC drift logic are arithmetically broken, and the 1917 add-on is misnamed and deprecated.",
+  "tier": "deep",
+  "uc_id": "UC-18.4.10",
+  "verdict": "incorrect"
+}

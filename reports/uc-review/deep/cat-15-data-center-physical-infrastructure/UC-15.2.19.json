@@ -1,0 +1,97 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "db483b336484661def235e6e8d3c49595f0160ae0cc80761ca059b77a907047c",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.2.19.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/datacenter-physical.md",
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/forward-and-process-data/ingest-actions/process-data-with-forwarders/forwarder-comparison",
+      "explanation": "The Universal Forwarder is a standalone executable, not a Splunkbase app (ID 617 is not in the cached Splunkbase catalogue), and it ships without Python, so a modular input polling a leak-detection panel normally runs on a heavy forwarder. The guide's documented paths for leak sensors are SNMP (NetBotz, RLE) or BACnet via Edge Hub.",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll",
+      "severity": "blocker",
+      "suggested_fix": "Name the real collection path for the leak panel (for example SNMP polling of an RLE or NetBotz controller, BACnet via Edge Hub, or syslog/HEC from the panel) and drop the 'Splunkbase 617' reference."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/datacenter-physical.md",
+      "explanation": "dataSources lists `zone`, `sensor_id` and `conductivity`, but the SPL filters on `leak_detected` and groups by `crac_id`, neither of which is listed; `conductivity` and `sensor_id` are never used. The SPL also uses `index=environment`, while the subcategory guide puts leak sensors in `index=dc_environmental` with `sourcetype=\"snmp:envmon\" sensor_type=\"leak\"` and a `leak_state` field.",
+      "field": "cross_field",
+      "quote": "`sourcetype=\"leak_detection\"` (zone, sensor_id, conductivity)",
+      "severity": "major",
+      "suggested_fix": "List the fields the search needs (`leak_detected` or `leak_state`, `zone`, `sensor_id`, and a `crac_id` mapping, likely from a zone-to-CRAC lookup), and either align with the guide's `dc_environmental` / `snmp:envmon` convention or say this is a separate custom feed."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The SPL only counts wet events per `zone` and `crac_id`; it does no adjacency correlation, uses no rope position, and cannot localise a source. Suggesting a Splunk alert drives emergency power-off (EPO) workflows is unsafe and beyond what the detection supports.",
+      "field": "detailedImplementation",
+      "quote": "Correlates multiple rope sensors to localize leak source and trigger EPO workflows under raised floor.",
+      "severity": "major",
+      "suggested_fix": "Say the search lists zones with wet sensors and the CRAC serving each zone so facilities can dispatch; if adjacency or rope position is wanted, describe the lookup (zone → adjacent zones, isolation valve) and the `leak_position_meters`-style field it needs, and leave EPO decisions to the facilities runbook."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "Nothing in the SPL or data sources provides adjacent zones or isolation-valve locations, and this sentence is reused as 'Step 1 — Configure data collection' even though it is not a collection step.",
+      "field": "implementation",
+      "quote": "On any leak, show adjacent zones and nearest CRAC/isolation valve. Integrate with facilities runbook.",
+      "severity": "major",
+      "suggested_fix": "Add a lookup step (for example a `leak_zone_map.csv` with zone, adjacent_zones, crac_id, isolation_valve) and describe the actual collection step for the leak panel."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "clarity",
+      "explanation": "No threshold is configured: the SPL returns a row for any zone with at least one wet event, and `count` is a number of events, not of sensors, so a single chattering sensor ranks above two sensors each reporting once.",
+      "field": "description",
+      "quote": "Outputs `count` each `the scheduled window`; alert when configured threshold.",
+      "severity": "minor",
+      "suggested_fix": "State that any wet reading alerts, and count distinct sensors per zone (`dc(sensor_id)`) if multi-sensor corroboration is the goal."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "None of the scenarios is a real leak-detection false positive. Real ones are condensate on a rope sensor near a CRAC drain pan, a cut or disconnected rope cable reported as a fault or wet, cleaning crews mopping under the raised floor, and sensor self-test cycles.",
+      "field": "knownFalsePositives",
+      "quote": "Scheduled automation elevates `crac_id` without crossing configured threshold",
+      "severity": "major",
+      "suggested_fix": "Replace with those leak-specific causes and the mitigations (distinguish cable-fault state from wet state, require two consecutive wet polls, suppress during scheduled floor cleaning)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "clarity",
+      "explanation": "The heading repeats four times and the Step 1–4 sequence is then duplicated with generic text (vendor API 401/429, 300–900 s poll interval, earliest=-24h@h) that suits neither a leak panel nor a critical alert, where a 24-hour lookback re-alerts on leaks that are already dry.",
+      "field": "detailedImplementation",
+      "quote": "Step 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize",
+      "severity": "major",
+      "suggested_fix": "Keep one sequence; schedule every few minutes over a short window and take the latest state per sensor so cleared leaks stop alerting."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "No time bound or latest-state logic: `where leak_detected=1 | stats count` over the scheduled window keeps reporting a zone after the sensor dries, and counts events rather than distinct sensors. The title promises zone correlation, which the SPL does not perform.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0039-UC-15.2.19",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The UC promises zone correlation and leak-source localisation, but the SPL only counts wet events per zone and CRAC; the ingestion path (Universal Forwarder as a Splunkbase app) is wrong, the data-source field list does not match the fields the SPL uses, and the index differs from the subcategory guide.",
+  "tier": "deep",
+  "uc_id": "UC-15.2.19",
+  "verdict": "incorrect"
+}

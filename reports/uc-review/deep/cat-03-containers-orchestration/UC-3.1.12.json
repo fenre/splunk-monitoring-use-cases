@@ -1,0 +1,113 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "b048edb1aeddfa352dfc38c1dcfcb3fd9aabfb1def9111051b1b88aafcbf3c30",
+  "file": "content/cat-03-containers-orchestration/UC-3.1.12.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/application-state-deprecated",
+      "explanation": "Application State has been deprecated since CIM 4.12 in favour of Endpoint. Nothing in the UC maps docker:inspect to either Application State or Performance.",
+      "field": "cimModels",
+      "quote": "\"Application_State\", \"Performance\"",
+      "severity": "major",
+      "suggested_fix": "Remove both models, or describe an explicit Endpoint.Services mapping for docker:inspect if one is intended."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunk_TA_nix does not ship a docker inspect or docker events scripted input. These collectors are customer-written, and the wording implies an off-the-shelf input. The app field repeats the claim ('provides ... the scripted-input pattern for privileged docker inspect').",
+      "field": "dataSources",
+      "quote": "collected by Splunk Add-on for Unix and Linux (Splunkbase 833) scripted inputs wrapping docker inspect",
+      "severity": "major",
+      "suggested_fix": "State that docker:inspect and docker:events come from a customer-authored scripted input (which can be packaged in a custom app on a forwarder). Cite Splunk_TA_nix only for host identity or OS context if it is actually used."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/container-platforms-docker-openshift.md",
+      "explanation": "The subcategory guide describes UC-3.1.12 as tracking `docker compose ps --format json` via scripted input, while this UC uses per-container docker inspect. Either approach works, but the catalogue tells two different stories.",
+      "field": "dataSources",
+      "quote": "sourcetype=docker:inspect periodic JSON flattening of Config.Labels",
+      "severity": "minor",
+      "suggested_fix": "Align the guide and UC on one collection method, or mention `docker compose ps --format json` as an alternative source."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "This is an authoring-pipeline checklist addressed to the content generator, not the operator. It also claims 'equipmentModels include docker_engine and docker_compose_v2', but the sidecar has no equipmentModels. 'Supplemental engineering notes', 'FinOps alignment' and 'Historical context' are similar padding.",
+      "field": "detailedImplementation",
+      "quote": "Closing checklist: exactly five Step headers use plain text with em dashes; Step 3 hosts the fenced SPL identical to the spl JSON field; ... no forbidden boilerplate phrases from the gold uplift list appear in narrative fields.",
+      "severity": "major",
+      "suggested_fix": "Delete the closing checklist and generic appendices. Add equipmentModels only if those slugs exist in the equipment registry."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Compose writes depends_on labels as service:condition:flag tokens, and the condition can also be service_completed_successfully. The described (and implemented) stripping only handles service_healthy and service_started, so those tokens never match a down service.",
+      "field": "detailedImplementation",
+      "quote": "stripped of Compose v2 condition suffixes so chain_hit increments",
+      "severity": "minor",
+      "suggested_fix": "Describe stripping everything after the first ':' so all condition variants are handled."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "Documentation and vendor blogs are not control evidence. The Cloudflare reference (Containers on Workers) is also unrelated to Docker Compose on edge hosts.",
+      "field": "evidence",
+      "quote": "external grounding from Docker Compose specification and depends_on documentation, Splunk Lantern container onboarding guidance, Cloudflare edge container engineering notes",
+      "severity": "minor",
+      "suggested_fix": "Keep the saved search, lookup versions and weekly exports as evidence. Drop the Cloudflare reference from evidence and references."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The cimSpl is invalid and one documented severity tier is unreachable, which contradicts a claim of verified, tested content.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until the SPL tiers are exercised in the documented lab paths."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/application-state-deprecated",
+      "field": "cimSpl",
+      "issue": "Application State is deprecated (CIM 4.12+). Its root dataset is All_Application_State, and it has no `state` or `app` fields, so `nodename=Application_State`, `Application_State.state`, `Application_State.dest` and `Application_State.app` do not resolve. Use Endpoint.Services (service, status, dest), or drop cimSpl.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "streamstats window=6 BY host_id compose_project runs after the project-level stats, which leaves exactly one row per host and project. ph_first always equals ph_last, so health_flap is always 0 and 'medium_intermittent_health_check_flapping' can never fire. Flap detection needs time-bucketed rows (for example `bin _time span=5m` before the project stats).",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "Over a 4-hour window, `latest(state_status)` per service keeps containers that were removed hours ago at their last state. A recreated service can appear twice (old and new compose_service names when Name is the fallback), and stale 'running' rows mask outages. Restrict to the most recent inspect poll per host.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "health_status 'starting' makes healthy_flag=0, so every normal `compose up` with healthchecks briefly reports project_health_pct<50 as critical. Consider treating 'starting' within start_period as neutral.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0004-UC-3.1.12",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The Compose bundle-health idea, depends_on chain check and config-hash drift check are well motivated, and the validation paths are concrete. The cimSpl targets a deprecated data model with field names that do not exist. One severity tier can never fire. The collection story credits Splunk_TA_nix with an input it does not ship. The detailedImplementation ends in a long authoring-template checklist.",
+  "tier": "deep",
+  "uc_id": "UC-3.1.12",
+  "verdict": "incorrect"
+}

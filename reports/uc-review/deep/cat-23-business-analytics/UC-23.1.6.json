@@ -1,0 +1,122 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "83759b5319742f63c653448b274b9a86f8352215404e68124c6be019f048b48e",
+  "file": "content/cat-23-business-analytics/UC-23.1.6.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.sentry.io/organization/integrations/integration-platform/webhooks/",
+      "explanation": "Sentry sends the HMAC in the `Sentry-Hook-Signature` header (with `Sentry-Hook-Resource` and `Sentry-Hook-Timestamp`); a verifier coded against `X-Sentry-Hook-Signature` rejects every delivery. The same wrong header is repeated in detailedImplementation Step 1.",
+      "field": "implementation",
+      "quote": "outbound Issues webhook signatures validated via `X-Sentry-Hook-Signature`",
+      "severity": "blocker",
+      "suggested_fix": "Use `Sentry-Hook-Signature` (hex HMAC-SHA256 of the body with the integration Client Secret) everywhere."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "explanation": "HEC authenticates only with its own token (an `Authorization: Splunk <token>` header, or a query-string token if enabled); it has no feature to verify third-party HMAC signatures. Sentry cannot add the HEC Authorization header either, so a direct webhook to HEC fails.",
+      "field": "detailedImplementation",
+      "quote": "Sentry Issues webhook hits `https://splunk-hec.example.com/services/collector/raw` with header `X-Sentry-Hook-Signature` containing hex HMAC-SHA256 digest—Splunk ingestion pipeline verifies signature against configured secret before indexing.",
+      "severity": "blocker",
+      "suggested_fix": "Put a small relay (cloud function or reverse proxy) in front: it verifies `Sentry-Hook-Signature`, then forwards to HEC with the HEC token."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "explanation": "This is not a valid inputs.conf stanza: there is no input type prefix, and `handler`, `route` and `hec_token` are not inputs.conf settings. The props example is also broken: `EVAL-user_id_hash = sha256(lower(trim(toString(user.id))))` treats `.` as concatenation (user . id), and `coalesce(exception.values{}.type,'unknown')` uses an unquoted braced field and a single-quoted field reference instead of a string literal.",
+      "field": "detailedImplementation",
+      "quote": "[splunk-crash-sentry-webhook]\nconnection_host = 0.0.0.0\nhandler = sentry_hmac_validator.py\nroute = /hooks/sentry\nhec_token = ***REDACTED***",
+      "severity": "blocker",
+      "suggested_fix": "Replace with a real pattern, e.g. an `[http://sentry]` HEC token stanza behind a verifying relay, and fix the EVALs to quote fields with single quotes and strings with double quotes: `sha256(lower(trim(tostring('user.id'))))`, `coalesce('exception.values{}.type',\"unknown\")`."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "4988 is not in the cached catalogue. The GCP add-on ingests Pub/Sub, Cloud Monitoring, billing and storage buckets, not BigQuery tables, so Crashlytics needs an export path (Pub/Sub or GCS) to reach it. 'Splunk App for Mobile Analytics' (the old Splunk MINT line) appears to be discontinued.",
+      "field": "app",
+      "quote": "**Sentry SDK** for iOS/Android (Splunkbase 4988 — Splunk for Sentry); **Firebase Crashlytics** via Splunk Add-on for Google Cloud Platform (Splunkbase 3088); ... optional Splunk App for Mobile Analytics.",
+      "severity": "needs_verification",
+      "suggested_fix": "Verify the name and ID for 4988. State the Crashlytics path explicitly (BigQuery export → scheduled job → Pub/Sub or GCS → GCP add-on input, or HEC). Drop the Mobile Analytics app unless a current listing exists."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Crashlytics has no documented public REST endpoint for fetching issues; the supported programmatic path is the BigQuery export. Bugsnag's `x-bugsnag-payload-version: 5` is the SDK→Bugsnag notify header, not a header on deliveries to Splunk.",
+      "field": "dataSources",
+      "quote": "Firebase Crashlytics REST `/v1/projects/{project}/apps/{app}:bulkFetchIssues` mirrors issue titles",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm against Firebase and Bugsnag docs; if the endpoints are not documented, remove them and describe BigQuery export (Crashlytics) and Data Access API polling or webhook integrations (Bugsnag)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The SPL computes no baseline or deviation, `notable` implies Enterprise Security, and the run counts and register lookups are invented.",
+      "field": "evidence",
+      "quote": "written to `notable` with severity tied to deviation from 168-hour baseline",
+      "severity": "major",
+      "suggested_fix": "Describe the actual output: ranked stack signatures per app/OS version with crash rate, crash-free users, ANR rate and estimated revenue at risk, archived per run, plus the Step 3 reconciliation against the Crashlytics and Play Vitals dashboards."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "UC-23.1.3 measures page-load performance, not crashes. The SPL computes `environment` but never filters to production, and `device_compromised` is not referenced, so the stated exclusions are not enforced.",
+      "field": "exclusions",
+      "quote": "Web/desktop crash signals (use UC-23.1.3 RUM); ... pre-prod/staging app builds; jailbroken/rooted devices (`device_compromised=true`)",
+      "severity": "minor",
+      "suggested_fix": "Reword the UC-23.1.3 pointer and state that the reader must add `environment=\"production\"` and compromised-device filters to the search."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "Marked verified by an automated agent, with no SME sign-off, despite invalid configuration examples and broken SPL math.",
+      "field": "status",
+      "quote": "\"status\": \"verified\", ... \"reviewer\": \"agent-handcraft-2026-04-28\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade to draft/community pending SME review."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "grandma_fidelity",
+      "explanation": "'Pocket software' and 'everyday trips' are vague, and the explanation leaves out the version-by-version ranking and the revenue-at-risk estimate the UC produces.",
+      "field": "grandmaExplanation",
+      "quote": "so fixes chase flaws that genuinely spoil everyday trips",
+      "severity": "minor",
+      "suggested_fix": "Say it plainly: we count how often each version of our phone app crashes or freezes and how many customers it affects, so the worst bugs, and the ones costing the most customers, get fixed first."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Join",
+      "field": "spl",
+      "issue": "The `join ... [stats dc(session_id) as sessions dc(user_id_hash) as total_users by app_version os_version]` attaches the full 168-hour session/user totals to every hourly × device × signature × vendor × classification row. The second `stats sum(sessions)` then multiplies the denominator by the number of rows, and `session_crash_rate` divides one hour of crashes by 168 hours of sessions, so crash rates are understated by orders of magnitude. `affected_users=min(crash_sessions,total_users)` also mixes crash sessions with users, so `crash_free_users_pct` is not a crash-free-users metric.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats",
+      "field": "spl",
+      "issue": "`sort stack_signature | streamstats current=f window=1 last(crash_rate) as previous_release_cr by app_version` returns the previous row's crash rate for another stack signature in the same app_version, not the previous release, yet detailedImplementation alerts on it as a 'prior GA candidate release'. `where ... OR fatal_present==1` lets every row with any fatal crash through, which defeats the thresholds. `revenue_at_risk` falls back to hard-coded $120 ARR and a 0.008 churn lift when the lookup misses, presenting invented dollars. Non-production `environment` values are computed but never filtered.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0005-UC-23.1.6",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 3,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The vendor coverage and troubleshooting list are rich, but the SPL's denominator logic is broken (168-hour session totals joined to every hourly row, then summed), the `previous_release_cr` and threshold filter do not do what the prose claims, and the implementation shows invalid inputs.conf/props.conf syntax, the wrong Sentry signature header, and HEC verifying HMAC signatures, which it cannot do.",
+  "tier": "deep",
+  "uc_id": "UC-23.1.6",
+  "verdict": "incorrect"
+}

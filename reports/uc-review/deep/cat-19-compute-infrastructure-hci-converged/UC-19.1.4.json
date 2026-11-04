@@ -1,0 +1,125 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "2c91585fee6d674584a97f9e8e2f8bac4953b1d5aa9dc580beac818562e478e0",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.1.4.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/",
+      "explanation": "The Splunk Add-on for Cisco UCS gives all its data sourcetype `cisco:ucs`. It sets the source from the classId, so faults arrive as `source=cisco:ucs:faultInst`. The add-on has no separate 'faults' modular input; faults are collected by an input that uses the `UCS_Fault` template.",
+      "field": "dataSources",
+      "quote": "sourcetype `cisco:ucs:faults` from the Splunk Add-on for Cisco UCS (Splunkbase 2731, v4.3.1). The **Cisco UCS faults** modular input",
+      "severity": "blocker",
+      "suggested_fix": "Describe the feed as `index=<your index> sourcetype=cisco:ucs source=cisco:ucs:faultInst`, collected by a Cisco UCS input with the `UCS_Fault` collection template. Mention `cisco:ucs:faults` only if a site deliberately overrides the sourcetype."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/ConfigureInputs/",
+      "explanation": "This is backwards. Both Splunkbase and the add-on documentation name the app folder `Splunk_TA_cisco-ucs`, with a hyphen, for example `$SPLUNK_HOME/etc/apps/Splunk_TA_cisco-ucs/default/props.conf`. The underscore form appears only in the settings file names such as `splunk_ta_cisco_ucs_settings.conf`.",
+      "field": "app",
+      "quote": "The on-disk and canonical add-on id is `Splunk_TA_cisco_ucs` (underscore); older download bundles may still show `Splunk_TA_cisco-ucs` in a filename, which is a packaging artefact only.",
+      "severity": "blocker",
+      "suggested_fix": "State that the app folder is `Splunk_TA_cisco-ucs` (Splunkbase 2731). Remove the claim that the hyphenated name is a packaging artefact."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/ConfigureInputs/",
+      "explanation": "The documented setup is done inside the add-on UI in three steps: Configuration > Managers to add the UCSM host and credentials, then Configuration > Templates where the predefined `UCS_Fault` template lives, then Inputs. Its inputs.conf stanza uses `sourcetype = cisco:ucs` and `templates = UCS_Fault`. The UC instead describes Settings → Data inputs, `cisco_ucs://` stanzas and a `cisco:ucs:faults` sourcetype, none of which the docs show.",
+      "field": "detailedImplementation",
+      "quote": "open **Settings → Data inputs** and look for the Cisco UCS family, or edit `local/inputs.conf` under the app. Copy a documented modular-input template from the shipped `default/inputs.conf` (names usually follow `cisco_ucs://<label>`). ... while preserving the TA’s `cisco:ucs:faults` sourcetype",
+      "severity": "major",
+      "suggested_fix": "Rewrite Step 1 to follow the add-on's Managers → Templates (`UCS_Fault`) → Inputs flow. Validate with `sourcetype=cisco:ucs source=cisco:ucs:faultInst`."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Chart",
+      "explanation": "`chart ... over _time by sev` behaves the same way: it creates columns only for values that are present. Its columns come out in its own order, and the earlier `sort 0 sev_rank` has no effect on that order. Unlike `timechart`, `chart` over a binned `_time` also does not fill empty days. The stated reasons for preferring bin+stats+chart are therefore wrong.",
+      "field": "detailedImplementation",
+      "quote": "any severity tier with zero events in the selected window *does not* become a `timechart` column ... the `sev_rank` case keeps a stable stack order in visualisation where you need it.",
+      "severity": "major",
+      "suggested_fix": "Drop the claim about zero-event columns and stack order. If a fixed column order is needed, append an explicit `| table _time critical major minor warning condition info` after the chart, or use `| timechart span=1d count by sev` after the `lower()` normalisation."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "As far as I know, UCSM faultInst exposes `lastTransition`, `origSeverity`, `prevSeverity`, `highestSeverity` and `id`, but has no `changed` attribute. It is also unverified whether the add-on stamps `_time` from `created` or from the poll time. That decides whether this search counts new faults or re-polled open ones.",
+      "field": "dataSources",
+      "quote": "Typical fields: `severity`, `code`, `cause` (enum), `descr`, `type`, `lc`, `occur`, `dn`, `ack`, `created`, `changed`; `_time` is usually the raise time",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the faultInst attribute list in the Cisco UCS Manager XML API reference and the add-on's props.conf timestamp settings for `cisco:ucs:faultInst`. Then correct the field list and state how `_time` is derived."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "These scenarios are template output and name no real UCS cause. The SPL has no threshold, and synthetic probes do not generate faultInst. The real inflation sources, such as transient faults during firmware upgrades, re-polled open faults, and API plus syslog double ingest, are discussed elsewhere in the UC but are missing here.",
+      "field": "knownFalsePositives",
+      "quote": "**Batch `dc` on `cisco:ucs:faults`** — Scheduled automation elevates `sev` without crossing configured threshold ... **Synthetic probe on `_time`, `sev`** — Health checks in `cisco_ucs` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List real causes: transient fault bursts during infrastructure or server firmware upgrades and FI reboots, blade discovery or reassociation, re-poll duplication when `_time` is the poll time, and dual API and syslog feeds. Give the triage step for each."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The URL is the Cisco homepage, not the Faults Reference the title promises and that Step 3 tells the reader to consult.",
+      "field": "references",
+      "quote": "\"title\": \"Cisco UCS Faults Reference, Release 4.2 (fault codes, causes, recommended actions)\",\n      \"url\": \"https://www.cisco.com/c/en/us/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the actual Cisco UCS Faults and Error Messages Reference page for the UCSM release in scope. Note that the add-on also ships `ucs_fault_code.csv` for code-to-explanation lookups."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/ReleaseHistory/",
+      "explanation": "The 4.3.1 release notes list compatibility with Splunk 9.1.x through 9.4.x only. The UC's own `splunkVersions` says 9.2+, which matches neither.",
+      "field": "app",
+      "quote": "current release 4.3.1, Splunk-supported on 9.1–10.2 and Splunk Cloud",
+      "severity": "minor",
+      "suggested_fix": "State 9.1.x–9.4.x per the 4.3.1 release notes, or whatever Splunkbase currently lists, and align `splunkVersions`."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/print_page/",
+      "explanation": "The add-on already ships `ucs_fault_code.csv` (code to explanation) and `ucs_fault_type.csv`. Readers should reuse those before building a parallel catalogue.",
+      "field": "detailedImplementation",
+      "quote": "Optional `ucs_fault_code_catalog.csv` (UTF-8) in a custom app under `lookups/`, for example with columns `code`, `family`",
+      "severity": "minor",
+      "suggested_fix": "Point to the shipped `ucs_fault_code.csv` and `ucs_fault_type.csv` lookups first, and extend them only for the family and KB columns."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/",
+      "field": "spl",
+      "issue": "The search filters `sourcetype=\"cisco:ucs:faults\"`, but the Splunk Add-on for Cisco UCS indexes faults as `sourcetype=cisco:ucs source=cisco:ucs:faultInst`. On a default install it returns nothing; it should use `sourcetype=cisco:ucs source=cisco:ucs:faultInst`.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The search coalesces `fault_code`, `fault_type`, `fault_cause` and `sev`, which look like invented alternate names. `sort 0 sev_rank, _time` has no effect after `chart`. If `_time` is the poll time rather than `created`, `dedup dn, code, severity, _time` counts every re-polled open fault as a new arrival. Check the timestamp setting and consider `dc(id)` keyed on `created` for true arrivals.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0033-UC-19.1.4",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 3,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The detailedImplementation is thoughtful about arrivals versus open state, but the UC is built on a sourcetype (`cisco:ucs:faults`) and app folder name that the Splunk Add-on for Cisco UCS does not use. The TA assigns sourcetype `cisco:ucs` and source `cisco:ucs:faultInst`. Templated KFP and reference residue also remain.",
+  "tier": "deep",
+  "uc_id": "UC-19.1.4",
+  "verdict": "incorrect"
+}

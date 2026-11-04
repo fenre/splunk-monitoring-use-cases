@@ -1,0 +1,103 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "9988bdedfb88002f53a07c0b58489bf7659858a2eb0354946bc47f45f0a1697d",
+  "file": "content/cat-02-virtualization/UC-2.7.2.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The title promises duration trending and the implementation promises a per-storage baseline and an overnight window. The SPL only compares p95 with a fixed 14400 seconds (4 hours) for the last 7 days and has no baseline or window logic.",
+      "field": "cross_field",
+      "quote": "Baseline p95 duration per `storage`. Alert on any `failed` job or p95 beyond the overnight window.",
+      "severity": "major",
+      "suggested_fix": "Either describe the fixed 4-hour p95 threshold and how to change it, or add a per-storage baseline to the search."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "specificity",
+      "explanation": "The search needs `status`, `duration_sec`, `storage`, `jobid`, `vmid` and `errmsg`, but nothing explains how to produce them. There is no props/transforms extraction, no sample line, and no mention of which Proxmox log or task output is read. The path `/var/log/vzdump.log` and the journal identifier `vzdump` may not match where Proxmox VE writes backup output (task logs under /var/log/pve/tasks and per-guest logs under /var/log/vzdump).",
+      "field": "implementation",
+      "quote": "Parse vzdump lines into structured fields.",
+      "severity": "major",
+      "suggested_fix": "Give a sample vzdump result line, the file paths to monitor, and the extraction used to build the fields. Verify the paths against the Proxmox VE documentation."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "explanation": "The app field describes a Universal Forwarder tailing a log file, which has no modular input, HEC token, poll interval or vendor API. The steps are generic scaffolding. Step 3 also lists `ok` as an output field that the search does not output, and `tstats` against a 'vendor admin UI inventory' is meaningless for backups.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=proxmox:backup into pve. Default poll interval 300–900 seconds unless the vendor API rate-limits lower.",
+      "severity": "major",
+      "suggested_fix": "Replace with UF `monitor` stanza instructions, a sourcetype definition and a check against the Proxmox backup job list."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "These are Linux capacity-template causes. They do not explain a failed or slow vzdump job. Real causes include a large guest or a first full backup, concurrent jobs on shared storage, backup target maintenance, locked or migrating guests, and jobs intentionally stopped.",
+      "field": "knownFalsePositives",
+      "quote": "Patch Tuesday on `pve` — Package managers spike `storage` metrics ... Synthetic probe on `proxmox:backup` — Nagios/Zabbix polls `storage` and mimics sustained load",
+      "severity": "major",
+      "suggested_fix": "List backup-specific causes and say how to exclude them (for example by jobid or storage lookup)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "Microsoft 365 has nothing to do with Proxmox backups.",
+      "field": "equipment",
+      "quote": "\"equipment\": [ \"m365\", \"proxmox\", \"syslog\" ]",
+      "severity": "minor",
+      "suggested_fix": "Remove m365."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "Boilerplate benefit that does not describe the value of backup monitoring, which is knowing that restorable backups exist and finish within their window.",
+      "field": "value",
+      "quote": "reduces capacity incidents, patch regressions, and service outages",
+      "severity": "minor",
+      "suggested_fix": "Say that it finds failed and overrunning backups before they leave guests without a recent restore point."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "A verified status relies on a generic team name and no evidence of SME validation, while the field extractions and log sources are unspecified. The `splunkVersions` list ('9.x', '8.x') also lists an outdated 8.x line.",
+      "field": "cross_field",
+      "quote": "\"status\": \"verified\", \"lastReviewed\": \"2025-06-01\", \"reviewer\": \"catalog-team\"",
+      "severity": "major",
+      "suggested_fix": "Lower the status unless there is a documented SME check, and update the supported versions."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "A Proxmox UPID encodes node, process, start time, task type and guest, not the backup job ID, so matching on `jobid` is not possible. It also depends on a second sourcetype that this UC does not set up.",
+      "field": "implementation",
+      "quote": "drill into `proxmox:task` UPIDs matching the same `jobid` timestamp",
+      "severity": "minor",
+      "suggested_fix": "Describe matching by node, vmid and start time, and reference the UC that ingests `proxmox:task`."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`match(lower(status), \"(?i)ok|success|finished\")` is an unanchored substring match, so any status containing 'ok' (for example 'broken pipe') or 'finished' (for example 'unfinished') counts as success. Events with null status count as failed. Real vzdump task results use 'TASK OK' and 'TASK ERROR', which should be matched exactly.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0039-UC-2.7.2",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The goal (failed or overlong vzdump jobs per storage) is clear and the SPL is understandable. The text does not say how vzdump logs become structured fields, the setup steps describe inputs a file tail does not have, and the false-positive list is copied from a Linux capacity template.",
+  "tier": "triage",
+  "uc_id": "UC-2.7.2",
+  "verdict": "rewrite"
+}

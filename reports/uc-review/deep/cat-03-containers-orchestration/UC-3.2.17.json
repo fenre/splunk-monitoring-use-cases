@@ -1,0 +1,187 @@
+{
+  "confidence": 0.86,
+  "content_sha256": "2a74c37c6ef213011d9083af6697ce6f2076d031998bd01f3c3f8ad1615064e8",
+  "file": "content/cat-03-containers-orchestration/UC-3.2.17.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/application-state-deprecated",
+      "explanation": "Application_State has been deprecated since CIM 4.12 (replaced by Endpoint) and models running services/processes, not Kubernetes autoscaler objects. Performance models host CPU/memory/storage telemetry, which is not what this UC detects. dataModelAcceleration then tells operators to accelerate both models for no detection benefit.",
+      "field": "cimModels",
+      "quote": "\"cimModels\": [\n    \"Application_State\",\n    \"Performance\"\n  ]",
+      "severity": "blocker",
+      "suggested_fix": "Declare no CIM model (schema raw kube-state-metrics / kube:events), or keep Performance only as an optional node-pressure overlay and say so explicitly. Remove the Application_State acceleration advice from dataModelAcceleration."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/kubernetes/kubernetes/blob/master/pkg/controller/podautoscaler/horizontal.go",
+      "explanation": "The HPA controller emits Warning events FailedGetResourceMetric, FailedGetContainerResourceMetric, FailedGetPodsMetric, FailedGetObjectMetric, FailedGetExternalMetric, FailedComputeMetricsReplicas, FailedGetScale and FailedRescale. There is no FailedGetCustomMetric reason, and the event message is the raw error string, so it does not 'echo' a FailedGet reason. Custom per-pod metric failures (FailedGetPodsMetric) are the ones missed. detailedImplementation repeats the same claim in Step 1 and Case 5.",
+      "field": "dataSources",
+      "quote": "reasons FailedGetResourceMetric, FailedGetExternalMetric, FailedGetObjectMetric, or messages echoing FailedGetCustomMetric from adapter stacks",
+      "severity": "major",
+      "suggested_fix": "List the real controller reasons: FailedGetResourceMetric, FailedGetContainerResourceMetric, FailedGetPodsMetric, FailedGetObjectMetric, FailedGetExternalMetric, FailedComputeMetricsReplicas, FailedGetScale, FailedRescale. Drop the FailedGetCustomMetric wording everywhere."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "explanation": "The subcategory guide describes Splunk Connect for Kubernetes as a deprecated Helm-chart collector, not a Splunk modular input or scripted poll. The same dataSources text already names the Splunk OpenTelemetry Collector as the actual collection path.",
+      "field": "dataSources",
+      "quote": "Collected via Splunk Connect for Kubernetes (Splunkbase 5167) modular input or scripted poll into the index named in the SPL.",
+      "severity": "major",
+      "suggested_fix": "Replace the sentence with: 'Collected by the Splunk OpenTelemetry Collector for Kubernetes Helm chart (prometheus receiver for kube-state-metrics, k8sobjects/k8s_events for events) via HEC; legacy Splunk Connect for Kubernetes deployments are deprecated.'"
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/kubernetes.md (subcategory 3.2 sibling UC-3.2.11 title in grounding)",
+      "explanation": "UC-3.2.11 is catalogued, and its title is 'Kubernetes HorizontalPodAutoscaler Scaling Event Frequency, Flapping, and Cooldown Throttling'. It is a direct flapping detector, not a generic overview. This UC's flap_score axis duplicates it, yet the exclusion and detailedImplementation ('when present in your catalogue ... executive roll-ups') misdescribe the sibling.",
+      "field": "exclusions",
+      "quote": "UC-3.2.11 generic HPA scaling event overviews when catalogued",
+      "severity": "major",
+      "suggested_fix": "State that UC-3.2.11 owns HPA flapping/cooldown detection. Either drop the flap axis here or limit it to 'flap while pinned at maxReplicas', and remove 'when catalogued'."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/receiver/k8seventsreceiver/README.md",
+      "explanation": "The OTel k8s_events receiver accepts auth_type, namespaces, kube_api_qps, kube_api_burst, k8s_leader_elector, storage and dedup_interval. It has no 'mode' key, so the collector rejects this config. The receiver also emits OTLP log records with k8s.object.kind, k8s.object.name and k8s.event.reason attributes, not the involvedObject.kind/reason fields the events arm of the SPL reads (cross_field with spl).",
+      "field": "detailedImplementation",
+      "quote": "  k8s_events:\n    auth_type: serviceAccount\n    mode: watch",
+      "severity": "major",
+      "suggested_fix": "Remove 'mode: watch'. Either collect events with the chart's k8sobjects receiver (raw Event JSON, as in docs/guides/kubernetes.md), or document that the SPL must read k8s.object.kind, k8s.object.name and k8s.event.reason when k8s_events is used."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "A ServiceMonitor is a Prometheus Operator CRD and is ignored by the Splunk OpenTelemetry Collector prometheus receiver, which uses its own scrape_configs (shown later). Presenting it as the collection step for this pipeline is misleading.",
+      "field": "detailedImplementation",
+      "quote": "Concrete ServiceMonitor skeleton:\n\napiVersion: monitoring.coreos.com/v1\nkind: ServiceMonitor",
+      "severity": "minor",
+      "suggested_fix": "Drop the ServiceMonitor, or label it 'only if an in-cluster Prometheus Operator also scrapes kube-state-metrics; not used by the OTel collector'."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL does not alert on any of these predicates. It assigns a severity via a case ladder (at_max, flap_score>=3, metric_fail_evts>0, condition flags) and keeps critical/high/medium. 'max_replicas > 0' alone would fire on every HPA. Performance is only a discarded tstats tick count, not the data source.",
+      "field": "description",
+      "quote": "using datamodel `Performance` ... alert when `flap_dc` >= 3, `cr_range` >= 1, `max_replicas` > 0, or `metric_fail_evts` > 0",
+      "severity": "major",
+      "suggested_fix": "Describe the real logic: rows are emitted when an HPA sits at spec.maxReplicas, flaps (flap_score>=3), reports FailedGet* metric events, or reports ScalingLimited=true with AbleToScale=false. Severity rises with production tier and coincident signals. Name kube-state-metrics and kube:events as the sources."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The entries are templated noise (including a stray ']' group field) and miss the real false-positive drivers for HPA saturation. HPAs deliberately set with minReplicas == maxReplicas are always 'at max'. Transient FailedGetResourceMetric bursts occur while metrics-server restarts or a new pod has no samples yet. KEDA-managed HPAs scale to the ceiling by design during bursts. Planned load tests also trigger it.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `cluster`, `namespace`, `hpa`, `]`** — Health checks in `k8s_metrics` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "Replace with concrete entries: fixed-size HPAs (min==max), metrics-server/adapter restarts and new-pod warm-up producing short FailedGet* bursts, KEDA burst scaling, and scheduled load tests. Give each a suppression approach (lookup flag, minimum event count, or duration gate)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "SNMP equipment and the snmp_ups equipment model have nothing to do with HorizontalPodAutoscaler telemetry. They mis-route the UC in equipment pickers.",
+      "field": "equipment",
+      "quote": "\"snmp\"",
+      "severity": "minor",
+      "suggested_fix": "Remove 'snmp' from equipment and 'snmp_ups' from equipmentModels."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The table command in the SPL lists nineteen columns (cluster through severity). The implementation field also says latest=now while the SPL uses latest=@m.",
+      "field": "detailedImplementation",
+      "quote": "The closing table lists eighteen analyst columns including cond_blob and fail_msgs",
+      "severity": "minor",
+      "suggested_fix": "Say 'nineteen columns' (or stop counting) and align the dispatch window wording with the SPL (latest=@m)."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "The repository Splunkbase catalog has no 'Splunk Add-on for Kubernetes'. The only Kubernetes collector listed is 'Splunk OpenTelemetry Collector for Kubernetes' (id 6264). This docs URL may not correspond to a real product page.",
+      "field": "references",
+      "quote": "\"title\": \"Splunk Docs — Splunk Add-on for Kubernetes\"",
+      "severity": "needs_verification",
+      "suggested_fix": "Verify the URL resolves to a real Splunk product. Otherwise replace it with the splunk-otel-collector-chart documentation."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The SPL cannot execute as written and the cimSpl references fields that do not exist, so 'verified' (attributed to the generic @splunk-monitoring-use-cases handle) overstates the review state.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to 'draft' or 'community' until the search has been run against real kube-state-metrics and kube:events data by a named reviewer."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/search-commands/multisearch",
+      "field": "spl",
+      "issue": "The search pipes into '| multisearch [ [ search ... ] ... ]' after eval/join/fields. multisearch is a generating command that must be first in the search, its subsearches may contain only streaming commands (each arm ends in stats), and the extra nested bracket is invalid syntax. The search fails to parse.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval",
+      "field": "spl",
+      "issue": "In the events arm, coalesce(involvedObject.kind, `involvedObject.kind`, \"\") wraps a field name in backticks, which invokes a search macro named involvedObject.kind. No such macro exists, so the search errors. Unquoted involvedObject.kind, involvedObject.name and metadata.namespace in eval are also parsed with '.' as the concatenation operator. Dotted field names must be single-quoted ('involvedObject.kind').",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://github.com/kubernetes/kube-state-metrics/blob/main/internal/store/horizontalpodautoscaler.go",
+      "field": "spl",
+      "issue": "The condition arm builds cond_pair from the condition and status labels but ignores the sample value. kube-state-metrics emits kube_horizontalpodautoscaler_status_condition once per status (true, false, unknown) with value 1 for the active one and 0 for the others. So cond_blob always contains abletoscale=false, scalingactive=false and scalinglimited=true for every HPA. The 'scaling_limited_true AND able_false' branch makes nearly every HPA 'medium', and FailedGet events on production HPAs always become 'critical'.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://github.com/kubernetes/kubernetes/blob/master/pkg/controller/podautoscaler/horizontal.go",
+      "field": "spl",
+      "issue": "The event reason filter omits FailedGetPodsMetric and FailedGetContainerResourceMetric. The like(msg, \"%FailedGet%Metric%\") fallbacks never match, because the event message is the raw error text, not the reason.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/horizontalpodautoscaler-metrics.md",
+      "field": "spl",
+      "issue": "kube_horizontalpodautoscaler_status_target_metric has one series per metric_name/metric_target_type/container. latest() across all of them per HPA mixes CPU utilization percent with average/value series (e.g. memory bytes), so observed_metric_value>=80 and target_util_saturation_pct are arbitrary.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "flap_score counts distinct current_replicas values across six 5-minute buckets. A normal monotonic ramp (2→4→6) scores as a flap, so it does not measure min/max oscillation. The tstats Performance join (perf_model_ticks) is dropped immediately and cluster_hpamax_any is computed but unused.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/performance",
+      "field": "cimSpl",
+      "issue": "Application_State is deprecated and has no state or app fields. Performance has no host field (the entity field is dest), and CPU/memory fields live under the All_Performance.CPU and All_Performance.Memory datasets. nodename=Performance.CPU and Performance.host do not resolve.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval",
+      "field": "spl",
+      "issue": "toString is used throughout; the documented eval function is tostring, and eval function names are case-sensitive.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0037-UC-3.2.17",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The HPA saturation intent is sound and the kube-state-metrics metric names are real, but the detection would not run (multisearch mid-pipeline, a backticked field name invoked as a macro) and, if fixed, would flag nearly every HPA because condition series are read without their 0/1 value. Event reasons, CIM models, the OTel config and the overlap with UC-3.2.11 are also wrong or misdescribed.",
+  "tier": "deep",
+  "uc_id": "UC-3.2.17",
+  "verdict": "incorrect"
+}

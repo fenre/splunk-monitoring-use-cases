@@ -1,0 +1,119 @@
+{
+  "confidence": 0.82,
+  "content_sha256": "aadc9e51a98b2a3516e6cafc1cc2858979ef1dbea632a52e3055e052ab0b99f4",
+  "file": "content/cat-03-containers-orchestration/UC-3.2.4.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/5167",
+      "explanation": "Splunkbase app 5167 is 'Upgrade Universal Forwarder (Windows)'. The link labelled as OTel Collector documentation points to the Splunk Add-on for Kubernetes, which was deprecated in 2019. SCK reached end of support in January 2024 and is not a 'modular input or scripted poll' as dataSources says.",
+      "field": "app",
+      "quote": "Splunk OpenTelemetry Collector for Kubernetes ([Splunk Add-on for Kubernetes documentation](https://docs.splunk.com/Documentation/AddOns/released/Kubernetes/About)) ... — Splunk Connect for Kubernetes (Splunkbase 5167)",
+      "severity": "blocker",
+      "suggested_fix": "Cite Splunk OpenTelemetry Collector for Kubernetes (Splunkbase 6264, Helm chart splunk-otel-collector) with its own docs link, and remove the 5167 and SCK references from app and dataSources."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/6.2/data-models/application-state-deprecated",
+      "explanation": "Application_State has been deprecated since CIM 4.12 and models process, service and port inventory. Performance models host CPU and memory. Neither represents namespace ResourceQuota gauges or quota denials, and the main SPL uses neither.",
+      "field": "cimModels",
+      "quote": "\"Application_State\",\n    \"Performance\"",
+      "severity": "blocker",
+      "suggested_fix": "Remove both (the detection is metrics plus audit), or map only the audit denial arm to Change if it is tagged that way. Update dataModelAcceleration to match."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The sustained gate only feeds time_in_exhaustion_min. Severity is computed from the latest used_pct alone, so a single scrape at 100% still produces 'exhausted'. The first bucket also passes the gate on its own, because first() over window=2 returns the current value. Case 6 promises protection from HPA bursts that the SPL does not provide.",
+      "field": "detailedImplementation",
+      "quote": "the streamstats sustained gate inside the sixty minute exhaustion join reduces single-scrape flicker",
+      "severity": "major",
+      "suggested_fix": "Say that time_in_exhaustion_min is informational only and that alert throttling or a soak condition (for example time_in_exhaustion_min>=10) must be added in the alert. Otherwise, ask the SPL owner to make severity depend on the sustained flag."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The denial arms search a 15-minute window (earliest=-15m@m), not 5 minutes. One controller-driven denial can also be counted twice, once as a ReplicaSet FailedCreate event and once as an audit 403.",
+      "field": "detailedImplementation",
+      "quote": "The join wrapped multisearch aggregates FailedCreate event volume and 403 audit denials per namespace, producing denial_count_5m",
+      "severity": "minor",
+      "suggested_fix": "Describe denial_count_5m as a 15-minute count, and note the double count when both events and audit are ingested."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "UPS SNMP equipment, and the 'snmp' equipment tag, have nothing to do with namespace ResourceQuota. The closing checklist also claims equipment lists only kubernetes and opentelemetry.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_ups\"",
+      "severity": "major",
+      "suggested_fix": "Keep kubernetes_k8s, and remove snmp from equipment."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The entries are template filler. The real false-positive causes are described in Step 5 but not here.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `cluster`, `namespace`, `resource`, `quota_obj`** — Health checks in `k8s_metrics` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List real causes: HPA or rollout surge briefly touching 100%; quotas deliberately set to hard=0 or fully allocated (count/services.loadbalancers=0); terminating pods still counted until deletion; CI burst namespaces; chaos tests."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "explanation": "The URL is the generic access-control index, not the auditing page.",
+      "field": "references",
+      "quote": "\"title\": \"Kubernetes auditing\",\n      \"url\": \"https://kubernetes.io/docs/reference/access-authn-authz/\"",
+      "severity": "minor",
+      "suggested_fix": "Use https://kubernetes.io/docs/tasks/debug/debug-cluster/audit/ (the URL the guide uses), and remove the deprecated Splunk Add-on for Kubernetes reference."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified, but the SPL (and the Step 4 validation SPL) fail multisearch's streaming-only requirement, so they cannot have been run successfully.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until the SPL has been rewritten and lab-tested."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/9.4/search-commands/multisearch",
+      "field": "spl",
+      "issue": "Both the top-level multisearch and the nested multisearch inside the denial join have subsearches that end in stats. multisearch accepts only streaming subsearches, so the search fails. The same error is in the Step 4 validation SPL.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "Severity uses only the latest used_pct and ignores the sustained/time_in_exhaustion_min logic, so single-scrape spikes alert as 'exhausted'. The sustained gate treats the first bucket as sustained, because first() over window=2 includes the current row. The resource coalesce falls back to the resourcequota label, which can mislabel rows.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/6.2/data-models/application-state-deprecated",
+      "field": "cimSpl",
+      "issue": "Application_State is deprecated, and its root dataset is All_Application_State. Performance's root is All_Performance. 'nodename=Application_State', 'nodename=Performance.CPU' and the Application_State.* and Performance.* field paths are invalid, so the overlay returns nothing.",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0061-UC-3.2.4",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 5,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The ResourceQuota exhaustion logic (kube_resourcequota hard vs used, plus 'exceeded quota' denials) is grounded and the kubectl validation test is realistic. However, the add-on attribution is wrong, the CIM models do not fit, the prose claims a sustained-exhaustion gate that the severity logic never uses, and the SPL's multisearch arms are not streaming.",
+  "tier": "deep",
+  "uc_id": "UC-3.2.4",
+  "verdict": "incorrect"
+}

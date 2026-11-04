@@ -1,0 +1,116 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "08b8f4b40359c2f6b5067605d7653b7df918638969122de3fac3cabf7f0c2f2b",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.2.26.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/AddOns/released/VMW/Sourcetypes",
+      "explanation": "Splunkbase 5380 is 'Mattermost Alerts'. The Splunk Add-on for VMware is 3215, and its documented sourcetypes are vmware:perf:<counter-group>, vmware:inv:hostsystem, and vmware:events. Neither vmware:perf nor vmware:vc:event exists, and ESXi version and build live in host inventory, not perf data. The same error repeats in app, references, and detailedImplementation.",
+      "field": "dataSources",
+      "quote": "Secondary: Splunk Add-on for VMware vSphere ([Splunkbase 5380](https://splunkbase.splunk.com/app/5380)) to `index=vmware` (or a named metrics index) with `sourcetype=vmware:perf` for ESXi `product_version` / build-style fields",
+      "severity": "blocker",
+      "suggested_fix": "Cite Splunk Add-on for VMware (3215). Take the ESXi build from vmware:inv:hostsystem and vCenter events from vmware:events."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "In the VxRail API, system/initialize is the Day-1 cluster deployment call, not an authentication step, so telling a poller to POST it is dangerous. X-Vxm-Token is not a documented header, and GET /rest/vxm/v1/lcm, /lcm/history, and /supportability/status also need confirming; the running version is normally read from GET /rest/vxm/v1/system.",
+      "field": "detailedImplementation",
+      "quote": "session cookie after `POST /rest/vxm/v1/system/initialize` in others, or a vendor header such as `X-Vxm-Token`",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Dell VxRail API reference for your release, remove system/initialize from the auth guidance, and list only documented GET paths and their auth model."
+    },
+    {
+      "confidence": 0.95,
+      "dimension": "spelling",
+      "explanation": "'VxRay' appears many times (VxRay Manager, VxRay Software, VxRay LCM, VxRay case), including in exclusions. The product is VxRail.",
+      "field": "detailedImplementation",
+      "quote": "VxRay Manager",
+      "severity": "minor",
+      "suggested_fix": "Replace every 'VxRay' with 'VxRail'."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The description and controlTest present null guards (release_date_epoch > 0, is_supported_until_epoch > 0) as alert conditions. The real ladder is: critical for out-of-support bundles or a Failed LCM state, high for mixed ESXi versions or an n-minus breach, medium for bundles older than 365 days, and low for precheck flags or recent history failures.",
+      "field": "cross_field",
+      "quote": "before applying `distinct_esxi_versions` > 1, `release_date_epoch` > 0, `is_supported_until_epoch` > 0, or `hist_fail_24h` > 0",
+      "severity": "major",
+      "suggested_fix": "Restate the sev0 ladder in the description and controlTest."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "UC-19.1.x is the Cisco UCS subcategory. Resync and rebuild progress for HCI lives in UC-19.2.9 and UC-19.2.30 according to the sibling list, so UC-19.1.48 looks like a wrong cross-reference.",
+      "field": "exclusions",
+      "quote": "remain UC-19.2.13, UC-19.1.48, and related storage-health UCs",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm what UC-19.1.48 covers and, if appropriate, point to UC-19.2.9 and UC-19.2.30 instead."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "explanation": "Asterisk (the PBX), snmp, and snmp_ups have nothing to do with VxRail LCM compliance. These tags will mis-route equipment filters.",
+      "field": "equipment",
+      "quote": "\"asterisk\",",
+      "severity": "minor",
+      "suggested_fix": "Keep vxrail, dell_emc, hardware_bmc, and vmware, and drop asterisk, snmp, and snmp_ups."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The HEC link is truncated to a directory, and the Dell link is a generic manuals hub rather than the VxRail API reference the UC depends on.",
+      "field": "references",
+      "quote": "https://docs.splunk.com/Documentation/Splunk/latest/Data/",
+      "severity": "minor",
+      "suggested_fix": "Link the HEC page (Data/UsetheHTTPEventCollector) and the Dell VxRail API reference guide."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified, yet its add-on ID points at an unrelated app, its sourcetypes do not exist, and its SPL does not parse, so no SME verification is evident.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade the status until the poller paths and the SPL have been validated against a VxRail Manager."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Multisearch",
+      "field": "spl",
+      "issue": "Every multisearch arm ends with `stats ... by cluster_id`. multisearch accepts only purely streaming subsearches, so the search fails. Move the per-arm aggregation after the union, or use append or union.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/AddOns/released/VMW/Sourcetypes",
+      "field": "spl",
+      "issue": "The arm that searches sourcetype=\"vmware:perf\" for os_version or product_version will match nothing, because the VMware add-on emits vmware:perf:* and vmware:inv:hostsystem, and perf data carries no product version.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The third `join type=left max=0 [ ... | fields + ga_seq ]` has no join field and no field in common with the main results, so how ga_seq is attached is unclear. Use appendcols, or eval a constant key on both sides.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0061-UC-19.2.26",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 5,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The VxRail lifecycle (LCM) bundle-compliance idea is well explained, including CVS bundle semantics, governance lookups, and freeze demotion. But the VMware add-on ID and sourcetypes are wrong, several VxRail Manager REST paths look invented, and one of them is a Day-1 initialisation call misused for authentication. The SPL also places stats inside multisearch arms, which Splunk rejects.",
+  "tier": "deep",
+  "uc_id": "UC-19.2.26",
+  "verdict": "incorrect"
+}

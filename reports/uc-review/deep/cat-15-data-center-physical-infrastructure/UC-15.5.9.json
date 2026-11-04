@@ -1,0 +1,107 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "941265af3229462d050a3b690c839df5aeafe51a7e360618416e41761f926197",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.5.9.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Forwarder/latest/Forwarder/Abouttheuniversalforwarder",
+      "explanation": "The Universal Forwarder is downloaded from splunk.com, not Splunkbase, and splunkbase.splunk.com/app/617 returns 404. The forwarder has no modular input for Hikvision ISAPI. Events must come from a script or TA that holds the ISAPI alertStream connection open, or from an HTTP listener that receives the camera's httpHosts pushes.",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll",
+      "severity": "blocker",
+      "suggested_fix": "Describe the two ISAPI delivery modes: arming mode, a long-lived GET /ISAPI/Event/notification/alertStream connection held by a custom input; and listening mode, where PUT /ISAPI/Event/notification/httpHosts makes the camera POST EventNotificationAlert XML to a receiver. Name the receiver that writes sourcetype=hikvision:isapi, and remove 'Splunkbase 617'."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "In Hikvision listening mode the camera POSTs XML to a configured host IP, port and short URL (64 characters at most). It is not clear the camera can send the `Authorization: Splunk <token>` header that HEC requires. Without a relay, this would need HEC query-string authentication (allowQueryStringAuth) and the raw endpoint to accept XML.",
+      "field": "implementation",
+      "quote": "(1) Enable ISAPI event subscription to HEC.",
+      "severity": "needs_verification",
+      "suggested_fix": "Check whether the httpHosts configuration can authenticate to HEC directly. If it cannot, document a relay (a small HTTP listener or an edge processor) that receives the camera POST and forwards it to HEC, or use an alertStream poller instead."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "evidence_url": "https://github.com/mezz64/pyHik/issues/43",
+      "explanation": "Hikvision's EventNotificationAlert XML carries ipAddress, macAddress, channelID, channelName, dateTime, eventType, eventState and eventDescription. It has no camera_id or site field. Without extraction and a lookup, `stats count by camera_id site` returns nothing, and none of the steps explain the mapping.",
+      "field": "detailedImplementation",
+      "quote": "Spot-check two known entities for field presence (`camera_id, site`).",
+      "severity": "major",
+      "suggested_fix": "Add a step that extracts the XML fields (KV_MODE=xml or field extractions). Derive camera_id from ipAddress or macAddress plus channelID, and add a camera inventory lookup that supplies site and location. Drop the generic list_inputs/RBAC and HTTP 401/429 boilerplate."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "`detailedImplementation` schedules a 24-hour run, but the SPL hard-codes earliest=-7d with no threshold, so one tamper event re-alerts every day for a week. The `implementation` step to 'deduplicate vibration spikes' refers to an event type the SPL does not select. No field says what count or state triggers an alert.",
+      "field": "cross_field",
+      "quote": "Schedule the SPL with earliest=-24h@h and throttle per entity",
+      "severity": "major",
+      "suggested_fix": "State the intended alert window and trigger, for example any active tamper or defocus event in the last 15 minutes, throttled per camera. Either drop the vibration step or explain which Hikvision event type it refers to."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The scenarios are template text that does not describe how tamper detection behaves. The real triggers of false tamper or defocus alarms are missing.",
+      "field": "knownFalsePositives",
+      "quote": "Scheduled automation elevates `site` without crossing configured threshold",
+      "severity": "major",
+      "suggested_fix": "List real causes: heavy rain, snow or fog on the dome; spiders, insects or webs on the lens at night when IR attracts them; sudden lighting changes or IR switching; lens cleaning and maintenance; PTZ cameras moving between presets; and sensitivity set too high in the camera's Video Tampering settings."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The SPL returns only camera_id, site and count, with no _time, latitude or longitude, so neither a timeline nor map pins can be drawn from it.",
+      "field": "visualization",
+      "quote": "Timeline events; map pins.",
+      "severity": "minor",
+      "suggested_fix": "Describe a table of camera, site and count. If a map is wanted, say that it requires a camera location lookup with lat and lon."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified even though its SPL groups by fields Hikvision does not emit and misses the primary tamper event type. That is not consistent with a subject-matter expert (SME) having tested it against camera data.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set the status to draft or unverified until the search has been tested against real EventNotificationAlert data."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://github.com/mezz64/pyHik/issues/43",
+      "field": "spl",
+      "issue": "`match(lower(event_type), \"tamper|vandal|cover|defocus\")` does not match `shelteralarm`, the eventType Hikvision cameras emit on the alertStream when the lens is obscured. 'tamperdetection' appears in the trigger configuration, but live alerts show 'shelteralarm'. 'vandal' matches no ISAPI event type, and scene-change events (scenechangedetection) are not included. The field is `eventType` in the XML, not `event_type`, unless it is renamed. Evidence: https://github.com/mezz64/pyHik/issues/43",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The search does not filter on eventState=active and does not deduplicate. Hikvision re-posts an active alarm repeatedly (activePostCount increments) and also sends inactive messages, so `count` reflects how long an alarm lasted rather than how many tamper incidents occurred.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`lower()` is redundant with the `(?i)` flag. Grouping only `by camera_id site` drops _time, so the alert output cannot say when tampering happened.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0111-UC-15.5.9",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 1,
+    "overclaiming": 2,
+    "specificity": 1
+  },
+  "summary": "The UC is template text. It never maps Hikvision's real ISAPI event fields (eventType, eventState, channelID, ipAddress) to the camera_id and site fields the SPL uses, and its event-type regex misses the 'shelteralarm' type that cameras actually emit on lens obstruction. The collection path through the Universal Forwarder, 'Splunkbase 617' and direct HEC push is not accurate.",
+  "tier": "deep",
+  "uc_id": "UC-15.5.9",
+  "verdict": "incorrect"
+}

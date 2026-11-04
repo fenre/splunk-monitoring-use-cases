@@ -1,0 +1,179 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "108ee09da8b47dcf461d5e52d5065203cb3f7d86db6d5a07296e0bdfa3e2f386",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.2.4.json",
+  "findings": [
+    {
+      "confidence": 0.97,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/api/v1/app/5380/",
+      "explanation": "Splunkbase app 5380 is 'Mattermost Alerts' (archived), not a VMware add-on. No Splunk app is named 'Splunk Add-on for VMware vSphere'; the vCenter API collector is 'Splunk Add-on for VMware' (Splunkbase 3215). The same wrong ID appears in dataSources, detailedImplementation and references.",
+      "field": "app",
+      "quote": "`Splunk Add-on for VMware vSphere` ([Splunkbase 5380](https://splunkbase.splunk.com/app/5380))",
+      "severity": "blocker",
+      "suggested_fix": "Replace with 'Splunk Add-on for VMware' (Splunkbase 3215), plus 'Splunk Add-on for vCenter Logs' (5601) if vCenter logs are needed. Apply the change in app, dataSources, detailedImplementation and references."
+    },
+    {
+      "confidence": 0.97,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/api/v1/app/5076/",
+      "explanation": "Splunkbase app 5076 is 'Fix hostnames on UFs' (rectify_hostname), not a Nutanix add-on, and no add-on named Splunk_TA_nutanix exists. Nutanix publishes 'TA for Nutanix Prism' (TA-nutanix, 3103) and 'TA for Nutanix Prism Central' (TA-nutanix-PC, 8349).",
+      "field": "app",
+      "quote": "`Splunk_TA_nutanix` ([Splunkbase 5076](https://splunkbase.splunk.com/app/5076))",
+      "severity": "blocker",
+      "suggested_fix": "Name 'TA for Nutanix Prism' (Splunkbase 3103) and/or 'TA for Nutanix Prism Central' (Splunkbase 8349) in app, dataSources, detailedImplementation and references. Then check which sourcetypes those add-ons actually emit."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/vmware-vsphere.md",
+      "explanation": "The Splunk Add-on for VMware writes vCenter events as sourcetype `vmware:events` (with `vmware:tasks` for tasks), not `vmware:vc:event`. DRS activity appears there as event types such as DrsVmMigratedEvent.",
+      "field": "dataSources",
+      "quote": "Splunk Add-on for VMware vSphere (5380) sourcetype vmware:vc:event for vCenter recommendation lifecycle signals",
+      "severity": "blocker",
+      "suggested_fix": "Use sourcetype `vmware:events` and name the DRS event types it carries, for example DrsVmMigratedEvent and DrsRuleViolationEvent. Check the event type names in the vSphere API event reference."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://learn.microsoft.com/en-us/azure/azure-local/manage/vm-load-balancing",
+      "explanation": "Azure Stack HCI / Azure Local has no 'Resource Balancer' that produces recommendations for approval. Its VM load balancing live-migrates VMs automatically. It is controlled by the numeric cluster common properties AutoBalancerMode (0 = disabled, 1 = on node join, 2 = on node join and every 30 minutes) and AutoBalancerLevel (1 to 3), which you read with Get-Cluster, not Get-ClusterParameter. An 'acceptance rate' and a 'Fully/Partially/Manual' level therefore do not exist for this platform.",
+      "field": "detailedImplementation",
+      "quote": "export Get-ClusterParameter resource balancer-related state into azure_stack_hci:resourcebalancer:state with cluster_id, automation_level or resource_balancer_mode text",
+      "severity": "blocker",
+      "suggested_fix": "Describe the platform as VM load balancing and collect `Get-Cluster | fl AutoBalancer*`. Map AutoBalancerMode 0/1/2 explicitly, and treat the arm as migration-failure and mode-drift tracking only, with no acceptance metric. Update dataSources the same way."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://www.nutanix.com/tech-center/blog/nutanix-ahv-internals-meet-the-smart-scheduler-behind-every-ahv-cluster",
+      "explanation": "Nutanix Acropolis Dynamic Scheduling (ADS) builds and runs migration plans automatically when it detects contention. Nutanix documents no step where an operator accepts a recommendation, and no public v3 'dynamicscheduler/recommendations' endpoint, so the Nutanix acceptance-rate and stale-recommendation metrics have no data source.",
+      "field": "dataSources",
+      "quote": "HEC poller to Prism Central /api/nutanix/v3/dynamicscheduler/recommendations into nutanix:ads:recommendation",
+      "severity": "blocker",
+      "suggested_fix": "Re-scope the Nutanix arm to ADS-driven migration tasks (task list or audit events) and ADS enabled state (acli ads.get), and drop the acceptance metric. If an ADS recommendation API really exists, cite it in the Nutanix API reference before keeping the path."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "PowerCLI has no Get-DrsCluster cmdlet; the DRS automation level is the DrsAutomationLevel property returned by Get-Cluster. Get-DrsRule returns rule definitions, not whether each rule is currently violated.",
+      "field": "dataSources",
+      "quote": "vmware:drs:cluster_settings (Get-DrsCluster automation level), vmware:drs:rule_violation (Get-DrsRule violation inventory)",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the PowerCLI cmdlet reference. Use Get-Cluster | Select DrsAutomationLevel for automation posture, and get rule violations from vCenter events (DrsRuleViolationEvent / DrsRuleComplianceEvent) or the cluster's fault list instead of Get-DrsRule."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The SPL caps acceptance_rate_pct at 100, so '> 100' can never be true, and generating any recommendation is not an alert condition. The real ladder compares against lookup targets: acceptance below 60%, stale above 8 h, violations above 0, plus automation-level drift for critical. controlTest repeats the same impossible conditions.",
+      "field": "description",
+      "quote": "alert when `recommendations_generated_24h` > 0, `acceptance_rate_pct` > 100, `acceptance_rate_pct` < 25, or `oldest_stale_hours` > 8",
+      "severity": "major",
+      "suggested_fix": "State the actual severity ladder. Critical is automation drift combined with acceptance below 25%, stale above 8 h, or any violation. High is a breach of the per-cluster targets in hci_drs_owner (defaults 60%, 8 h, 0). Warning is acceptance within 15 points of target."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The scenarios are template filler (a 'batch max', synthetic probes, a stray `]` field) and name no real cause of a false alert for DRS recommendation tracking.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `cluster_id`, `rec_id`, `vendor`, `]`** — Health checks in `hci` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List real causes. Clusters intentionally in Manual or Partially Automated DRS where operators defer moves. Recommendations raised while hosts enter maintenance mode. Recommendations that DRS supersedes and drops without applying, which look stale. Duplicate state transitions seen in both vmware:events and the PowerCLI export."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "Large parts are generic padding: a closing paragraph of department-by-department advice, 'as required by the gold profile for this programme', and 'stakeholder runbooks cite this UC id in their titles'. None of it helps implement the detection.",
+      "field": "detailedImplementation",
+      "quote": "Legal should review whether guest names appear in exports. Internal audit should demand screenshots of vendor consoles beside Splunk rows for critical findings.",
+      "severity": "major",
+      "suggested_fix": "Remove the supplemental notes and template residue. Keep only the concrete collection, lookup, validation and troubleshooting steps."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/compute-hci.md",
+      "explanation": "INDEXED_EXTRACTIONS does not apply to data sent to the HEC /event endpoint, which arrives already structured, and it is applied where the data is first parsed. The text also names an `ucsm:event` sourcetype, while the guide's UCS sourcetypes are cisco:ucs:faults and cisco:ucs:syslog.",
+      "field": "detailedImplementation",
+      "quote": "enforce INDEXED_EXTRACTIONS=json on indexers parsing HEC JSON",
+      "severity": "minor",
+      "suggested_fix": "Use KV_MODE=json (search time) for HEC /raw JSON, or send to /event with fields. Replace ucsm:event with cisco:ucs:faults."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "prior_acceptance_rate_pct and an accepted-volume field are not in the final table, so these panels cannot be built from the search output.",
+      "field": "visualization",
+      "quote": "optional sparkline of prior_acceptance_rate_pct when streamstats output lands in summaries",
+      "severity": "minor",
+      "suggested_fix": "Use only projected fields (acceptance_rate_pct, recommendations_generated_24h, recommendations_stale_count, oldest_stale_hours, migrations_blocked_24h, severity), or add recommendations_accepted_24h to the table first."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "Microsoft 365 has nothing to do with HCI workload placement. securityDomain 'cloud' also does not fit an on-premises HCI scheduler control.",
+      "field": "equipment",
+      "quote": "\"m365\"",
+      "severity": "minor",
+      "suggested_fix": "Remove m365 (and cisco unless the UCS correlation is kept), and set securityDomain to an infrastructure/operations value."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "The UC carries wrong Splunkbase IDs, a non-existent add-on name and product features the vendors do not have, so it cannot have been SME-verified.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft or community until the corrections above are made and someone has run the search against real data."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/search/search-reference/10.4.2604/search-commands/multisearch",
+      "field": "spl",
+      "issue": "Each multisearch arm ends with `stats ... BY cluster_id rec_id vendor`. multisearch allows only streaming commands in its subsearches, so the search fails with 'Multisearch subsearches might only contain purely streaming operations'. Move the stats after the multisearch, or use append.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_ref": "docs/guides/vmware-vsphere.md",
+      "field": "spl",
+      "issue": "The VMware arm searches sourcetype=\"vmware:vc:event\", which the Splunk Add-on for VMware does not produce; its vCenter events use sourcetype vmware:events.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://learn.microsoft.com/en-us/azure/azure-local/manage/vm-load-balancing",
+      "field": "spl",
+      "issue": "The Azure Stack HCI automation_level_snapshot matches text such as 'full|auto' or 'manual|idle', but AutoBalancerMode is numeric (0/1/2). The level therefore resolves to Unknown, automation_level_drift_indicator is always 1 against the default expected 'Fully', and any violation or stale row escalates to critical.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "VMware violation_flag is `if(sourcetype=rule_violation AND match(st,...),1,if(sourcetype=rule_violation,1,0))`, so every rule_violation row counts as a violation whatever its status, including resolved ones.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The critical branch hard-codes 25%, 8 h and >0 instead of the per-cluster lookup targets. The streamstats runs on one row per cluster, so prior_acceptance_rate_pct has no prior value, and it is not projected anyway. eventstats cluster_context_avg_gen_ts is computed but never used.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0073-UC-19.2.4",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The idea of tracking placement-recommendation backlog is sound for VMware DRS in manual or partial mode, but both Splunkbase IDs point to unrelated apps, the VMware sourcetype is not one the Splunk Add-on for VMware emits, and the Nutanix and Azure Stack HCI arms describe recommendation-acceptance workflows those products do not have. The SPL also cannot run, because multisearch rejects the stats commands inside each arm.",
+  "tier": "deep",
+  "uc_id": "UC-19.2.4",
+  "verdict": "incorrect"
+}

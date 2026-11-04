@@ -1,0 +1,197 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "e921996f6a85db730bbbbb763d989345b32046e4a2e1f7b52179e0540432fa4f",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.2.20.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/3684",
+      "explanation": "Splunkbase app 3684 is the TP-Link Add-on for Splunk (HS110 smart plugs), not a VMware ESXi add-on. The ESXi Logs add-on is 5603 in data/splunkbase-catalog.json, and it plays no part in a SimpliVity REST poller anyway. The same wrong ID is repeated at the end of dataSources.",
+      "field": "app",
+      "quote": "Splunk Add-on for VMware ESXi Logs (Splunkbase 3684)",
+      "severity": "blocker",
+      "suggested_fix": "Drop the 3684 reference from app and dataSources. If VMware corroboration is kept, cite Splunk Add-on for VMware (Splunkbase 3215) or ESXi Logs (5603) from data/splunkbase-catalog.json."
+    },
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/5380",
+      "explanation": "Splunkbase 5380 is 'Mattermost Alerts', not a VMware vSphere add-on. detailedImplementation also calls it the 'Splunkbase 5380 family'.",
+      "field": "references",
+      "quote": "https://splunkbase.splunk.com/app/5380",
+      "severity": "blocker",
+      "suggested_fix": "Replace with Splunk Add-on for VMware (https://splunkbase.splunk.com/app/3215) or remove the reference."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/AddOns/released/VMW/Sourcetypes",
+      "explanation": "The Splunk Add-on for VMware does not produce a vmware:vc:event sourcetype; vCenter events and tasks land as vmware:events and vmware:tasks. The same sourcetype appears in visualization and detailedImplementation.",
+      "field": "dataSources",
+      "quote": "Splunk Add-on for VMware vSphere Forwarder sourcetype vmware:vc:event for backup-adjacent vCenter tasks",
+      "severity": "blocker",
+      "suggested_fix": "Use vmware:events / vmware:tasks from Splunk_TA_vmware (Splunkbase 3215) everywhere vmware:vc:event appears."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.hpe.com/platform/hpe-simplivity/get-backups/",
+      "explanation": "In the OmniStack BackupMO the cluster fields are omnistack_cluster_id/omnistack_cluster_name and the size field is size. There are no policy_id, policy_name, cluster_id, cluster_name, saved_size_bytes or size_bytes fields. Paging uses offset/limit (default 500) with created_after/created_before filters, not a since cursor or next links. As written, the field list and paging scheme would not work.",
+      "field": "dataSources",
+      "quote": "id,name,virtual_machine_id,virtual_machine_name,state,type,created_at,expiration_time,sent,unique_size_bytes,saved_size_bytes,policy_id,policy_name,cluster_id,cluster_name,application_consistent,size_bytes, limit=2000, since= cursor, following next links",
+      "severity": "blocker",
+      "suggested_fix": "Document the real fields (omnistack_cluster_id, omnistack_cluster_name, virtual_machine_id, state, type, created_at, size, unique_size_bytes, sent, consistency_type) and paging with offset/limit plus created_after. Derive policy from GET /api/virtual_machines (policy_id) joined on virtual_machine_id, or rename fields in the poller and say so explicitly."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.hpe.com/platform/hpe-simplivity/authenticating-against-hpe-omnistack-api/",
+      "explanation": "There are two failures. First, the token request sends a JSON body without HTTP Basic auth as client 'simplivity' with an empty password; HPE documents form-encoded grant_type=password, username and password under that Basic client. Second, the list response key is 'backups', with offset/limit and no 'next' link, so this parser returns an empty list. The poller would therefore fail to authenticate and would ingest nothing. The surrounding text about client_credentials and client_id/client_secret is also not the documented flow.",
+      "field": "detailedImplementation",
+      "quote": "rows.extend(doc.get(\"objects\", doc.get(\"results\", [])))",
+      "severity": "blocker",
+      "suggested_fix": "POST /api/oauth/token with auth=('simplivity','') and form data grant_type=password, username, password. Read doc['backups'] and page by incrementing offset until offset >= count. Filter incrementally with created_after."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "Every backup event is stamped with poll time rather than its created_at. Re-polled backups (the cursor overlap and the 24-hour rehydration) then look like fresh jobs inside the 24-hour accounting window, which inflates counts and makes backup age wrong.",
+      "field": "detailedImplementation",
+      "quote": "\"time\": int(time.time()), \"event\": event}",
+      "severity": "major",
+      "suggested_fix": "Set the HEC time to the parsed created_at epoch and dedup on backup id in the poller or search."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/AboutHECIDXAck",
+      "explanation": "When indexer acknowledgment is enabled, HEC requires a request channel (the X-Splunk-Request-Channel header or a channel query parameter). The sample poller sends neither, so its posts are rejected with 'Data channel is missing'.",
+      "field": "detailedImplementation",
+      "quote": "useACK = 1",
+      "severity": "major",
+      "suggested_fix": "Either add a per-process channel GUID header and poll /services/collector/ack, or disable useACK for this token."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The savedsearches.conf stanza triggers when the result count is greater than 0. The SPL emits info and warning rows too, so the alert would fire on every run. That contradicts the prose, which says to alert only when severity_bucket is high or critical.",
+      "field": "detailedImplementation",
+      "quote": "quantity = 0",
+      "severity": "major",
+      "suggested_fix": "Use a trigger condition such as alert.condition = search severity_bucket IN (\"high\",\"critical\"), or add an explicit post-filter that the documented saved search uses."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.hpe.com/platform/hpe-simplivity/authenticating-against-hpe-omnistack-api/",
+      "explanation": "The SimpliVity Virtual Controller CLI is the svt-* command family (the HPE auth docs reference svt-session-start). No 'omnistack-cli' tool is documented. The secondary omnistack-cli collector in dataSources has the same problem.",
+      "field": "detailedImplementation",
+      "quote": "From the OVC shell, use omnistack-cli (exact verbs per your support contract)",
+      "severity": "major",
+      "suggested_fix": "Name the actual commands, for example svt-backup-show, after checking them against the HPE SimpliVity CLI reference for the target release."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "evidence_url": "https://glp.docs.opsramp.com/integrations/hyperconverged-infrastructure/hpe-simplivity/",
+      "explanation": "Third-party integrations expose deduplication, compression and efficiency ratios for omnistack_cluster objects, but the native field name and format are not shown. If the API returns deduplication_ratio, or a string such as '2.1 : 1', the dedupe_ratio parse yields nothing.",
+      "field": "dataSources",
+      "quote": "GET /api/omnistack_clusters for dedupe_ratio, compression_ratio, efficiency_ratio when present",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm the OmniStackClusterMO field name and value format in the HPE OmniStack REST API reference, then document the poller-side normalization to a numeric dedupe_ratio."
+    },
+    {
+      "confidence": 0.45,
+      "dimension": "correctness",
+      "explanation": "The 'SVT-EQ class' card designation and claimed SimpliVity support on Gen12 nodes are not backed by any cited source. Newer SimpliVity generations also moved away from the hardware accelerator card.",
+      "field": "hardware",
+      "quote": "with the OmniStack accelerator PCIe card (SVT-EQ class) for inline processing",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the supported node models and accelerator requirements in HPE SimpliVity QuickSpecs, or drop the card designation."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "clarity",
+      "explanation": "The sentence merges two unrelated exclusions (non-SimpliVity estates and clusters without efficiency metrics) into one ambiguous clause.",
+      "field": "exclusions",
+      "quote": "Pure VMware estates without licensed SimpliVity and OmniStack 4.x clusters that never expose efficiency_ratio are excluded unless you remap fields.",
+      "severity": "minor",
+      "suggested_fix": "Split it into two sentences: estates without SimpliVity are out of scope, and clusters whose API omits efficiency ratios only lose the dedupe rows."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "The equipment and model tags list only VMware and Linux. The UC is about HPE SimpliVity, and no HPE/SimpliVity model is tagged.",
+      "field": "equipmentModels",
+      "quote": "vmware_esxi",
+      "severity": "minor",
+      "suggested_fix": "Add the HPE SimpliVity equipment slug and model if one exists in the equipment registry; keep VMware only as optional corroboration."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The HEC reference URL is truncated to a directory and does not land on the HEC page named in its title.",
+      "field": "references",
+      "quote": "https://docs.splunk.com/Documentation/Splunk/latest/Data/",
+      "severity": "minor",
+      "suggested_fix": "Use https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector and add HPE Developer SimpliVity REST API pages as references."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified even though its API fields, OAuth flow, paging, CLI name and Splunkbase IDs are wrong. That indicates no SME or lab validation against a real OVC.",
+      "field": "status",
+      "quote": "verified",
+      "severity": "major",
+      "suggested_fix": "Set status to draft or community until it has been validated against an OmniStack REST endpoint."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://developer.hpe.com/platform/hpe-simplivity/get-backups/",
+      "field": "spl",
+      "issue": "The success regex (complete|success|commit|finish|done|sent) never matches the documented success state PROTECTED (states are NEW, SAVING, FAILED, PROTECTED, CANCELED, QUEUED, REBUILDING, DEGRADED, ...). As a result last_success_epoch/last_succ are always null, so every policy-assigned VM becomes a vm_backup_gap row with rpo_breach=1 and severity high.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://developer.hpe.com/platform/hpe-simplivity/get-backups/",
+      "field": "spl",
+      "issue": "Join keys come from coalesce(cluster_id, clusterId) and coalesce(policy_id, policyId) on backup events, but BackupMO carries omnistack_cluster_id and has no policy field. GET /api/omnistack_clusters returns id. Every policy row, the owner-lookup join and the efficiency join therefore key on empty strings.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/ConversionFunctions",
+      "field": "spl",
+      "issue": "tonumber(created_at, 10) returns null for the ISO-8601 created_at the API emits, so created_t silently falls back to _time. Combined with the poller's time=now stamping, backup age and RPO math use poll time.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "target_rpo_minutes defaults to 1440 only inside the lookup subsearch. Policies missing from simplivity_policy_owner.csv get a null target and never raise rpo_breach. In addition, a freeze demotes high straight to info rather than to warning.",
+      "severity": "minor"
+    },
+    {
+      "field": "cimSpl",
+      "issue": "No cimSpl is provided and cimModels is empty. That is acceptable for custom sourcetypes, but it should be stated explicitly.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0055-UC-19.2.20",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The UC is detailed and well structured, but it is built on a SimpliVity API contract that does not exist. Backups expose omnistack_cluster_id, state PROTECTED and offset/limit paging, not cluster_id, policy_id or since/next links. The sample poller would neither authenticate nor ingest anything, and two of the cited Splunkbase IDs point to unrelated apps.",
+  "tier": "deep",
+  "uc_id": "UC-19.2.20",
+  "verdict": "incorrect"
+}

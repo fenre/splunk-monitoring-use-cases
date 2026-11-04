@@ -1,0 +1,161 @@
+{
+  "confidence": 0.7,
+  "content_sha256": "5ecd22d35bc48f6f8c2ff4adcd21fd95c066f45a342d5a7e1067fea49b59e5f6",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.4.6.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/datacenter-fabric-sdn.md",
+      "explanation": "The grounding guide and subcategory primaryAppTa give `Splunk_TA_cisco-nexus` as Splunkbase 6876, and Splunkbase 1917 is not in the cached catalog. The wrong ID is repeated in dataSources, implementation and detailedImplementation, so a reader would install or link the wrong app.",
+      "field": "app",
+      "quote": "**`Splunk Add-on for Cisco Nexus`** (**`Splunk_TA_cisco-nexus`**, [Splunkbase 1917](https://splunkbase.splunk.com/app/1917))",
+      "severity": "blocker",
+      "suggested_fix": "Use Splunkbase 6876 for `Splunk_TA_cisco-nexus` everywhere in this UC."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/datacenter-fabric-sdn.md",
+      "explanation": "The guide and subcategory list the Nexus syslog sourcetype from Splunk_TA_cisco-nexus as `cisco:nexus:syslog`, not `cisco:nxos:syslog`. The text also says the TA retains COPP mnemonics 'for auto-extractions' under that name. The SPL would match nothing if events are stored under the TA's sourcetype.",
+      "field": "dataSources",
+      "quote": "**`sourcetype=cisco:nxos:syslog`** (**`facility=local7`**, **`COPP-5-COPP_DROPS5`**, **`COPP-2-COPP_LIST`**)",
+      "severity": "major",
+      "suggested_fix": "Align the syslog sourcetype with the one the add-on or SC4S really assigns (the guide says `cisco:nexus:syslog`), or state that `cisco:nxos:syslog` is a site-defined rename."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "As far as I know, Nexus 9000 NX-OS attaches `copp-system-p-policy-strict` (or moderate, lenient, dense) with classes named `copp-system-p-class-*`. The UC uses `copp-system-policy-*` and `copp-system-class-*`, and lists a 'default' profile that I do not believe exists. The `show copp diff profile strict profile default` command uses the same 'default' profile. The SPL `policy_drift` list and the visualization use the same names, so real policies would be classified as 'nonstandard'.",
+      "field": "detailedImplementation",
+      "quote": "`**copp-system-policy-strict**`/`default`/`moderate`",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the NX-OS CoPP configuration guide for your release for the real policy, class and profile names, and correct text, SPL list and visualization together."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "As far as I know, Nexus 9000 switches (including the 9504/9508) do not support VDCs. VDCs are a Nexus 7000 feature, and Nexus 7000 is listed as out of scope in the exclusions. The text invents VDC nuances for 9504/9508 supervisors.",
+      "field": "detailedImplementation",
+      "quote": "retain `**vdc_id**` on modular chassis (9504/9508)",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Nexus 9500 documentation. If VDCs are not supported, remove `vdc_id` and the 'VDC nuances' sentences."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "The mnemonic `COPP-5-COPP_DROPS5` looks right. `COPP-2-COPP_LIST` and the claim that it is 'emitted when service-policy input attaches' to control-plane do not look like a real NX-OS message, and severity 2 would be unusual for a binding event.",
+      "field": "dataSources",
+      "quote": "**`COPP-2-COPP_LIST`**",
+      "severity": "needs_verification",
+      "suggested_fix": "Look up the CoPP message catalog in the NX-OS System Messages Reference and name only mnemonics that exist."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "These API paths and the YANG path cannot be confirmed. Sibling UCs use different NDI health paths (`/api/v1/cisco-nir/.../health`) and NDFC inventory paths (`.../rest/inventory/switches`). The claim of 'embedded CoPP widgets on supported releases' in NDI health JSON is also unsupported. The NX-API MO paths and attributes (`conformed_pkts`, `violated_pkts`) are described as mirrors of the CLI, which is not the same as the DME schema.",
+      "field": "dataSources",
+      "quote": "`GET https://<nd-cluster>/sedgeapi/v1/site_health`** JSON), **`sourcetype=cisco:ndfc:fabric`** (**`GET .../lan-fabric/rest/control/fabrics/{fabric}/inventory`**), optional **gNMI** **`Cisco-NX-OS-device-yang/copp-state`",
+      "severity": "needs_verification",
+      "suggested_fix": "Verify each path, the YANG module and the MO attributes against the NDI, NDFC and NX-API REST documentation, and use the same paths as the sibling UCs where they agree."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/NetworkTraffic",
+      "explanation": "Per-class CoPP policer drop counters are device policing counters, not Network_Traffic sessions. Performance models host CPU, memory and storage metrics, which CoPP drops are not. The `bytes` and `packets` fields named in `schema` do not appear in the SPL or the sourcetypes.",
+      "field": "cimModels",
+      "quote": "CIM **Network_Traffic** (**`bytes`**, **`packets`**, control-plane destined traffic proxies) plus **Performance** (**`cpu`**-adjacent policing)",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the CIM dataset definitions. Probably leave cimModels empty, and rewrite `schema` and `dataModelAcceleration` to say that no CIM model fits the CoPP counters."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "`sigma_proxy` is (value - mean) / mean, a relative deviation from the class mean, not a standard-deviation score. Calling it '3-sigma' (also in the runbook's Sev-1 rule) claims a statistical guarantee the SPL does not provide, and sigma_proxy > 3 means roughly 4x the mean. The Sev-2 rule 'persists >5 minutes inside the same window5m streak' also uses a 5-minute bucket as its streak measure.",
+      "field": "detailedImplementation",
+      "quote": "highlights ARP vs BGP vs LLDP/CDP surges crossing 3-sigma guardrails",
+      "severity": "major",
+      "suggested_fix": "Describe `sigma_proxy` as a ratio over the class baseline, or compute a real standard deviation with `eventstats stdev`. Define the Sev-2 streak in number of consecutive windows."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "The last three paragraphs ('Supplemental depth', 'Runbook rehearsal addenda', 'Fabric assurance continuity checks') are generic filler: on-call bridges in ServiceNow, quarterly CSV archives for auditors, PSIRT pulls throttled against NX-API collectors, and PCI/SOX proof. The PSIRT/openVuln steps are not related to CoPP drops. The claim of PCI/SOX evidence for a MITRE narrative also overreaches what the detection proves.",
+      "field": "detailedImplementation",
+      "quote": "Supplemental depth for production rollouts:\nNetOps teams should document staged changes",
+      "severity": "major",
+      "suggested_fix": "Remove the filler and the PSIRT and compliance sentences, and keep the CoPP collection, class-name normalisation, validation against `show policy-map interface control-plane` and tuning steps."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "specificity",
+      "explanation": "'MaintenanceWindow lookups' and 'workspace tiles' are generic. The text does not name the lookup, its fields, or the 7777 dashboards that show CoPP data. Nothing in the grounding says that 7777 has CoPP tiles.",
+      "field": "implementation",
+      "quote": "attach **MaintenanceWindow** lookups, then bind **cisco_dc_networking_app_for_splunk** (7777) workspace tiles",
+      "severity": "minor",
+      "suggested_fix": "Name the lookup and say what 7777 provides for CoPP, or drop the claim."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "The reference URL is the generic https://www.cisco.com/c/en/us/ root, not the CoPP chapter. The PSIRT openVuln API reference has no connection to CoPP. No entry has a retrieved date.",
+      "field": "references",
+      "quote": "Cisco Nexus 9000 Series NX-OS Security Configuration Guide — Control Plane Policing",
+      "severity": "minor",
+      "suggested_fix": "Link the exact CoPP chapter for the supported NX-OS release, drop the PSIRT reference, and add retrieved dates."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "grandma_fidelity",
+      "explanation": "The metaphor of a 'governor' and 'switch brain' is obscure and never says what is measured (a traffic limiter that protects the switch's control processor and how often it discards traffic).",
+      "field": "grandmaExplanation",
+      "quote": "We watch the quiet governor around each switch brain so routing chatter cannot flood it.",
+      "severity": "minor",
+      "suggested_fix": "Say that each switch has a protective limit on the traffic allowed to reach its control processor, and that the alert fires when too much traffic is being dropped."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The status is `verified` while the reviewer is 'agent-handcraft-2026-04-28', which is not an SME sign-off. The add-on ID, policy names, VDC claim and API paths above are wrong or unconfirmed.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Lower the status until a named Nexus SME has checked the facts."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`dropped_pkts_5min` is `tonumber(coalesce(..., 0))`, so it is never null. The filter `isnotnull(dropped_pkts_5min)` is always true and the `where` does nothing, and every syslog event gets 0 drops. Syslog and NDI events have no `class_name` or `fabric_token`, so `stats ... by _time, fabric_token, class_name` drops them. The syslog and NDI lanes therefore never contribute to the output, and the search depends on the `cisco:nxos:copp` lane alone.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`policy_drift` compares `policy_name` with `copp-system-policy-strict/default/moderate`, and the default is the string `copp-system-policy-strict`. These names look wrong for Nexus 9000 (`copp-system-p-policy-*`), so every real policy would be labelled 'vendor_named_custom' or 'nonstandard_attachment_review'.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "mitreAttack",
+      "issue": "T1592 (Gather Victim Host Information) is a pre-attack reconnaissance technique, and the UC links it to LLDP/CDP surges seen in CoPP drops. T1499.004 (Application or System Exploitation) does not fit ARP/BGP flood saturation, where T1498 or T1499.001/.002 look closer. Check the mapping.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0053-UC-18.4.3",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 3,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The CoPP class-saturation idea is useful, but the add-on ID conflicts with the grounding, CoPP policy and class names look wrong, the NX-OS 9504/9508 `vdc_id` claim is doubtful, the SPL's syslog lane cannot reach the output, and the detailedImplementation is padded with generic runbook text.",
+  "tier": "triage",
+  "uc_id": "UC-18.4.6",
+  "verdict": "incorrect"
+}

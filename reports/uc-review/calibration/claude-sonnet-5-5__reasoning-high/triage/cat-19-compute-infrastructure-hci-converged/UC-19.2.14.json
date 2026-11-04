@@ -1,0 +1,90 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "c29204acbd696ac6468d8f957dc33fcb6662d965c70c3d062376aa5dac823110",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.2.14.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "`index=names` is not an index the SPL uses (it searches hci, nutanix and os); it comes from the 'replace index= names' comment. `mem_t > 0` is just a validity check, while the real behaviour is a five-tier severity ladder (core service down, multi-down or crash loop = critical; iowait > 50% or memory > 95% = high; restarts > 1, iowait > 30% or oplog drain > 5,000,000 = medium; one restart = low). The description and controlTest never state this.",
+      "field": "description",
+      "quote": "sourced from `index=names` sourcetype `nutanix:cvm:genesis_status`. Threshold bundle: `rcount` > 3, or `mem_t` > 0;",
+      "severity": "major",
+      "suggested_fix": "Rewrite the description around the severity ladder and name the real indexes; update controlTest to inject a stopped Stargate or a service with restart_count above 3."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "Splunk_TA_nix (833 in the cached catalog) ships cpu/vmstat/iostat/df scripts; it has no Nutanix genesis script, so this is a custom collector. `genesis status` prints service names with PIDs, not a `state` and `restart_count` per service as the UC lists, and the `kforwarding` value, the v1 `/cluster/status` endpoint, the `serviceStatusList` JSON key and the host stats key `controller_oplog_drain_outstanding` are not in the grounding.",
+      "field": "dataSources",
+      "quote": "from a Splunk_TA_nix (Splunkbase 833) scripted input or equivalent that SSHs as `nutanix@<cvm_ip>` to each Controller VM and runs `genesis status`",
+      "severity": "needs_verification",
+      "suggested_fix": "State clearly that the genesis collector is custom, show a sample line of real `genesis status` output and how restart_count is derived, and confirm each REST path and metric name on a Prism Element before publishing."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "overclaiming",
+      "explanation": "The record is marked verified (reviewer '@splunk-monitoring-use-cases'), but the SPL contains constructs that cannot execute (see firewalled flags) and none of the custom collectors or paths are confirmed, so verified is not supported.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to unreviewed/draft until the search runs against real data and an SME has signed off."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "The SPL needs no ITSI; ITSI is mentioned only as an optional KPI idea in Step 4, so listing it as a premium app implies it is required.",
+      "field": "premiumApps",
+      "quote": "\"Splunk ITSI\"",
+      "severity": "minor",
+      "suggested_fix": "Remove ITSI from premiumApps or state that it is optional (as sibling UC-19.2.15 does)."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "Exclusions and evidence mention a 'fictional' or 'stub' nutanix:cvm:metrics sourcetype, which is authoring-process commentary rather than information a reader needs.",
+      "field": "exclusions",
+      "quote": "or a fictional `nutanix:cvm:metrics` sourcetype",
+      "severity": "minor",
+      "suggested_fix": "Remove references to the stub sourcetype from exclusions and evidence."
+    },
+    {
+      "confidence": 0.4,
+      "dimension": "consistency",
+      "explanation": "A crawl-stage use case should be simple, but this one needs SSH key distribution, three custom pollers, HEC, the nix add-on and a governance lookup.",
+      "field": "wave",
+      "quote": "\"wave\": \"crawl\"",
+      "severity": "minor",
+      "suggested_fix": "Move to walk or run, or reduce the prerequisites."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "Each `multisearch` arm contains `stats` (and the sub-pipelines end in eval/stats); multisearch only accepts streaming commands in its subsearches, so the search fails as written. This also affects detailedImplementation, which copies the same search.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "The search starts with a backtick macro `comment(\"...\")`; Splunk has no built-in `comment` macro (comments use triple backticks), so it fails unless a macro of that name is defined. `sort 0 - severity_bucket` orders the bucket text alphabetically (critical, high, low, medium, ok) rather than by severity.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0028-UC-19.2.14",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The per-service CVM design is detailed and distinct from sibling UCs, but the shipped SPL cannot run (stats inside multisearch, undefined comment macro), the description and controlTest describe a different index and thresholds, and the data collection paths are asserted without grounding while the record is marked verified.",
+  "tier": "triage",
+  "uc_id": "UC-19.2.14",
+  "verdict": "rewrite"
+}

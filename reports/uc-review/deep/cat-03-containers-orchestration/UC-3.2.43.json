@@ -1,0 +1,150 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "323a9675c08b73f9dfbc50faba1969ea1e3d0685834057490ebb324cdab5b118",
+  "file": "content/cat-03-containers-orchestration/UC-3.2.43.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/5167",
+      "explanation": "Both `app` and `dataSources` cite Splunkbase 5167, which is the third-party app 'Upgrade Universal Forwarder (Windows)', not Splunk Connect for Kubernetes. SCK is a deprecated GitHub Helm project with no Splunkbase listing, and `dataSources` also wrongly calls it a 'modular input or scripted poll'.",
+      "field": "cross_field",
+      "quote": "Splunk Connect for Kubernetes (Splunkbase 5167)",
+      "severity": "blocker",
+      "suggested_fix": "Drop the 5167 reference. Name the Splunk OpenTelemetry Collector for Kubernetes Helm chart (the guide's primary collector, sending over HEC) and mention SCK only as deprecated legacy, with no Splunkbase ID."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://kubernetes.io/docs/reference/instrumentation/metrics/",
+      "explanation": "The Kubernetes metrics reference has no `kubelet_probe_failed` metric. `prober_probe_total` (labels container, namespace, pod, pod_uid, probe_type, result) is the current BETA counter, not a legacy one, and the kubelet serves it on `/metrics/probes`, not `/metrics`. The same claim appears in detailedImplementation Steps 1, 2 and 4.",
+      "field": "dataSources",
+      "quote": "kubelet scrape families kubelet_probe_failed (Kubernetes 1.27+) and prober_probe_total with result=failed on older kubelets",
+      "severity": "blocker",
+      "suggested_fix": "Describe `prober_probe_total{result=\"failed\"}` from kubelet `/metrics/probes` as the probe counter on all supported versions. Remove `kubelet_probe_failed` and the 1.26 vs 1.27 validation drill, and tell readers to add a `/metrics/probes` scrape job."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/pod-metrics.md",
+      "explanation": "Only `kube_pod_status_ready` has a `condition` label. `kube_pod_container_status_ready` is a 0/1 gauge labelled only container, pod, namespace and uid, so filtering it on condition true selects nothing.",
+      "field": "dataSources",
+      "quote": "kube-state-metrics kube_pod_container_status_ready and kube_pod_status_ready with condition true",
+      "severity": "blocker",
+      "suggested_fix": "Say that `kube_pod_container_status_ready` is read as a 0/1 value with no condition label, and that `kube_pod_status_ready` uses condition=\"true\"."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/signalfx/splunk-otel-collector-chart/blob/main/helm-charts/splunk-otel-collector/templates/config/_otel-k8s-cluster-receiver-config.tpl",
+      "explanation": "The Splunk OTel chart's events pipeline emits `kube:events` with resource attributes such as `k8s.object.name`, `k8s.pod.name`, `k8s.namespace.name`, `k8s.container.name` and `k8s.event.reason`, and the message as the log body. Its k8sobjects pipeline uses sourcetype `kube:object:<resource>` (singular 'object'), so the field names here do not match the recommended collector.",
+      "field": "detailedImplementation",
+      "quote": "Ship Kubernetes API events to index k8s with sourcetype kube:events or kube:objects:events. Preserve involvedObject.name, metadata.namespace, reason, and message fields",
+      "severity": "blocker",
+      "suggested_fix": "Document the field names the OTel chart actually emits for kube:events (`k8s.event.reason`, `k8s.object.name`/`k8s.pod.name`, `k8s.namespace.name`, `k8s.container.name`, body). Treat `kube:objects:events` as legacy SCK only."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/data-management/common-information-model/6.4/data-models/application-state-deprecated",
+      "explanation": "CIM Application State has been deprecated since CIM 4.12.0 and describes host process, service and port inventory, not Kubernetes probe outcomes. Performance is used only as a no-op join. Neither data model fits kubelet probe events or kube-state-metrics gauges.",
+      "field": "cimModels",
+      "quote": "\"Application_State\",\n    \"Performance\"",
+      "severity": "blocker",
+      "suggested_fix": "Mark the UC as non-CIM (raw kube:events plus Prometheus metrics), or limit Performance to an explicitly optional node-saturation overlay. Remove Application_State, and update dataModelAcceleration to match."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "`description` and `controlTest` list severity-branch numbers as the alert condition. The SPL's actual row gate is `unhealthy_event_hits>=2 OR metric_probe_hits>=3 OR readiness_flips>=4 OR (unhealthy_event_hits>=1 AND metric_probe_hits>=1)`, and tier decides severity.",
+      "field": "cross_field",
+      "quote": "alert when `unhealthy_event_hits` >= 3, `unhealthy_event_hits` >= 2, `unhealthy_event_hits` >= 4, or `metric_probe_hits` >= 8",
+      "severity": "major",
+      "suggested_fix": "State the real row gate and then summarise how severity is assigned by workload tier and probe class."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "This is authoring-contract residue aimed at the generator, not the implementer, and it pads an already long section. Many appendices (FinOps, customer communication, cost of silence) are also generic.",
+      "field": "detailedImplementation",
+      "quote": "Closing checklist: five step headers use em dash punctuation as contracted; Step 3 contains fenced SPL matching the spl JSON field; Step 5 lists twelve case lines",
+      "severity": "major",
+      "suggested_fix": "Delete the closing checklist and the generic appendices. Keep only probe-specific guidance."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The scenarios are field-name templates and name no real probe false-positive causes, even though detailedImplementation Step 5 lists good ones.",
+      "field": "knownFalsePositives",
+      "quote": "Batch `sum` on `kube:events`** — Scheduled automation elevates `namespace` without crossing `unhealthy_event_hits` >= 3",
+      "severity": "major",
+      "suggested_fix": "Replace them with concrete causes: rolling updates and graceful shutdown returning 503, slow JVM or .NET warm-up before the startupProbe budget ends, node NotReady or CPU throttling, and dependency maintenance windows."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "I could not confirm that a current 'Splunk Add-on for Kubernetes' documentation page exists at this path. The Datadog reference also does not support a Splunk implementation.",
+      "field": "references",
+      "quote": "https://docs.splunk.com/Documentation/AddOns/released/Kubernetes/About",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the URL. Replace it with the splunk-otel-collector-chart docs and the kubelet metrics reference, and drop the Datadog link."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified even though its SPL cannot run and its core metric does not exist, and the only reviewer is a generic repository handle.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set the status to draft or unverified until an SME has run the search against real data."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/search-commands/multisearch",
+      "field": "spl",
+      "issue": "`| multisearch` comes after `eval`, `join` and `fields`, but multisearch is a generating command that must be the first command. Its two subsearches are also wrapped in an extra outer `[ ... ]`. The search fails to parse.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/?resourceId=Splunk_SearchReference_Eval",
+      "field": "spl",
+      "issue": "`coalesce(involvedObject.name, ...)` and `coalesce(metadata.namespace, ...)` use dotted field names without single quotes. In eval, `.` is the concatenation operator, so these do not reference the intended fields.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/pod-metrics.md",
+      "field": "spl",
+      "issue": "The metric arm matches `kubelet_probe_failed`, which does not exist. The readiness-flip subsearch requires `cond=\"true\"` for `kube_pod_container_status_ready`, which has no condition label, so container-level flips are always zero. `like(mn, \"%kube_pod_status_ready%\")` also matches `kube_pod_status_ready_time`.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The leading Performance `tstats` join on a constant key is dropped immediately with `fields -`, so it is template residue that adds cost and no signal.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/data-management/common-information-model/6.4/data-models/application-state-deprecated",
+      "field": "cimSpl",
+      "issue": "References `Application_State.state` and `Application_State.app` with `nodename=Application_State`. The deprecated model's root dataset is All_Application_State, and it has no `state` or `app` fields. The query is also a generic host CPU and memory overlay unrelated to probes.",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0065-UC-3.2.43",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The probe-state idea and sibling boundaries are well reasoned, but the UC rests on an invented kubelet metric, a nonexistent kube-state-metrics label, a wrong Splunkbase ID, and an SPL that cannot run because multisearch is not the first command. The prose thresholds also disagree with the SPL gate.",
+  "tier": "deep",
+  "uc_id": "UC-3.2.43",
+  "verdict": "incorrect"
+}

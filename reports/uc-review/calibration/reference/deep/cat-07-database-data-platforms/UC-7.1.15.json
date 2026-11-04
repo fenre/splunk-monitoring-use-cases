@@ -1,0 +1,105 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "3fb3f04a29f93cff7ea589ae7c92dd467d4bf8bdcb25608f6c68566d65e6f800",
+  "file": "content/cat-07-database-data-platforms/UC-7.1.15.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-microsoft-sql-server/Datatypes/",
+      "explanation": "SQL Server Audit files are binary. The Splunk Add-on for Microsoft SQL Server (Splunkbase 2648) reads them with `sys.fn_get_audit_file` through a Splunk DB Connect input and assigns `sourcetype=mssql:audit`. A Universal Forwarder file monitor cannot produce this sourcetype.",
+      "field": "dataSources",
+      "quote": "Database audit logs (GRANT/REVOKE events), security event logs Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll",
+      "severity": "blocker",
+      "suggested_fix": "State that the audit trail is collected by the Splunk Add-on for Microsoft SQL Server's `mssql:audit` DB Connect input (a rising query on `sys.fn_get_audit_file(...)` with `event_time` as the rising column), running on a heavy forwarder or search head with DB Connect. Alternatively, note that the audit can target the Windows Security or Application log."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-microsoft-sql-server/Datatypes/",
+      "explanation": "The add-on's source type table lists 'CIM data models: None' for `mssql:audit`, so `Change.All_Changes` stays empty for this feed unless the customer writes their own tags and field aliases. The `dataModelAcceleration` note implies the mapping works out of the box.",
+      "field": "cimModels",
+      "quote": "\"cimModels\": [\"Change\"]",
+      "severity": "blocker",
+      "suggested_fix": "Either remove `Change`, or state that custom eventtypes and tags (`change`, `account`) and aliases for `user` (server_principal_name), `object` and `action` must be built for `mssql:audit` before the CIM variant returns rows."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "evidence_url": "https://learn.microsoft.com/en-us/sql/relational-databases/security/auditing/sql-server-audit-action-groups-and-actions",
+      "explanation": "`implementation` promises ALTER ROLE coverage, but adding a login to a database or server role raises `DATABASE_ROLE_MEMBER_CHANGE_GROUP` or `SERVER_ROLE_MEMBER_CHANGE_GROUP`, not a GRANT. The SPL only matches `action_id` G/R/GWG with GRANT or REVOKE statement text. The most common escalation path (adding a login to sysadmin or db_owner) is therefore not detected. DENY is also omitted.",
+      "field": "cross_field",
+      "quote": "Enable database audit for security events (GRANT, REVOKE, ALTER ROLE).",
+      "severity": "major",
+      "suggested_fix": "Name the audit action groups to enable (`SERVER_ROLE_MEMBER_CHANGE_GROUP`, `DATABASE_ROLE_MEMBER_CHANGE_GROUP`, `SERVER_PERMISSION_CHANGE_GROUP`, `DATABASE_PERMISSION_CHANGE_GROUP`, `SCHEMA_OBJECT_PERMISSION_CHANGE_GROUP`). State honestly that the current search covers only GRANT and REVOKE statements."
+    },
+    {
+      "dimension": "consistency",
+      "explanation": "`description`, `controlTest` and `knownFalsePositives` describe a count per `entity` or `host` against a threshold over `span=1h`. The SPL is a plain `table` of individual GRANT and REVOKE events with no aggregation, threshold, `entity` or `host` field.",
+      "field": "cross_field",
+      "quote": "grouped by `entity`. Outputs `count` each `the scheduled window`; alert when configured threshold.",
+      "severity": "major",
+      "suggested_fix": "Describe the actual output: one row per GRANT or REVOKE audit record, showing `server_principal_name` (who), `target_server_principal_name` (grantee), `database_name` and `statement`, and alerting on any row in production."
+    },
+    {
+      "dimension": "specificity",
+      "explanation": "Steps 1–4 appear twice. The second copy is generic boilerplate (HEC tokens, `list_inputs`, `tstats ... vendor admin UI inventory count`) that does not apply to a DB Connect audit input. The opening note about matching 'live metrics' in `sys.dm_*` views is irrelevant to an audit trail. No step shows how to create the SERVER AUDIT and audit specification, or how to configure the DB Connect rising-column input.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=mssql:audit into database. Default poll interval 300–900 seconds",
+      "severity": "major",
+      "suggested_fix": "Keep one set of steps: create the server audit and the server- and database-level audit specifications with the action groups above, enable the add-on's `mssql:audit` DB Connect input (rising on `event_time`), and validate against `sys.fn_get_audit_file` in SSMS. Remove the duplicated generic block."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/2648",
+      "explanation": "The add-on that defines `mssql:audit` and its extractions is not named, and 'SQL Server audit' is a SQL Server feature, not a Splunk app.",
+      "field": "app",
+      "quote": "DB Connect, SQL Server audit — Universal Forwarder (Splunkbase 617)",
+      "severity": "major",
+      "suggested_fix": "Splunk Add-on for Microsoft SQL Server (Splunkbase 2648) with Splunk DB Connect (Splunkbase 2686)."
+    },
+    {
+      "dimension": "specificity",
+      "explanation": "HEC, `inputs.conf` and `savedsearches.conf` references are generic. None of the references covers SQL Server Audit or the add-on that parses `mssql:audit`.",
+      "field": "references",
+      "quote": "\"title\": \"Splunk HTTP Event Collector\"",
+      "severity": "minor",
+      "suggested_fix": "Cite the Microsoft 'SQL Server Audit Action Groups and Actions' page and the Splunk Add-on for Microsoft SQL Server documentation (source types, and creating audit objects)."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The `action_id IN (\"G\",\"R\",\"GWG\")` filter omits DENY (`D`) and role-membership changes (ADD MEMBER and DROP MEMBER action IDs; confirm the codes with `SELECT * FROM sys.dm_audit_actions`). Role additions to sysadmin or db_owner are the main escalation path, so they are missed.",
+      "severity": "major"
+    },
+    {
+      "field": "cimSpl",
+      "issue": "The CIM variant counts every change by user, action and object with no filter for permission or role changes, so it does not express this detection. It also returns nothing, because `mssql:audit` is not CIM-mapped by the add-on.",
+      "severity": "major"
+    },
+    {
+      "field": "title",
+      "issue": "The title says 'Privilege Escalation', but the search also lists REVOKE, which removes privileges. 'Database Privilege Change Audit' would be more accurate.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0046-UC-7.1.15",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The intent (auditing GRANT and REVOKE in SQL Server) is reasonable, but the collection path is wrong. `mssql:audit` comes from binary `.sqlaudit` files read through DB Connect, not from a Universal Forwarder, and the add-on maps it to no CIM datamodel. The text also claims role-membership coverage the search does not have, and repeats generic boilerplate twice.",
+  "tier": "deep",
+  "uc_id": "UC-7.1.15",
+  "verdict": "incorrect"
+}

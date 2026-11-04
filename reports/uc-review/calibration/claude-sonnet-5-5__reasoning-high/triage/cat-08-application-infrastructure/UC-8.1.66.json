@@ -1,0 +1,95 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "8ca5441fc85cdc3a6aa0d2bed3566f8f3e9d4ddf3a0c405bea47ad76252032f4",
+  "file": "content/cat-08-application-infrastructure/UC-8.1.66.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL has no `entity` grouping and no `count`. `lim > 0` is only a guard against dividing by zero, not an alert condition. The same wrong threshold appears in `controlTest`.",
+      "field": "description",
+      "quote": "grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `lim` > 0, or `used_pct` > 90.",
+      "severity": "major",
+      "suggested_fix": "Say that each event is compared with `limit_maxbytes` and a row appears when usage exceeds 90 percent (or 95 percent) of it."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL returns rows for `used_pct > 90 OR used > lim*0.95`. The 95 percent clause is a subset of the 90 percent one, so the search cannot separate a warning from a page. The advice to key by `instance` or `port` has no counterpart in the SPL, which does no grouping.",
+      "field": "implementation",
+      "quote": "Alert at 90% with warning; 95% page on-call.",
+      "severity": "major",
+      "suggested_fix": "Use two severities in the SPL (a computed level) or one threshold, and say how multiple instances per host are identified."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "overclaiming",
+      "explanation": "Memcached is designed to fill up to `limit_maxbytes` and evict least-recently-used items, so a high `bytes` to `limit_maxbytes` ratio is normal. Check whether the signal worth alerting on is rising evictions or a falling hit rate, and say so.",
+      "field": "value",
+      "quote": "gives Operations teams earlier visibility into maxbytes Threshold",
+      "severity": "needs_verification",
+      "suggested_fix": "Explain what memory pressure means for memcached, and consider adding `evictions` to the data sources."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "collectd and Telegraf are separate agents that send to Splunk through HEC or a metrics path, and the Universal Forwarder is not a Splunkbase app. `dataSources` talks about the memcached `stats` command, a third path. The sourcetype `memcached:stats` is custom and no add-on provides it.",
+      "field": "app",
+      "quote": "collectd/Telegraf memcached input — Universal Forwarder (Splunkbase 617)",
+      "severity": "needs_verification",
+      "suggested_fix": "Pick one collection path (for example a scripted `stats` input or the Telegraf memcached plugin with HEC), name it correctly, and describe the sourcetype as custom."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "Memcached has no vendor REST endpoint, tokens or admin UI inventory. This boilerplate says nothing about the `stats` command, ports, multiple instances or how `bytes` and `limit_maxbytes` are collected.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token ... inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.",
+      "severity": "major",
+      "suggested_fix": "Describe the real collection (`stats` over the memcached port, one input per instance), the fields to expect, and memcached-specific troubleshooting."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "grandma_fidelity",
+      "explanation": "It uses jargon ('slab space') and describes capacity planning instead of the alert. It does not say that the search warns when a cache is almost full.",
+      "field": "grandmaExplanation",
+      "quote": "support right-sizing memory per cluster before peak events exhaust slab space",
+      "severity": "major",
+      "suggested_fix": "Say that it warns when the fast memory store used by applications is close to full, so it can be enlarged before it starts dropping data."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "No stats or grouping, so each raw event is tested separately and an alert would repeat for every poll. The clause `used > lim*0.95` is already covered by `used_pct > 90`. The search keeps all rows without a `table`.",
+      "severity": "minor"
+    },
+    {
+      "field": "criticality",
+      "issue": "'high' looks too high for a memory ratio that is normally near full for memcached. Check against the eviction signal.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "id",
+      "issue": "Memcached is placed in subcategory 8.1 (Web Servers & Reverse Proxies), whose guide does not cover caches.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0064-UC-8.1.60",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 1
+  },
+  "summary": "The memcached metrics (`bytes`, `limit_maxbytes`) are real, but the description cites fields and grouping the SPL does not have, and the alerting premise is weak because memcached normally runs near full. The implementation text is generic collector boilerplate.",
+  "tier": "triage",
+  "uc_id": "UC-8.1.66",
+  "verdict": "rewrite"
+}

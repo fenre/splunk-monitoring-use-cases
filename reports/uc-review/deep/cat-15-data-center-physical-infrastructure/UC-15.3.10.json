@@ -1,0 +1,102 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "288d4311991db451dca3f7bd3245314779dcb56616f049662967ad0795cbddc9",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.3.10.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://www.splunk.com/en_us/download/universal-forwarder.html",
+      "explanation": "The Universal Forwarder is not distributed through Splunkbase; https://splunkbase.splunk.com/app/617 returns 404 and the ID is absent from data/splunkbase-catalog.json. The UF is also not a 'modular input'. The same wrong ID appears in `app`, which the pre-pass already flagged.",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll",
+      "severity": "blocker",
+      "suggested_fix": "Name the real collection path for zone capacity data. The guide documents DCIM ingestion through Splunk DB Connect (Splunkbase 2686) or REST (sunbird:dcim, nlyte:dcim). Remove 'Splunkbase 617'. If a UF scripted input is used, say so without a Splunkbase ID."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "evidence_ref": "docs/guides/datacenter-physical.md",
+      "explanation": "The text never names the sourcetype `capacity:zone` or the fields the SPL depends on (`zone`, `capacity_kw`, `used_kw`, `capacity_tons`, `load_tons`, `u_available`). `capacity:zone` is not one of the sourcetypes in the subcategory guide, so it is a custom, site-defined sourcetype and should be described as one.",
+      "field": "dataSources",
+      "quote": "Power capacity vs used, cooling capacity vs load, rack U available",
+      "severity": "major",
+      "suggested_fix": "State that a DCIM export (for example a Sunbird dcTrack or nlyte zone or room capacity report pulled by DB Connect) is landed in `index=dcim` as custom sourcetype `capacity:zone`, one event per zone per poll, with the six fields above. Name their units: kW for power and refrigeration tons for cooling."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "`description` says results are grouped by `entity` and output a `count`. The `spl` has no stats, no `entity` field and no count: it emits one raw row per event with `zone` and two computed percentages.",
+      "field": "cross_field",
+      "quote": "grouped by `entity`. Outputs `count` each `the scheduled window`",
+      "severity": "major",
+      "suggested_fix": "Describe the actual grain: one row per zone reading where computed power headroom or cooling headroom is below 20%, showing zone, both headroom percentages and available rack U."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The steps are duplicated: Steps 1 to 4 appear twice and one heading repeats four times. The second copy is generic boilerplate that does not match this SPL ('throttle per entity', 'stats/timechart aggregates define the alert grain', 'Grant the ingestion role `list_inputs`'). Step 3 says to validate against 'the PDU UI or SNMP poll', but the data is DCIM zone aggregates.",
+      "field": "detailedImplementation",
+      "quote": "Step 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize",
+      "severity": "major",
+      "suggested_fix": "Keep one set of steps. Throttle on `zone`. Validate by comparing the computed headroom for two zones against the DCIM platform's zone capacity view. Remove the template text about stats, joins and API 401/429 errors."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The scenarios use fields and behaviour that are not in this search (`host`, `count`, `span=1h`, synthetic probes, batch jobs). None names a real cause of a false low-headroom result for zone capacity.",
+      "field": "knownFalsePositives",
+      "quote": "Synthetic probe on `host`** — Health checks in `dcim` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List real causes: stale or wrong design capacity in DCIM (for example a CRAC decommissioned but still counted, or capacity not derated for N+1), unit mismatches (BTU/h or kW of cooling against tons), `capacity_kw` or `capacity_tons` null or 0 for newly created zones, and a DCIM sync lag that leaves `used_kw` from a peak sample."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "The SPL reads zone-level capacity aggregates from a DCIM feed, not SNMP PDU telemetry. Tagging the UC to SNMP PDU equipment (and `equipment: snmp`) misroutes the equipment picker.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_pdu\"",
+      "severity": "minor",
+      "suggested_fix": "Tag DCIM platform equipment (Sunbird, nlyte, EcoStruxure IT) if those slugs exist, or drop the SNMP PDU tag."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The search gives a point-in-time threshold list. It produces no trend, and it does not use or alert on rack U, which is part of 'capacity headroom' in the value statement.",
+      "field": "implementation",
+      "quote": "Report on trend and zones with least headroom.",
+      "severity": "minor",
+      "suggested_fix": "Say that trending needs a separate timechart of headroom by zone, and that space headroom (`u_available`) is shown but not alerted on."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The search does not aggregate per zone, for example `stats latest(capacity_kw) ... by zone`. Over a 24h schedule with 5 to 15 minute polls it returns dozens of duplicate rows per zone.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "There is no guard for `capacity_kw` or `capacity_tons` being 0 or null, which produces null headroom and silently drops the zone. `u_available` is shown but not thresholded, although the title covers 'Capacity Headroom' and the description mentions space.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0049-UC-15.3.10",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 1
+  },
+  "summary": "The SPL idea is simple and sound: per-zone power and cooling headroom below 20%. Almost every prose field around it is template residue that describes a different search, with an `entity` grain, `count` output, `host`-keyed suppression and SNMP PDU validation. The collection path cites a Splunkbase ID that does not exist.",
+  "tier": "deep",
+  "uc_id": "UC-15.3.10",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,112 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "84565d23558674c563f10513d34d255342903479b80dfa47dc4d2ef065566fcf",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.1.49.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/617",
+      "explanation": "Splunkbase app 617 does not exist (404), and the Universal Forwarder is a Splunk download from splunk.com, not a Splunkbase app. The same claim is repeated in dataSources ('Collected via Universal Forwarder (Splunkbase 617) modular input').",
+      "field": "app",
+      "quote": "— Universal Forwarder (Splunkbase 617)",
+      "severity": "blocker",
+      "suggested_fix": "Drop the Splunkbase ID and say 'Splunk Universal Forwarder (download from splunk.com)'. In dataSources, describe collection as a scripted input on a Heavy Forwarder posting to HEC plus optional UF file monitors; a UF is not a 'modular input'."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/NetworkSessions",
+      "explanation": "The CIM Network_Sessions model covers DHCP and VPN session start/end events; a vendor support-tunnel heartbeat/phone-home status snapshot is not a network session, and the SPL uses neither model. The implementation and schema text ('map session-style gateway telemetry to Network_Sessions') send readers to build the wrong mapping.",
+      "field": "cimModels",
+      "quote": "\"cimModels\": [\n    \"Network_Sessions\",\n    \"Alerts\"\n  ]",
+      "severity": "blocker",
+      "suggested_fix": "Remove Network_Sessions. Keep cimModels empty (raw-index status poll) or, if the alert output is normalised, list only Alerts and say the mapping applies to the alert results, not the raw poll; update implementation and schema text to match."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "The UC states these are real VxRail Manager API field names for GET /rest/vxm/v1/support/network, but cites no VxRail API reference and the poller simply forwards whatever JSON comes back. If the endpoint or keys differ, every eval in the SPL resolves to null and the search only ever emits 'info' rows.",
+      "field": "dataSources",
+      "quote": "Real API field names: `esrs_status`, `last_heartbeat_utc`, `last_heartbeat_age_seconds`, `last_phone_home_utc`, `last_phone_home_age_seconds`, `tls_certificate_status`, `tls_certificate_expires_utc`, `outbound_proxy_enabled`, `esrs_gateway_address`, `site_id`, `service_tag`, `scg_mode`.",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Dell VxRail API reference (developer.dell.com VxRail Appliance API) for the support/connectivity endpoint and its response schema; cite it, or reword as 'example normalised field names your poller should emit' and add a mapping step in the poller."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "Port 5700 is the Secure Connect Gateway web UI port, but a /api/v1/health REST resource is not documented in the material cited; the legacy SRS log path /var/log/EMC/SRSGateway/ and the 'SCG default ~5 minute heartbeat' are also stated without a source.",
+      "field": "detailedImplementation",
+      "quote": "decide whether you also poll `https://<scg-fqdn>:5700/api/v1/health` into `dell:scg:health`",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm the SCG REST API (if any), the SRS/SCG log directory and the heartbeat interval in the Dell Secure Connect Gateway user guide for the deployed version, and cite that guide in references (the current reference is the generic https://www.dell.com/support/ landing page)."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "Five trailing sections are labelled 'length check' and repeat earlier steps; they are generator padding visible to readers and add no implementation detail.",
+      "field": "detailedImplementation",
+      "quote": "**Step 1 (length check — narrative)**",
+      "severity": "major",
+      "suggested_fix": "Delete the 'length check' sections and fold any unique facts (dual-VxM polling, firewall list, ServiceNow priority mapping) into the numbered steps."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The prose says degraded starts at ~15 minutes, but the SPL default for expected_heartbeat_window_min is 20 and the sample baseline CSV uses 20/45, so the 'warning' tier starts later than the text says.",
+      "field": "detailedImplementation",
+      "quote": "a gap over ~15 minutes is already degraded, and a gap over ~60 minutes is often service-affecting",
+      "severity": "minor",
+      "suggested_fix": "State the actual default (warning above 20 minutes, critical above 60 minutes when DISCONNECTED/UNKNOWN) or change the lookup defaults to match the prose."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The sample poller only checks for --dry-run and reads CLUSTER_ID from the cnf file; there is no --cluster argument. The same Step 3 refers to 'your `where` for alerting' although the SPL has no where clause.",
+      "field": "detailedImplementation",
+      "quote": "`python3 vxm_support_poller.py --cluster VXR-PROD-01 --dry-run`",
+      "severity": "minor",
+      "suggested_fix": "Use `python3 vxm_support_poller.py --dry-run` and say the alert condition is configured on severity_bucket in the alert trigger."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "Marked verified while the SPL cannot run as written and the API field contract is unverified.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "minor",
+      "suggested_fix": "Set to draft until the SPL and VxRail API fields are validated against a real appliance."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/SplunkCloud/latest/Search/Comments",
+      "field": "spl",
+      "issue": "The search begins with five lines prefixed '//'. SPL has no '//' comment syntax (comments are enclosed in triple backticks), so those words become search terms, and the backticked text inside them (`/rest/vxm/v1/support/network`, `vxrail:vxm:support_status`) is parsed as macro invocations, which fails. Remove the lines or wrap them in ``` ... ```.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Appendcols",
+      "field": "spl",
+      "issue": "appendcols attaches the single srs_log_error_hits row only to the first cluster row; every other cluster gets null, and the count is not scoped by gateway or cluster. Use a join or eventstats keyed by site/gateway host, or report the count as a separate fleet tile.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0042-UC-19.1.49",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 3,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The detailed implementation is substantive and the tiering logic is readable, but the saved SPL opens with '//' comment lines (not valid SPL) containing backticked text that Splunk will try to expand as macros, the app cites a non-existent Splunkbase ID for the Universal Forwarder, the CIM choice (Network_Sessions) does not fit, and VxRail/SCG API field names are asserted as 'real' without evidence. Description, value, KFP and controlTest are template residue and the detailed implementation carries visible 'length check' padding.",
+  "tier": "deep",
+  "uc_id": "UC-19.1.49",
+  "verdict": "incorrect"
+}

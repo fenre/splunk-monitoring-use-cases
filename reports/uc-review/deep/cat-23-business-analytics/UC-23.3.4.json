@@ -1,0 +1,130 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "1b090324d4e14c11fce3c0f3070a7dc2e8d54e5761888fdf4e343672fb615501",
+  "file": "content/cat-23-business-analytics/UC-23.3.4.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-apache-web-server/Sourcetypes/",
+      "explanation": "The Splunk Add-on for Apache Web Server (3186) defines `apache:access:combined`, `apache:access:kv` and `apache:access:json`, and extracts CIM-style fields (`http_referrer`, `http_user_agent`, `src`, `url`). `access_combined` is Splunk's built-in pretrained sourcetype, so the fields the SPL uses come from core access-extractions, not the add-on. A reader who follows the app/implementation advice and assigns the add-on's sourcetype will get a search that returns nothing.",
+      "field": "dataSources",
+      "quote": "Apache combined access logs in `index=web` with `sourcetype=\"access_combined\"` (TA-parsed fields: `clientip`, `useragent`, `referer`, `uri`, `status`, `bytes`)",
+      "severity": "blocker",
+      "suggested_fix": "Say the SPL relies on Splunk's built-in `access_combined` sourcetype and needs no add-on. Alternatively, if Splunk_TA_apache is used with `apache:access:combined`, state that the field names differ (http_referrer, http_user_agent, src, url). Align app, implementation and the inputs.conf example with that choice."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "evidence_ref": "content/cat-23-business-analytics/UC-23.1.7.json",
+      "explanation": "UC-23.6.4 is payment processing success and UC-23.5.1 is order-to-cash cycle time. App-store topics live in UC-23.1.7, and no catalogue UC covers international SEO geo-routing.",
+      "field": "exclusions",
+      "quote": "Mobile-app store SEO (App Store / Google Play) excluded — covered by UC-23.6.4. International SEO geo-routing performance handled in UC-23.5.1.",
+      "severity": "major",
+      "suggested_fix": "Point app-store visibility at UC-23.1.7 (App-Store Rating Drift…). Drop the geo-routing pointer, or name a real UC. Keep UC-23.3.5 for paid search."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The description presents the SPL's status filter and session-gap constant as alert conditions. The real alert is in implementation and detailedImplementation: Organic session_share_pct drops by more than eight points week-over-week. The controlTest repeats the same wrong conditions.",
+      "field": "cross_field",
+      "quote": "alert when `status` >= 200, `status` < 500, or `gap` > 1800",
+      "severity": "major",
+      "suggested_fix": "Describe it as a 7-day sessions/visitors/bounce-rate breakdown by acquisition channel, with an optional weekly alert when Organic share drops more than 8 percentage points versus the prior week."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "detailedImplementation and evidence name different saved searches, and 'anomaly' does not describe this report.",
+      "field": "cross_field",
+      "quote": "saved search `web_channel_engagement_weekly` … `| rest /services/saved/searches/seo_traffic_anomaly_v3`",
+      "severity": "major",
+      "suggested_fix": "Use `web_channel_engagement_weekly` (or one chosen name) in every field."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "Search Console has no signed webhooks, and nothing in the UC ingests GA4. No SOAR playbook exists. This is template text that does not evidence channel-classification accuracy.",
+      "field": "evidence",
+      "quote": "Search Console / GA4 webhook signature-verification logs cross-referenced with referrer events. ServiceNow CHG records linked from change-window registers; SOAR `seo_remediation_v2` execution log",
+      "severity": "major",
+      "suggested_fix": "Use the Step 4 validation artefacts as evidence: the Search Console clicks vs Splunk Organic sessions comparison and the 20-row referer classification sample, archived with the weekly report."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The listed causes (maintenance windows, `span=1h`, synthetic probes) are generic IT-ops text. The real misclassification causes are already in detailedImplementation Step 5: referrer-policy stripping, UTM loss on redirects, in-app browsers, AMP caches and core algorithm updates.",
+      "field": "knownFalsePositives",
+      "quote": "Synthetic probe on `sid`, `session_id`, `channel`** — Health checks in `web` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "Replace these with the Step 5 causes, each with its mitigation."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL filters only favicon, robots.txt and /health. It has no static-asset filter, so every CSS/JS/image request counts as a pageview.",
+      "field": "implementation",
+      "quote": "tune bot exclusions and static-asset filters",
+      "severity": "minor",
+      "suggested_fix": "Either say static assets must be added to the exclusion macro, or describe the filter that actually exists."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The URL is the generic Google support root, not the Search performance report page.",
+      "field": "references",
+      "quote": "\"title\": \"Google Search Central — Search performance report (clicks, impressions, queries)\", \"url\": \"https://support.google.com\"",
+      "severity": "minor",
+      "suggested_fix": "Link the actual Search Console Performance report help article."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified with an agent as reviewer and no SME sign-off, while the sourcetype/add-on mismatch shows it was never run end-to-end.",
+      "field": "status",
+      "quote": "\"status\": \"verified\" … \"reviewer\": \"agent-handcraft-2026-04-27\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until it has been validated against real Apache logs."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats",
+      "field": "spl",
+      "issue": "Channel is assigned per hit rather than per session, and the site's own hostname is not excluded from referers. Every internal page view (referer = own site) therefore falls into 'Referral'. Then `stats first(epv) ... by session_id channel` splits one session into several channel rows, each carrying the whole session's page count, so sessions and pageviews are double-counted and Referral dominates the share. Derive channel from the first hit of each session (for example `eventstats first(channel) by session_id` after sorting by _time) and treat own-domain referers as internal.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The social regex `t\\\\.co` is unanchored, so it matches any referer containing 't.co' (for example microsoft.com, reddit.com, *soft.com). Those visits are mis-tagged as 'Social — ref'. Anchor the match on ref_host (for example `^t\\\\.co$`).",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "Only favicon/robots/health are excluded, so CSS/JS/image/font requests are counted as pages. This inflates pages_per_session and suppresses bounce_rate. Including 3xx and 4xx in the status filter also counts 404s and redirects as pageviews.",
+      "severity": "major"
+    },
+    {
+      "field": "title",
+      "issue": "The title promises 'SEO Performance', but the SPL only measures channel share from server logs; no Search Console impressions, rankings or queries are ingested. Consider 'Website Traffic Source Mix from Web Server Logs', or add a Search Console source.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0019-UC-23.3.4",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 5,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The detailedImplementation is detailed and specific to server-log channel classification, and the grandmaExplanation is good. However, the UC attributes the `access_combined` fields to the Apache add-on, which actually uses different sourcetypes. Its sessionisation counts internal navigation as 'Referral' traffic, so the channel shares are wrong. Exclusions, evidence and false positives are template residue.",
+  "tier": "deep",
+  "uc_id": "UC-23.3.4",
+  "verdict": "incorrect"
+}

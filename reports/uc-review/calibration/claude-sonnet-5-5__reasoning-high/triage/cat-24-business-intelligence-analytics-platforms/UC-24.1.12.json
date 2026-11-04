@@ -1,0 +1,94 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "e458ea2f5899fb327606db1792b9c14ec4bb71424c58911352c3c127d946747d",
+  "file": "content/cat-24-business-intelligence-analytics-platforms/UC-24.1.12.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL uses `index=bi sourcetype=tableau:tsm:metrics metric=disk_free_bytes`. None of the listed sources contain disk free space: logs and workgroup tables do not hold disk metrics. The real source is not documented anywhere.",
+      "field": "dataSources",
+      "quote": "Tableau Server logs (`tableau:backgrounder`, `tableau:vizqlserver`, `tableau:httpd`), `workgroup` repository tables (`background_jobs`, `http_requests`, `_views_stats`, `licensing`) via DB Connect",
+      "severity": "major",
+      "suggested_fix": "List `tableau:tsm:metrics` with the fields used (metric, value, host, mount). Say what produces it (for example a scripted input that reads node disk free space, or the OS add-on) and how metric=disk_free_bytes is populated."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The title and grandma text suggest the repository (PostgreSQL workgroup DB) volume specifically, and 'Tableau servers' generally. The SPL checks every host and mount in the metric stream against a fixed 20 GB. It never identifies the repository data directory, so unrelated or very large or small volumes can alert or be missed.",
+      "field": "cross_field",
+      "quote": "Tableau Server Repository Disk Space ... grouped by `host`, `mount`",
+      "severity": "major",
+      "suggested_fix": "Say which mount holds the repository (and which hosts run it), filter the SPL to those mounts, or retitle to node disk space. Explain how to choose a threshold for the repository size."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "This is generic boilerplate (modular input, vendor API rate limits, 401/429 errors, tstats comparisons with a vendor inventory count) and does not explain how Tableau disk metrics get collected. DB Connect and the Universal Forwarder in the app field do not write tableau:tsm:metrics. It also lacks any Tableau example event.",
+      "field": "detailedImplementation",
+      "quote": "Install and configure the add-on referenced in the app field ... Enable the modular input or HEC token that writes sourcetype=tableau:tsm:metrics into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower.",
+      "severity": "major",
+      "suggested_fix": "Describe one concrete collection path: the script or API that reads disk free space on each node, the HEC token and index=bi, and an example event with metric, value, host and mount."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "implementation says to run every 15 minutes with a user-chosen threshold. detailedImplementation says to schedule with earliest=-24h@h. The SPL hard-codes 20 GB and has no time bound. Using `latest(value)` over a 24 hour window can report a stale value if a host stopped sending.",
+      "field": "cross_field",
+      "quote": "Ingest TSM metrics via HEC; schedule every 15 minutes; alert below your threshold.",
+      "severity": "minor",
+      "suggested_fix": "Pick one schedule (for example every 15 minutes with earliest=-30m). State that 20 GB is a default to tune. Optionally alert when a host has not reported metrics."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "'Temp cleanup' is vague and risky for a repository volume. Tableau Server has its own cleanup process (for example TSM maintenance cleanup) and rotates logs. Check which cleanup commands are appropriate and whether automating them is advised for the repository host.",
+      "field": "implementation",
+      "quote": "Automate temp cleanup where safe.",
+      "severity": "needs_verification",
+      "suggested_fix": "Replace with a specific remediation from the Tableau docs, such as running the TSM maintenance cleanup, archiving or trimming logs, or expanding the volume, and say it should be a manual or change-controlled step."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "Apache httpd has no part in a disk space check. The tags come from the subcategory boilerplate.",
+      "field": "equipmentModels",
+      "quote": "\"equipment\": [\"apache\", \"db_connect\", \"postgresql\"], \"equipmentModels\": [\"apache_httpd\", \"postgresql_pg\"]",
+      "severity": "minor",
+      "suggested_fix": "Keep postgresql if the repository volume is the target, and drop apache_httpd."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "clarity",
+      "explanation": "'alert' is not a visualization. The timechart of disk trend needs free_gb over time, but the SPL only returns the latest value per host and mount.",
+      "field": "visualization",
+      "quote": "Single-value free space per node, timechart of disk trend, alert.",
+      "severity": "minor",
+      "suggested_fix": "Use a table of low-space mounts plus a separate timechart search for avg(free_gb) by host and mount."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The fixed `free_gb<20` threshold does not scale with the repository volume size, and the search is not restricted to the repository mount. A percentage-free condition may be more robust. `metric=disk_free_bytes` and the `value` field should be confirmed against whatever collects tableau:tsm:metrics.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0075-UC-24.1.12",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 4,
+    "overclaiming": 4,
+    "specificity": 2
+  },
+  "summary": "A reasonable free-disk-space check, but the data source and implementation text are copied from subcategory boilerplate. They name the Tableau logs and DB Connect repository tables, while the SPL reads a TSM metrics sourcetype that is never documented. Nothing ties the check to the repository volume.",
+  "tier": "triage",
+  "uc_id": "UC-24.1.12",
+  "verdict": "rewrite"
+}

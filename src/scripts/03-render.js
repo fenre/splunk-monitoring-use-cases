@@ -1,3 +1,5 @@
+// Same global as 01-state.js. No initialiser: this file is concatenated after that one.
+var ucAllCardsHtml;
 var DOMAIN_GUIDE = {1:'infrastructure-monitoring',2:'infrastructure-monitoring',5:'infrastructure-monitoring',6:'infrastructure-monitoring',15:'infrastructure-monitoring',18:'infrastructure-monitoring',19:'infrastructure-monitoring',9:'security-monitoring',10:'security-monitoring',17:'security-monitoring',3:'cloud-monitoring',4:'cloud-monitoring',20:'cloud-monitoring',7:'application-monitoring',8:'application-monitoring',12:'application-monitoring',13:'application-monitoring',16:'application-monitoring',11:'collaboration-iot-monitoring',14:'collaboration-iot-monitoring',21:'industry-verticals',22:'compliance-business',23:'compliance-business'};
 function domainGuideLink(catId, label) {
   var g = DOMAIN_GUIDE[catId];
@@ -207,7 +209,8 @@ function buildSidebar() {
     var ag = catToGroup[currentCat];
     if (ag) { expandedSidebarGroups.clear(); expandedSidebarGroups.add(ag); }
   }
-  var html = '<div class="c-sidebar-item' + (!currentCat && !currentSearch ? ' active' : '') + '" onclick="goHome()">' + si('globe') + '<span>Overview</span><span class="c-sidebar-count">' + filt.length + '</span></div>';
+  var html = '<div class="c-sidebar-item' + (!currentCat && !currentSearch && !packsView ? ' active' : '') + '" onclick="goHome()">' + si('globe') + '<span>Overview</span><span class="c-sidebar-count">' + filt.length + '</span></div>';
+  html += '<div class="c-sidebar-item' + (packsView && !detailOpen ? ' active' : '') + '" tabindex="0" role="button" onclick="openPacksView()" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();openPacksView()}">' + si('list') + '<span>Starter packs</span></div>';
   var groupOrder = ['infra','security','cloud','app','industry','compliance','business','personal'];
   groupOrder.forEach(function(g) {
     if (g === 'personal' && !showFunStuff) return;
@@ -260,6 +263,10 @@ function roadmapBlock() {
   return h;
 }
 
+function starterPackBrowseURL() {
+  return '#packs';
+}
+
 function renderOverview() {
   window.scrollTo(0, 0);
   if (ucScrollObserver) { ucScrollObserver.disconnect(); ucScrollObserver = null; }
@@ -285,6 +292,10 @@ function renderOverview() {
 
   html += renderHelpBanner();
   html += '<div class="ov-hero-inline"><div class="ov-hero-badge">' + esc(SITE.heroBadge || '') + '</div><h2 class="ov-hero-h2">' + esc(SITE.heroTitle || '') + ' <span>' + esc(SITE.heroTitleSpan || '') + '</span></h2><p>' + esc(intro) + '</p></div>';
+  html += '<div class="start-cta" role="region" aria-label="Guided onboarding"><div class="start-cta-text"><strong>New to Splunk? Start here</strong>'
+    + '<span>Answer a few questions, optionally paste what is already in your Splunk, and get a short ordered list of use cases to turn on first.</span></div>'
+    + '<div class="start-cta-actions"><button type="button" class="start-cta-btn" onclick="openStartWizard()">Build my starter plan &rarr;</button>'
+    + '<a class="start-cta-browse" href="' + starterPackBrowseURL() + '" onclick="openPacksView();return false;">Browse the packs</a></div></div>';
 
   var heroOrder = ['infra','security','cloud','app','industry','compliance','business','personal'];
   var heroLabels = { infra:'Infrastructure', security:'Security', cloud:'Cloud', app:'Applications', industry:'Industry', compliance:'Regulatory & Compliance', business:'Business & Executive', personal:'Fun Stuff' };

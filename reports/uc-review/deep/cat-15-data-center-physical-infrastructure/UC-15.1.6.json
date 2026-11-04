@@ -1,0 +1,100 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "b00153a2f0c14e8c4ad94293ee36199d08ab6f86b4cb78526595abc00df58c65",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.1.6.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The SPL has no stats, `entity` field or threshold. It lists every PDU/BMS event containing 'breaker', 'overcurrent' or 'trip' with device, location, event type, circuit and message.",
+      "field": "description",
+      "quote": "grouped by `entity`. Outputs `count` each `the scheduled window`; alert when configured threshold.",
+      "severity": "major",
+      "suggested_fix": "Say the search returns one row per PDU or BMS event that mentions a breaker, overcurrent or trip, showing device, location, circuit and message, and that any row is alert-worthy."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "This does not name the two sourcetypes (`pdu:events`, `bms:events`) or the fields the table needs (`device`, `location`, `event_type`, `circuit`, `message`), or say how PDU breaker alarms reach Splunk (SNMP traps, syslog, BMS export). It lists UPS transfer events, which the SPL never searches.",
+      "field": "dataSources",
+      "quote": "PDU events, BMS alerts, UPS transfer events Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+      "severity": "major",
+      "suggested_fix": "State that PDU breaker/overcurrent alarms (SNMP trap or syslog from the PDU) land as `pdu:events` and BMS panel-breaker alarms as `bms:events` in `index=power`, with extractions for device, location, event_type, circuit and message. Drop UPS transfer events or add them to the search."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The implementation field says 'Alert immediately on breaker trips', and the UC is rated critical. The detailedImplementation schedule (24-hour lookback, no stated cadence) re-reports the same trip all day or delays it, depending on cron. 'Throttle per entity' refers to a field that does not exist.",
+      "field": "cross_field",
+      "quote": "Schedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages.",
+      "severity": "major",
+      "suggested_fix": "Recommend a short cadence (for example every 5 minutes over earliest=-5m, or a real-time/trap-driven alert), with throttling keyed on `device` and `circuit`."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "`host, user, action` are security-template fields. This feed needs `device`, `location`, `event_type`, `circuit` and `message`. The field also concatenates two templates (Steps 1–4 twice, one heading four times) and includes vendor-API 401/429 and tstats inventory checks that do not apply.",
+      "field": "detailedImplementation",
+      "quote": "Spot-check two known entities for field presence (`host, user, action`).",
+      "severity": "major",
+      "suggested_fix": "Collapse to one sequence and validate against the PDU or BMS alarm log for a known (test) breaker event, checking that `device`, `circuit` and `message` are extracted."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "None of the scenarios names a real cause of a non-trip row, and the SPL does not group on `host`.",
+      "field": "knownFalsePositives",
+      "quote": "Synthetic probe on `host` — Health checks in `power` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List real causes: 'breaker closed' or 'breaker reset' return-to-normal events (they contain 'breaker'), overcurrent warning thresholds that alarm before any trip, planned breaker exercising or switching during maintenance, and BMS informational messages mentioning breaker position."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "No lookup or CMDB source is named for the PDU-to-server mapping, so the step is not actionable.",
+      "field": "implementation",
+      "quote": "Track affected equipment from PDU-to-server mapping.",
+      "severity": "minor",
+      "suggested_fix": "Name the mapping source (DCIM export or CMDB lookup keyed on device and circuit) and the fields to join."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/datacenter-physical.md",
+      "explanation": "The subcategory guide maps device alarms to the CIM Alerts model. Breaker-trip alarms fit Alerts if normalisation is wanted.",
+      "field": "cimModels",
+      "quote": "\"cimModels\": []",
+      "severity": "minor",
+      "suggested_fix": "Consider mapping to `Alerts`, or state explicitly that no CIM model applies."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The bare keyword filter matches return-to-normal events ('breaker closed', 'breaker reset') and overcurrent warnings as well as actual trips. It does not match the inflected form 'tripped' through the `trip` term (only through 'breaker' if present). Filter on a trip/alarm `event_type`, or add `tripped`/`trip*` and exclude clear events.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "There is no dedup or aggregation per `device`/`circuit`, so repeated alarm retransmissions produce multiple rows and pages for one trip.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0028-UC-15.1.6",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 1,
+    "overclaiming": 4,
+    "specificity": 1
+  },
+  "summary": "The SPL is a simple keyword list of PDU/BMS breaker events, but the description claims an aggregated threshold detection. Data sources and implementation are generic: they never define the `pdu:events`/`bms:events` fields the table relies on, and detailedImplementation is a duplicated template with wrong field names and a 24-hour schedule that contradicts 'alert immediately'.",
+  "tier": "deep",
+  "uc_id": "UC-15.1.6",
+  "verdict": "rewrite"
+}

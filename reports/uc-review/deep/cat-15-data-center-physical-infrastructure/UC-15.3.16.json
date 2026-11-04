@@ -1,0 +1,96 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "cbb4be41edc5c93d0385d58889d60296242f0cc2827518d04299cf8aa754aacb",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.3.16.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/1546",
+      "explanation": "Splunkbase app 1747 is the Splunk Add-on for Cisco WSA (Splunk_TA_cisco-wsa). The REST API Modular Input is app 1546. The wrong ID also appears in `detailedImplementation` ('Install REST API Modular Input (Splunkbase 1747)') and in the `references` entry 'REST API Modular Input on Splunkbase (1747)'.",
+      "field": "dataSources",
+      "quote": "through REST API Modular Input (Splunkbase app ID 1747)",
+      "severity": "blocker",
+      "suggested_fix": "Replace 1747 with 1546 (https://splunkbase.splunk.com/app/1546) in dataSources, detailedImplementation and references."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL uses `latest(recording_gap_sec)`, not max, so it reports the most recent failing sample, not the worst. The grain is one row per camera_id and site, not per aisle or hall. Because the `where` runs before `stats`, a camera that has since recovered still appears with its last failing gap, and a camera flagged only by `fps=0` or `stream_state=\"lost\"` shows an empty `gap`.",
+      "field": "detailedImplementation",
+      "quote": "`stats` rolls up the worst `recording_gap_sec` per `camera_id` and `site` so dashboards highlight entire aisles or halls rather than duplicate polling noise.",
+      "severity": "major",
+      "suggested_fix": "Describe the stats stage as 'the most recent failing gap per camera and site'. State that cameras flagged only by fps or stream state show an empty gap value, and drop the aisle/hall claim."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "`description` lists only the gap threshold and says the search groups a count. The `spl` also flags `fps=0` and `stream_state=\"lost\"` and outputs the latest gap per camera, not a count.",
+      "field": "cross_field",
+      "quote": "with thresholds `recording_gap_sec` > 60. Groups `count` by `camera_id`, `site`",
+      "severity": "major",
+      "suggested_fix": "Describe one row per camera and site where, in the window, frames dropped to zero, the stream was reported lost, or a recording gap exceeded 60 seconds, showing the most recent gap length."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The scenarios refer to `count`, batch automation and synthetic probes and name no real cause of a camera gap. They also ignore the most common benign cause of 'recording gaps'.",
+      "field": "knownFalsePositives",
+      "quote": "Batch `count` on `vms:stream_health`** — Scheduled automation elevates `site` without crossing `recording_gap_sec` > 60",
+      "severity": "major",
+      "suggested_fix": "List real causes: cameras on motion-triggered or scheduled recording, whose gaps between recordings are expected; camera reboots during firmware upgrades; recording-server failover, which briefly interrupts continuity; and cameras decommissioned in the VMS but still polled. Explain how to exclude each, for example with a recording-mode field or a camera inventory lookup."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The filter cannot tell a true failure from an expected gap on motion-only or scheduled recording. A static scene does not change FPS, so 'benign idle scenes' is not what the filter separates.",
+      "field": "detailedImplementation",
+      "quote": "The `where` clause isolates true streaming/recording failures from benign idle scenes",
+      "severity": "minor",
+      "suggested_fix": "Say the filter flags candidate failures and that recording-mode context is needed to rule out expected gaps."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The UC monitors VMS and camera stream health; tagging it to the 'splunk' equipment slug misroutes the equipment picker. Sibling camera UCs use `cctv`.",
+      "field": "equipment",
+      "quote": "\"splunk\"",
+      "severity": "minor",
+      "suggested_fix": "Use the `cctv` equipment slug."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "Drone kits and retail demo feeds are out of place in a data-center physical-security UC and read like generated filler. The `site=sandbox-*` convention is not referenced anywhere else in the UC.",
+      "field": "exclusions",
+      "quote": "unmanned staging cages, or drone pilot kits mapped via `site=sandbox-*`; dedicate alternate indexes for retail demo feeds",
+      "severity": "minor",
+      "suggested_fix": "Name realistic exclusions: lab or test cameras, cameras in planned decommission, and motion-only cameras whose recording gaps are by design. Explain how they are tagged."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The `where` runs before `stats latest(...)`, so the search cannot tell a camera that is still down from one that failed earlier in the window and recovered. Cameras matched only on `fps=0` or `stream_state=\"lost\"` get a null `gap`. Consider `stats latest(fps) latest(stream_state) max(recording_gap_sec) by camera_id, site` followed by the condition.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0054-UC-15.3.16",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The collection, evidence and validation text is fairly specific to VMS stream health. The UC names Splunkbase 1747 as the REST API Modular Input, but 1747 is the Splunk Add-on for Cisco WSA. The SPL walkthrough also misdescribes what the stats stage computes, and the description and false positives are template residue.",
+  "tier": "deep",
+  "uc_id": "UC-15.3.16",
+  "verdict": "incorrect"
+}

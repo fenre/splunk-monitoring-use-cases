@@ -1,0 +1,108 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "caf65d5b29f2533c83336180119a1851aced8b49b45a529579b039b04fdeae6e",
+  "file": "content/cat-10-security-infrastructure/UC-10.4.81.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://research.splunk.com/cloud/1435475e-2128-4417-a34f-59770733b0d5/",
+      "explanation": "The detection reads Office 365 Management Activity API data collected by the Splunk Add-on for Microsoft Office 365, not by a Universal Forwarder. Splunkbase 617 is not in the catalogue and is not the UF. ESCU is Splunkbase 3449, not Security Essentials, which is 3435.",
+      "field": "app",
+      "quote": "Splunk Security Essentials / ESCU — Universal Forwarder (Splunkbase 617)",
+      "severity": "blocker",
+      "suggested_fix": "Splunk Add-on for Microsoft Office 365 (Splunkbase 4055) for ingestion; Splunk ES Content Update (Splunkbase 3449) for the detection; Splunk Enterprise Security (Splunkbase 263) for RBA."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://research.splunk.com/sources/0a8c1080-68c2-46d7-8324-2e7d97bb6e2f/",
+      "explanation": "The ESCU data source 'O365 ModifyFolderPermissions' is source=o365 and sourcetype=o365:management:activity, pulled from the Office 365 Management Activity API (Audit.Exchange content type) by the O365 add-on. A forwarder or scripted poll does not collect it, and the SPL shown names no index.",
+      "field": "dataSources",
+      "quote": "O365 ModifyFolderPermissions Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+      "severity": "blocker",
+      "suggested_fix": "Office 365 Management Activity API, Audit.Exchange content type (Operation=ModifyFolderPermissions / AddFolderPermissions, Workload=Exchange). Collected by the Splunk Add-on for Microsoft Office 365 (Splunkbase 4055) as sourcetype o365:management:activity, accessed via the `o365_management_activity` macro."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "evidence_url": "https://github.com/splunk/security_content/blob/develop/detections/cloud/o365_mailbox_folder_read_permission_assigned.yml",
+      "explanation": "The description describes the risk-drilldown search, not the detection. The real logic flags Exchange folder-permission grants (ModifyFolderPermissions/AddFolderPermissions), excludes the Calendar, Contacts and PersonMetadata folders, evaluates MemberRights for ReadAny, and groups by user, object and Item.ParentFolder.MemberUpn. 'alert when 168h lookback' is not a condition.",
+      "field": "description",
+      "quote": "using datamodel `Risk.All_Risk`, grouped by `normalized_risk_object`. Outputs `firstTime`, `lastTime` each `the scheduled window`; alert when 168h lookback.",
+      "severity": "major",
+      "suggested_fix": "Describe the detection: an Exchange Online audit event showing a user granting another principal (Item.ParentFolder.MemberUpn) read rights on a mailbox folder other than Calendar or Contacts. Each row is per user, folder and grantee, and contributes risk score 50 to the user in RBA."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://research.splunk.com/cloud/1435475e-2128-4417-a34f-59770733b0d5/",
+      "explanation": "Step 1 is template residue: 'sourcetype=see SPL' is a placeholder, index=main is invented, and HEC does not apply. Collection is the O365 add-on's Management Activity input with the Audit.Exchange content type. The Prerequisites line saying data 'must be normalized to the CIM' is also wrong: the detection uses the `o365_management_activity` macro on raw o365:management:activity fields, not a CIM datamodel.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=see SPL into index=main.",
+      "severity": "major",
+      "suggested_fix": "Replace Steps 1 to 5 with: configure the Splunk Add-on for Microsoft Office 365 tenant and Management Activity input (Audit.Exchange); confirm events with `o365_management_activity` Operation IN (ModifyFolderPermissions, AddFolderPermissions); set the `o365_management_activity` macro to the right index; tune via `o365_mailbox_folder_read_permission_assigned_filter`."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The Validation section is generic email-gateway boilerplate. Proofpoint, Mimecast and Cisco ESA have nothing to do with Exchange Online folder-permission audit events. The `index=* | tstats` and `_audit alert_fired ss_name=\"*\"` checks are not specific to this detection either.",
+      "field": "detailedImplementation",
+      "quote": "use the Proofpoint TAP dashboard for Proofpoint, the Mimecast Personal Portal for Mimecast, and Cisco ESA `mail_logs` and Message Tracking for on-prem gateways.",
+      "severity": "major",
+      "suggested_fix": "Validate against Microsoft Purview Audit (search Operations ModifyFolderPermissions/AddFolderPermissions) or Get-MailboxFolderPermission for a test mailbox. Grant a test user Reviewer on a non-Calendar folder and confirm the risk event appears."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "None of the four scenarios names a real benign cause. `$dest$` does not apply to a user-entity detection, and the 'sibling rule' and 'macro drift' items are filler. Real causes include executive assistants or delegates granted folder access, shared or team mailbox setups, helpdesk migrations, and users sharing a folder through Outlook.",
+      "field": "knownFalsePositives",
+      "quote": "**Stale `$dest$` macro binding for UC-10.4.81** — 'O365 Mailbox Folder Read Permission Assigned' / Permission Assigned may change `search_name` output",
+      "severity": "major",
+      "suggested_fix": "List concrete benign causes: delegate/assistant access set by the mailbox owner, shared-mailbox onboarding, admin bulk permission scripts (Add-MailboxFolderPermission) during migrations, and Outlook folder sharing between teammates. Suppress through `o365_mailbox_folder_read_permission_assigned_filter` keyed on user and Item.ParentFolder.MemberUpn."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "cimModels is empty, yet the displayed SPL queries the Risk datamodel (Risk.All_Risk). dataModelAcceleration refers to the Email All_Email datamodel, which neither the drilldown nor the detection uses. The fields disagree about which datamodel, if any, applies.",
+      "field": "cross_field",
+      "quote": "\"cimModels\": [] … \"dataModelAcceleration\": \"Not applicable: this use case is not built on a CIM Email `All_Email` summary.",
+      "severity": "major",
+      "suggested_fix": "State that the detection runs on raw o365:management:activity events (no CIM datamodel) and that the displayed drilldown reads the ES Risk datamodel. Remove the Email All_Email reference."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "Reference titles are raw URLs. The generic 'Splunk Enterprise Documentation' link adds nothing, while the ESCU detection page is missing.",
+      "field": "references",
+      "quote": "\"title\": \"https://learn.microsoft.com/en-us/openspecs/exchange_server_protocols/ms-oxodlgt/5610c6e6-3268-44e3-adff-8804f5315946\"",
+      "severity": "minor",
+      "suggested_fix": "Use descriptive titles, for example 'MITRE ATT&CK T1098.002 Additional Email Delegate Permissions', '[MS-OXODLGT] folder permissions' and 'Microsoft Purview: Manage mailbox auditing'. Add https://research.splunk.com/cloud/1435475e-2128-4417-a34f-59770733b0d5/."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The SPL is the ESCU risk-events drilldown (`| from datamodel Risk.All_Risk | search normalized_risk_object IN (\"$user$\")`) with an unresolved $user$ dashboard token, not the detection. `starthoursago=168` was added inside `| search`, but the upstream drilldown uses earliest_offset=7d instead. Scheduled as-is it returns nothing useful. Consider using the detection search: `o365_management_activity` Workload=Exchange (Operation=ModifyFolderPermissions OR Operation=AddFolderPermissions) object!=Calendar object!=Contacts object!=PersonMetadata ...",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0062-UC-10.4.81",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 1
+  },
+  "summary": "This UC wraps the ESCU detection 'O365 Mailbox Folder Read Permission Assigned' in template text. The app/data-source attribution is wrong: it names the Universal Forwarder (Splunkbase 617) instead of the Splunk Add-on for Microsoft Office 365 (4055) and sourcetype o365:management:activity. Nothing in the reader-facing text describes the real signal, which is ModifyFolderPermissions/AddFolderPermissions events with Item.ParentFolder.MemberRights containing ReadAny.",
+  "tier": "deep",
+  "uc_id": "UC-10.4.81",
+  "verdict": "incorrect"
+}

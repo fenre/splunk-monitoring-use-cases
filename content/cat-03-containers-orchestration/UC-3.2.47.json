@@ -1,0 +1,84 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "3.2.47",
+  "title": "Kubernetes OOMKilled and Memory-Eviction Detection",
+  "criticality": "critical",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Reliability",
+    "Capacity"
+  ],
+  "splunkPillar": "Observability",
+  "owner": "Head of Platform",
+  "exclusions": "Does not replace UC-3.2.10 CrashLoopBackOff waiting_reason analytics, UC-3.1.2 Docker cgroup OOM without kubelet last_terminated_reason, or UC-3.2.28 node MemoryPressure before pods are killed. Does not prove a noisy-neighbour attack without audit correlation.",
+  "evidence": "Saved search uc_3_2_47_oomkilled_eviction, lookups k8s_namespace_tier.csv and k8s_workload_routing.csv, weekly CSV of OOMKilled pods to the evidence index.",
+  "controlTest": {
+    "positiveScenario": "In a lab namespace deploy a pod with memory limit 32Mi that allocates 128Mi, wait for kube-state-metrics last_terminated_reason=OOMKilled or a kube event reason OOMKilling, and expect uc_3_2_47_oomkilled_eviction to emit a row with kill_count>=1 and severity at least high for workload_tier=prod.",
+    "negativeScenario": "Run a memory-bounded busybox that stays under its limit for thirty minutes; confirm last_terminated_reason never stays OOMKilled and the saved search yields no qualifying row for that pod."
+  },
+  "dataSources": "index=k8s_metrics sourcetype=prometheus:scrape:metrics or kube:objects:metrics carrying kube_pod_container_status_last_terminated_reason{reason=\"OOMKilled\"}, kube_pod_container_resource_limits, kube_pod_container_resource_requests, kube_node_status_condition MemoryPressure; index=k8s sourcetype=kube:events for Reason OOMKilling, Evicted, ExceededGracePeriod; index=k8s sourcetype=kube:container:logs for kernel oom-kill traces. Splunk OpenTelemetry Collector for Kubernetes or Splunk Connect for Kubernetes object and metrics inputs.",
+  "app": "Splunk OpenTelemetry Collector for Kubernetes with prometheus or kubeletstats plus k8s_cluster receivers; kube-state-metrics; Splunk Connect for Kubernetes for object and event HEC routes; Splunk Enterprise 9.2+ or Splunk Cloud.",
+  "spl": "`comment(\"UC-3.2.47 K8s OOMKilled and eviction. Indexes k8s_metrics k8s; lookups k8s_namespace_tier.csv k8s_workload_routing.csv\")`\n| search ((index=k8s_metrics OR index=k8s) (sourcetype=\"prometheus:scrape:metrics\" OR sourcetype=\"kube:objects:metrics\" OR sourcetype=\"kube:events\")) earliest=-4h@m latest=now\n| eval metric_nm=lower(trim(toString(coalesce(metric_name, __name__, name, \"\"))))\n| eval reason=trim(toString(coalesce(reason, waiting_reason, last_terminated_reason, \"\")))\n| eval namespace=trim(toString(coalesce(namespace, kubernetes_namespace, k8s_namespace, \"\")))\n| eval pod=trim(toString(coalesce(pod, pod_name, involvedObject.name, \"\")))\n| eval node=trim(toString(coalesce(node, node_name, host, \"\")))\n| where reason=\"OOMKilled\" OR reason=\"OOMKilling\" OR reason=\"Evicted\" OR like(metric_nm, \"%last_terminated_reason%\")\n| lookup k8s_namespace_tier.csv namespace OUTPUT workload_tier\n| lookup k8s_workload_routing.csv namespace, pod OUTPUT owner_workload, on_call_team\n| stats count AS kill_count latest(reason) AS reason latest(node) AS node latest(workload_tier) AS workload_tier latest(owner_workload) AS owner_workload latest(on_call_team) AS on_call_team BY namespace, pod\n| eval severity=case(\n    (workload_tier=\"prod\" OR workload_tier=\"production\") AND kill_count>=1, \"critical\",\n    kill_count>=3, \"high\",\n    true(), \"medium\")\n| where kill_count>0\n| table pod namespace node reason kill_count severity owner_workload on_call_team workload_tier",
+  "description": "Detects Kubernetes containers killed by the kubelet or kernel for exceeding memory limits (OOMKilled) and pods evicted under node memory pressure, with namespace tier and owner routing so responders see limit-miss versus cluster saturation.",
+  "value": "OOMKills look like random restarts until last_terminated_reason and Evicted events are joined. This search tells platform and app owners which workloads need limit fixes versus which nodes need memory headroom before eviction cascades.",
+  "implementation": "Scrape kube-state-metrics last_terminated_reason and node MemoryPressure into k8s_metrics, ship kube:events, publish namespace tier and workload routing lookups, save uc_3_2_47_oomkilled_eviction every five minutes with earliest=-4h@m, page critical prod kills.",
+  "visualization": "Table of OOMKilled and Evicted pods; single value of distinct prod pods killed in four hours; timechart of kill_count by namespace.",
+  "cimModels": [
+    "Application_State",
+    "Performance"
+  ],
+  "cimSpl": "| tstats summariesonly=t latest(Application_State.state) AS app_state FROM datamodel=Application_State WHERE nodename=Application_State earliest=-4h@h latest=@h BY Application_State.dest Application_State.app\n| rename Application_State.dest AS correl_host\n| join type=left correl_host [\n    | tstats summariesonly=t avg(Performance.mem_used_percent) AS mem_used FROM datamodel=Performance WHERE nodename=Performance.Memory earliest=-4h@h latest=@h BY Performance.host\n    | rename Performance.host AS correl_host ]\n| where like(lower(app_state),\"%oom%\") OR mem_used>95",
+  "schema": "CIM",
+  "dataModelAcceleration": "Accelerate Splunk CIM Application_State and Performance so host memory overlays stay warm when correlating OOMKilled pods with node saturation.",
+  "references": [
+    {
+      "title": "Kubernetes — Pod lifecycle (OOMKilled)",
+      "url": "https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/",
+      "retrieved": "2026-09-19"
+    },
+    {
+      "title": "Kubernetes — Assign memory resources",
+      "url": "https://kubernetes.io/docs/tasks/configure-pod-container/assign-memory-resource/",
+      "retrieved": "2026-09-19"
+    },
+    {
+      "title": "Kubernetes — Node-pressure eviction",
+      "url": "https://kubernetes.io/docs/concepts/scheduling-eviction/node-pressure-eviction/",
+      "retrieved": "2026-09-19"
+    },
+    {
+      "title": "kube-state-metrics — Pod metrics",
+      "url": "https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/pod-metrics.md",
+      "retrieved": "2026-09-19"
+    },
+    {
+      "title": "Splunk Docs — Splunk Add-on for Kubernetes",
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/Kubernetes/About",
+      "retrieved": "2026-09-19"
+    }
+  ],
+  "knownFalsePositives": "Batch Jobs that are sized to the limit and exit OOMKilled by design; suppress via k8s_workload_routing.csv job_allowed_oom=1. Bursting Java heaps during cold start can OOM once then stabilize; require kill_count>=2 in non-prod before paging. Node MemoryPressure during cluster autoscaler scale-up can evict best-effort pods that the app team already marked disposable.",
+  "securityDomain": "cloud",
+  "equipment": [
+    "kubernetes",
+    "opentelemetry",
+    "prometheus"
+  ],
+  "equipmentModels": [
+    "kubernetes_k8s"
+  ],
+  "status": "draft",
+  "lastReviewed": "2026-09-19",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "@splunk-monitoring-use-cases",
+  "detailedImplementation": "Step 1 — Prerequisites\n\nHead of Platform owns this control with Kubernetes SREs and observability engineers operating kube-state-metrics and Splunk OpenTelemetry Collector. This use case isolates kubelet last_terminated_reason=OOMKilled and eviction events. UC-3.2.10 remains CrashLoopBackOff. UC-3.2.28 remains node MemoryPressure before kills. UC-3.1.2 remains Docker cgroup OOM without Kubernetes object metadata. Publish k8s_namespace_tier.csv and k8s_workload_routing.csv. Indexes: k8s_metrics, k8s.\n\nStep 2 — Configure data collection\n\nScrape kube_pod_container_status_last_terminated_reason, resource limits, and kube_node_status_condition MemoryPressure every 15–30 seconds. Ship kube:events for OOMKilling and Evicted. Filter HEC sourcetypes to prometheus:scrape:metrics, kube:objects:metrics, and kube:events.\n\nStep 3 — Create the search and alert\n\n```spl\n`comment(\"UC-3.2.47 K8s OOMKilled and eviction. Indexes k8s_metrics k8s; lookups k8s_namespace_tier.csv k8s_workload_routing.csv\")`\n| search ((index=k8s_metrics OR index=k8s) (sourcetype=\"prometheus:scrape:metrics\" OR sourcetype=\"kube:objects:metrics\" OR sourcetype=\"kube:events\")) earliest=-4h@m latest=now\n| eval metric_nm=lower(trim(toString(coalesce(metric_name, __name__, name, \"\"))))\n| eval reason=trim(toString(coalesce(reason, waiting_reason, last_terminated_reason, \"\")))\n| eval namespace=trim(toString(coalesce(namespace, kubernetes_namespace, k8s_namespace, \"\")))\n| eval pod=trim(toString(coalesce(pod, pod_name, involvedObject.name, \"\")))\n| eval node=trim(toString(coalesce(node, node_name, host, \"\")))\n| where reason=\"OOMKilled\" OR reason=\"OOMKilling\" OR reason=\"Evicted\" OR like(metric_nm, \"%last_terminated_reason%\")\n| lookup k8s_namespace_tier.csv namespace OUTPUT workload_tier\n| lookup k8s_workload_routing.csv namespace, pod OUTPUT owner_workload, on_call_team\n| stats count AS kill_count latest(reason) AS reason latest(node) AS node latest(workload_tier) AS workload_tier latest(owner_workload) AS owner_workload latest(on_call_team) AS on_call_team BY namespace, pod\n| eval severity=case(\n    (workload_tier=\"prod\" OR workload_tier=\"production\") AND kill_count>=1, \"critical\",\n    kill_count>=3, \"high\",\n    true(), \"medium\")\n| where kill_count>0\n| table pod namespace node reason kill_count severity owner_workload on_call_team workload_tier\n```\n\nSave as uc_3_2_47_oomkilled_eviction, cron */5 * * * *, dispatch.earliest_time=-4h@m, suppress on namespace,pod for 30m.\n\nStep 4 — Validate\n\nDeploy a 32Mi-limit pod that mallocs 128Mi. Confirm last_terminated_reason=OOMKilled in metrics and a row in the saved search. Run a well-sized nginx pod as the negative path.\n\nStep 5 — Operationalize & Troubleshoot\n\nCase 1 — Repeated OOMKilled on one Deployment: raise memory limit or fix leak.\nCase 2 — Evicted across a node: treat as MemoryPressure / UC-3.2.28.\nCase 3 — Java heap vs cgroup limit mismatch: align -Xmx under the pod limit.\nCase 4 — Burst at startup only: add startupProbe delay before paging.\nCase 5 — Best-effort QoS evictions during scale-up: mark disposable in routing lookup.\nCase 6 — Sidecar killed, main container healthy: split limits per container.\nCase 7 — Windows node pools: fork SPL for different event shapes.\nCase 8 — Metrics scrape gap: do not page on empty last_terminated series alone.\nCase 9 — CronJob OOM once per night: suppress with job_allowed_oom.\nCase 10 — Cluster-wide OOM storm: freeze rollouts, add node capacity.\nCase 11 — Limit unset (BestEffort): set requests/limits, then re-enable alert.\nCase 12 — OOM during canary: correlate with deploy annotation in kube audit.\n",
+  "grandmaExplanation": "Each container is given a memory allowance. When a program tries to use more than that allowance, Kubernetes stops it. We watch those stops and the times the cluster has to kick programs off a crowded machine so owners can raise the allowance or add machines.",
+  "prerequisiteUseCases": [
+    "UC-3.2.10"
+  ],
+  "subcategory": "3.2",
+  "wave": "crawl"
+}

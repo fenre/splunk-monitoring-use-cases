@@ -1,0 +1,115 @@
+{
+  "confidence": 0.7,
+  "content_sha256": "0012b7380a1a960a8bd25c67261c41352845ddcf7f8f40986ab72fc40cde643c",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.3.10.json",
+  "findings": [
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "On NX-OS (and EOS 'show bgp evpn summary'), the summary command lists per-neighbor state and prefix counts; it does not break counts down by EVPN route type. Per-type tallies normally need 'show bgp l2vpn evpn route-type <n>' (EOS: 'show bgp evpn route-type mac-ip|imet|ip-prefix') or L2RIB/URIB commands. The NX-OS 'show bgp evpn summary' syntax and Junos 'show evpn overview' are also doubtful.",
+      "field": "detailedImplementation",
+      "quote": "Schedule **`show bgp l2vpn evpn summary`** via NX-API **ins_api** POSTs and map the JSON tables into **`sourcetype=nxos:bgp_evpn`** with numeric **`route_total`**, textual **`evpn_route_type`** ... compare **`show bgp l2vpn evpn summary`** route-type columns with Splunk",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the NX-OS, EOS and Junos command references and name the commands that actually return per-route-type counts. Correct the 'route-type columns' validation step to match."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/4241",
+      "explanation": "Splunkbase 4241 is VMware's 'VMware NSX-T Splunk App', a log-dashboard app (its dashboards are unsupported on Splunk 9.1 and later), not an add-on that provides 'inventory snapshots'. Splunkbase 1897 is the deprecated 'Cisco ACI Add-on for Splunk Enterprise', which collects from the APIC API and has been superseded by Cisco DC Networking (7777). Neither is described accurately.",
+      "field": "app",
+      "quote": "**Splunk Add-on for VMware NSX** ([Splunkbase 4241](https://splunkbase.splunk.com/app/4241)) when overlay managers drive VNI scale; **Splunk Add-on for Cisco ACI** ([Splunkbase 1897](https://splunkbase.splunk.com/app/1897)) only for hybrid sites that still stream APIC syslog",
+      "severity": "major",
+      "suggested_fix": "Use the real product names. Mark 1897 as deprecated with migration to 7777, and drop the NSX inventory-snapshot claim or name a product that actually supplies NSX VNI inventory."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The fields disagree on schedule and alert logic. implementation says the search runs every fifteen minutes, detailedImplementation says every thirty minutes over 4h, and the spl uses earliest=-24h@m. The alert depends on warn_routes/crit_routes from evpn_route_thresholds, which the SPL never looks up. The description's 'alert when route_total >= 0 ... vrf_fanout <= 6' does not describe any real alert condition.",
+      "field": "cross_field",
+      "quote": "Alert design: run every **thirty minutes** on **`earliest=-4h@m`**; trigger when **`growth_flag=hot_growth`**, **`routes` exceeds warn_routes**, and **`alert_seed=1`**",
+      "severity": "major",
+      "suggested_fix": "Agree on one schedule and window. State the alert as growth_flag=hot_growth plus the evpn_route_thresholds comparison, and make the description match."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/NetworkTraffic",
+      "explanation": "Network_Traffic models flow and session records. BGP EVPN route-table counts are control-plane state, not traffic, and nothing in the SPL maps to Network_Traffic fields. The schema text admits it uses the model only for 'routing context'.",
+      "field": "cimModels",
+      "quote": "\"Network_Traffic\",\n    \"Inventory\"",
+      "severity": "major",
+      "suggested_fix": "Remove Network_Traffic. Keep Inventory only if device inventory is actually mapped, or leave the telemetry as custom with no CIM model."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "Large parts of the text are generic governance and process padding (RACI, drill videos, data residency, cold-cache exports, Git rollback 'boring instead of heroic') that would fit any UC and bury the EVPN-specific guidance.",
+      "field": "detailedImplementation",
+      "quote": "Executive buyers appreciate **Cisco Data Center Networking App (7777)** panels ... Add a short drill video for NOC staff ... If legal requires data residency ... During blackouts, operators should still be able to open the saved report from a cold cache copy exported nightly to object storage.",
+      "severity": "major",
+      "suggested_fix": "Cut the generic process prose. Keep collection commands, field normalisation, threshold rationale per route type, and validation steps."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The SPL hard-codes 200,000 RT2 and 80,000 RT5 routes. These numbers are not vendor-documented limits and vary widely by platform and ASIC profile, which the text itself acknowledges later.",
+      "field": "detailedImplementation",
+      "quote": "**`capacity_hint`** gives a secondary color cue when absolute scale—not just growth—enters a vendor-documented uneasy band.",
+      "severity": "minor",
+      "suggested_fix": "Say the values are placeholders to replace with the platform's verified scalability limits (for example from the Cisco Nexus 9000 Verified Scalability Guide), and drop 'vendor-documented'."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "None of the entries names a real cause of benign EVPN route-type swings, such as vMotion or DR failover bursts of Type-2 routes, new tenant/VRF onboarding, WAN prefix import changes inflating Type-5, or BGP session resets causing transient doubles. Those causes appear only in detailedImplementation.",
+      "field": "knownFalsePositives",
+      "quote": "Scheduled automation elevates `leaf` without crossing `route_total` >= 0",
+      "severity": "major",
+      "suggested_fix": "List EVPN-specific benign causes (planned vMotion waves, new VNI/VRF rollouts, route-map import changes, ISSU/peer resets) with how to suppress each, for example by leaf and change window."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "Microsoft 365 has no relation to EVPN route-type telemetry.",
+      "field": "equipment",
+      "quote": "\"m365\"",
+      "severity": "minor",
+      "suggested_fix": "Remove m365, and review whether nsx and hashicorp belong in equipment."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by an automated agent reviewer, not an SME, while the CLI and product claims are still unconfirmed.",
+      "field": "status",
+      "quote": "\"status\": \"verified\", ... \"reviewer\": \"agent-handcraft-2026-04-29\"",
+      "severity": "minor",
+      "suggested_fix": "Downgrade status until a network SME confirms the collection commands."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The final `timechart sum(routes) by rt_bucket` discards every computed alert field (growth_flag, alert_seed, capacity_hint, delta_routes, leaf_p95, lookup output), so the search cannot drive the alert described elsewhere. Summing latest-per-15m values into 1h buckets also inflates counts about 4x. `route_total>=0` is a no-op filter.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0108-UC-18.3.10",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The route-type bucketing idea is sound, but the collection step assumes per-route-type columns in 'show bgp l2vpn evpn summary' output, which that command does not provide. The cadence and alert logic disagree across fields, two Splunkbase products are misdescribed, and the detailed implementation is padded with generic governance prose.",
+  "tier": "deep",
+  "uc_id": "UC-18.3.10",
+  "verdict": "rewrite"
+}

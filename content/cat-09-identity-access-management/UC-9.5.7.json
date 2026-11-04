@@ -8,59 +8,69 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Covers the detection logic documented for 'Duo Authentication Denials' only. Does not replace full SIEM correlation, IdP cloud-native analytics, or regulatory attestation. Entities listed in `iam_exception_register.csv` during approved tests are excluded.",
-  "evidence": "Saved search `iam_duo_authentication_denials` (UC-9.5.7), SOC dashboard panel \"IAM — Duo Authentication Denials\", and weekly export to `index=audit_evidence` sourcetype=csv:iam_controls.",
+  "exclusions": "Does not cover sign-ins to applications that are not protected by Duo, and does not see password failures that happen before Duo is called. Use the identity provider's sign-in log for those.",
+  "evidence": "Saved alert results with user, reasons, applications, source IP count, and countries, plus the analyst's disposition (takeover attempt, lost device, or service account).",
   "controlTest": {
-    "positiveScenario": "UC-9.5.7 positive (Duo, Authentication, Denials): ingest synthetic events into `index=duo` sourcetype='duo:authentication' where `count` grouped by `user`, `ip`, `application` satisfies `count` > 10 for 'Duo Authentication Denials'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-9.5.7 negative (Authentication Denials): ingest benign `duo` / `duo:authentication` events where `user`, `ip`, `application` stays below `count` > 10, or exclude the test entity via `iam_exception_register.csv`. Variant 15 confirms zero alert rows for 'Duo Authentication Denials'."
+    "positiveScenario": "Sign in to a Duo-protected test application as a test user and deny the Duo Push ten times within an hour. Within one input interval the denials appear in `index=duo` with `result=denied` and `reason=user_mistake` or `no_response`, and the search returns one row for the user with `denials` at 10 or more.",
+    "negativeScenario": "Sign in as the same user, deny twice, and approve the third push. The events are indexed, but the user stays under the threshold and the search returns no row."
   },
-  "dataSources": "`sourcetype=duo:authentication` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
-  "app": "Cisco Duo TA — Universal Forwarder (Splunkbase 617)",
-  "spl": "index=duo sourcetype=\"duo:authentication\" result=\"deny\"\n| bin _time span=1h\n| stats count by user, ip, application\n| where count > 10\n| sort -count",
-  "description": "Surfaces UC-9.5.7 — Duo, Authentication, Denials — using `index=duo` sourcetype `duo:authentication`, grouped by `user`, `ip`, `application`. Outputs `count` each `1h`; alert when `count` > 10. Primary focus: Authentication Denials. Purpose-built for 'Duo Authentication Denials' in IAM workflows.",
-  "value": "UC-9.5.7 operationalises 'Duo Authentication Denials' against `duo:authentication` feeds so operators reduce account takeover risk, help-desk load, and audit findings without manual correlation.",
-  "implementation": "Ingest Duo Authentication API or proxy logs with the TA. Map `result`, `reason`, `factor`, and `application`. Baseline per-user and global deny rates. Alert on spikes and on denies from many IPs for one user.",
-  "visualization": "Table (user, IP, count), Line chart (denials over time), Bar chart (denials by application).",
-  "cimModels": [
-    "Authentication"
-  ],
-  "cimSpl": "| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.user span=1h | sort - count",
-  "dataModelAcceleration": "Enable Data Model Acceleration for the CIM `Authentication.Authentication` dataset once identity and sign-in data are CIM-tagged; otherwise `cimSpl` tstats may return no rows.",
+  "dataSources": "`index=duo sourcetype=cisco:duo:authentication_v2` from the Cisco Security Cloud (7404) Duo input, Authentication log type, which polls `GET /admin/v2/logs/authentication`. One JSON event per authentication or enrollment attempt with `event_type`, `result`, `reason`, `factor`, `user.name`, `application.name`, `access_device.*`, and `auth_device.*`.",
+  "app": "Cisco Security Cloud (`CiscoSecurityCloud`, [Splunkbase 7404](https://splunkbase.splunk.com/app/7404)), Cisco Duo input. Replaces the deprecated Duo Splunk Connector (Splunkbase 3504, end of life 31 May 2026).",
+  "spl": "index=duo sourcetype=\"cisco:duo:authentication_v2\" event_type=\"authentication\"\n| eval result=lower(result), user=coalesce('user.name', username), app_name='application.name', src='access_device.ip', country='access_device.location.country'\n| search result IN (\"denied\", \"failure\", \"fraud\")\n| bin _time span=1h\n| stats count as denials dc(src) as src_count values(reason) as reasons values(app_name) as applications values(country) as countries by _time user\n| where denials >= 10\n| sort - denials",
+  "description": "Counts denied, failed, and fraud-marked Duo authentication attempts per user per hour from the v2 authentication log and flags users with ten or more. Each row lists the Duo reasons, the applications targeted, the source IP count, and the countries seen.",
+  "value": "A burst of Duo denials for one user means someone has that user's password and is failing the second factor, or the user is locked out of their device. Both need a response within the hour: the first is an account takeover attempt, the second is a service-desk call that is about to happen.",
+  "implementation": "Collect the Duo Authentication log (v2) with the Cisco Security Cloud (7404) Duo input into `index=duo`. Schedule hourly, alert on users with at least ten denials in an hour, and tune the threshold per application after two weeks.",
+  "visualization": "Alert table: _time, user, denials, reasons, applications, src_count, countries. Supporting panels: timechart of denials by reason (stacked column), top users by denials over 7 days (bar chart).",
+  "cimModels": [],
+  "schema": "OCSF: authentication",
   "references": [
     {
-      "title": "CIM: Authentication",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
-      "retrieved": "2026-04-25"
+      "title": "Cisco Security Cloud (Splunkbase 7404)",
+      "url": "https://splunkbase.splunk.com/app/7404",
+      "retrieved": "2026-11-02"
     },
     {
-      "title": "Cisco Security documentation",
-      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
-      "retrieved": "2026-04-25"
+      "title": "Cisco Security Cloud App for Splunk User Guide",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/cisco-secure-cloud-app/user-guide/cisco-security-cloud-user-guide.pdf",
+      "retrieved": "2026-11-02"
     },
     {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk inputs.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
-      "retrieved": "2026-04-25"
+      "title": "Duo Admin API: Authentication Logs (v2)",
+      "url": "https://duo.com/docs/adminapi#authentication-logs",
+      "retrieved": "2026-11-02"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `duo` (UC-9.5.7)** — Planned work for 'Duo Authentication Denials' shifts `count` over `span=1h` while `user`, `ip`, `application` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `duo:authentication`** — Scheduled automation elevates `ip` without crossing `count` > 10 for UC-9.5.7. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `user`, `ip`, `application`** — Health checks in `duo` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `duo:authentication`** — First 48h baseline for UC-9.5.7 on `user` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `user`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Lost or replaced phones** — a user with a new phone fails Duo Push repeatedly with `no_response` or `no_activated_duo_mobile_account` until the device is re-activated. Check `reasons` before escalating.\n\n2. **Misconfigured service accounts** — scripts that authenticate through a Duo-protected application without a second factor fail every run. They show one application, one source IP, and a steady hourly count.\n\n3. **Policy rollouts** — a new policy that denies an OS version or location produces denials for many users at once with `reason` set to `platform_restricted` or `location_restricted`.\n\n**Suppression:** a lookup of service accounts with an owner, and a 4-hour throttle per user.",
   "mitreAttack": [
-    "T1110"
+    "T1110",
+    "T1621"
+  ],
+  "detectionType": "Anomaly",
+  "securityDomain": "identity",
+  "requiredFields": [
+    "event_type",
+    "result",
+    "reason",
+    "user.name",
+    "application.name",
+    "access_device.ip",
+    "access_device.location.country"
   ],
   "equipment": [
     "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_duo"
+  ],
+  "capabilities": [
+    "duo.authentication"
   ],
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Cisco Duo TA.\n• Ensure the following data sources are available: `sourcetype=duo:authentication`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest Duo Authentication API or proxy logs with the TA. Map `result`, `reason`, `factor`, and `application`. Baseline per-user and global deny rates. Alert on spikes and on denies from many IPs for one user.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=duo sourcetype=\"duo:authentication\" result=\"deny\"\n| bin _time span=1h\n| stats count by user, ip, application\n| where count > 10\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Duo Authentication Denials** — Denied logins (fraud, policy, or lockout) indicate attacks or misconfigurations; volume and user patterns guide response.\n\nDocumented **Data sources**: `sourcetype=duo:authentication`. **App/TA** (typical add-on context): Cisco Duo TA. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: duo; **sourcetype**: duo:authentication. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=duo, sourcetype=\"duo:authentication\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by user, ip, application** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where count > 10` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t count from datamodel=Authentication.Authentication by Authentication.user span=1h | sort - count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Duo Authentication Denials** — Denied logins (fraud, policy, or lockout) indicate attacks or misconfigurations; volume and user patterns guide response.\n\nDocumented **Data sources**: `sourcetype=duo:authentication`. **App/TA** (typical add-on context): Cisco Duo TA. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Authentication.Authentication` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nCompare with Duo Admin (Authentication Log, admin actions, enrollment, and device trust) for the same time range and identities.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (user, IP, count), Line chart (denials over time), Bar chart (denials by application).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Cisco Duo TA — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=duo:authentication into duo. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`application, ip, user`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
-  "grandmaExplanation": "We use Duo’s records so we can see who passed or failed the extra check, and when devices or policies block access.",
+  "detailedImplementation": "Prerequisites\n• Cisco Security Cloud (`CiscoSecurityCloud`, Splunkbase 7404) on the search heads and on the heavy forwarder or Splunk Cloud Inputs Data Manager that runs its modular inputs. It replaces the Duo Splunk Connector (Splunkbase 3504, end of life 31 May 2026); disable the old connector's inputs after cutover so events are not indexed twice.\n• A Duo Admin API application created by an Owner-role administrator in the Duo Admin Panel under Applications > Protect an Application > Admin API. Record the integration key, secret key, and API hostname (`api-XXXXXXXX.duosecurity.com`), and grant it **Grant read log**.\n• Outbound HTTPS (TCP 443) from the input host to the API hostname, and an accurate system clock on that host, because the Admin API signs every request with the current date.\n• An index for Duo data (this page uses `index=duo`) and a role with `srchIndexesAllowed` on it for the identity and SOC teams.\n\nStep 1 — Configure data collection\n• In Cisco Security Cloud open Application Setup, choose the Cisco Duo card, and create an input with the integration key, secret key, and API hostname. Enable the Authentication log type (the v2 endpoint, not Authentication Legacy v1) and set the index to `duo`.\n• The input reads `GET /admin/v2/logs/authentication` and writes `sourcetype=cisco:duo:authentication_v2`. `result` is one of `success`, `denied`, `failure`, `error`, or `fraud` in lowercase; the legacy v1 type `cisco:duo:authentication` uses uppercase values, so the searches lowercase `result` before comparing.\n• Device-posture fields under `access_device` (`is_encryption_enabled`, `is_firewall_enabled`, `is_password_set`, `security_agents`) are filled only when the application uses the Duo Universal Prompt and Duo Desktop is installed, and only on Duo Premier or Advantage plans.\n• Check the fields this search needs: run `index=duo sourcetype=cisco:duo:authentication_v2 event_type=authentication | stats count by result reason` over 7 days and confirm both fields are populated.\n\nStep 2 — Create the search and alert\n```spl\nindex=duo sourcetype=\"cisco:duo:authentication_v2\" event_type=\"authentication\"\n| eval result=lower(result), user=coalesce('user.name', username), app_name='application.name', src='access_device.ip', country='access_device.location.country'\n| search result IN (\"denied\", \"failure\", \"fraud\")\n| bin _time span=1h\n| stats count as denials dc(src) as src_count values(reason) as reasons values(app_name) as applications values(country) as countries by _time user\n| where denials >= 10\n| sort - denials\n```\n\nUnderstanding this SPL\n• The first line limits the search to authentication attempts; enrollment events share the log but have no `reason`.\n• `eval` lowercases `result` so the search also works if any v1 events are still present, and copies the nested JSON fields into short names.\n• `denied`, `failure`, and `fraud` are the Duo results that mean the attempt did not get in; `error` is left out because it is usually a Duo-side or network fault.\n• `stats` per user per hour keeps the reasons and applications on the row, so the analyst can tell a takeover attempt from a lost phone without another search.\n\nStep 3 — Validate\n• Compare with the Duo admin console (Admin Panel) under Reports > Authentication Log for the same user and time range: each attempt listed there should appear in `index=duo` with the same result and reason.\n• Confirm the `reason` values on the alert row match the Reason column in the Admin Panel for at least three attempts.\n• Run `index=duo sourcetype=cisco:duo:authentication_v2 | timechart span=1h count by result` over 7 days; gaps longer than two input intervals point to collection failures, not quiet periods.\n\nStep 4 — Operationalize\n• Schedule hourly over the previous hour and throttle on `user` for 4 hours.\n• Route to the identity team. When `reasons` contains `user_marked_fraud` or the countries are unusual for the user, page the SOC instead.\n• Review the threshold monthly with the top-users panel; applications with frequent re-prompts may need their own threshold.\n\nStep 5 — Troubleshooting\n• No Duo events and HTTP 401 in the input log under `$SPLUNK_HOME/var/log/splunk/duo_splunkapp/`: wrong secret key, an API hostname from a different Duo account, or clock skew on the input host.\n• HTTP 403: the Admin API application is missing **Grant read log**.\n• HTTP 429: Duo rate-limits the log endpoints. Make sure the deprecated 3504 connector and the 7404 input are not both polling the same Admin API application.\n• Duplicate rows after migration: the 3504 connector and the 7404 input are both enabled for the same log type.\n• Searches return nothing but events exist: the input is on Authentication Legacy v1, so events are in `cisco:duo:authentication` with uppercase `result` and flat `username`. Switch the input to the v2 log type rather than editing the searches.\n• Missing fields `user.name` or `access_device.ip`: the events were indexed before `KV_MODE=json` applied, or a custom props stanza overrides the add-on. Check `| fieldsummary` on one hour of data.\n",
+  "grandmaExplanation": "We count how often each person's second login check fails in an hour, so we notice when someone keeps trying with a stolen password or a person is stuck.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }

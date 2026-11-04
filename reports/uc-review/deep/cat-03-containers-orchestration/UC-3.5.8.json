@@ -1,0 +1,132 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "ec99dfe0b405c11bb673b4486025d45a5dea6d5b4fb460cf591a67889b9fa807",
+  "file": "content/cat-03-containers-orchestration/UC-3.5.8.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/5167",
+      "explanation": "Splunkbase 5167 is 'Upgrade Universal Forwarder (Windows)'; Splunk Connect for Kubernetes is not a Splunkbase app and reached End of Support on 1 January 2024.",
+      "field": "app",
+      "quote": "Splunk Connect for Kubernetes (Splunkbase 5167)",
+      "severity": "blocker",
+      "suggested_fix": "Name the Splunk OpenTelemetry Collector for Kubernetes (Splunkbase 6264, signalfx/splunk-otel-collector-chart) for metrics, access logs and events; drop SCK/5167."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/splunk/splunk-connect-for-kubernetes",
+      "explanation": "Wrong Splunkbase ID and an archived, end-of-support Helm chart described as a modular input.",
+      "field": "dataSources",
+      "quote": "Collected via Splunk Connect for Kubernetes (Splunkbase 5167) modular input or scripted poll",
+      "severity": "blocker",
+      "suggested_fix": "Describe collection via the OTel Collector prometheus receiver (port 15090) plus filelog/k8s_events receivers."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://istio.io/latest/docs/ops/configuration/telemetry/envoy-stats/",
+      "explanation": "Istio sidecars record only cluster_manager, listener_manager, server and cluster.xds-grpc stats by default; outlier_detection, upstream_rq_pending_overflow, upstream_cx_overflow and circuit_breakers series for service clusters are not exported unless proxyStatsMatcher inclusions are added (Istio's own example enables exactly circuit-breaker stats this way).",
+      "field": "detailedImplementation",
+      "quote": "**Envoy** **sidecar**s expose circuit breaker and **outlier detection** metrics on port **15090** (`/stats/prometheus`)",
+      "severity": "blocker",
+      "suggested_fix": "Add a prerequisite to configure meshConfig.defaultConfig.proxyStatsMatcher (or proxy.istio.io/config annotation) with inclusionRegexps for outlier_detection.*, circuit_breakers.*, upstream_rq_pending_overflow and upstream_cx_overflow, then restart proxies."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://istio.io/latest/docs/reference/config/networking/destination-rule/",
+      "explanation": "Istio's DestinationRule has no active health-check setting in connectionPool or anywhere else; only passive outlierDetection is exposed. A reader cannot implement this step.",
+      "field": "detailedImplementation",
+      "quote": "configure **active health checking** in the DestinationRule's `connectionPool` section so Envoy probes endpoints independently of user traffic",
+      "severity": "blocker",
+      "suggested_fix": "Remove the active-health-check advice or say it requires Kubernetes readiness probes (or an EnvoyFilter) rather than DestinationRule."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://istio.io/latest/docs/reference/config/networking/destination-rule/",
+      "explanation": "consecutiveErrors was deprecated and is no longer in the DestinationRule reference; current fields are consecutive5xxErrors and consecutiveGatewayErrors. The validation step (c) and troubleshooting text also rely on it. Similarly `connectionPool.http.maxPendingRequests` should be `http1MaxPendingRequests`, and h2UpgradePolicy is not a circuit-breaking setting.",
+      "field": "detailedImplementation",
+      "quote": "`outlierDetection.consecutiveErrors`",
+      "severity": "major",
+      "suggested_fix": "Use consecutive5xxErrors / consecutiveGatewayErrors, http1MaxPendingRequests, http2MaxRequests, maxRequestsPerConnection and maxRetries; drop h2UpgradePolicy from the circuit-breaker list."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://www.envoyproxy.io/docs/envoy/latest/configuration/upstream/cluster_manager/cluster_stats",
+      "explanation": "Envoy does not generate remaining_* circuit-breaker gauges unless track_remaining is set to true in the circuit-breaker config, which Istio does not do by default.",
+      "field": "dataSources",
+      "quote": "`envoy_cluster_circuit_breakers_default_remaining_pending` at 15–30s intervals",
+      "severity": "minor",
+      "suggested_fix": "Note that remaining_pending requires track_remaining: true (via EnvoyFilter) or drop it from the expected metrics."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/upstream/outlier",
+      "explanation": "Envoy already lengthens ejection time as base ejection time multiplied by the number of times a host has been ejected; consecutive-error counts control when ejection starts, not backoff.",
+      "field": "detailedImplementation",
+      "quote": "add exponential backoff via `consecutiveErrors` tuning",
+      "severity": "minor",
+      "suggested_fix": "Say re-ejection time grows with baseEjectionTime × ejection count; tune baseEjectionTime and maxEjectionPercent."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "Envoy outlier-ejection gauges and overflow counters are not network flow records or host performance metrics; the SPL uses no CIM dataset.",
+      "field": "cimModels",
+      "quote": "\"Network_Traffic\", \"Performance\"",
+      "severity": "major",
+      "suggested_fix": "Leave cimModels empty (or Web for the access-log variant if mapped)."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "Marked verified by an agent reviewer although the metrics it relies on are not emitted by default and some config fields do not exist.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until an SME validates against a live mesh."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://prometheus.io/docs/concepts/metric_types/#counter",
+      "field": "spl",
+      "issue": "envoy_cluster_upstream_rq_pending_overflow and upstream_cx_overflow are cumulative counters; `sum(...)` across every scrape and sidecar in the window adds lifetime totals repeatedly, so the >50 / >100 thresholds fire on long-running pods regardless of current activity. Compute per-series deltas (or mstats rate) before thresholding.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval",
+      "field": "spl",
+      "issue": "`latest(active_ejections)` by cluster_name keeps one sidecar's value although each sidecar holds its own outlier view; and `cb_activity = active_ejections + pending_overflow + connection_overflow` evaluates to null when any term is null (e.g. no cx_overflow series), breaking the sort. Use max() across sidecars and coalesce terms to 0.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`response_flags=\"UO\"` is an exact match; Envoy can emit combined flags (comma-separated), which would be missed. Consider response_flags=*UO*.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0115-UC-3.5.8",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 3,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The circuit-breaker narrative is well-structured, but it skips the Istio stats-inclusion prerequisite these metrics need, uses removed or non-existent DestinationRule fields (consecutiveErrors, active health checking), cites a wrong Splunkbase ID, and the SPL sums cumulative overflow counters across scrapes.",
+  "tier": "deep",
+  "uc_id": "UC-3.5.8",
+  "verdict": "incorrect"
+}

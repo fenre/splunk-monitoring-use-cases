@@ -74,7 +74,7 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 | [`Art.21(4)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(4)) | Art.21(4) | 1.0 | `partial` | [UC-22.2.48](#uc-22-2-48) |
 | [`Art.21(5)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(5)) | Art.21(5) | 1.0 | `partial` | [UC-22.2.56](#uc-22-2-56) |
 | [`Art.22`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.22) | Art.22 | 0.6 | `partial` | [UC-22.2.50](#uc-22-2-50) |
-| [`Art.23`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.23) | Reporting obligations | 1.0 | `full` | [UC-22.2.1](#uc-22-2-1), [UC-22.2.33](#uc-22-2-33), [UC-22.2.45](#uc-22-2-45), [UC-22.2.49](#uc-22-2-49), [UC-22.26.22](#uc-22-26-22), [UC-22.26.9](#uc-22-26-9) (+2 more) |
+| [`Art.23`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.23) | Reporting obligations | 1.0 | `full` | [UC-22.2.1](#uc-22-2-1), [UC-22.2.33](#uc-22-2-33), [UC-22.2.49](#uc-22-2-49), [UC-22.26.22](#uc-22-26-22), [UC-22.26.9](#uc-22-26-9), [UC-22.3.44](#uc-22-3-44) (+2 more) |
 | [`Art.23(1)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.23(1)) | Legacy NIS2 mapping already present in the catalogue | 1.0 | `partial` | [UC-22.2.49](#uc-22-2-49) |
 | [`Art.23(2)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.23(2)) | Legacy NIS2 mapping already present in the catalogue | 1.0 | `partial` | [UC-22.2.49](#uc-22-2-49), [UC-22.2.7](#uc-22-2-7) |
 | [`Art.23(3)(a)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.23(3)(a)) | Art.23(3)(a) | 1.0 | `partial` | [UC-22.2.49](#uc-22-2-49) |
@@ -485,12 +485,6 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Owner: `Head of IR`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.2.43.json`](../../content/cat-22-regulatory-compliance/UC-22.2.43.json)
-<a id='uc-22-2-45'></a>
-- **UC-22.2.45** — NIS2 Art.23 — CSIRT Notification Channel Health and Delivery Confirmation
-  - Control family: `ir-drill-evidence`
-  - Owner: `Head of IR`
-  - Evidence fields declared in sidecar: 1
-  - Source: [`content/cat-22-regulatory-compliance/UC-22.2.45.json`](../../content/cat-22-regulatory-compliance/UC-22.2.45.json)
 <a id='uc-22-2-46'></a>
 - **UC-22.2.46** — NIS2 Art.21(2)(j) — Secure emergency communication channel verification
   - Control family: `break-glass-access`
@@ -629,6 +623,12 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Owner: `CISO`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.39.1.json`](../../content/cat-22-regulatory-compliance/UC-22.39.1.json)
+<a id='uc-22-39-2'></a>
+- **UC-22.39.2** — Regulator-portal submission evidence — one-way API acknowledgement audit
+  - Control family: `ir-drill-evidence`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.39.2.json`](../../content/cat-22-regulatory-compliance/UC-22.39.2.json)
 <a id='uc-22-41-2'></a>
 - **UC-22.41.2** — Certificate / TLS posture — weak cipher and expired-cert detection
   - Control family: `crypto-drift`
@@ -766,7 +766,7 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 **Generation metadata**
 
 ```
-catalogue_version: 8.26.0
+catalogue_version: 8.28.0
 generator_script:  scripts/generate_evidence_packs.py
 inputs_sha256:     814d8942aebac696b8a91a00bbaff8e9c140b5479dcca51606fbeb99bf25f762
 ```

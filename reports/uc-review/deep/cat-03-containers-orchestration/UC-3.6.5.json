@@ -1,0 +1,172 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "71a74f501191365951edd6cef539378cfede29a5fc46b6279917d885fe783888",
+  "file": "content/cat-03-containers-orchestration/UC-3.6.5.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/splunk/splunk-connect-for-kubernetes/blob/develop/README.md",
+      "explanation": "Splunk Connect for Kubernetes reached End of Support on 1 January 2024 and its repository is archived. Splunk recommends migrating to the Splunk OpenTelemetry Collector for Kubernetes, so the primary and alternative roles here are the wrong way round.",
+      "field": "app",
+      "quote": "**Splunk Connect for Kubernetes** for event stream collection; **Splunk OpenTelemetry Collector for Kubernetes** (Helm chart `splunk-otel-collector-chart`) as alternative collector",
+      "severity": "blocker",
+      "suggested_fix": "Name the Splunk OpenTelemetry Collector for Kubernetes (splunk-otel-collector-chart, events via the cluster receiver) as the collector. Mention SCK only as a legacy, unsupported source with a migration note, and drop the Splunkbase ID for it."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/signalfx/splunk-otel-collector-chart/blob/main/helm-charts/splunk-otel-collector/templates/config/_otel-k8s-cluster-receiver-config.tpl",
+      "explanation": "SCK is a Helm/fluentd deployment, not a Splunk modular input or scripted poll. Its objects chart sets the sourcetype from the fluentd tag `kube.objects.events`, which gives `kube:objects:events`, not `kube:events`. Only the Splunk OTel Collector chart writes `kube:events`, by setting `com.splunk.sourcetype` to that value for k8s_events logs.",
+      "field": "dataSources",
+      "quote": "Collected via Splunk Connect for Kubernetes (Splunkbase 5167) modular input or scripted poll into the index named in the SPL.",
+      "severity": "blocker",
+      "suggested_fix": "State that `sourcetype=kube:events` comes from the Splunk OTel Collector for Kubernetes cluster receiver (k8s_events). Legacy SCK data arrives as `kube:objects:events` with a different JSON shape. Remove the 'modular input or scripted poll' wording."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "All three SPL variants read only `kube:events`, so none of the other four sourcetypes is required. `kube:pod:logs`, `kube:container:status` and `kube:node:metrics` are not sourcetypes the Splunk OTel chart produces by default (container logs arrive as `kube:container:<name>`, and metrics go to a metrics index), so they look invented.",
+      "field": "dataSources",
+      "quote": "`index=containers` requiring five distinct sourcetypes",
+      "severity": "major",
+      "suggested_fix": "List `kube:events` as the only required source. Move the correlation sources to an optional note that uses the real sourcetype or metric names from the collector in use."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/receiver/k8seventsreceiver/README.md",
+      "explanation": "The k8s_events receiver writes the reason to the `k8s.event.reason` attribute, the namespace to `k8s.namespace.name`, and the Normal/Warning type to SeverityText, with no top-level `type`, `reason` or `involvedObject.*` keys. A reader who follows this recommendation gets data that the SPL's `type=\"Warning\"` filter and `reason`/`namespace` coalesce lists do not match. SCK's objects collector also defaults to watch mode for events, not polling.",
+      "field": "detailedImplementation",
+      "quote": "This is preferred over the polling approach used by older **Splunk Connect for Kubernetes** versions.",
+      "severity": "blocker",
+      "suggested_fix": "Document the field names the recommended collector actually produces (`k8s.event.reason`, `k8s.namespace.name`, `k8s.object.kind`, `k8s.object.name`, `k8s.event.count`, plus the field that carries severity text), or tell readers to use the k8sobjects receiver, which emits the raw Event JSON. Drop the claim that SCK only polls."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/kubernetes/kubernetes/blob/master/pkg/kubelet/events/event.go",
+      "explanation": "The kubelet's image-pull failure events use reason `Failed` (FailedToPullImage) and `BackOff` (BackOffPullImage). `ImagePullBackOff` is a container waiting-state reason, not an event reason, and `FailedPulling` does not exist. The validation search `reason=\"FailedPulling\"` therefore returns nothing.",
+      "field": "detailedImplementation",
+      "quote": "this generates FailedPulling and ImagePullBackOff Warning events",
+      "severity": "blocker",
+      "suggested_fix": "Say the test pod generates `Failed` (\"Failed to pull image ...\") and `BackOff` (\"Back-off pulling image ...\") Warning events, and validate with `reason IN (\"Failed\",\"BackOff\")`."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "detailedImplementation says the SPL sums the Event `count` field, but every `spl` variant uses `stats count`, which counts indexed rows. Each MODIFIED watch update is indexed as another row, so repeating events are over-counted. The troubleshooting section of the same field admits this ('sum the `count` field instead of counting rows').",
+      "field": "cross_field",
+      "quote": "The SPL uses `count` to count event instances, which produces accurate totals even with Kubernetes-level deduplication.",
+      "severity": "blocker",
+      "suggested_fix": "Describe what the SPL really does (row count), and warn that repeated MODIFIED updates inflate totals. Recommend `dedup` on event UID or `sum(count)` / `max(k8s.event.count)` per UID as the remedy."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/common-information-model/8.5/data-models/application-state-deprecated",
+      "explanation": "The Application_State data model has been deprecated since CIM 4.12.0 and only describes service, process and port inventory. Neither it nor `Performance` fits Kubernetes event-stream warnings, and the UC has no `cimSpl` that uses either model.",
+      "field": "cimModels",
+      "quote": "Application_State",
+      "severity": "blocker",
+      "suggested_fix": "Remove both models and leave `cimModels` empty: no CIM data model fits raw Kubernetes Event objects."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified, but the only reviewer listed is an automated agent (`agent-handcraft-2026-04-30`). The UC also contains the field-name and sourcetype errors above, which SME sign-off would have caught.",
+      "field": "status",
+      "quote": "verified",
+      "severity": "major",
+      "suggested_fix": "Set the status to draft or community until a human SME has validated the SPL against real collector output."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The description presents four separate OR conditions. In the SPL, SPIKE requires daily_warnings > 2× sma_7d AND > 50, DROP requires < 0.3× sma_7d AND sma_7d > 20, and the wow thresholds belong to a separate weekly search. Read this way, any day with more than 50 warnings would alert.",
+      "field": "description",
+      "quote": "alert when `daily_warnings` > 50, `sma_7d` > 20, `wow_change` > 50, or `wow_change` < -30",
+      "severity": "major",
+      "suggested_fix": "Describe the two classification rules (SPIKE and DROP) and the weekly DEGRADING/IMPROVING rule as the SPL defines them."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "None of the scenarios names a real cause of a Kubernetes Warning-event spike. Synthetic probes do not create Event objects, and 'Batch `dc` on `kube:events`' has no meaning.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `_time`, `reason`, `ns`** — Health checks in `containers` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List real causes: cluster or node upgrades and drains (NodeNotReady, FailedScheduling, evictions), metrics-server outages that cause HPA FailedGetResourceMetric floods, one crash-looping pod whose repeated BackOff updates dominate the count, and registry outages that cause image-pull Failed/BackOff bursts."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The SPL has three variants; the weekly week-over-week aggregation is left out.",
+      "field": "implementation",
+      "quote": "Build two search variants",
+      "severity": "minor",
+      "suggested_fix": "Say three variants and describe the weekly autoregress search."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "None of the SPL variants applies this lookup, so the namespace exclusion described here does not happen.",
+      "field": "detailedImplementation",
+      "quote": "create **`excluded_namespaces.csv`** (from UC-3.6.1) to exclude system namespaces from alerting",
+      "severity": "minor",
+      "suggested_fix": "Either show the lookup clause the reader must add (for example `| lookup excluded_namespaces.csv ns OUTPUT excluded | where isnull(excluded)`) or describe it as an optional extension."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/search/search-reference/10.5.2605/search-commands/eval",
+      "field": "spl",
+      "issue": "In eval, unquoted dotted names such as `involvedObject.namespace`, `involvedObject.name`, `involvedObject.kind` and `source.component` are parsed as `.` string concatenation of two (usually null) fields, not as the dotted JSON field. For raw Event JSON (k8sobjects or SCK), where only `involvedObject.*` exists, `ns` collapses to \"unknown\" and `object_name` is null. As a result `affected_namespaces` is 1 and `affected_objects` is 0. Wrap the names in single quotes, e.g. `'involvedObject.namespace'`.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/receiver/k8seventsreceiver/README.md",
+      "field": "spl",
+      "issue": "The `type=\"Warning\"` filter and the `reason`/`namespace` coalesce lists do not cover the k8s_events receiver output that the Splunk OTel chart indexes as `kube:events`. That output carries `k8s.event.reason` and `k8s.namespace.name`, with the event type in SeverityText. Confirm how the Splunk HEC exporter names the severity field, then add those field names (quoted).",
+      "severity": "needs_verification"
+    },
+    {
+      "evidence_url": "https://github.com/kubernetes/kubernetes/blob/master/pkg/kubelet/events/event.go",
+      "field": "spl",
+      "issue": "The severity `case()` lists `FailedPulling` and `ImagePullBackOff`, which are not kubelet event reasons. Image-pull failures are `Failed` and `BackOff`. `OOMKilling` is emitted only by node-problem-detector, not by core Kubernetes. Those tiers therefore never match as intended.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The SPL classifies `NodeNotReady` as HIGH but filters on `type=\"Warning\"`. Check whether the node lifecycle controller and kubelet record NodeNotReady as a Normal-type event. If they do, it can never appear in these results.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "`stats count` counts indexed rows, so each MODIFIED update of a recurring Event adds another row. Totals are inflated unless the search dedups on event UID or uses the Event `count` field.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`trendline sma7` includes the current day in the average. As a result, the SPIKE rule (> 2× sma_7d) actually needs roughly 2.4× the prior six-day baseline, and DROP needs roughly < 0.27×. Consider comparing against the SMA of the previous seven days (e.g. `streamstats window=7 current=f avg(...)`).",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0121-UC-3.6.5",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The detailedImplementation reads well, but the UC relies on Splunk Connect for Kubernetes, which reached end of support in January 2024 and does not emit `kube:events`. The SPL misreads dotted field names and does not match the OTel k8s_events output it recommends. Several Kubernetes event reasons the UC names are not real kubelet reasons, and the text claims the SPL sums the event `count` field when it only counts rows.",
+  "tier": "deep",
+  "uc_id": "UC-3.6.5",
+  "verdict": "incorrect"
+}

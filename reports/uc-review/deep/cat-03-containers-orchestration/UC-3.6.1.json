@@ -1,0 +1,119 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "902324451ca37d143273d4eedc5d76ccee4eed29a43102adc129d51af86c63a1",
+  "file": "content/cat-03-containers-orchestration/UC-3.6.1.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/5167",
+      "explanation": "Splunkbase 5167 is 'Upgrade Universal Forwarder (Windows)'; Splunk Connect for Kubernetes is a GitHub Helm chart that reached End of Support on 1 January 2024.",
+      "field": "app",
+      "quote": "Splunk Connect for Kubernetes (Splunkbase 5167)",
+      "severity": "blocker",
+      "suggested_fix": "Use the Splunk OpenTelemetry Collector for Kubernetes (Splunkbase 6264) for metrics and events (k8s_events receiver); drop SCK/5167 here and in dataSources."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://prometheus.io/docs/concepts/metric_types/#counter",
+      "explanation": "The primary search takes `latest(kube_pod_container_status_restarts_total)` per day and assigns it directly to daily_restart_delta, so the chart plots each container's lifetime restart count, not new restarts per day; the prose misdescribes what the SPL produces and the 1.5x SMA spike logic operates on cumulative totals.",
+      "field": "detailedImplementation",
+      "quote": "Because this counter only increments, the daily delta represents new restarts in each 24-hour window.",
+      "severity": "blocker",
+      "suggested_fix": "Describe the delta as latest minus earliest (or max minus min) per series per day, or use `mstats rate(...)` / streamstats difference; until the SPL is changed, do not claim daily deltas."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The pod-level SPL counts how many scrape samples of kube_pod_container_status_last_terminated_reason were > 0 (reason_count), not restarts; no field in that search measures restarts, so the >3 restarts alert in detailedImplementation cannot be built from it.",
+      "field": "cross_field",
+      "quote": "Schedule the pod-level search every **15 minutes** over **`-1h`** and alert on any pod with **> 3 restarts** in the window.",
+      "severity": "major",
+      "suggested_fix": "Either describe the pod-level search as termination-reason context, or base the >3 restarts alert on the namespace-level delta_restarts per pod."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/container-platforms-docker-openshift.md",
+      "explanation": "The integration guide defines UC-3.6.1 as 'Container vs VM workload ratio (90-day rolling)' and lists restart-rate trending as UC-3.6.5, and says all 3.6 UCs populate `container_summary`; this UC reads raw `index=containers` and has no summary step. Either the guide or the catalogue numbering is stale.",
+      "field": "cross_field",
+      "quote": "\"title\": \"Pod Restart Rate Trending\"",
+      "severity": "major",
+      "suggested_fix": "Reconcile the guide's Domain 5 list with the actual 3.6.x titles, and either add a summary-index step or remove the container_summary claim from the guide."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The Splunk OTel chart collects cluster metrics with its k8s_cluster receiver (e.g. k8s.container.restarts) and does not, as far as documented, scrape kube-state-metrics by default; the kube_* Prometheus names would then only exist with a custom prometheus receiver config.",
+      "field": "detailedImplementation",
+      "quote": "The default `splunk-otel-collector-chart` discovers kube-state-metrics via pod annotations or a static service-name match.",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the chart's default values.yaml; either document the custom prometheus scrape job for kube-state-metrics or switch the prose to the k8s_cluster receiver metric names."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "OOMKilling is a node-level event (involvedObject is the Node, typically from node-problem-detector), so joining it on pod name will not match; container OOMs surface as last_terminated_reason=OOMKilled. Evicted is a pod-level reason, not a container last_terminated_reason value as listed earlier.",
+      "field": "detailedImplementation",
+      "quote": "ensure `sourcetype=kube:events` captures events with reasons **BackOff**, **OOMKilling**, **Killing**, **Evicted**",
+      "severity": "minor",
+      "suggested_fix": "Note that OOMKilling events attach to nodes, and list container terminated reasons as OOMKilled, Error, Completed, ContainerCannotRun, DeadlineExceeded."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Container restart counters do not map to host Performance datasets, and the SPL uses no CIM model; Application_State is a legacy model with no fields for pod restarts.",
+      "field": "cimModels",
+      "quote": "\"Application_State\", \"Performance\"",
+      "severity": "major",
+      "suggested_fix": "Leave cimModels empty unless a specific dataset mapping is documented."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "Marked verified by an agent reviewer while the primary search plots cumulative counters as daily deltas.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until an SME validates the trend output."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Mstats",
+      "field": "spl",
+      "issue": "Primary search: `mstats latest(kube_pod_container_status_restarts_total) ... span=1d | eval daily_restart_delta=restarts` uses the cumulative counter value as the daily delta; also `eval baseline_30d=avg(cluster_total)` evaluates per row and returns the row's own value, not a 30-day baseline. Use mstats rate/latest-earliest per series and eventstats avg for the baseline.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Join",
+      "field": "spl",
+      "issue": "Pod-level search: `join type=left pod_name ns` with a subsearch that also returns `reason` overwrites the outer termination reason with the event reason (join overwrite defaults to true) and keeps only the first subsearch row per pod (max=1).",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "Three independent searches are concatenated in one spl field; the primary mstats search assumes a metrics index while the other two read the same index as events, which cannot both be true for one index.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0117-UC-3.6.1",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 5,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The detailedImplementation is thorough, but its central claim that the mstats search yields daily restart deltas is false (it charts the cumulative counter), the pod-level alert described in prose is not what the SPL computes, the Splunkbase ID is wrong, and the UC disagrees with the guide's definition of UC-3.6.1.",
+  "tier": "deep",
+  "uc_id": "UC-3.6.1",
+  "verdict": "incorrect"
+}

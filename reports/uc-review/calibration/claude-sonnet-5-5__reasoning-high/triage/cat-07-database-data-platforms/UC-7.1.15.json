@@ -1,0 +1,83 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "3fb3f04a29f93cff7ea589ae7c92dd467d4bf8bdcb25608f6c68566d65e6f800",
+  "file": "content/cat-07-database-data-platforms/UC-7.1.15.json",
+  "findings": [
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The SPL only returns audit rows whose action_id is G, R or GWG with GRANT/REVOKE text; role-membership changes (ALTER ROLE ... ADD MEMBER, sp_addrolemember) and DENY are not covered, although they are the most common route to privilege escalation. REVOKE reduces rather than escalates privilege.",
+      "field": "cross_field",
+      "quote": "Enable database audit for security events (GRANT, REVOKE, ALTER ROLE). Forward to Splunk. Alert on any privilege change in production.",
+      "severity": "major",
+      "suggested_fix": "Add the role-membership audit action IDs (and DENY if wanted) to the search or narrow the implementation to GRANT/REVOKE and explain why REVOKE is included."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "Template scenarios; real benign privilege changes (approved DBA access requests, deployment pipelines granting object permissions, new application onboarding, scheduled access reviews that REVOKE) are not named.",
+      "field": "knownFalsePositives",
+      "quote": "Scheduled automation elevates `src` without crossing configured threshold for UC-7.1.15.",
+      "severity": "major",
+      "suggested_fix": "List those causes and the change-ticket correlation needed to confirm each; suppress by principal and ticket."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "clarity",
+      "evidence_ref": "docs/guides/relational-databases.md",
+      "explanation": "Does not say that the source is SQL Server Audit (server audit specification) files or the DB Connect query of sys.fn_get_audit_file, nor which audit groups must be enabled; the guide's audit configuration is not referenced.",
+      "field": "dataSources",
+      "quote": "Database audit logs (GRANT/REVOKE events), security event logs Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+      "severity": "major",
+      "suggested_fix": "Name the audit groups (for example server and database permission change groups) and the ingestion path from docs/guides/relational-databases.md."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change",
+      "explanation": "Change.All_Changes is not populated by mssql:audit unless the SQL Server add-on tags and maps these events; the UC does not show the mapping, so the CIM mapping is unverified.",
+      "field": "cimModels",
+      "quote": "\"Change\"",
+      "severity": "needs_verification",
+      "suggested_fix": "Verify the tags/eventtypes of the SQL Server add-on or remove the CIM mapping."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "The validation step lists tools for ten unrelated databases, and the later steps repeat generic modular-input and API boilerplate; none is specific to SQL Server audit.",
+      "field": "detailedImplementation",
+      "quote": "MongoDB: mongosh or Atlas metrics; Cassandra: nodetool; Elasticsearch/OpenSearch: Kibana",
+      "severity": "minor",
+      "suggested_fix": "Replace with SQL Server steps: compare with sys.fn_get_audit_file output and the audit specification."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "cimSpl",
+      "issue": "The tstats over Change.All_Changes has no filter on sourcetype, vendor_product or action values, so it returns every change in the model rather than SQL Server privilege changes.",
+      "severity": "major"
+    },
+    {
+      "field": "title",
+      "issue": "'Privilege Escalation Audit' does not match a search that also returns REVOKE events and omits role membership changes.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0010-UC-7.1.15",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "A sound SQL Server audit-based GRANT/REVOKE detection, but the implementation promises ALTER ROLE coverage the search lacks, the CIM variant is unfiltered, and the false positives, value and detailed text are template boilerplate. The title says escalation while REVOKE is also returned.",
+  "tier": "triage",
+  "uc_id": "UC-7.1.15",
+  "verdict": "rewrite"
+}

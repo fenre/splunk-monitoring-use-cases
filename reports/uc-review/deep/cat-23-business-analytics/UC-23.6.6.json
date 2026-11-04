@@ -1,0 +1,166 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "1ec651f1fb4a0eb5766c7f912562c4cd68d4f1d0ee6c920337129e375f067735",
+  "file": "content/cat-23-business-analytics/UC-23.6.6.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The description and the SPL disagree. The SPL has no stats/count and no `entity` field, and the `days_open` < 5/30/60 values only build the `age_band` labels; they are not alert conditions. The SPL's `where` clause keeps rows that are MATERIAL or MEDIUM, timing-lag items open more than 7 days, high transfer-pricing risk, or CRITICAL/URGENT items without SOX evidence. A reader would set up the wrong alert.",
+      "field": "cross_field",
+      "quote": "Rolls up `count` by `entity` across `the scheduled window` and pages when `variance_usd` > 1000, `days_open` < 5, `days_open` < 30, or `days_open` < 60.",
+      "severity": "blocker",
+      "suggested_fix": "Describe the real output: one row per intercompany pair exception, kept when variance exceeds the per-pair materiality floor or USD 1,000, when a settlement-timing lag is older than 7 days, when transfer-pricing margin deviates more than 5 points, or when a CRITICAL/URGENT item lacks reviewer, controller, and document evidence."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase 1546 is the community 'REST API Modular Input' (`rest_ta`), not a Splunk-built 'Splunk Add-on for REST'. The same wrong name appears in `dataSources`, `detailedImplementation` and `references`.",
+      "field": "app",
+      "quote": "Splunk Add-on for REST (Splunkbase 1546)",
+      "severity": "blocker",
+      "suggested_fix": "Call it 'REST API Modular Input (Splunkbase 1546, rest_ta)' everywhere, or name another supported way to poll the BlackLine API."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/manage-knowledge-objects/knowledge-management-manual/9.4/use-the-configuration-files-to-configure-field-extractions/configure-automatic-key-value-field-extraction",
+      "explanation": "Splunk documents that KV_MODE = json and INDEXED_EXTRACTIONS = JSON must not both be set for one sourcetype, because the fields are then extracted twice. Duplicate multivalue fields would break the SPL's `tonumber`/`coalesce` arithmetic. INDEXED_EXTRACTIONS also applies only to file-based structured inputs, not to a REST modular input, and TIMESTAMP_FIELDS names `postingDate`, which does not appear in the sample payload.",
+      "field": "detailedImplementation",
+      "quote": "KV_MODE = json\nINDEXED_EXTRACTIONS = json",
+      "severity": "blocker",
+      "suggested_fix": "Use KV_MODE = json alone (search-time extraction) for the BlackLine JSON. Set TIME_PREFIX/TIME_FORMAT against a timestamp key that the payload actually contains."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The sample BlackLine item is a one-sided reconciliation item (ItemId, Balance, OpenAmount, AgingDays). None of the two-sided fields the SPL needs exist in it (entity_a_id/entity_b_id, amount_a/b, currency_a/b, trading-partner codes), and no mapping is given. A reader cannot get from this payload to the SPL.",
+      "field": "detailedImplementation",
+      "quote": "\\\"Items\\\":[{\\\"ItemId\\\":\\\"abc\\\",\\\"ReconciliationId\\\":\\\"REC123\\\",\\\"Balance\\\":150000,\\\"OpenAmount\\\":2500,\\\"AgingDays\\\":15",
+      "severity": "major",
+      "suggested_fix": "Show a two-sided intercompany pair record (for example a BlackLine Intercompany Hub transaction or a SAP trading-partner pair extract), with an explicit field-alias table from vendor keys to the canonical fields the SPL uses."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "These look like guessed object names. Oracle FCCS is a SaaS service and normally offers no direct JDBC access to its staging tables. The BlackLine endpoint, the reporting-table names and the SAP OData service name could not be confirmed.",
+      "field": "dataSources",
+      "quote": "JDBC FCCS staging (`FCC_DSEG`, `FCC_BSEG_PERIOD`) ... BlackLine Reporting Database projections (`REC_ACCOUNT`, `REC_TRANSACTION_LINE`) ... `/api/v2/Reconciliation/Items` ... `API_FINANCIAL_CONSOLIDATION_SRV/A_ConsolidationGroup`",
+      "severity": "needs_verification",
+      "suggested_fix": "Check each name against vendor documentation (Oracle EPM REST API guide, the BlackLine developer portal, the SAP API Business Hub). Remove any that do not exist, or mark them as deployment-defined examples."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "T030B (posting-key/account-determination configuration) and COBK (CO document header) are not Group Reporting staging tables. The same applies to `RSKC_REPORT_EXEC` and 'SAP FS-PCE' in detailedImplementation, which look invented.",
+      "field": "app",
+      "quote": "Group Reporting staging tables (`T030B`, `BSEG`, `BKPF`, `COBK`)",
+      "severity": "needs_verification",
+      "suggested_fix": "Use the documented Group Reporting sources (for example ACDOCU for consolidation journal entries and ACDOCA with trading-partner RASSC) after checking them on SAP Help."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "All four scenarios are infrastructure boilerplate (maintenance windows, synthetic probes, `host`, `span=1h`) that the SPL never uses. The real false-positive causes are already written up in detailedImplementation Step 5: cut-off and in-transit goods, FX translation, WHT on dividends, reverse-charge VAT, royalty true-ups and cost-allocation lag.",
+      "field": "knownFalsePositives",
+      "quote": "Planned work for 'Intercompany Reconciliation Exception Queue' shifts `count` over `span=1h` while `host` remains in-scope.",
+      "severity": "major",
+      "suggested_fix": "Replace the list with the top 4–6 causes from Step 5, each tied to the matching `variance_cause` value and the lookup that suppresses or reclassifies it."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "This is a run-on sentence with no panel structure. It names fields the SPL never outputs (the remediation buckets; `currency_a`/`currency_b` are not in the final `table`) and a KV collection the SPL never reads.",
+      "field": "visualization",
+      "quote": "sankey sketches tying mismatch archetypes (`variance_cause`) toward remediation buckets (`pending_tax_review`, `pending_gl_mapping`, `pending_ic_hub_assignment`), heatmaps colouring entity-pair hashes versus FX corridor deltas (`currency_a`, `currency_b`)",
+      "severity": "major",
+      "suggested_fix": "List 3–5 concrete panels built from fields in the SPL's final table: exceptions by `variance_cause`, a top-N table sorted by `crit_rank` and `variance_usd`, `age_band` distribution, and SOX-evidence-incomplete count by `close_period`."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "These are word-salad steps. HIGH is the top `tp_audit_risk` tier, so nothing can 'exceed' it. The list also omits `trintech:cadency_ic`, which the SPL searches.",
+      "field": "implementation",
+      "quote": "whenever composite criticality surfaces CRITICAL tiers lacking reviewer attestations inside seventy-two rolling hours intersecting BD minus three thresholds plus orchestrate ServiceNow incidents referencing hashed surrogate identifiers whenever TP audit-risk exceeds HIGH tiers",
+      "severity": "major",
+      "suggested_fix": "Write numbered, actionable steps: onboard the six sourcetypes, publish the five lookups, schedule the search (say how often), alert when criticality_score=CRITICAL and sox_evidence_complete=0, and open a ServiceNow ticket when tp_audit_risk=HIGH."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "UPS SNMP hardware (and the `snmp`, `m365`, `splunk_es` equipment tags) has nothing to do with intercompany reconciliation from finance systems.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_ups\"",
+      "severity": "major",
+      "suggested_fix": "Remove snmp_ups and the unrelated equipment tags; keep only db_connect/oracle if they really apply."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The reviewer is an automated agent ('agent-handcraft-…'), there is no SME sign-off, and the SPL cannot run as written. 'verified' overstates the UC's maturity.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set the status to draft/community until a finance SME has validated it on real data."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "grandma_fidelity",
+      "explanation": "The explanation is too vague to say what gets flagged: amounts between sister companies that do not match, ranked by size and closeness to the close deadline, plus items missing sign-off.",
+      "field": "grandmaExplanation",
+      "quote": "we line up what still disagrees after translation rules run so accountants finish pairing before filings slip rather than chasing ghosts days later",
+      "severity": "minor",
+      "suggested_fix": "For example: 'When one of our companies bills another, both books should show the same amount. This lists the pairs that do not match, biggest and most urgent first, so accountants fix them before the month-end close.'"
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "Several references are generic landing pages (Hackett, Protiviti, docs.oracle.com/en/cloud/saas/, the Splunk Knowledge manual root) that do not back any specific claim.",
+      "field": "references",
+      "quote": "The Hackett Group — Finance benchmarking hub",
+      "severity": "minor",
+      "suggested_fix": "Replace them with the specific vendor API pages and the Splunk lookup/KV Store docs that the implementation relies on."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.2/search-commands/eval",
+      "field": "spl",
+      "issue": "Every string literal in the eval and where expressions is in single quotes ('UNKNOWN', 'USD', '%Y-%m-%d', 'MATERIAL', 'await', '|' ...). In SPL eval, single quotes mark field names and double quotes mark literal strings. As a result, strptime formats, currency comparisons, case() labels and the where IN list all resolve to null or missing fields, and the search returns nothing useful. Every literal must use double quotes.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The search covers 60 days of snapshot feeds (REST polled every 30 minutes, nightly JDBC) with no dedup or `stats latest(...) by ic_pair_id`. The same open exception appears once per poll, which inflates the queue and the variance totals, and the result is then silently truncated by `head 500`.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`posting_period_end_date` is set to the posting date itself, so the lookup into `fx_rates_period_end.csv` (period-end rates) misses on most days and falls back to hard-coded FX constants (1.08, 1.27, ...). Those constants silently produce stale USD variances. `entity_pair_hash` also includes `posting_period`, so `materiality_thresholds.csv` would need a new row for every pair in every period.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`latest=now()` is not a standard time-modifier form (the documented token is `latest=now`). Check that it parses.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0041-UC-23.6.6",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 3,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The UC has a rich detection idea and a strong list of real-world intercompany mismatch scenarios, but the SPL uses single-quoted string literals throughout, so it will not work as written. The description misstates the alert logic, the props example and add-on name are wrong, and large parts of the prose are word salad or invented system details.",
+  "tier": "deep",
+  "uc_id": "UC-23.6.6",
+  "verdict": "incorrect"
+}

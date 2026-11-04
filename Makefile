@@ -1,4 +1,4 @@
-.PHONY: build serve clean clean-tree audit audit-full audit-ntv audit-all audit-structure \
+.PHONY: build serve clean clean-tree audit audit-full audit-cisco-coverage audit-ntv audit-all audit-structure \
        audit-cim audit-links audit-consistency audit-perf audit-placeholders \
        audit-mitre audit-gold audit-spl-duplicates audit-spl-grammar audit-ids \
        audit-spl-hallucinations audit-spl-references audit-spl-references-build \
@@ -11,14 +11,17 @@
 	audit-compliance-gaps audit-compliance-mappings audit-evidence-signatures \
 	audit-vendor-changelog \
 	audit-doc-counts audit-openapi-drift audit-content-quality audit-exclusions-coverage \
+	audit-text-quality uc-review-triage uc-review-route uc-review-deep uc-review-adjudicate \
+	uc-review-status uc-review-calibrate-select uc-review-report \
        audit-baseline-clause-grammar-free audit-peer-review-signoffs \
-       audit-mcp-tool-schemas \
+       audit-mcp-tool-schemas audit-cisco-tag-evidence \
        stewardship-digest audit-reproducibility audit-reproducibility-fast \
        baseline devcontainer-init \
        generate-grandma-explanations \
        generate-stewardship-digest generate-mapping-ledger \
        generate-manifest-samples generate-equipment-tags \
        generate-evidence-packs generate-evidence-signatures generate-api-surface \
+       generate-starter-packs audit-starter-packs \
        generate-rag-chunks audit-rag-chunks \
 	generate-alert-actions audit-alert-actions \
 	generate-dashboards audit-dashboards \
@@ -114,7 +117,7 @@ audit: audit-structure audit-cim audit-consistency ## Run core audit checks
 
 # --- Audits (comprehensive) ---
 
-audit-full: audit audit-placeholders audit-mitre audit-spl-duplicates audit-spl-grammar audit-spl-anti-patterns-check audit-ids audit-monitoring-type audit-codeowners-coverage audit-exclusions-coverage audit-dashboards audit-sarif audit-observability-drift audit-cost-coverage audit-vendor-changelog ## Run ALL audit checks
+audit-full: audit audit-placeholders audit-mitre audit-spl-duplicates audit-spl-grammar audit-spl-anti-patterns-check audit-ids audit-monitoring-type audit-codeowners-coverage audit-exclusions-coverage audit-dashboards audit-sarif audit-observability-drift audit-cost-coverage audit-vendor-changelog audit-cisco-tag-evidence audit-cisco-coverage ## Run ALL audit checks
 
 audit-structure: ## Audit UC JSON structure (content/cat-*/UC-*.json)
 	$(SPLUNK_UC) audit-uc-structure --full
@@ -157,6 +160,9 @@ audit-spl-hallucinations: ## Detect SPL hallucinations (unknown commands, bad CI
 
 audit-spl-references: ## Validate SPL identifiers against curated vocabulary (HIGH gate)
 	$(SPLUNK_UC) audit-spl-references --check
+
+audit-cisco-coverage: ## Ratchet gate: Cisco portfolio capability coverage (data/cisco-coverage-baseline.json)
+	$(SPLUNK_UC) audit-cisco-coverage --check
 
 audit-spl-anti-patterns: ## Report SPL style/risk anti-patterns (writes dist/audits/)
 	$(SPLUNK_UC) audit-spl-anti-patterns
@@ -221,6 +227,9 @@ audit-regulatory-change-watch: ## Hermetic regulatory change-watch ledger audit 
 audit-vendor-changelog: ## Validate vendor changelogs (schema, freshness, UC impact advisory)
 	$(SPLUNK_UC) audit-vendor-changelog --check --max-age-days 180
 
+audit-cisco-tag-evidence: ## Fail when a cisco model tag has no producible sourcetype or CIM model
+	$(SPLUNK_UC) audit-cisco-tag-evidence --check
+
 add-vendor-changelog-entry: ## Append an entry to data/vendor-changelog/<vendor>.json (pass CLI flags)
 	$(SPLUNK_UC) add-vendor-changelog-entry --help
 
@@ -238,6 +247,38 @@ audit-openapi-drift: ## Flag dist/api/ paths missing from openapi.yaml / api/v1/
 
 audit-content-quality: ## Flag description==value, jargon in grandmaExplanation, broken fixtureRefs, description/value gaps
 	$(SPLUNK_UC) audit-content-quality
+
+audit-text-quality: ## Deterministic UC text-quality pre-pass -> reports/uc-review/deterministic.jsonl
+	$(SPLUNK_UC) audit-text-quality
+
+# --- UC text-quality review (docs/uc-text-review-rubric.md) ---
+# Model tiers need `pip install cursor-sdk` and CURSOR_API_KEY. Pass
+# CAT=cat-NN to scope a run and ARGS="--dry-run" (or --limit N, --model ID)
+# to adjust it. Unscoped runs skip cat-25 (the fun category); CAT=cat-25
+# or ARGS=--include-fun includes it.
+UC_REVIEW := $(PYTHON) scripts/uc_review_runner.py
+UC_REVIEW_SCOPE = $(if $(CAT),--category $(CAT),)
+
+uc-review-triage: ## Fast-model triage of stale UCs (CAT=cat-NN, ARGS=...)
+	$(UC_REVIEW) triage $(UC_REVIEW_SCOPE) $(ARGS)
+
+uc-review-route: ## Show which UCs the deep tier would review, and why (CAT=cat-NN)
+	$(UC_REVIEW) route $(UC_REVIEW_SCOPE) $(ARGS)
+
+uc-review-deep: ## Heavy-model deep review of routed UCs (CAT=cat-NN, ARGS=...)
+	$(UC_REVIEW) deep $(UC_REVIEW_SCOPE) $(ARGS)
+
+uc-review-adjudicate: ## Second-opinion review of deep-review blockers (CAT=cat-NN)
+	$(UC_REVIEW) adjudicate $(UC_REVIEW_SCOPE) $(ARGS)
+
+uc-review-status: ## UC review record counts per tier and category
+	$(UC_REVIEW) status
+
+uc-review-calibrate-select: ## Write the stratified 150-UC calibration set
+	$(UC_REVIEW) calibrate select
+
+uc-review-report: ## Roll the review ledger into summary.json, fix-queue.json, docs/uc-review-findings.md
+	$(SPLUNK_UC) generate-uc-review-report
 
 audit-baseline-clause-grammar-free: ## Refuse `clause-grammar` fingerprints in audit-baseline.json
 	$(SPLUNK_UC) audit-baseline-clause-grammar-free
@@ -365,6 +406,12 @@ generate-evidence-signatures: ## Generate dist/evidence manifests (unsigned; wor
 generate-api-surface: ## Regenerate api/v1/* static JSON surface
 	$(SPLUNK_UC) generate-api-surface
 
+generate-starter-packs: ## Build api/v1/starter-packs/* from data/starter-packs/
+	$(SPLUNK_UC) generate-starter-packs
+
+audit-starter-packs: ## Validate data/starter-packs/*.json (errors fail; warnings block publish)
+	$(SPLUNK_UC) audit-starter-packs --check
+
 generate-phase2-mini-categories: ## Phase 2.2 generator (cat-22.35-22.49 mini-category UCs)
 	$(SPLUNK_UC) generate-phase2-mini-categories
 
@@ -417,33 +464,35 @@ audit-observability-drift: generate-observability-metrics ## Validate dist/obser
 #     their own CI steps because their failure messages carry
 #     useful per-domain context.
 sync-generated: _require-py311 ## Run every cascade-style generator (write-mode) in dependency-safe order
-	@echo "==> [1/14] sidecar mutator: phase3-1 backfill"
+	@echo "==> [1/15] sidecar mutator: phase3-1 backfill"
 	@$(SPLUNK_UC) generate-phase3-1-backfill
-	@echo "==> [2/14] sidecar mutator: phase3-2 cross-cutting"
+	@echo "==> [2/15] sidecar mutator: phase3-2 cross-cutting"
 	@$(SPLUNK_UC) generate-phase3-2-cross-cutting
-	@echo "==> [3/14] sidecar mutator: phase3-3 derivatives"
+	@echo "==> [3/15] sidecar mutator: phase3-3 derivatives"
 	@$(SPLUNK_UC) generate-phase3-3-derivatives
-	@echo "==> [4/14] sidecar mutator: equipment-tags"
+	@echo "==> [4/15] sidecar mutator: equipment-tags"
 	@$(SPLUNK_UC) generate-equipment-tags
-	@echo "==> [5/14] sidecar mutator: grandma-explanations"
+	@echo "==> [5/15] sidecar mutator: grandma-explanations"
 	@$(SPLUNK_UC) generate-grandma-explanations
-	@echo "==> [6/14] derived report: cat-22 non-technical-view block"
+	@echo "==> [6/15] derived report: cat-22 non-technical-view block"
 	@$(SPLUNK_UC) migrate-cat22-ntv
-	@echo "==> [7/14] derived report: prerequisites graph"
+	@echo "==> [7/15] derived report: prerequisites graph"
 	@$(SPLUNK_UC) audit-prerequisites
-	@echo "==> [8/14] derived report: compliance gaps"
+	@echo "==> [8/15] derived report: compliance gaps"
 	@$(SPLUNK_UC) audit-compliance-gaps
-	@echo "==> [9/14] derived report: sandbox validation"
+	@echo "==> [9/15] derived report: sandbox validation"
 	@$(SPLUNK_UC) audit-sandbox-validation
-	@echo "==> [10/14] derived report: evidence packs"
+	@echo "==> [10/15] derived report: evidence packs"
 	@$(SPLUNK_UC) generate-evidence-packs
-	@echo "==> [11/14] derived report: mapping ledger"
+	@echo "==> [11/15] derived report: mapping ledger"
 	@$(SPLUNK_UC) generate-mapping-ledger
-	@echo "==> [12/14] derived artefact: splunk-uc-recommender app"
+	@echo "==> [12/15] derived report: Cisco portfolio coverage"
+	@$(SPLUNK_UC) generate-cisco-coverage
+	@echo "==> [13/15] derived artefact: splunk-uc-recommender app"
 	@$(SPLUNK_UC) generate-recommender-app
-	@echo "==> [13/14] doc footer: backlinks index"
+	@echo "==> [14/15] doc footer: backlinks index"
 	@$(PYTHON) scripts/generate_backlinks.py
-	@echo "==> [14/14] doc footer: APA references + inline citations"
+	@echo "==> [15/15] doc footer: APA references + inline citations"
 	@$(PYTHON) scripts/generate_doc_references.py
 	@echo "==> sync-generated: done"
 
@@ -462,6 +511,7 @@ sync-generated-check: _require-py311 ## CI drift gate — run every cascade gene
 	  "audit-sandbox-validation --check" \
 	  "generate-evidence-packs --check" \
 	  "generate-mapping-ledger --check" \
+	  "generate-cisco-coverage --check" \
 	  "generate-recommender-app --check"; do \
 	  echo "==> $$step"; \
 	  $(SPLUNK_UC) $$step || { failed=1; echo "    DRIFT in: $$step"; }; \
@@ -510,6 +560,7 @@ preflight: _require-py311 ## Regenerate every committed derived artefact, then s
 	@$(BUILD)
 	@echo "==> preflight [3/5] api/v1 static surface"
 	@$(SPLUNK_UC) generate-api-surface
+	@$(SPLUNK_UC) generate-starter-packs
 	@echo "==> preflight [4/5] standalone report writers"
 	@echo "    → docs/splunk-cloud-compat.md"
 	@$(SPLUNK_UC) audit-splunk-cloud-compat

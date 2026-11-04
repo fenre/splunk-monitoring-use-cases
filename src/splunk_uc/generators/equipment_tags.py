@@ -22,6 +22,11 @@ CONTRACT:
     - Generator-owned: ``equipment[]`` and ``equipmentModels[]`` in sidecars
       are always recomputed from source text. Do NOT hand-edit. Add missing
       patterns to build.py's EQUIPMENT table instead.
+    - Evidence-gated vendors (registry entries with an ``evidence`` block,
+      currently Cisco) are tagged only from search evidence; see
+      ``splunk_uc.equipment_evidence``. Their tags are replaced, not
+      merged, on every run; reviewed exceptions live in
+      ``data/equipment-tag-overrides.json``.
     - Idempotent: rerunning without source changes is a no-op.
     - --check mode for CI drift guards (exit 1 + list of stale files).
     - Empty arrays are ELIDED from the sidecar (keeps diffs small; matches
@@ -59,6 +64,10 @@ if str(_LEGACY_SCRIPTS_DIR) not in sys.path:
 
 from equipment_lib import compile_patterns, load_equipment, match_equipment  # noqa: E402
 
+from splunk_uc import equipment_evidence as _ev  # noqa: E402
+
+_OVERRIDES_PATH = _REPO_ROOT / "data" / "equipment-tag-overrides.json"
+
 # Canonical sidecar field order.  Mirrors
 # ``scripts/generate_phase3_1_backfill.py`` (queued for migration into
 # ``src/splunk_uc/generators/`` in a later P6 batch) so repeated runs of
@@ -89,6 +98,7 @@ _SIDECAR_FIELD_ORDER: tuple[str, ...] = (
     "visualization",
     "cimModels",
     "cimSpl",
+    "splVariants",
     "schema",
     "dataModelAcceleration",
     "references",
@@ -99,6 +109,7 @@ _SIDECAR_FIELD_ORDER: tuple[str, ...] = (
     "requiredFields",
     "equipment",
     "equipmentModels",
+    "capabilities",
     "status",
     "lastReviewed",
     "splunkVersions",
@@ -168,6 +179,49 @@ def _compute_tags(
     return sorted(equipment_ids), sorted(model_compounds)
 
 
+def variant_models(sidecar: dict[str, Any]) -> list[str]:
+    """Model compounds that carry their own SPL in ``splVariants``."""
+    out = []
+    for v in sidecar.get("splVariants") or []:
+        if isinstance(v, dict) and isinstance(v.get("model"), str):
+            out.append(v["model"])
+    return out
+
+
+def _compute_gated_tags(
+    sidecar: dict[str, Any],
+    gated: list[dict[str, Any]],
+) -> tuple[set[str], set[str]]:
+    """Evidence-gated (equipment, equipmentModels) for vendors with ``evidence``.
+
+    See :mod:`splunk_uc.equipment_evidence` for the rule.
+    """
+    ev = _ev.extract_spl_evidence(sidecar.get("spl"), sidecar.get("cimSpl"))
+    variants = variant_models(sidecar)
+    eq_ids: set[str] = set()
+    models: set[str] = set()
+    for entry in gated:
+        vendor, entry_models = _ev.compute_gated_tags(entry, sidecar.get("app") or "", ev, variants)
+        if vendor:
+            eq_ids.add(entry["id"])
+        models |= entry_models
+    return eq_ids, models
+
+
+def _load_overrides(path: Path = _OVERRIDES_PATH) -> dict[str, dict[str, list[str]]]:
+    """Reviewed hand corrections for gated tags, keyed by bare UC id."""
+    if not path.is_file():
+        return {}
+    data = json.loads(path.read_text(encoding="utf-8"))
+    out: dict[str, dict[str, list[str]]] = {}
+    for uc_id, entry in (data.get("overrides") or {}).items():
+        out[uc_id.removeprefix("UC-")] = {
+            "add": list(entry.get("add") or []),
+            "remove": list(entry.get("remove") or []),
+        }
+    return out
+
+
 def _reorder_sidecar(sidecar: dict[str, Any]) -> dict[str, Any]:
     """Return a dict with keys in ``_SIDECAR_FIELD_ORDER`` then sorted extras.
 
@@ -188,24 +242,45 @@ def _apply_tags(
     sidecar: dict[str, Any],
     equipment: list[str],
     equipment_models: list[str],
+    gated_owned: frozenset[str] = frozenset(),
+    override: dict[str, list[str]] | None = None,
 ) -> dict[str, Any]:
     """Return a new sidecar dict with ``equipment``/``equipmentModels`` set.
 
     Conventions:
         - Computed tags are **merged** with any existing values so that
           manually-set tags (from Gold uplift agents or hand-edits) are
-          never lost.
+          never lost. Exception: ids in ``gated_owned`` (evidence-gated
+          vendors and their model compounds) are owned by this generator
+          and replaced outright, as is any ``<gated vendor>_*`` model id
+          that is no longer in the registry; hand corrections for them live
+          in ``data/equipment-tag-overrides.json`` (``override``).
         - Empty arrays are ELIDED (key is removed). Keeps diffs small.
         - If the merged arrays equal the existing ones, no change.
         - Keys re-ordered to the canonical field order to keep sidecar
           outputs stable across generator runs.
     """
     out = dict(sidecar)
-    existing_eq = set(sidecar.get("equipment") or [])
-    existing_models = set(sidecar.get("equipmentModels") or [])
+    existing_eq = set(sidecar.get("equipment") or []) - gated_owned
+    existing_models = {
+        m
+        for m in sidecar.get("equipmentModels") or []
+        if m not in gated_owned and m.split("_", 1)[0] not in gated_owned
+    }
 
-    merged_eq = sorted(existing_eq | set(equipment))
-    merged_models = sorted(existing_models | set(equipment_models))
+    eq_set = existing_eq | set(equipment)
+    model_set = existing_models | set(equipment_models)
+    if override:
+        for tag in override.get("add") or []:
+            vendor = tag.split("_", 1)[0]
+            if tag != vendor and vendor in gated_owned:
+                model_set.add(tag)
+            eq_set.add(vendor)
+        for tag in override.get("remove") or []:
+            eq_set.discard(tag)
+            model_set.discard(tag)
+    merged_eq = sorted(eq_set)
+    merged_models = sorted(model_set)
 
     if merged_eq:
         out["equipment"] = merged_eq
@@ -228,7 +303,15 @@ def _process_sidecars(
     check: bool,
 ) -> tuple[int, int, list[Path], Counter[str], Counter[str]]:
     """Iterate every sidecar; return (processed, changed, changed_paths, eq_counts, model_counts)."""
-    patterns = compile_patterns(load_equipment())
+    equipment_registry = load_equipment()
+    gated = _ev.gated_entries(equipment_registry)
+    gated_ids = {e["id"] for e in gated}
+    gated_owned = frozenset(
+        gated_ids
+        | {f"{e['id']}_{m['id']}" for e in gated for m in e.get("models") or []}
+    )
+    patterns = [p for p in compile_patterns(equipment_registry) if p[1] not in gated_ids]
+    overrides = _load_overrides()
     processed = 0
     changed_paths: list[Path] = []
     eq_counts: Counter[str] = Counter()
@@ -241,12 +324,21 @@ def _process_sidecars(
         processed += 1
 
         equipment, equipment_models = _compute_tags(sidecar, patterns)
+        gated_eq, gated_models = _compute_gated_tags(sidecar, gated)
+        equipment = sorted(set(equipment) | gated_eq)
+        equipment_models = sorted(set(equipment_models) | gated_models)
         for e in equipment:
             eq_counts[e] += 1
         for m in equipment_models:
             model_counts[m] += 1
 
-        new_sidecar = _apply_tags(sidecar, equipment, equipment_models)
+        new_sidecar = _apply_tags(
+            sidecar,
+            equipment,
+            equipment_models,
+            gated_owned,
+            overrides.get(str(sidecar["id"])),
+        )
         new_text = _serialise(new_sidecar)
         old_text = path.read_text(encoding="utf-8")
 

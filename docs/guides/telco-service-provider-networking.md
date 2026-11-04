@@ -28,9 +28,8 @@ sourcetypes:
   - cisco:nxos:syslog
   - cisco:iosxr:syslog
   - cisco:iosxr:telemetry:json
-  - cisco:ucm:cdr
-  - cisco:ucm:cmr
-  - cisco:ucm:car
+  - cucm_cdr
+  - cucm_cmr
   - cisco:cube:cdr
   - cisco:cube:dialpeer:status
   - cisco:unity:syslog
@@ -187,18 +186,18 @@ Cisco UCM writes CDR / CMR files to `/var/log/active/cm/cdr/CARChangeLog/`:
 
 ```ini
 [monitor:///var/log/active/cm/cdr/CARChangeLog/cdr_*.csv]
-sourcetype = cisco:ucm:cdr
+sourcetype = cucm_cdr
 index = cdr
 
 [monitor:///var/log/active/cm/cdr/CARChangeLog/cmr_*.csv]
-sourcetype = cisco:ucm:cmr
+sourcetype = cucm_cmr
 index = cdr
 ```
 
 Apply CSV header mapping in `props.conf`:
 
 ```ini
-[cisco:ucm:cdr]
+[cucm_cdr]
 INDEXED_EXTRACTIONS = csv
 HEADER_FIELD_LINE_NUMBER = 1
 TIMESTAMP_FIELDS = dateTimeOrigination
@@ -729,7 +728,7 @@ index=signaling sourcetype=diameter:request OR sourcetype=diameter:answer
 ### Toll fraud — high-cost destinations spike
 
 ```spl
-index=cdr sourcetype=cisco:ucm:cdr OR sourcetype=cisco:cube:cdr
+index=cdr sourcetype=cucm_cdr OR sourcetype=cisco:cube:cdr
 | eval country_code = case(
     match(dest_user, "^\\+228"), "TG",
     match(dest_user, "^\\+247"), "AC",
