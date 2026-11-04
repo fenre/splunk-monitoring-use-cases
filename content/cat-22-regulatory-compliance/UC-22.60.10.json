@@ -47,7 +47,7 @@
     "negativeScenario": "UC-22.60.10 negative (manoeuvring areas): ingest benign `aero_adsb` / `adsb:audit` events where `icao_24bit_address`, `_time` stays below `distance_nm` > 25, `duplicate_count` > 1, `risk_score` > 0, or `risk_score` >= 90, or exclude the test entity via `compliance_exception_register.csv`. Variant 4 confirms zero alert rows for 'ADS-B / Mode S Squitter integrity + injection detection - duplicate ICAO addresses, impossible geometry, ghost-target floods at terminal manoeuvring areas'."
   },
   "dataSources": "ADS-B 1090ES audit events (`adsb:audit`), UAT 978 events for general-aviation cross-reference, ground ADS-B receiver feeds via OpenSky Network (`opensky:feed`) or operator-owned receivers, operator's fleet ICAO 24-bit address roster (KV Store `do326a_fleet_icao_24bit_lookup`).",
-  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Cisco Cyber Vision (Splunkbase 6071), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Cisco Cyber Vision (Splunkbase 5748), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "index=aero_adsb sourcetype=\"adsb:audit\"\n| bucket _time span=1m\n| eventstats count AS station_count by icao_24bit_address _time\n| stats max(station_count) AS duplicate_count latest(callsign) AS callsign earliest(lat) AS lat_start latest(lat) AS lat_end earliest(lon) AS lon_start latest(lon) AS lon_end latest(altitude_ft) AS altitude_ft earliest(altitude_ft) AS altitude_start latest(geo_region) AS geo_region by icao_24bit_address _time\n| eval distance_nm = round(acos(sin(lat_start*pi()/180)*sin(lat_end*pi()/180) + cos(lat_start*pi()/180)*cos(lat_end*pi()/180)*cos((lon_end - lon_start)*pi()/180)) * 3440, 2)\n| eval climb_ft_per_min = (altitude_ft - altitude_start)\n| eval geometry_violation = case(\n    distance_nm > 25, \"impossible-distance-1min\",\n    abs(climb_ft_per_min) > 6000, \"unphysical-vertical-speed\",\n    1=1, \"none\")\n| lookup do326a_fleet_icao_24bit_lookup icao_24bit_address OUTPUT in_fleet\n| eval anomaly_category = case(\n    duplicate_count > 1, \"duplicate-address\",\n    geometry_violation != \"none\", geometry_violation,\n    1=1, \"in-baseline\")\n| where anomaly_category != \"in-baseline\"\n| eval risk_score = case(\n    anomaly_category = \"duplicate-address\" AND in_fleet = \"true\", 100,\n    anomaly_category = \"duplicate-address\", 85,\n    anomaly_category = \"impossible-distance-1min\", 90,\n    anomaly_category = \"unphysical-vertical-speed\", 80,\n    1=1, 0)\n| where risk_score > 0\n| eval severity = case(risk_score >= 90, \"critical\", risk_score >= 70, \"high\", 1=1, \"medium\")\n| sort 0 -risk_score, -_time\n| table _time icao_24bit_address callsign anomaly_category duplicate_count distance_nm climb_ft_per_min geometry_violation geo_region in_fleet severity risk_score",
   "description": "Detects risk tied to ADS, Mode, Squitter, integrity, injection through UC-22.60.10 on `index=aero_adsb` sourcetype `adsb:audit`. Summarises `duplicate_count` grouped by `icao_24bit_address`, `_time` across `1m` before applying `distance_nm` > 25, `duplicate_count` > 1, `risk_score` > 0, or `risk_score` >= 90. Operators tune 'ADS-B / Mode S Squitter integrity + injection detection - duplicate ICAO addresses, impossible geometry, ghost-target floods at terminal manoeuvring areas' using UC-22.60.10 runbook steps.",
   "value": "Tracking `duplicate_count` via UC-22.60.10 on `adsb:audit` feeds improves response to 'ADS-B / Mode S Squitter integrity + injection detection - duplicate ICAO addresses, impossible geometry, ghost-target floods at terminal manoeuvring areas' and reduces audit findings, regulatory gaps, and attestation delays.",
@@ -111,9 +111,9 @@
       "requiresSmeReview": true
     },
     {
-      "id": 6071,
+      "id": 5748,
       "name": "Splunk Add-on for Cisco Cyber Vision",
-      "url": "https://splunkbase.splunk.com/app/6071",
+      "url": "https://splunkbase.splunk.com/app/5748",
       "role": "data-source",
       "requiresSmeReview": true
     },

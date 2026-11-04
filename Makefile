@@ -15,6 +15,7 @@
 	uc-review-status uc-review-calibrate-select uc-review-report \
        audit-baseline-clause-grammar-free audit-peer-review-signoffs \
        audit-mcp-tool-schemas audit-cisco-tag-evidence audit-escu-drilldown-spl \
+       audit-splunkbase-app-status \
        stewardship-digest audit-reproducibility audit-reproducibility-fast \
        baseline devcontainer-init \
        generate-grandma-explanations \
@@ -117,7 +118,7 @@ audit: audit-structure audit-cim audit-consistency ## Run core audit checks
 
 # --- Audits (comprehensive) ---
 
-audit-full: audit audit-placeholders audit-mitre audit-spl-duplicates audit-spl-grammar audit-spl-anti-patterns-check audit-ids audit-monitoring-type audit-codeowners-coverage audit-exclusions-coverage audit-dashboards audit-sarif audit-observability-drift audit-cost-coverage audit-vendor-changelog audit-cisco-tag-evidence audit-escu-drilldown-spl audit-cisco-coverage ## Run ALL audit checks
+audit-full: audit audit-placeholders audit-mitre audit-spl-duplicates audit-spl-grammar audit-spl-anti-patterns-check audit-ids audit-monitoring-type audit-codeowners-coverage audit-exclusions-coverage audit-dashboards audit-sarif audit-observability-drift audit-cost-coverage audit-vendor-changelog audit-cisco-tag-evidence audit-escu-drilldown-spl audit-splunkbase-app-status audit-cisco-coverage ## Run ALL audit checks
 
 audit-structure: ## Audit UC JSON structure (content/cat-*/UC-*.json)
 	$(SPLUNK_UC) audit-uc-structure --full
@@ -232,6 +233,9 @@ audit-cisco-tag-evidence: ## Fail when a cisco model tag has no producible sourc
 
 audit-escu-drilldown-spl: ## Fail when a UC search is the ESCU risk drill-down
 	$(SPLUNK_UC) audit-escu-drilldown-spl --check
+
+audit-splunkbase-app-status: ## Fail when a cited Splunkbase app is missing, archived, or a different app
+	$(SPLUNK_UC) audit-splunkbase-app-status --check
 
 add-vendor-changelog-entry: ## Append an entry to data/vendor-changelog/<vendor>.json (pass CLI flags)
 	$(SPLUNK_UC) add-vendor-changelog-entry --help

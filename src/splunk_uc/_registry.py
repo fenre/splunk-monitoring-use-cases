@@ -694,6 +694,14 @@ register(
 )
 register(
     Verb(
+        name="audit-splunkbase-app-status",
+        module="audits.splunkbase_app_status",
+        help="Fail when a cited Splunkbase app is missing, archived, or a different app.",
+        category="audits",
+    )
+)
+register(
+    Verb(
         name="audit-equipment-models",
         module="audits.equipment_models",
         help="Validate equipment[] slugs and equipmentModels[] against SSOT registry.",
