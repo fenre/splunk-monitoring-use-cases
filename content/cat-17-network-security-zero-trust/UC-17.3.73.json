@@ -1,0 +1,80 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.3.73",
+  "title": "Cisco Secure Access DLP Violations by Identity and Destination",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "exclusions": "Covers uploads inspected by Secure Access Real Time DLP and SaaS API DLP scans. Data sent through channels Secure Access does not see, such as personal devices off the network, is not included.",
+  "evidence": "Saved alert results per identity with rules and files, plus the data protection team's case record for each high or critical row.",
+  "controlTest": {
+    "positiveScenario": "As a test user behind Secure Access with a Real Time DLP rule for the built-in PCI classification, upload a file of published test card numbers to a file-sharing site. Within the S3 delay the DLP event is indexed, and the search returns a row for the test identity with the PCI classification and the file name.",
+    "negativeScenario": "Upload a file with no sensitive data to the same site. No DLP event is created and the search returns no row for the test identity."
+  },
+  "dataSources": "`index=sse sourcetype=cisco:cloud_security:dlp` from the Secure Access S3 log bucket, read by the Cisco Secure Access Add-on (7569). One CSV line per data identifier match, documented by Cisco in this order: timestamp, event type (Real Time or SaaS API), unique event id, severity, identity, owner, name, application, destination, action (Blocked or Monitored), rule, data classification, data identifier, content type, file size, sha 256 hash, and later columns.",
+  "app": "Cisco Secure Access Add-on for Splunk ([Splunkbase 7569](https://splunkbase.splunk.com/app/7569)), which reads Cisco Secure Access and Cisco Umbrella logs from the S3 log bucket and maps the web proxy log to the CIM Web data model. The companion Cisco Secure Access App (Splunkbase 5558) adds dashboards.",
+  "spl": "index=sse sourcetype=\"cisco:cloud_security:dlp\"\n| rex field=_raw \"^\\\"(?<ts>[^\\\"]*)\\\",\\\"(?<event_type>[^\\\"]*)\\\",\\\"(?<event_id>[^\\\"]*)\\\",\\\"(?<severity>[^\\\"]*)\\\",\\\"(?<identity>[^\\\"]*)\\\",\\\"(?<owner>[^\\\"]*)\\\",\\\"(?<file_name>[^\\\"]*)\\\",\\\"(?<application>[^\\\"]*)\\\",\\\"(?<destination>[^\\\"]*)\\\",\\\"(?<dlp_action>[^\\\"]*)\\\",\\\"(?<rule>[^\\\"]*)\\\",\\\"(?<classification>[^\\\"]*)\\\",\\\"(?<data_identifier>[^\\\"]*)\\\",\\\"(?<content_type>[^\\\"]*)\\\",\\\"(?<file_size>[^\\\"]*)\\\",\\\"(?<sha256>[^\\\"]*)\\\"\"\n| eval dlp_action=lower(dlp_action), sev=lower(severity)\n| stats dc(event_id) as violations values(rule) as rules values(classification) as classifications values(data_identifier) as identifiers values(file_name) as files values(application) as applications values(dlp_action) as actions values(event_type) as event_types by identity sev\n| eval monitored_only=if(isnull(mvfind(actions, \"^block\")), \"yes\", \"no\")\n| where match(sev, \"high|alert|critical\") OR violations >= 5\n| sort - violations",
+  "description": "Counts Secure Access DLP violations per identity and severity, using the unique event id so one file that matches several identifiers counts once. Each row lists the rules, data classifications, identifiers, file names, applications, and whether every match was only monitored rather than blocked.",
+  "value": "DLP findings only protect data if someone acts on them. This view puts the highest-severity and most frequent violators first, and flags rules running in monitor mode, so the data protection team can see where sensitive data is actually leaving and which rules are ready to block.",
+  "implementation": "Collect the Secure Access DLP log with the 7569 add-on into `index=sse`. Schedule hourly and alert on high or critical rows; report the rest daily to the data protection team.",
+  "visualization": "Alert table: identity, sev, violations, rules, classifications, identifiers, files, applications, actions, monitored_only. Supporting panels: violations per day by classification over 30 days (stacked column), top destination applications (bar chart).",
+  "cimModels": [],
+  "schema": "OCSF: data_security_finding",
+  "references": [
+    {
+      "title": "Cisco Secure Access Add-on for Splunk (Splunkbase 7569)",
+      "url": "https://splunkbase.splunk.com/app/7569",
+      "retrieved": "2026-11-02"
+    },
+    {
+      "title": "Cisco Secure Access: Log Formats and Versioning",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/secure-access/secure-access-help/CiscoSecureAccessHelp/logging-intro/log_formats_and_versioning.html",
+      "retrieved": "2026-11-02"
+    },
+    {
+      "title": "Splunk: Integrated Enterprise Value for Cisco data (supported source types)",
+      "url": "https://help.splunk.com/en/splunk-cloud-platform/get-started/get-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data",
+      "retrieved": "2026-11-02"
+    }
+  ],
+  "knownFalsePositives": "1. **Test data** — sample credit card numbers and test records in development uploads match built-in identifiers.\n\n2. **Approved transfers** — finance or HR uploading to an approved partner application. Add the application to the rule's exceptions rather than suppressing here.\n\n3. **Repeated rows** — one file that matches several identifiers appears in several rows with the same unique event id; the search counts it once.\n\n**Suppression:** a lookup of approved identity and application pairs, reviewed quarterly.",
+  "mitreAttack": [
+    "T1567"
+  ],
+  "detectionType": "TTP",
+  "securityDomain": "network",
+  "requiredFields": [
+    "event_type",
+    "event_id",
+    "severity",
+    "identity",
+    "file_name",
+    "application",
+    "destination",
+    "dlp_action",
+    "rule",
+    "classification",
+    "data_identifier"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_secure_access"
+  ],
+  "capabilities": [
+    "secure_access.data_loss_prevention"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Cisco Secure Access Add-on for Splunk (Splunkbase 7569) on the search heads and on the heavy forwarder or Inputs Data Manager that reads the S3 bucket.\n• Log export to Amazon S3 enabled in the Secure Access or Umbrella dashboard (Admin > Log Management), either a Cisco-managed bucket or your own, with the access key and secret for Splunk.\n• An index for Secure Access and Umbrella data (this page uses `index=sse`) and a role with `srchIndexesAllowed` on it for the network security team.\n\nStep 1 — Configure data collection\n• In the Cisco Secure Access Add-on (Splunkbase 7569) create an S3 modular input for the **DLP** log folder with the bucket name, region, access key, and secret, and set the index to `sse`. The add-on writes `sourcetype=cisco:cloud_security:dlp`.\n• Logs reach S3 in batches, so events usually arrive in Splunk 10 to 15 minutes after the activity.\n• Secure Access writes this log as CSV with every value in double quotes, in a fixed column order that Cisco documents per log version. The search reads the columns it needs from `_raw` with `rex` in that documented order, so it works whether or not the add-on's own field names match. New columns are only added at the end in later versions, so the leading columns stay in place.\n• Check the column order on one event: run `index=sse sourcetype=\"cisco:cloud_security:dlp\" | head 1 | table _raw` and confirm the second quoted value is Real Time or SaaS API.\n\nStep 2 — Create the search and alert\n```spl\nindex=sse sourcetype=\"cisco:cloud_security:dlp\"\n| rex field=_raw \"^\\\"(?<ts>[^\\\"]*)\\\",\\\"(?<event_type>[^\\\"]*)\\\",\\\"(?<event_id>[^\\\"]*)\\\",\\\"(?<severity>[^\\\"]*)\\\",\\\"(?<identity>[^\\\"]*)\\\",\\\"(?<owner>[^\\\"]*)\\\",\\\"(?<file_name>[^\\\"]*)\\\",\\\"(?<application>[^\\\"]*)\\\",\\\"(?<destination>[^\\\"]*)\\\",\\\"(?<dlp_action>[^\\\"]*)\\\",\\\"(?<rule>[^\\\"]*)\\\",\\\"(?<classification>[^\\\"]*)\\\",\\\"(?<data_identifier>[^\\\"]*)\\\",\\\"(?<content_type>[^\\\"]*)\\\",\\\"(?<file_size>[^\\\"]*)\\\",\\\"(?<sha256>[^\\\"]*)\\\"\"\n| eval dlp_action=lower(dlp_action), sev=lower(severity)\n| stats dc(event_id) as violations values(rule) as rules values(classification) as classifications values(data_identifier) as identifiers values(file_name) as files values(application) as applications values(dlp_action) as actions values(event_type) as event_types by identity sev\n| eval monitored_only=if(isnull(mvfind(actions, \"^block\")), \"yes\", \"no\")\n| where match(sev, \"high|alert|critical\") OR violations >= 5\n| sort - violations\n```\n\nUnderstanding this SPL\n• `rex` reads the first 16 documented columns; `event_id` is the unique event id shared by all rows of one file.\n• `dc(event_id)` counts files, not identifier matches.\n• `monitored_only=yes` shows every match was monitored, never blocked, which points to rules still in monitor mode.\n• Severity is written as Low/Info, Medium/Warn, High/Alert, or Critical depending on version, so `match` checks for any of the high words.\n\nStep 3 — Validate\n• Compare with the Secure Access dashboard under Reporting > Data Loss Prevention for the same time range: violation counts per identity should match within the S3 delay.\n• Pick three events in Splunk and compare each extracted field with the same row in the CSV file in the S3 bucket.\n• Run `index=sse sourcetype=\"cisco:cloud_security:dlp\" | timechart span=1h count` over 7 days; gaps longer than an hour point to S3 input failures.\n\nStep 4 — Operationalize\n• Schedule hourly over the last 70 minutes and throttle on `identity` for 24 hours.\n• Route high and critical rows to the data protection team; involve HR or legal according to policy.\n• Use the `monitored_only` column to decide which rules can move from monitor to block.\n\nStep 5 — Troubleshooting\n• No proxy events and S3 access errors (403 AccessDenied) in the add-on log: the access key cannot read the bucket or the region is wrong.\n• Events arrive hours late: the input polling interval is long, or the bucket path prefix is wrong and the input scans the whole bucket.\n• Empty fields after `rex`: the log export is set to an older log version with a different column order, or the line has a header row. Check the version in Admin > Log Management and compare one `_raw` line with Cisco's column list.\n• No DLP events at all: the log type is not enabled in Admin > Log Management, or the S3 input path does not include its folder.\n",
+  "grandmaExplanation": "The company scans files people upload to the web for things like card numbers. We list who sent the most sensitive files out and whether they were stopped.",
+  "prerequisiteUseCases": [],
+  "wave": "walk"
+}

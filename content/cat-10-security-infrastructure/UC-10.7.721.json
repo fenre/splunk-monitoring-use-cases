@@ -1,0 +1,67 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "10.7.721",
+  "title": "Cisco XDR Incidents Not Promoted to Enterprise Security Findings",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Security",
+    "Availability"
+  ],
+  "splunkPillar": "Security",
+  "exclusions": "Checks that promotion events are written, not that Enterprise Security turned each one into a finding. Confirm that in Enterprise Security's own finding counts for the XDR source.",
+  "evidence": "Daily results table kept for 90 days, and the incident record for any day marked \"not promoting\".",
+  "controlTest": {
+    "positiveScenario": "With promotion enabled, create a test incident in Cisco XDR and confirm a `cisco:xdr:incidents-summary:notable` event and an Enterprise Security finding appear. Then turn promotion off on the input for one day while incidents keep arriving: the next run marks that day \"not promoting\".",
+    "negativeScenario": "Turn promotion back on. The following day has promoted events again, and its status is ok."
+  },
+  "dataSources": "`index=xdr` from the Cisco Security Cloud (7404) XDR input: `sourcetype=cisco:xdr:incidents-summary` (from `GET /iroh/private-intel/incident-summary/search`) and, when **Promote XDR Incidents to ES Findings** is enabled on the input, `sourcetype=cisco:xdr:incidents-summary:notable`, the events Enterprise Security turns into findings.",
+  "app": "Cisco Security Cloud (`CiscoSecurityCloud`, [Splunkbase 7404](https://splunkbase.splunk.com/app/7404)), Cisco XDR input.",
+  "spl": "index=xdr (sourcetype=\"cisco:xdr:incidents-summary\" OR sourcetype=\"cisco:xdr:incidents-summary:notable\") earliest=-7d@d latest=@h\n| bin _time span=1d\n| stats count(eval(sourcetype=\"cisco:xdr:incidents-summary\")) as summaries count(eval(sourcetype=\"cisco:xdr:incidents-summary:notable\")) as promoted by _time\n| eval promoted_pct=if(summaries > 0, round(100 * promoted / summaries, 1), null())\n| eval status=case(summaries > 0 AND promoted = 0, \"not promoting\", promoted_pct < 50, \"partial\", true(), \"ok\")\n| sort - _time",
+  "description": "Compares, per day, how many XDR incident summaries the Cisco Security Cloud input imported with how many it wrote as Enterprise Security promotion events. Days with summaries but no promotion events are marked \"not promoting\".",
+  "value": "When promotion is turned on, the SOC expects every XDR incident to arrive as an Enterprise Security finding. If promotion silently stops, XDR incidents are missing from the queue analysts actually work, and nobody notices until an incident is missed. This check catches that the same day.",
+  "implementation": "Enable **Promote XDR Incidents to ES Findings?** on the Cisco Security Cloud (7404) XDR input. Schedule this search daily at 01:00 and alert when the latest complete day shows \"not promoting\".",
+  "visualization": "Table: _time, summaries, promoted, promoted_pct, status. Supporting panel: summaries and promoted per day over 30 days (line chart).",
+  "cimModels": [],
+  "schema": "OCSF: incident_finding",
+  "references": [
+    {
+      "title": "Cisco Security Cloud (Splunkbase 7404)",
+      "url": "https://splunkbase.splunk.com/app/7404",
+      "retrieved": "2026-11-02"
+    },
+    {
+      "title": "Cisco Security Cloud App for Splunk User Guide",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/cisco-secure-cloud-app/user-guide/cisco-security-cloud-user-guide.pdf",
+      "retrieved": "2026-11-02"
+    },
+    {
+      "title": "Splunk: Integrated Enterprise Value for Cisco data (supported source types)",
+      "url": "https://help.splunk.com/en/splunk-cloud-platform/get-started/get-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data",
+      "retrieved": "2026-11-02"
+    }
+  ],
+  "knownFalsePositives": "1. **Promotion intentionally off** — if the input does not promote, every day shows \"not promoting\". Only schedule this search where promotion is enabled.\n\n2. **Updated incidents** — summaries are re-imported when incidents change, so the summary count can exceed the number of new incidents; compare the trend, not exact numbers.\n\n**Suppression:** none; one alert per day.",
+  "detectionType": "Anomaly",
+  "securityDomain": "threat",
+  "requiredFields": [
+    "sourcetype"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_xdr"
+  ],
+  "capabilities": [
+    "xdr.es_promotion"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Cisco Security Cloud (`CiscoSecurityCloud`, Splunkbase 7404) on the search heads and on the heavy forwarder or Splunk Cloud Inputs Data Manager that runs its modular inputs.\n• A Cisco XDR API client: in XDR under Administration > API Clients, create a client with read access to incidents and record the client ID and secret. Note the XDR region (North America, Europe, or Asia Pacific).\n• Outbound HTTPS (TCP 443) from the input host to the XDR regional API host. The input requests an OAuth token with the client credentials; tokens are valid for 600 seconds and are renewed automatically.\n• An index for XDR data (this page uses `index=xdr`) and a role with `srchIndexesAllowed` on it for the SOC.\n• Splunk Enterprise Security on the search head that receives the promoted findings.\n\nStep 1 — Configure data collection\n• In Cisco Security Cloud open Application Setup, choose the Cisco XDR card, and create an input with the region, the authentication method (client ID and secret), and the import time range. Set the index to `xdr`.\n• The modular input calls `GET /iroh/private-intel/incident-summary/search` and `GET /iroh/private-intel/incident/search` and writes `sourcetype=cisco:xdr:incidents-summary` and `sourcetype=cisco:xdr:incidents`.\n• Turn on **Promote XDR Incidents to ES Findings?** on the input. The guide lists XDR incident events as the data promoted to findings; the input writes them as `sourcetype=cisco:xdr:incidents-summary:notable`.\n• Check the events this search needs: run `index=xdr | stats count by sourcetype` over 7 days and confirm both summary sourcetypes appear.\n\nStep 2 — Create the search and alert\n```spl\nindex=xdr (sourcetype=\"cisco:xdr:incidents-summary\" OR sourcetype=\"cisco:xdr:incidents-summary:notable\") earliest=-7d@d latest=@h\n| bin _time span=1d\n| stats count(eval(sourcetype=\"cisco:xdr:incidents-summary\")) as summaries count(eval(sourcetype=\"cisco:xdr:incidents-summary:notable\")) as promoted by _time\n| eval promoted_pct=if(summaries > 0, round(100 * promoted / summaries, 1), null())\n| eval status=case(summaries > 0 AND promoted = 0, \"not promoting\", promoted_pct < 50, \"partial\", true(), \"ok\")\n| sort - _time\n```\n\nUnderstanding this SPL\n• The search counts both sourcetypes per day without relying on field names, so it works across add-on versions.\n• `promoted_pct` compares the two counts; under 50 percent is marked partial for review.\n• `latest=@h` stops at the last full hour, so the current day is partial; alert on the previous day's row.\n\nStep 3 — Validate\n• Compare with the Enterprise Security Mission Control or Incident Review page filtered to the XDR source for the same day: the number of findings should be close to `promoted`.\n• Compare with the Cisco XDR console Incidents page for the same day: the number of new or updated incidents should be close to `summaries`.\n• Run `index=xdr | timechart span=1d count by sourcetype` over 30 days and check both lines move together.\n\nStep 4 — Operationalize\n• Schedule daily at 01:00 over the previous seven days and alert when yesterday's status is \"not promoting\" or \"partial\".\n• Route to the Splunk platform team: check the input's promotion setting and the input log.\n• Keep the results for 90 days as evidence that the integration worked.\n\nStep 5 — Troubleshooting\n• No cisco:xdr events and HTTP 401 in the input log: wrong client ID or secret, or the client was created in a different XDR region from the one selected.\n• HTTP 403: the API client lacks read access to incidents.\n• Events stop after a few minutes: the input host's clock is wrong, so the 600-second tokens expire early.\n• No notable events while summaries arrive: promotion is off on the input, or the input was recreated without it.\n",
+  "grandmaExplanation": "Cisco XDR cases are meant to be copied into the team's main to-do list. We check every day that the copying is still working.",
+  "prerequisiteUseCases": [],
+  "wave": "walk"
+}

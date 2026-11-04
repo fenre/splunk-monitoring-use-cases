@@ -1,0 +1,71 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "3.5.19",
+  "title": "Cisco Isovalent Container Processes by Destination",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "exclusions": "Covers one Isovalent event type. Risk-framework drill-downs that mention Isovalent are a different search.",
+  "evidence": "Daily counts of the matching events for 30 days, with the pod and binary columns from the search.",
+  "controlTest": {
+    "positiveScenario": "Run the test action described in the validation step inside a non-production pod. The next search shows that pod and binary.",
+    "negativeScenario": "Stop the Isovalent HEC export. The search returns no rows for the following hour."
+  },
+  "dataSources": "`index=containers sourcetype=cisco:isovalent:processConnect` from the Cisco Security Cloud (7404) Isovalent input over HEC. Field names are the ones Splunk Security Content lists for this sourcetype: process_connect.destination_ip, process_connect.destination_port, process_connect.process.binary, pod_name, pod_namespace, cluster_name.",
+  "app": "Cisco Security Cloud (`CiscoSecurityCloud`, [Splunkbase 7404](https://splunkbase.splunk.com/app/7404)), Isovalent input.",
+  "spl": "index=containers sourcetype=\"cisco:isovalent:processConnect\" earliest=-24h\n| stats count as connections dc(process_connect.destination_ip) as destinations by cluster_name, pod_namespace, pod_name, process_connect.process.binary, process_connect.destination_port\n| sort - destinations",
+  "description": "Ranks container processes by how many distinct addresses they connected to. Destination address and port are process_connect.destination_ip and process_connect.destination_port, and the process is process_connect.process.binary, which Splunk Security Content documents for cisco:isovalent:processConnect.",
+  "value": "A pod that suddenly talks to many addresses is often a scanner or a caller of an unknown service. Tying the address to the exact process avoids guessing which container on the node opened the socket.",
+  "implementation": "Enable the Isovalent HEC input in Cisco Security Cloud into index=containers. Schedule this search hourly.",
+  "visualization": "Table of the stats output, sorted by the count column, plus a timechart of the count.",
+  "cimModels": [],
+  "schema": "OCSF: network_activity",
+  "references": [
+    {
+      "title": "Cisco Security Cloud (Splunkbase 7404)",
+      "url": "https://splunkbase.splunk.com/app/7404",
+      "retrieved": "2026-11-04"
+    },
+    {
+      "title": "Cisco Security Cloud App for Splunk User Guide",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/cisco-secure-cloud-app/user-guide/cisco-security-cloud-user-guide.pdf",
+      "retrieved": "2026-11-04"
+    },
+    {
+      "title": "Splunk Security Content data source for this Isovalent event",
+      "url": "https://github.com/splunk/security_content/blob/develop/data_sources/cisco_isovalent_process_connect.yml",
+      "retrieved": "2026-11-04"
+    }
+  ],
+  "knownFalsePositives": "1. **Health probes and package caches** — kube-system DaemonSets run shells and connect to the API server. Exclude `pod_namespace=kube-system` once you have confirmed those pods.\n\n**Suppression:** exclude the namespaces your platform team owns.",
+  "detectionType": "Hunting",
+  "securityDomain": "network",
+  "requiredFields": [
+    "process_connect.destination_ip",
+    "process_connect.destination_port",
+    "process_connect.process.binary",
+    "pod_name",
+    "pod_namespace",
+    "cluster_name"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_isovalent"
+  ],
+  "capabilities": [
+    "isovalent.network_connections"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Cisco Security Cloud (`CiscoSecurityCloud`, Splunkbase 7404) on the search heads and on the heavy forwarder that exposes the HEC token.\n• Isovalent Runtime Security (Tetragon) sending process events to the Splunk integration, and a HEC token scoped to index=containers.\n• A role with srchIndexesAllowed on index=containers.\n\nStep 1 — Configure data collection\n• In Cisco Security Cloud open the Isovalent card and create the HEC input. The add-on writes `cisco:isovalent:processConnect`.\n• Confirm fields: `index=containers sourcetype=\"cisco:isovalent:processConnect\" | fieldsummary process_connect.destination_ip`.\n\nStep 2 — Create the search\n```spl\nindex=containers sourcetype=\"cisco:isovalent:processConnect\" earliest=-24h\n| stats count as connections dc(process_connect.destination_ip) as destinations by cluster_name, pod_namespace, pod_name, process_connect.process.binary, process_connect.destination_port\n| sort - destinations\n```\n\nUnderstanding this SPL\n• dc() counts distinct destination addresses per process and port.\n• source_ip and protocol are also documented and can be added when a row needs the local side of the socket.\n\nStep 3 — Validate\n• In a non-production namespace, run the action this search looks for and confirm the pod name appears.\n• Compare the pod name with `kubectl get pods -A` so a deleted pod is not investigated as live.\n\n• Confirm in the vendor console that the same hour shows the same kind of event before trusting a zero or a spike.\n\nStep 4 — Operationalize\n• Hourly search, table on the container-security dashboard.\n• Alert on counts above an agreed baseline per namespace, throttled on pod_namespace for 1 hour.\n\nStep 5 — Troubleshooting\n• No events: the HEC token or the Isovalent export URL is wrong. The user guide also notes an Edge Processor variant that is alpha; this page uses the HEC input.\n• Events exist but the fields are empty: the sourcetype is not `cisco:isovalent:processConnect`. Splunk Security Content documents this casing, not an all-lowercase name.\n• No data for this sourcetype, with an input error in the Cisco Security Cloud log, means the credential or token is incorrect.\n",
+  "grandmaExplanation": "We show which program inside a container connected out, and how many different addresses it reached.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}

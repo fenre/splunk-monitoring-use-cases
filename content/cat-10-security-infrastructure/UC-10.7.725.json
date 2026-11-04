@@ -1,0 +1,60 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "10.7.725",
+  "title": "Cisco Secure Workload Alert Volume",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "exclusions": "Counts syslog alerts from Secure Workload. It does not parse policy or workload names, which the add-on does not publish as fields.",
+  "evidence": "Hourly alert counts for 30 days.",
+  "controlTest": {
+    "positiveScenario": "Generate a test alert in Secure Workload and confirm the next hour's alerts count increases after the syslog connector delivers it.",
+    "negativeScenario": "Disable the syslog connector. The following hour is zero while the console still shows alerts."
+  },
+  "dataSources": "`index=cisco_secure_workload sourcetype=cisco:secure:workload` from the Cisco Security Cloud (7404) Secure Workload input, which listens for syslog. A syslog connector is configured on the Secure Workload side to that port. The user guide publishes no field list, so the search counts events.",
+  "app": "Cisco Security Cloud (`CiscoSecurityCloud`, [Splunkbase 7404](https://splunkbase.splunk.com/app/7404)), Secure Workload input.",
+  "spl": "index=cisco_secure_workload sourcetype=\"cisco:secure:workload\" earliest=-24h\n| timechart span=1h count as alerts",
+  "description": "Counts Cisco Secure Workload alerts per hour. The add-on receives them as syslog with sourcetype cisco:secure:workload and publishes no field names, so the search counts alerts instead of grouping by workload.",
+  "value": "A policy violation on a server is only visible next to the rest of the incident if the syslog connector is delivering. This count is the check that microsegmentation alerts are still arriving.",
+  "implementation": "Create the Secure Workload input in Cisco Security Cloud and point the Secure Workload syslog connector at its port. Chart alerts per hour.",
+  "visualization": "Column chart of alerts per hour over 24 hours.",
+  "cimModels": [],
+  "schema": "OCSF: detection_finding",
+  "references": [
+    {
+      "title": "Cisco Security Cloud (Splunkbase 7404)",
+      "url": "https://splunkbase.splunk.com/app/7404",
+      "retrieved": "2026-11-04"
+    },
+    {
+      "title": "Cisco Security Cloud App for Splunk User Guide",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/cisco-secure-cloud-app/user-guide/cisco-security-cloud-user-guide.pdf",
+      "retrieved": "2026-11-04"
+    }
+  ],
+  "knownFalsePositives": "1. **Policy tests** — a change window that hits many workloads produces a spike. Note the window before treating it as an attack.\n\n**Suppression:** alert when a staffed hour is zero.",
+  "detectionType": "Baseline",
+  "securityDomain": "endpoint",
+  "requiredFields": [],
+  "equipment": [
+    "cisco",
+    "syslog"
+  ],
+  "equipmentModels": [
+    "cisco_secure_workload"
+  ],
+  "capabilities": [
+    "secure_workload.workload_alerts"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Cisco Security Cloud (`CiscoSecurityCloud`, Splunkbase 7404) on the search heads and on the heavy forwarder or Splunk Cloud Inputs Data Manager that runs its modular inputs.\n• A syslog connector on Secure Workload aimed at the input's address and port.\n• An index for this data (this page uses `cisco_secure_workload`) and a role with `srchIndexesAllowed` on it for the SOC.\n\nStep 1 — Configure data collection\n• In Cisco Security Cloud open Application Setup, choose the Secure Workload card, and create an input. Set the index to `cisco_secure_workload`.\n• The input writes `cisco:secure:workload`.\n• Confirm events arrive: `index=cisco_secure_workload sourcetype=\"cisco:secure:workload\" | stats count`.\n\nStep 2 — Create the search\n```spl\nindex=cisco_secure_workload sourcetype=\"cisco:secure:workload\" earliest=-24h\n| timechart span=1h count as alerts\n```\n\nUnderstanding this SPL\n• The user guide describes a syslog listener, not an API poll. The connector on the Secure Workload side must target the input's address and port.\n• No workload or policy field is documented, so the panel counts events.\n\nStep 3 — Validate\n• In Secure Workload, open the alerts for the same hour. A console with alerts and a zero panel means syslog is not arriving.\n\n• Confirm in the vendor console that the same hour shows the same kind of event before trusting a zero or a spike.\n\nStep 4 — Operationalize\n• Put the panel on the SOC dashboard for Secure Workload and refresh it hourly.\n• Alert when the count drops to zero during a staffed period, which means the input stopped, and throttle for 4 hours.\n\nStep 5 — Troubleshooting\n• Nothing arrives: the connector points at the wrong port, or a firewall blocks UDP or TCP syslog from the Secure Workload appliance to the input host.\n• Events arrive under a different sourcetype: the input's sourcetype was edited. The default the add-on ships is cisco:secure:workload.\n• No data for this sourcetype, with an input error in the Cisco Security Cloud log, means the credential or token is incorrect.\n",
+  "grandmaExplanation": "We count the workload alerts Cisco sends each hour, so we know server policy violations are still reaching us.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}

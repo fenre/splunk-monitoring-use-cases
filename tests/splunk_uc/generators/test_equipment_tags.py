@@ -359,6 +359,41 @@ class TestApplyTags:
         assert out["equipment"] == ["aws"]
         assert out["equipmentModels"] == ["aws_cloudtrail"]
 
+    def test_stale_cisco_aci_tag_is_dropped(self) -> None:
+        # cisco_aci from the retired bare "ACI" pattern (it matched inside
+        # "capacity") is not kept once the computation no longer produces it.
+        sidecar = {
+            "id": "1.1.1",
+            "equipment": ["azure", "cisco"],
+            "equipmentModels": ["azure_foo", "cisco_aci"],
+        }
+        out = et._apply_tags(sidecar, ["aws"], ["aws_cloudtrail"])
+        assert out["equipment"] == ["aws", "azure"]
+        assert out["equipmentModels"] == ["aws_cloudtrail", "azure_foo"]
+
+    def test_sticky_cisco_tag_survives_a_generic_search(self) -> None:
+        sidecar = {
+            "id": "1.1.1",
+            "spl": 'index=network sourcetype="snmp:interface"',
+            "equipment": ["cisco"],
+            "equipmentModels": ["cisco_ios"],
+        }
+        out = et._apply_tags(sidecar, [], [])
+        assert out["equipment"] == ["cisco"]
+        assert out["equipmentModels"] == ["cisco_ios"]
+
+    def test_sticky_cisco_tag_dropped_when_spl_is_another_vendor(self) -> None:
+        sidecar = {
+            "id": "1.1.1",
+            "spl": 'index=firewall sourcetype="pan:threat"',
+            "equipment": ["cisco", "paloalto"],
+            "equipmentModels": ["cisco_firepower", "paloalto_pan_firewall"],
+        }
+        out = et._apply_tags(sidecar, ["paloalto"], ["paloalto_pan_firewall"])
+        assert "cisco" not in out["equipment"]
+        assert "cisco_firepower" not in out["equipmentModels"]
+        assert "paloalto_pan_firewall" in out["equipmentModels"]
+
 
 class TestSerialise:
     def test_returns_indent_2_with_trailing_newline(self) -> None:
@@ -676,3 +711,102 @@ def test_sidecar_field_order_matches_schema_anchors() -> None:
     eq_idx = et._SIDECAR_FIELD_ORDER.index("equipment")
     eqm_idx = et._SIDECAR_FIELD_ORDER.index("equipmentModels")
     assert eq_idx < eqm_idx
+
+
+class TestCiscoPortfolioModels:
+    """Real-registry checks for the Cisco portfolio models."""
+
+    @staticmethod
+    def _models(**fields: str) -> list[str]:
+        sidecar = {"app": "", "spl": "", "dataSources": "", "implementation": "", "description": ""}
+        sidecar.update(fields)
+        return et._compute_tags(sidecar, _compile_patterns())[1]
+
+    @pytest.mark.parametrize(
+        ("text", "model"),
+        [
+            ("index=duo sourcetype=cisco:duo:authentication", "cisco_duo"),
+            ("Cisco Secure Access Add-on for Splunk", "cisco_secure_access"),
+            ("sourcetype=cisco:umbrella:dns", "cisco_secure_access"),
+            ("Cisco Secure Endpoint events", "cisco_secure_endpoint"),
+            ("sourcetype=cisco:xdr:incidents", "cisco_xdr"),
+            ("sourcetype=cisco:sna alarms", "cisco_secure_network_analytics"),
+            ("sourcetype=cisco:ai:defense", "cisco_ai_defense"),
+            ("sourcetype=cisco:secure:workload", "cisco_secure_workload"),
+            ("sourcetype=cisco:multicloud:defense:waf", "cisco_multicloud_defense"),
+            ("sourcetype=cisco:etd", "cisco_email_threat_defense"),
+            ("sourcetype=cisco:sma:submissions", "cisco_secure_malware_analytics"),
+            ("sourcetype=cisco:isovalent:processexec", "cisco_isovalent"),
+            ("Cisco Hypershield enforcement syslog", "cisco_hypershield"),
+            ("Cisco Nexus Hyperfabric assertions", "cisco_hyperfabric"),
+            ("%HSR_ALARM-2-HSR_RINGFAULT on an IE3400", "cisco_industrial_ethernet"),
+            ("sourcetype=cisco:cvi", "cisco_vulnerability_intelligence"),
+            ("sourcetype=cisco:nvm:flowdata:v2", "cisco_secure_client_nvm"),
+            ("sourcetype=cisco:evm:process_activity", "cisco_endpoint_visibility_module"),
+        ],
+    )
+    def test_product_patterns_tag_their_model(self, text: str, model: str) -> None:
+        assert model in self._models(dataSources=text)
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "Duolingo streak notifications",
+            "Dual-homed uplink via duo-port bonding",
+            "VPN secure access for contractors through Palo Alto GlobalProtect",
+            "An umbrella policy for every business unit",
+            "Third-party vulnerability intelligence feed",
+        ],
+    )
+    def test_generic_phrases_do_not_tag_cisco_products(self, text: str) -> None:
+        models = self._models(dataSources=text, description=text)
+        assert not [m for m in models if m.startswith("cisco_")]
+
+    def test_aci_does_not_match_inside_capacity(self) -> None:
+        models = self._models(app="Local app `TA-linux-process-capacity` for the scripted input facility.")
+        assert "cisco_aci" not in models
+
+    def test_secure_firewall_mention_does_not_tag_a_palo_alto_search(self) -> None:
+        equipment, models = et._compute_tags(
+            {
+                "app": "Splunk_TA_paloalto, Cisco Secure Firewall Add-on",
+                "spl": 'index=firewall sourcetype="pan:threat" severity="critical"',
+                "dataSources": "sourcetype=pan:threat",
+                "implementation": "",
+                "description": "",
+            },
+            _compile_patterns(),
+        )
+        assert "cisco" not in equipment
+        assert "cisco_firepower" not in models
+        assert "paloalto_pan_firewall" in models
+
+    def test_cyber_vision_mention_does_not_tag_a_nozomi_search(self) -> None:
+        equipment, models = et._compute_tags(
+            {
+                "app": "Cisco Cyber Vision Splunk Add-On (Splunkbase 5748), Nozomi Networks Universal Add-on",
+                "spl": 'index=nozomi sourcetype="nozomi:nn_asset" | stats count',
+                "dataSources": "sourcetype=cisco:cybervision:device and nozomi:nn_asset",
+                "implementation": "",
+                "description": "",
+            },
+            _compile_patterns(),
+        )
+        assert "cisco_cyber_vision" not in models
+        assert "cisco" not in equipment
+
+    def test_ios_over_snmp_keeps_its_tag(self) -> None:
+        # SNMP is telemetry Cisco routers emit. Naming IOS and searching
+        # snmp:interface is a real Cisco use case.
+        models = self._models(
+            app="Cisco IOS",
+            spl='index=network sourcetype="snmp:interface" | stats avg(util) by host',
+        )
+        assert "cisco_ios" in models
+
+    def test_asa_sourcetype_in_list_keeps_its_tag_beside_aws(self) -> None:
+        models = self._models(
+            app="Cisco ASA, Splunk Add-on for Amazon Web Services",
+            spl='sourcetype IN ("cisco:asa","cisco:ftd") OR sourcetype="aws:cloudwatch"',
+        )
+        assert "cisco_asa" in models

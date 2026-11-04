@@ -1,0 +1,75 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.3.74",
+  "title": "Cisco Secure Access Zero Trust Access Denials per User",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "exclusions": "Covers private applications published through Secure Access zero trust access only. Applications reached through the remote access VPN are in the VPN log.",
+  "evidence": "Saved alert results per user with the applications and locations, plus the help desk or incident record for each row.",
+  "controlTest": {
+    "positiveScenario": "As a test user with the Secure Client zero trust module, try to open five private applications the user has no access rule for, twice each, within one hour. Within the S3 delay the denials are indexed, and the search returns a row for the test user with `apps` of 5 and `denied` of at least 3.",
+    "negativeScenario": "Open one application the test user is allowed to reach. The decision is logged with verdict ALLOW and the search returns no row."
+  },
+  "dataSources": "`index=sse sourcetype=cisco:cloud_security:ztna` from the Secure Access S3 log bucket, read by the Cisco Secure Access Add-on (7569). One CSV line per zero trust access decision for a private application, documented by Cisco in this order: timestamp, identity email, identity labels, identity type labels, hostname, verdict, client os, client browser, client geo location, client ip, ruleset id, rule id, private app group id, private app id, private resource id, private resource group id, step up auth type, step up auth result, and later columns.",
+  "app": "Cisco Secure Access Add-on for Splunk ([Splunkbase 7569](https://splunkbase.splunk.com/app/7569)), which reads Cisco Secure Access and Cisco Umbrella logs from the S3 log bucket and maps the web proxy log to the CIM Web data model. The companion Cisco Secure Access App (Splunkbase 5558) adds dashboards.",
+  "spl": "index=sse sourcetype=\"cisco:cloud_security:ztna\"\n| rex field=_raw \"^\\\"(?<ts>[^\\\"]*)\\\",\\\"(?<identity_email>[^\\\"]*)\\\",\\\"(?<identity_labels>[^\\\"]*)\\\",\\\"(?<identity_type_labels>[^\\\"]*)\\\",\\\"(?<hostname>[^\\\"]*)\\\",\\\"(?<verdict>[^\\\"]*)\\\",\\\"(?<client_os>[^\\\"]*)\\\",\\\"(?<client_browser>[^\\\"]*)\\\",\\\"(?<client_geo>[^\\\"]*)\\\",\\\"(?<client_ip>[^\\\"]*)\\\",\\\"(?<ruleset_id>[^\\\"]*)\\\",\\\"(?<rule_id>[^\\\"]*)\\\",\\\"(?<private_app_group_id>[^\\\"]*)\\\",\\\"(?<private_app_id>[^\\\"]*)\\\",\\\"(?<private_resource_id>[^\\\"]*)\\\",\\\"(?<private_resource_group_id>[^\\\"]*)\\\",\\\"(?<step_up_auth_type>[^\\\"]*)\\\",\\\"(?<step_up_auth_result>[^\\\"]*)\\\"\"\n| eval verdict=upper(verdict)\n| bin _time span=1h\n| stats count(eval(verdict!=\"ALLOW\")) as denied count(eval(verdict=\"ALLOW\")) as allowed dc(hostname) as apps values(hostname) as hostnames values(client_geo) as locations values(client_ip) as client_ips values(step_up_auth_result) as step_up_results by _time identity_email\n| where denied >= 10 OR (denied >= 3 AND apps >= 5)\n| sort - denied",
+  "description": "Counts zero trust access denials per user per hour for Secure Access private applications, and flags users with ten or more denials, or denials across five or more different applications. Each row shows the applications, client locations and addresses, and step-up authentication results.",
+  "value": "Zero trust access is meant to be an audit trail of who reached which private application. A user denied across many applications in an hour is probing for access, often with a stolen session or device; a user denied repeatedly on one application usually has a broken posture check and needs help.",
+  "implementation": "Collect the Secure Access Zero Trust Access log with the 7569 add-on into `index=sse`. Schedule hourly and alert on users matching the thresholds.",
+  "visualization": "Alert table: _time, identity_email, denied, allowed, apps, hostnames, locations, client_ips, step_up_results. Supporting panels: ZTNA decisions per hour by verdict over 7 days (stacked column), top denied applications (bar chart).",
+  "cimModels": [],
+  "schema": "OCSF: network_activity",
+  "references": [
+    {
+      "title": "Cisco Secure Access Add-on for Splunk (Splunkbase 7569)",
+      "url": "https://splunkbase.splunk.com/app/7569",
+      "retrieved": "2026-11-02"
+    },
+    {
+      "title": "Cisco Secure Access: Log Formats and Versioning",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/secure-access/secure-access-help/CiscoSecureAccessHelp/logging-intro/log_formats_and_versioning.html",
+      "retrieved": "2026-11-02"
+    },
+    {
+      "title": "Splunk: Integrated Enterprise Value for Cisco data (supported source types)",
+      "url": "https://help.splunk.com/en/splunk-cloud-platform/get-started/get-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data",
+      "retrieved": "2026-11-02"
+    }
+  ],
+  "knownFalsePositives": "1. **Posture failures** — a device that fails the posture profile is denied every time until fixed; these show one or two applications and a steady count.\n\n2. **Access policy changes** — removing a group from a rule causes many denials for its members at once.\n\n**Suppression:** throttle per user for 4 hours; check the change log for policy changes in the same hour.",
+  "mitreAttack": [
+    "T1078"
+  ],
+  "detectionType": "Anomaly",
+  "securityDomain": "network",
+  "requiredFields": [
+    "identity_email",
+    "hostname",
+    "verdict",
+    "client_geo",
+    "client_ip",
+    "rule_id",
+    "step_up_auth_result"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_secure_access"
+  ],
+  "capabilities": [
+    "secure_access.zero_trust_access"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Cisco Secure Access Add-on for Splunk (Splunkbase 7569) on the search heads and on the heavy forwarder or Inputs Data Manager that reads the S3 bucket.\n• Log export to Amazon S3 enabled in the Secure Access or Umbrella dashboard (Admin > Log Management), either a Cisco-managed bucket or your own, with the access key and secret for Splunk.\n• An index for Secure Access and Umbrella data (this page uses `index=sse`) and a role with `srchIndexesAllowed` on it for the network security team.\n\nStep 1 — Configure data collection\n• In the Cisco Secure Access Add-on (Splunkbase 7569) create an S3 modular input for the **Zero Trust Access** log folder with the bucket name, region, access key, and secret, and set the index to `sse`. The add-on writes `sourcetype=cisco:cloud_security:ztna`.\n• Logs reach S3 in batches, so events usually arrive in Splunk 10 to 15 minutes after the activity.\n• Secure Access writes this log as CSV with every value in double quotes, in a fixed column order that Cisco documents per log version. The search reads the columns it needs from `_raw` with `rex` in that documented order, so it works whether or not the add-on's own field names match. New columns are only added at the end in later versions, so the leading columns stay in place.\n• Check the column order on one event: run `index=sse sourcetype=\"cisco:cloud_security:ztna\" | head 1 | table _raw` and confirm the sixth quoted value is a verdict such as ALLOW.\n\nStep 2 — Create the search and alert\n```spl\nindex=sse sourcetype=\"cisco:cloud_security:ztna\"\n| rex field=_raw \"^\\\"(?<ts>[^\\\"]*)\\\",\\\"(?<identity_email>[^\\\"]*)\\\",\\\"(?<identity_labels>[^\\\"]*)\\\",\\\"(?<identity_type_labels>[^\\\"]*)\\\",\\\"(?<hostname>[^\\\"]*)\\\",\\\"(?<verdict>[^\\\"]*)\\\",\\\"(?<client_os>[^\\\"]*)\\\",\\\"(?<client_browser>[^\\\"]*)\\\",\\\"(?<client_geo>[^\\\"]*)\\\",\\\"(?<client_ip>[^\\\"]*)\\\",\\\"(?<ruleset_id>[^\\\"]*)\\\",\\\"(?<rule_id>[^\\\"]*)\\\",\\\"(?<private_app_group_id>[^\\\"]*)\\\",\\\"(?<private_app_id>[^\\\"]*)\\\",\\\"(?<private_resource_id>[^\\\"]*)\\\",\\\"(?<private_resource_group_id>[^\\\"]*)\\\",\\\"(?<step_up_auth_type>[^\\\"]*)\\\",\\\"(?<step_up_auth_result>[^\\\"]*)\\\"\"\n| eval verdict=upper(verdict)\n| bin _time span=1h\n| stats count(eval(verdict!=\"ALLOW\")) as denied count(eval(verdict=\"ALLOW\")) as allowed dc(hostname) as apps values(hostname) as hostnames values(client_geo) as locations values(client_ip) as client_ips values(step_up_auth_result) as step_up_results by _time identity_email\n| where denied >= 10 OR (denied >= 3 AND apps >= 5)\n| sort - denied\n```\n\nUnderstanding this SPL\n• `rex` reads the first 18 documented columns; `verdict` is the sixth and `hostname` the private application host name.\n• Every verdict other than ALLOW counts as a denial, so new denial verdicts in later log versions are included.\n• `dc(hostname)` across one hour separates probing (many applications) from a single broken posture check.\n\nStep 3 — Validate\n• Compare with the Secure Access dashboard under Reporting > Activity Search, filtered to Zero Trust and the user: the decisions should match within the S3 delay.\n• Pick three events in Splunk and compare each extracted field with the same row in the CSV file in the S3 bucket.\n• Run `index=sse sourcetype=\"cisco:cloud_security:ztna\" | timechart span=1h count` over 7 days; gaps longer than an hour point to S3 input failures.\n\nStep 4 — Operationalize\n• Schedule hourly over the last 70 minutes and throttle on `identity_email` for 4 hours.\n• Route many-application rows to the SOC and single-application rows to the help desk.\n• Check `step_up_results` for failed step-up authentications, which point to a stolen session without the second factor.\n\nStep 5 — Troubleshooting\n• No proxy events and S3 access errors (403 AccessDenied) in the add-on log: the access key cannot read the bucket or the region is wrong.\n• Events arrive hours late: the input polling interval is long, or the bucket path prefix is wrong and the input scans the whole bucket.\n• Empty fields after `rex`: the log export is set to an older log version with a different column order, or the line has a header row. Check the version in Admin > Log Management and compare one `_raw` line with Cisco's column list.\n• No Zero Trust Access events at all: the log type is not enabled in Admin > Log Management, or the S3 input path does not include its folder.\n",
+  "grandmaExplanation": "Workers reach internal company apps through a gate that checks who they are and their device. We flag people who get turned away again and again, or from many apps at once.",
+  "prerequisiteUseCases": [],
+  "wave": "walk"
+}

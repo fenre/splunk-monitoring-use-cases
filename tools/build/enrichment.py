@@ -583,7 +583,6 @@ EQUIPMENT = [
                 "tas": [
                     "cisco:aci",
                     "Cisco ACI",
-                    "ACI",
                     "APIC",
                     "TA_cisco-ACI"
                 ]
@@ -676,6 +675,182 @@ EQUIPMENT = [
                     "cisco-cybervision",
                     "cisco-cyber-vision",
                     "cisco_cyber_vision"
+                ]
+            },
+            {
+                "id": "duo",
+                "label": "Cisco Duo",
+                "tas": [
+                    "Cisco Duo",
+                    "Duo Security",
+                    "cisco:duo",
+                    "duo:",
+                    "duo_splunkapp",
+                    "Duo Admin API"
+                ]
+            },
+            {
+                "id": "secure_access",
+                "label": "Cisco Secure Access / Umbrella",
+                "tas": [
+                    "Cisco Secure Access",
+                    "Cisco Umbrella",
+                    "cisco:umbrella",
+                    "cisco:cloud_security",
+                    "cisco:secure_access",
+                    "TA-cisco-cloud-security-addon"
+                ]
+            },
+            {
+                "id": "secure_endpoint",
+                "label": "Cisco Secure Endpoint",
+                "tas": [
+                    "Cisco Secure Endpoint",
+                    "AMP for Endpoints",
+                    "TA-cisco-amp4e"
+                ]
+            },
+            {
+                "id": "xdr",
+                "label": "Cisco XDR",
+                "tas": [
+                    "Cisco XDR",
+                    "cisco:xdr"
+                ]
+            },
+            {
+                "id": "secure_network_analytics",
+                "label": "Cisco Secure Network Analytics",
+                "tas": [
+                    "Secure Network Analytics",
+                    "Stealthwatch",
+                    "cisco:sna",
+                    "cisco_sna_app"
+                ]
+            },
+            {
+                "id": "ai_defense",
+                "label": "Cisco AI Defense",
+                "tas": [
+                    "Cisco AI Defense",
+                    "cisco:ai:defense"
+                ]
+            },
+            {
+                "id": "secure_workload",
+                "label": "Cisco Secure Workload",
+                "tas": [
+                    "Cisco Secure Workload",
+                    "Tetration",
+                    "cisco:secure:workload"
+                ]
+            },
+            {
+                "id": "multicloud_defense",
+                "label": "Cisco Multicloud Defense",
+                "tas": [
+                    "Cisco Multicloud Defense",
+                    "cisco:multicloud:defense"
+                ]
+            },
+            {
+                "id": "email_threat_defense",
+                "label": "Cisco Secure Email Threat Defense",
+                "tas": [
+                    "Email Threat Defense",
+                    "cisco:etd"
+                ]
+            },
+            {
+                "id": "secure_malware_analytics",
+                "label": "Cisco Secure Malware Analytics",
+                "tas": [
+                    "Secure Malware Analytics",
+                    "Threat Grid",
+                    "cisco:sma:submissions"
+                ]
+            },
+            {
+                "id": "isovalent",
+                "label": "Cisco Isovalent",
+                "tas": [
+                    "Isovalent",
+                    "cisco:isovalent"
+                ]
+            },
+            {
+                "id": "hypershield",
+                "label": "Cisco Hypershield",
+                "tas": [
+                    "Hypershield",
+                    "cisco:hypershield"
+                ]
+            },
+            {
+                "id": "hyperfabric",
+                "label": "Cisco Nexus Hyperfabric",
+                "tas": [
+                    "Hyperfabric",
+                    "cisco:hyperfabric"
+                ]
+            },
+            {
+                "id": "industrial_ethernet",
+                "label": "Cisco Industrial Ethernet (Catalyst IE)",
+                "tas": [
+                    "Cisco Industrial Ethernet",
+                    "Catalyst IE",
+                    "IE3100",
+                    "IE3200",
+                    "IE3300",
+                    "IE3400",
+                    "IE3500",
+                    "IE9300",
+                    "ESS3300",
+                    "HSR_ALARM"
+                ]
+            },
+            {
+                "id": "identity_intelligence",
+                "label": "Cisco Identity Intelligence",
+                "tas": [
+                    "Cisco Identity Intelligence",
+                    "cisco:cii"
+                ]
+            },
+            {
+                "id": "vulnerability_intelligence",
+                "label": "Cisco Vulnerability Intelligence",
+                "tas": [
+                    "Cisco Vulnerability Intelligence",
+                    "cisco:cvi"
+                ]
+            },
+            {
+                "id": "secure_client_nvm",
+                "label": "Cisco Secure Client NVM",
+                "tas": [
+                    "Network Visibility Module",
+                    "Cisco NVM",
+                    "cisco:nvm"
+                ]
+            },
+            {
+                "id": "endpoint_visibility_module",
+                "label": "Cisco Endpoint Visibility Module",
+                "tas": [
+                    "Endpoint Visibility Module",
+                    "cisco:evm"
+                ]
+            },
+            {
+                "id": "esa",
+                "label": "Cisco Secure Email Gateway (ESA)",
+                "tas": [
+                    "Cisco Secure Email Gateway",
+                    "Cisco ESA",
+                    "cisco:esa",
+                    "Splunk_TA_cisco-esa"
                 ]
             }
         ],

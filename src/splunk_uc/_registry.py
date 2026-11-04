@@ -183,6 +183,14 @@ register(
 )
 register(
     Verb(
+        name="audit-cisco-coverage",
+        module="audits.cisco_coverage",
+        help="Ratchet gate: Cisco portfolio capabilities covered by UCs (waivers + shrinking backlog).",
+        category="audits",
+    )
+)
+register(
+    Verb(
         name="audit-legal-review-signoffs",
         module="audits.legal_review_signoffs",
         help="Validate data/provenance/legal-review-signoffs.json schema + cross-references.",
@@ -726,6 +734,14 @@ register(
         name="generate-equipment-app-map",
         module="generators.equipment_app_map",
         help="Generate data/equipment-app-map.json (Splunkbase apps + DSA ids per equipment slug).",
+        category="generators",
+    )
+)
+register(
+    Verb(
+        name="generate-cisco-coverage",
+        module="generators.cisco_coverage",
+        help="Write reports/cisco-coverage/ (capability matrix + gap list) from data/cisco-portfolio.json.",
         category="generators",
     )
 )

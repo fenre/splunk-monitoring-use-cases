@@ -1,0 +1,71 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "3.5.20",
+  "title": "Cisco Isovalent Kernel Probe Hits by Policy",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "exclusions": "Covers one Isovalent event type. Risk-framework drill-downs that mention Isovalent are a different search.",
+  "evidence": "Daily counts of the matching events for 30 days, with the pod and binary columns from the search.",
+  "controlTest": {
+    "positiveScenario": "Run the test action described in the validation step inside a non-production pod. The next search shows that pod and binary.",
+    "negativeScenario": "Stop the Isovalent HEC export. The search returns no rows for the following hour."
+  },
+  "dataSources": "`index=containers sourcetype=cisco:isovalent` from the Cisco Security Cloud (7404) Isovalent input over HEC. Field names are the ones Splunk Security Content lists for this sourcetype: process_kprobe.function_name, process_kprobe.policy_name, process_kprobe.process.binary, process_kprobe.process.pod.name, process_kprobe.process.pod.namespace, cluster_name.",
+  "app": "Cisco Security Cloud (`CiscoSecurityCloud`, [Splunkbase 7404](https://splunkbase.splunk.com/app/7404)), Isovalent input.",
+  "spl": "index=containers sourcetype=\"cisco:isovalent\" earliest=-24h\n| stats count as hits by cluster_name, process_kprobe.process.pod.namespace, process_kprobe.process.pod.name, process_kprobe.function_name, process_kprobe.policy_name, process_kprobe.process.binary\n| sort - hits",
+  "description": "Counts kernel-probe hits per pod, function, and TracingPolicy. process_kprobe.function_name, process_kprobe.policy_name, and process_kprobe.process.binary are fields Splunk Security Content documents for sourcetype cisco:isovalent.",
+  "value": "TracingPolicies watch sensitive kernel calls such as module loads and privilege changes. A pod that starts hitting a policy it never hit before is the cluster signal that something new is running with extra privilege.",
+  "implementation": "Enable the Isovalent HEC input in Cisco Security Cloud into index=containers. Schedule this search hourly.",
+  "visualization": "Table of the stats output, sorted by the count column, plus a timechart of the count.",
+  "cimModels": [],
+  "schema": "OCSF: network_activity",
+  "references": [
+    {
+      "title": "Cisco Security Cloud (Splunkbase 7404)",
+      "url": "https://splunkbase.splunk.com/app/7404",
+      "retrieved": "2026-11-04"
+    },
+    {
+      "title": "Cisco Security Cloud App for Splunk User Guide",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/cisco-secure-cloud-app/user-guide/cisco-security-cloud-user-guide.pdf",
+      "retrieved": "2026-11-04"
+    },
+    {
+      "title": "Splunk Security Content data source for this Isovalent event",
+      "url": "https://github.com/splunk/security_content/blob/develop/data_sources/cisco_isovalent_process_kprobe.yml",
+      "retrieved": "2026-11-04"
+    }
+  ],
+  "knownFalsePositives": "1. **Health probes and package caches** — kube-system DaemonSets run shells and connect to the API server. Exclude `pod_namespace=kube-system` once you have confirmed those pods.\n\n**Suppression:** exclude the namespaces your platform team owns.",
+  "detectionType": "Hunting",
+  "securityDomain": "endpoint",
+  "requiredFields": [
+    "process_kprobe.function_name",
+    "process_kprobe.policy_name",
+    "process_kprobe.process.binary",
+    "process_kprobe.process.pod.name",
+    "process_kprobe.process.pod.namespace",
+    "cluster_name"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_isovalent"
+  ],
+  "capabilities": [
+    "isovalent.kernel_probes"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Cisco Security Cloud (`CiscoSecurityCloud`, Splunkbase 7404) on the search heads and on the heavy forwarder that exposes the HEC token.\n• Isovalent Runtime Security (Tetragon) sending process events to the Splunk integration, and a HEC token scoped to index=containers.\n• A role with srchIndexesAllowed on index=containers.\n\nStep 1 — Configure data collection\n• In Cisco Security Cloud open the Isovalent card and create the HEC input. The add-on writes `cisco:isovalent`.\n• Confirm fields: `index=containers sourcetype=\"cisco:isovalent\" | fieldsummary process_kprobe.function_name`.\n\nStep 2 — Create the search\n```spl\nindex=containers sourcetype=\"cisco:isovalent\" earliest=-24h\n| stats count as hits by cluster_name, process_kprobe.process.pod.namespace, process_kprobe.process.pod.name, process_kprobe.function_name, process_kprobe.policy_name, process_kprobe.process.binary\n| sort - hits\n```\n\nUnderstanding this SPL\n• Each row is one function on one policy in one pod. process_kprobe.action is also documented when you need the probe action.\n• The sourcetype is cisco:isovalent, not a processexec or processconnect name.\n\nStep 3 — Validate\n• In a non-production namespace, run the action this search looks for and confirm the pod name appears.\n• Compare the pod name with `kubectl get pods -A` so a deleted pod is not investigated as live.\n\n• Confirm in the vendor console that the same hour shows the same kind of event before trusting a zero or a spike.\n\nStep 4 — Operationalize\n• Hourly search, table on the container-security dashboard.\n• Alert on counts above an agreed baseline per namespace, throttled on pod_namespace for 1 hour.\n\nStep 5 — Troubleshooting\n• No events: the HEC token or the Isovalent export URL is wrong. The user guide also notes an Edge Processor variant that is alpha; this page uses the HEC input.\n• Events exist but the fields are empty: the sourcetype is not `cisco:isovalent`. Splunk Security Content documents this casing, not an all-lowercase name.\n• No data for this sourcetype, with an input error in the Cisco Security Cloud log, means the credential or token is incorrect.\n",
+  "grandmaExplanation": "We count kernel checks that fired inside each container, named by the policy that watched them.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}

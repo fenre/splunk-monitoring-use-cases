@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from collections import Counter
 from collections.abc import Iterable
@@ -99,6 +100,7 @@ _SIDECAR_FIELD_ORDER: tuple[str, ...] = (
     "requiredFields",
     "equipment",
     "equipmentModels",
+    "capabilities",
     "status",
     "lastReviewed",
     "splunkVersions",
@@ -117,6 +119,94 @@ _MIN_LEN_APP = 1
 # (e.g., "rhv" in "overhead", "k8s" in generic K8s references that are not
 # really K8s-tagged workloads). 4 is empirically clean.
 _MIN_LEN_NARRATIVE = 4
+
+# Sourcetype prefixes that belong to another vendor's product. When every
+# sourcetype in the SPL is one of these, a Cisco tag would hand a Cisco
+# customer a search that returns nothing (pan:threat tagged as Secure
+# Firewall, nozomi:* tagged as Cyber Vision). Generic telemetry Cisco
+# devices emit (snmp, netflow, syslog) is intentionally absent, so an IOS
+# use case over snmp:interface keeps its tag. An unlisted prefix is left
+# alone rather than treated as foreign.
+_FOREIGN_SOURCETYPE_PREFIXES = frozenset(
+    {
+        "aws",
+        "azure",
+        "azure_stack_hci",
+        "azuread",
+        "corelight",
+        "corelight_zeek",
+        "crowdstrike",
+        "daw",
+        "dbx",
+        "falcon",
+        "fgt",
+        "fortigate",
+        "fortinet",
+        "infoblox",
+        "linux",
+        "ms",
+        "named",
+        "nozomi",
+        "nutanix",
+        "o365",
+        "office365",
+        "okta",
+        "oktaim2",
+        "paloalto",
+        "pan",
+        "perfmon",
+        "pexip",
+        "powerbi",
+        "practice",
+        "proxmox",
+        "release",
+        "s2d",
+        "servicenow",
+        "setlist",
+        "snow",
+        "suricata",
+        "vmware",
+        "windows",
+        "wineventlog",
+        "winregistry",
+        "xmlwineventlog",
+        "zeek",
+    }
+)
+
+_SOURCETYPE_EQ = re.compile(r"""sourcetype\s*=\s*"?([A-Za-z0-9_:*\-]+)""", re.IGNORECASE)
+_SOURCETYPE_IN = re.compile(r"""sourcetype\s+IN\s*\(([^)]*)\)""", re.IGNORECASE)
+_SOURCETYPE_TOKEN = re.compile(r"""[A-Za-z][A-Za-z0-9_:*\-]*""")
+
+
+def _spl_sourcetype_prefixes(sidecar: dict[str, Any]) -> set[str]:
+    """Prefixes of the sourcetypes the search actually queries."""
+    text = "\n".join(str(sidecar.get(key) or "") for key in ("spl", "cimSpl"))
+    names = {m.group(1) for m in _SOURCETYPE_EQ.finditer(text)}
+    for group in _SOURCETYPE_IN.finditer(text):
+        names.update(_SOURCETYPE_TOKEN.findall(group.group(1)))
+    return {name.lower().split(":", 1)[0] for name in names}
+
+
+def _spl_is_another_vendors(sidecar: dict[str, Any]) -> bool:
+    """True when the SPL names sourcetypes and every one is another vendor's."""
+    prefixes = _spl_sourcetype_prefixes(sidecar)
+    return bool(prefixes) and all(p in _FOREIGN_SOURCETYPE_PREFIXES for p in prefixes)
+
+
+def _drop_cisco_when_spl_is_another_vendor(
+    sidecar: dict[str, Any],
+    equipment: set[str],
+    models: set[str],
+) -> tuple[set[str], set[str]]:
+    """Drop Cisco tags when the SPL names only another vendor's sourcetypes.
+
+    A mention of Cisco in the app line is not enough: ``Cisco Secure Firewall``
+    next to a ``pan:threat`` search still returns nothing on a Cisco firewall.
+    """
+    if not _spl_is_another_vendors(sidecar):
+        return equipment, models
+    return {e for e in equipment if e != "cisco"}, {m for m in models if not m.startswith("cisco_")}
 
 
 def _iter_sidecar_paths() -> Iterable[Path]:
@@ -164,6 +254,9 @@ def _compute_tags(
     equipment_ids: set[str] = eq_app | eq_narr
     model_compounds: set[str] = models_app | models_narr
     model_compounds = {m for m in model_compounds if not m.endswith("_generic")}
+    equipment_ids, model_compounds = _drop_cisco_when_spl_is_another_vendor(
+        sidecar, equipment_ids, model_compounds
+    )
 
     return sorted(equipment_ids), sorted(model_compounds)
 
@@ -195,14 +288,28 @@ def _apply_tags(
         - Computed tags are **merged** with any existing values so that
           manually-set tags (from Gold uplift agents or hand-edits) are
           never lost.
+        - Cisco tags already on the sidecar are kept, with two exceptions.
+          When every sourcetype in the SPL belongs to another vendor, stored
+          ``cisco`` / ``cisco_*`` tags are dropped: the search returns nothing
+          for a Cisco customer. ``cisco_aci`` is also dropped when the text no
+          longer matches an ACI pattern, because the bare token ``ACI`` used
+          to match inside the word "capacity".
         - Empty arrays are ELIDED (key is removed). Keeps diffs small.
         - If the merged arrays equal the existing ones, no change.
         - Keys re-ordered to the canonical field order to keep sidecar
           outputs stable across generator runs.
     """
     out = dict(sidecar)
-    existing_eq = set(sidecar.get("equipment") or [])
-    existing_models = set(sidecar.get("equipmentModels") or [])
+    existing_eq = {e for e in (sidecar.get("equipment") or []) if e}
+    existing_models = {m for m in (sidecar.get("equipmentModels") or []) if m}
+    if _spl_is_another_vendors(sidecar):
+        existing_eq.discard("cisco")
+        existing_models = {m for m in existing_models if not str(m).startswith("cisco_")}
+    elif "cisco_aci" in existing_models and "cisco_aci" not in set(equipment_models):
+        # The retired bare "ACI" pattern matched inside "capacity" / "facility".
+        existing_models.discard("cisco_aci")
+        if "cisco" not in set(equipment) and not any(str(m).startswith("cisco_") for m in existing_models):
+            existing_eq.discard("cisco")
 
     merged_eq = sorted(existing_eq | set(equipment))
     merged_models = sorted(existing_models | set(equipment_models))
