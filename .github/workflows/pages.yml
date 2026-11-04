@@ -2,22 +2,25 @@
 #
 # v7.0 contract (see docs/architecture.md):
 #   1. tools/build/build.py is the only entrypoint that produces dist/.
-#   2. CI runs the build twice with --reproducible and asserts byte
-#      identity, so every published bundle is reproducible from the
-#      same source SHA.
+#   2. One reproducible build publishes dist/. Byte identity of two
+#      consecutive builds stays in build-reproducibility.yml (nightly
+#      and on build-pipeline PRs). This workflow does not repeat it.
 #   3. dist/integrity.json + dist/BUILD-INFO.json are signed by the
 #      GitHub OIDC identity via actions/attest-build-provenance@v4
 #      (Sigstore keyless), so consumers can verify a download with:
 #          gh attestation verify dist/integrity.json --owner <owner>
 #   4. Quality gates (Lighthouse, axe, budgets, schema-meta, schema-diff,
-#      url-freeze) live in validate.yml and block merge to main; pages.yml
-#      only runs on main, so by the time a build reaches here every gate
-#      has already passed.
+#      url-freeze) live in validate.yml and block merge to main. This
+#      same build job also runs on pull requests, with the same Python
+#      setup and without jsonschema, so a green PR has already run the
+#      deploy build.
 
 name: Deploy to GitHub Pages
 
 on:
   push:
+    branches: [main]
+  pull_request:
     branches: [main]
   workflow_dispatch:
 
@@ -28,16 +31,23 @@ permissions:
   attestations: write
 
 concurrency:
-  group: pages
+  # Main deploys still share one group and cancel each other. A pull
+  # request must not cancel an in-progress production deploy.
+  group: ${{ github.event_name == 'pull_request' && format('pages-pr-{0}', github.event.pull_request.number) || 'pages' }}
   cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     outputs:
       uc-count: ${{ steps.summary.outputs.uc_count }}
       build-sha: ${{ steps.summary.outputs.sha }}
     steps:
+      - name: Record start
+        id: timing
+        run: echo "start_epoch=$(date +%s)" >> "$GITHUB_OUTPUT"
+
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -71,36 +81,33 @@ jobs:
       #   1. ``generate-api-surface`` loads the catalogue via
       #      ``_resolve_catalog_path()`` → ``dist/catalog.json`` (SSOT) or
       #      the legacy root ``catalog.json``. BOTH are gitignored, so on a
-      #      fresh CI checkout neither exists until ``build.py`` has run. If
-      #      we generate BEFORE building, ``_load_catalog()`` returns ``[]``
-      #      and every recommender/equipment index is written EMPTY
-      #      (useCaseCount: 0, sourcetypeCount: 0, all equipment counts 0) —
-      #      precisely the production regression reported in issue #68.
+      #      fresh CI checkout neither exists until ``build.py`` has written
+      #      the catalog. If we generate BEFORE that, ``_load_catalog()``
+      #      returns ``[]`` and every recommender/equipment index is written
+      #      EMPTY — the production regression reported in issue #68.
+      #      The generators need the compact catalogue, which the ``meta``
+      #      stage writes. They do not need rendered per-UC pages.
       #   2. ``build.py`` mirrors ``api/v1/`` into ``dist`` during the build,
       #      so the surface must already be populated on disk when the
-      #      PUBLISH build runs, or ``dist/api/v1/compliance/*`` and
-      #      ``dist/api/v1/evidence-packs/*`` never ship and 404.
+      #      publish build runs, or ``dist/api/v1/`` never ships and 404s.
       #
-      # The only ordering that satisfies both is build → generate → build,
-      # mirroring validate.yml's audits-build job:
-      #   * Build #1 produces ``dist/catalog.json`` (the SSOT the generators
-      #     read). Its api/v1 mirror is incomplete and is wiped by Build #2.
-      #   * ``generate-api-surface`` + ``generate-evidence-packs`` populate
-      #     the working-tree ``api/v1/`` from the now-present catalogue.
-      #   * Build #2 (rmtree's dist first) re-renders and mirrors the
-      #     POPULATED ``api/v1/`` into ``dist/api/v1/`` for publish.
-      # The non-empty guard further below fails the deploy if the
-      # regression ever recurs. P6: generators routed through the dispatcher.
-      - name: Build catalog (Build #1 — produces dist/catalog.json for the generators)
+      # Order: ``--only parse meta`` writes dist/catalog.json, the generators
+      # populate api/v1/, then one full build mirrors that tree into dist/.
+      # The catalog written by the light step is kept and compared with the
+      # publish build. Reproducibility of two full builds stays in
+      # build-reproducibility.yml. P6: generators go through the dispatcher.
+      # No --validate on generate-starter-packs: this job does not install
+      # jsonschema. validate.yml does.
+      - name: Write catalog.json (parse + meta only)
         run: |
-          python3 tools/build/build.py --out dist --reproducible
-          test -s dist/catalog.json || { echo "::error::dist/catalog.json missing/empty after build — generators would emit empty api/v1 indexes (issue #68)"; exit 1; }
+          python3 tools/build/build.py --out dist --only parse meta --reproducible
+          test -s dist/catalog.json || { echo "::error::dist/catalog.json missing/empty after parse+meta — generators would emit empty api/v1 indexes (issue #68)"; exit 1; }
+          cp dist/catalog.json "$RUNNER_TEMP/catalog-parse-meta.json"
 
       - name: Regenerate api/v1/ (static JSON surface — reads dist/catalog.json)
         run: |
           PYTHONPATH=src python3 -m splunk_uc generate-api-surface
           PYTHONPATH=src python3 -m splunk_uc generate-evidence-packs
-          # No --validate: this job does not install jsonschema. validate.yml does.
           PYTHONPATH=src python3 -m splunk_uc generate-starter-packs
           echo "---"
           echo "api/v1 summary:"
@@ -113,7 +120,7 @@ jobs:
           echo "recommender:        $(find api/v1/recommender -type f 2>/dev/null | wc -l)"
           echo "equipment:          $(find api/v1/equipment -type f 2>/dev/null | wc -l)"
 
-      - name: Build dist/ (Build #2 — mirrors the populated api/v1 tree; reproducible)
+      - name: Publish dist/ (one full build — mirrors the populated api/v1 tree)
         run: |
           python3 tools/build/build.py --out dist --reproducible
           echo "---"
@@ -123,16 +130,13 @@ jobs:
           echo "dist size:"
           du -sh dist/
 
-      - name: Reproducibility check (build twice → diff)
+      - name: catalog.json matches the parse+meta output
         run: |
-          python3 tools/build/build.py --out dist-rebuild --reproducible
-          if ! diff -r dist dist-rebuild > /tmp/diff.out; then
-            echo "::error::Build is not reproducible. See diff:" >&2
-            head -200 /tmp/diff.out >&2
+          if ! cmp -s "$RUNNER_TEMP/catalog-parse-meta.json" dist/catalog.json; then
+            echo "::error::dist/catalog.json differs from the catalog written by --only parse meta"
             exit 1
           fi
-          echo "OK: two consecutive --reproducible builds are byte-identical"
-          rm -rf dist-rebuild
+          echo "OK: dist/catalog.json matches the parse+meta catalog"
 
       # Guard against issue #68 recurring: if the recommender/equipment
       # indexes ever ship empty again (e.g. a future reorder regresses the
@@ -144,21 +148,26 @@ jobs:
         run: python3 tools/audits/api_surface_nonempty.py dist
 
       # Budgets, Lighthouse, axe, schema-diff and url-freeze run pre-merge
-      # in validate.yml. pages.yml only runs on main, after merge,
-      # so the gates have already passed.
+      # in validate.yml. This job is the deploy build itself.
       - name: Summary
         id: summary
         run: |
           uc_count=$(jq -r '.counts.useCases' dist/BUILD-INFO.json)
           sha=$(jq -r '.git.shortSha' dist/BUILD-INFO.json)
+          now=$(date +%s)
+          elapsed=$((now - ${{ steps.timing.outputs.start_epoch }}))
           echo "uc_count=$uc_count" >> "$GITHUB_OUTPUT"
           echo "sha=$sha"           >> "$GITHUB_OUTPUT"
+          echo "duration_seconds=$elapsed" >> "$GITHUB_OUTPUT"
           echo "## Build summary"            >> "$GITHUB_STEP_SUMMARY"
           echo "- UC count: $uc_count"        >> "$GITHUB_STEP_SUMMARY"
           echo "- git SHA:  $sha"             >> "$GITHUB_STEP_SUMMARY"
           echo "- size:     $(du -sh dist/ | cut -f1)" >> "$GITHUB_STEP_SUMMARY"
+          printf -- '- duration: %dm %ds (%ds)\n' $((elapsed / 60)) $((elapsed % 60)) "$elapsed" >> "$GITHUB_STEP_SUMMARY"
+          echo "Build duration: ${elapsed}s"
 
       - name: Upload integrity manifest as workflow artifact
+        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: integrity-manifest
@@ -170,19 +179,23 @@ jobs:
       # Sigstore keyless attestation of the integrity manifest. Verifiable with
       #   gh attestation verify dist/integrity.json --owner <owner>
       - name: Sign integrity manifest (Sigstore via OIDC)
+        if: github.event_name != 'pull_request'
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: dist/integrity.json
 
       - name: Setup Pages
+        if: github.event_name != 'pull_request'
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 
       - name: Upload Pages artifact
+        if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: dist
 
   deploy:
+    if: github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
     environment:
