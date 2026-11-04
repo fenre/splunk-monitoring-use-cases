@@ -238,6 +238,43 @@ def test_audit_flags_unknown_datamodel() -> None:
     assert "unknown-datamodel" in cats
 
 
+def test_escu_macro_is_known_only_when_the_uc_requires_escu() -> None:
+    """An ESCU macro counts only for a use case that requires ESCU."""
+    from splunk_uc.audits.spl_references import (
+        build_vocabulary,
+        check_one_spl_field,
+        requires_escu,
+    )
+
+    assert requires_escu({"app": "ESCU (Splunkbase 3449) — Universal Forwarder (Splunkbase 617)"})
+    assert requires_escu({"splunkbaseApps": [{"id": 3449, "name": "ESCU", "role": "primary"}]})
+    assert not requires_escu({"app": "Universal Forwarder (Splunkbase 617)"})
+
+    vocab = build_vocabulary()
+    spl = "`cisco_asa` message_id=111008 | stats count"
+    bare = check_one_spl_field(
+        uc_id="0.0.0",
+        file_label="test.json",
+        field="spl",
+        spl=spl,
+        vocab=vocab,
+        declared_sourcetypes=set(),
+        declared_indexes=set(),
+    )
+    covered = check_one_spl_field(
+        uc_id="0.0.0",
+        file_label="test.json",
+        field="spl",
+        spl=spl,
+        vocab=vocab,
+        declared_sourcetypes=set(),
+        declared_indexes=set(),
+        extra_macros={"cisco_asa"},
+    )
+    assert any(f.identifier == "cisco_asa" for f in bare)
+    assert not any(f.category == "unknown-macro" for f in covered)
+
+
 def test_audit_tolerates_escu_filter_macro_suffix() -> None:
     """ESCU's ``<detection_name>_filter`` convention is auto-tolerated."""
     from splunk_uc.audits.spl_references import (
