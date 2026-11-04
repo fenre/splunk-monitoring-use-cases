@@ -1,0 +1,59 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "10.4.151",
+  "title": "Cisco Secure Email Threat Defense Message Volume",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "exclusions": "Counts message-log events. Audit and connection logs use the same sourcetype and the add-on publishes no field that separates them, so this input must be set to Message Logs only.",
+  "evidence": "Hourly message counts for 30 days.",
+  "controlTest": {
+    "positiveScenario": "With the input set to Message Logs, send a test message through Email Threat Defense. The next hour's count increases.",
+    "negativeScenario": "Clear the Message Logs selection. The user guide then uses a different API path or stops message events, and the next hour falls to zero."
+  },
+  "dataSources": "`index=cisco_etd sourcetype=cisco:etd` from the Cisco Security Cloud (7404) Email Threat Defense input. The user guide says log types are Connection, Audit, and Message. With none selected the input calls `POST https://api.{region}.etd.cisco.com/v1/messages/search`. With log types selected it calls `POST /v1/downloadLinks`. No field list is published, and nothing in the guide names a field that distinguishes the three log types, so this search counts events and the input is restricted to Message Logs.",
+  "app": "Cisco Security Cloud (`CiscoSecurityCloud`, [Splunkbase 7404](https://splunkbase.splunk.com/app/7404)), Secure Email Threat Defense input.",
+  "spl": "index=cisco_etd sourcetype=\"cisco:etd\" earliest=-24h\n| timechart span=1h count as messages",
+  "description": "Counts Cisco Secure Email Threat Defense message events per hour. The add-on writes message, audit, and connection logs as the single sourcetype cisco:etd and publishes no field that tells them apart, so the input for this search is set to Message Logs only.",
+  "value": "Phishing and business-email-compromise verdicts only help if the analysed messages are arriving in Splunk. This count is the check that the message log, which carries those verdicts, is still being collected.",
+  "implementation": "Create the Email Threat Defense input with API key, client id, secret, and region. Select Message Logs only. Chart cisco:etd events per hour.",
+  "visualization": "Column chart of messages per hour over 24 hours.",
+  "cimModels": [],
+  "schema": "OCSF: email_activity",
+  "references": [
+    {
+      "title": "Cisco Security Cloud (Splunkbase 7404)",
+      "url": "https://splunkbase.splunk.com/app/7404",
+      "retrieved": "2026-11-04"
+    },
+    {
+      "title": "Cisco Security Cloud App for Splunk User Guide",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/cisco-secure-cloud-app/user-guide/cisco-security-cloud-user-guide.pdf",
+      "retrieved": "2026-11-04"
+    }
+  ],
+  "knownFalsePositives": "1. **Weekends** — mail volume drops. Compare with the same hour last week.\n\n2. **Mixed log types** — if Audit Logs are also selected, the count mixes administrator actions with messages. Keep this input on Message Logs.\n\n**Suppression:** alert when a business hour is zero.",
+  "detectionType": "Baseline",
+  "securityDomain": "threat",
+  "requiredFields": [],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_email_threat_defense"
+  ],
+  "capabilities": [
+    "email_threat_defense.message_verdicts"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Cisco Security Cloud (`CiscoSecurityCloud`, Splunkbase 7404) on the search heads and on the heavy forwarder or Splunk Cloud Inputs Data Manager that runs its modular inputs.\n• An Email Threat Defense API key, client id, client secret, and region (the host is api.{region}.etd.cisco.com).\n• An index for this data (this page uses `cisco_etd`) and a role with `srchIndexesAllowed` on it for the SOC.\n\nStep 1 — Configure data collection\n• In Cisco Security Cloud open Application Setup, choose the Secure Email Threat Defense card, and create an input. Set the index to `cisco_etd`.\n• The input writes `cisco:etd`.\n• Confirm events arrive: `index=cisco_etd sourcetype=\"cisco:etd\" | stats count`.\n\nStep 2 — Create the search\n```spl\nindex=cisco_etd sourcetype=\"cisco:etd\" earliest=-24h\n| timechart span=1h count as messages\n```\n\nUnderstanding this SPL\n• The user guide's log-type control decides which API is called. Restrict this input to Message Logs so the count is messages.\n• No verdict field is documented, so the panel does not filter phishing versus spam.\n\nStep 3 — Validate\n• In Email Threat Defense, open the message search for the same hour. Messages there and a zero panel means the API client or region is wrong.\n\n• Confirm in the vendor console that the same hour shows the same kind of event before trusting a zero or a spike.\n\nStep 4 — Operationalize\n• Put the panel on the SOC dashboard for Email Threat Defense and refresh it hourly.\n• Alert when the count drops to zero during a staffed period, which means the input stopped, and throttle for 4 hours.\n\nStep 5 — Troubleshooting\n• HTTP 401: the API key, client id, or secret does not match the region.\n• Counts that include administrator actions: Audit Logs is selected on this input. Clear it. Audit events are not given their own sourcetype.\n• No data for this sourcetype, with an input error in the Cisco Security Cloud log, means the credential or token is incorrect.\n",
+  "grandmaExplanation": "We count the email messages Cisco's threat defense analyses each hour, so we know phishing verdicts are still arriving.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}
