@@ -45,9 +45,12 @@ the release notes block in `index.html` by hand.
     matrix with waivers and a shrinking backlog in
     `data/cisco-coverage-baseline.json`.
   - `api/v1/equipment/cisco.json` carries `capabilityCoverage` on each Cisco model.
-  - Coverage now stands at 22 of 54 observable capabilities, and 2 of 3 where a
-    CIM model applies. Secure Access App Discovery is waived because Cisco
-    publishes no field list for it.
+  - Coverage now includes the tier 2, 3, and 4 products that have a published
+    sourcetype or syslog mnemonic. Capabilities with no published Splunk field
+    list are marked not observable in `data/cisco-portfolio.json`, including
+    SNA flow records, Email Threat Defense audit logs, both Hypershield
+    exports, and Hyperfabric commit summaries and inventory. Secure Access
+    App Discovery stays waived because Cisco publishes no field list for it.
 
 ### New Use Cases
 
@@ -69,6 +72,26 @@ the release notes block in `index.html` by hand.
     read Cisco's documented CSV column order with `rex`.
   - XDR: open incidents by severity and age (UC-10.7.720), and Enterprise
     Security promotion health (UC-10.7.721).
+- **Cisco tier 2–4 products: +21 use cases.** Each search uses a sourcetype
+  or syslog mnemonic the add-on or Cisco documents. Where the add-on
+  publishes no field list, the search counts events of that sourcetype and
+  says so.
+  - Secure Network Analytics: alarm volume (UC-10.7.722), risk-record volume
+    (UC-10.7.723), and Enterprise Security promotion health (UC-10.7.724).
+  - AI Defense promotion health (UC-10.3.686) and Secure Workload alert
+    volume (UC-10.7.725).
+  - Multicloud Defense: firewall, egress, threat, web protection, DLP, TLS,
+    and admin log volume (UC-10.1.78 to UC-10.1.84).
+  - Email Threat Defense message volume (UC-10.4.151) and Secure Malware
+    Analytics submission volume (UC-10.7.726).
+  - Isovalent: shell and package-tool execution (UC-3.5.18), process
+    connections (UC-3.5.19), and kernel-probe hits (UC-3.5.20), using the
+    field names in Splunk Security Content.
+  - Industrial Ethernet: HSR ring faults (UC-14.2.29), PTP clock changes
+    (UC-14.2.30), and PRP VLAN-tagging faults (UC-14.2.31).
+  - Hyperfabric assertion notifications (UC-18.3.23). The webhook has no
+    published field names, so the search counts events in the index named
+    on the endpoint.
 
 ### Changed
 
@@ -83,6 +106,11 @@ the release notes block in `index.html` by hand.
   Endpoint tamper detections (10.3.411–10.3.413, 10.6.78) are lifted to gold.
 - Cisco equipment models and collision-safe patterns were added to the equipment
   registry, and equipment tags were regenerated.
+- The SPL reference vocabulary now includes the Cisco Security Cloud
+  (Splunkbase 7404) sourcetypes named in the user guide and the
+  cisco-app-navigator validation report, including Secure Network Analytics,
+  AI Defense, Secure Workload, Multicloud Defense, Email Threat Defense,
+  Secure Malware Analytics, and Isovalent.
 - **Cisco equipment tags now follow the search.** A use case keeps a Cisco tag
   only when its SPL is not exclusively another vendor's sourcetype, and the
   bare pattern `ACI` no longer matches inside the word "capacity". This

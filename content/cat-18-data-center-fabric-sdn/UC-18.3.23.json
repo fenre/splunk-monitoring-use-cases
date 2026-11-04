@@ -1,0 +1,58 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "18.3.23",
+  "title": "Cisco Nexus Hyperfabric Assertion Notifications",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Fault"
+  ],
+  "splunkPillar": "Observability",
+  "exclusions": "Counts webhook notifications in the index named on the Hyperfabric endpoint. Cisco publishes no sourcetype and no JSON field names, so criticality and commit summaries are not separated.",
+  "evidence": "Hourly notification counts for 30 days.",
+  "controlTest": {
+    "positiveScenario": "Latch an assertion on a lab fabric. Within 30 seconds, the delay Cisco documents for the Splunk endpoint, the current hour's count increases.",
+    "negativeScenario": "Disable the webhook endpoint. The next hour stays at zero while the fabric blueprint still shows the assertion."
+  },
+  "dataSources": "`index=hyperfabric` written by the Cisco Nexus Hyperfabric Splunk webhook. In Notifications > Notification endpoints > Webhooks, the type is Splunk, and the endpoint takes an HEC URL, token, and index name. Cisco says each notification includes a timestamp, a criticality, a breadcrumb to the fabric blueprint, and summaries of configuration commits, and that Splunk notifications are sent at most 30 seconds after a latched assertion changes. Cisco does not publish the JSON keys or a sourcetype, so this search counts events in the index you enter on the endpoint.",
+  "app": "Cisco Nexus Hyperfabric Splunk webhook (HTTP Event Collector). No Splunk add-on.",
+  "spl": "index=hyperfabric earliest=-24h\n| timechart span=1h count as notifications",
+  "description": "Counts Cisco Nexus Hyperfabric assertion notifications per hour in the index named on the Splunk webhook endpoint. Cisco documents the webhook and what each notification contains, and does not publish field names, so the search counts events.",
+  "value": "A failed fabric health check should page the network team before users notice. The webhook is that page. If the count stops while fabrics are still asserted in the blueprint, the page is not arriving.",
+  "implementation": "Create an HEC token and an index named hyperfabric. In Hyperfabric add a Splunk webhook endpoint with that URL, token, and index, and attach it to a notification policy for the fabrics you care about.",
+  "visualization": "Column chart of notifications per hour. A single value for the latest hour.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Cisco Nexus Hyperfabric: Notifications",
+      "url": "https://www.cisco.com/c/en/us/td/docs/dcn/hyperfabric/software/cisco-nexus-hyperfabric-notifications.html",
+      "retrieved": "2026-11-04"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://help.splunk.com/en/splunk-enterprise/get-data-in/splunk-enterprise-data-admin-manual/10.2/get-data-with-http-event-collector",
+      "retrieved": "2026-11-04"
+    }
+  ],
+  "knownFalsePositives": "1. **Quiet fabrics** — notifications are sent only when a latched assertion changes, so a healthy fabric produces long gaps. Do not page on a single quiet hour.\n\n2. **Other data in the index** — if the index is shared, the count includes those events. Use an index that only this webhook writes.\n\n**Suppression:** none by default. Investigate a sudden spike, which is a burst of assertion changes.",
+  "detectionType": "Baseline",
+  "securityDomain": "network",
+  "requiredFields": [],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_hyperfabric"
+  ],
+  "capabilities": [
+    "hyperfabric.assertion_notifications"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• An HTTP Event Collector token on Splunk Enterprise or Splunk Cloud, and an index named hyperfabric that only this webhook writes.\n• For Splunk Enterprise behind a firewall, allow the ten Hyperfabric regional source addresses listed in the notifications guide, because any of them may send.\n• A role with srchIndexesAllowed on index=hyperfabric.\n\nStep 1 — Configure data collection\n• In Hyperfabric choose Notifications > Notification endpoints > Webhooks > Add. Leave Webhook Type as Splunk. Enter the HEC URL, the token, and the index name hyperfabric.\n• Under Notifications > Notification policies, attach that endpoint to the fabrics you want.\n• Cisco sends a notification only when a latched assertion changes, at most 30 seconds later, and includes commit summaries in the same notification.\n\nStep 2 — Create the search\n```spl\nindex=hyperfabric earliest=-24h\n| timechart span=1h count as notifications\n```\n\nUnderstanding this SPL\n• The count is events in the index. There is no sourcetype to filter on, because Cisco does not name one.\n• Criticality and the commit summary are in the payload, and Cisco does not publish the JSON keys, so they are not columns.\n\nStep 3 — Validate\n• Latch an assertion on a lab fabric and confirm the blueprint shows it. Within a minute, index=hyperfabric should gain an event.\n• Open the event and confirm it contains the breadcrumb link back to that fabric, which the guide says every notification includes.\n\n• Confirm in the vendor console that the same hour shows the same kind of event before trusting a zero or a spike.\n\nStep 4 — Operationalize\n• Hourly column chart on the data-center dashboard.\n• A spike is a burst of assertion changes and is the page. A long zero is normal on a healthy fabric and is not, by itself, an incident.\n\nStep 5 — Troubleshooting\n• The blueprint shows a new assertion and Splunk does not: the HEC token, URL, or index name on the endpoint does not match, or the firewall is dropping one of the ten source addresses.\n• Events land in the wrong index: the index field on the webhook endpoint overrides the token's default index. Set it to hyperfabric.\n• No data for index=hyperfabric, with an HEC input error, means the webhook token is incorrect.\n",
+  "grandmaExplanation": "We count the fabric health alerts Cisco Hyperfabric sends, so a failed check still reaches the network team.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}

@@ -1,0 +1,66 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "10.1.83",
+  "title": "Cisco Multicloud Defense TLS Inspection Volume",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "exclusions": "Counts TLS inspection and TLS error events only. The add-on publishes no field list for these sourcetypes, so allow and deny are not separated.",
+  "evidence": "Hourly event counts by sourcetype for 30 days.",
+  "controlTest": {
+    "positiveScenario": "Generate a test event that Multicloud Defense records as one of `cisco:multicloud:defense:tls_log`, `cisco:multicloud:defense:tls_error`. The next hour shows a count above zero for that sourcetype.",
+    "negativeScenario": "Stop the HEC export from Security Cloud Control. The next hour is zero for every sourcetype in this search."
+  },
+  "dataSources": "`index=cisco_multicloud_defense` sourcetypes `cisco:multicloud:defense:tls_log`, `cisco:multicloud:defense:tls_error`. Cisco Security Cloud (7404) receives Multicloud Defense over HEC. The user guide's example input sets `sourcetype=cisco:multicloud:defense` and `index=cisco_multicloud_defense`. Splunk's Cisco app navigator lists the more specific sourcetypes used here. No field list is published.",
+  "app": "Cisco Security Cloud (`CiscoSecurityCloud`, [Splunkbase 7404](https://splunkbase.splunk.com/app/7404)), Multicloud Defense input.",
+  "spl": "index=cisco_multicloud_defense sourcetype IN (\"cisco:multicloud:defense:tls_log\", \"cisco:multicloud:defense:tls_error\") earliest=-24h\n| timechart span=1h count by sourcetype",
+  "description": "Counts Cisco Multicloud Defense TLS inspection and TLS error events per hour, one series per sourcetype. The add-on publishes these sourcetypes and no field names, so the search counts events instead of reading action or address fields.",
+  "value": "When TLS inspection fails, the other cloud controls cannot see inside that traffic. A stop in the TLS error log hides those gaps. This count shows both TLS log types are still arriving.",
+  "implementation": "Create the Multicloud Defense HEC input in Cisco Security Cloud with index cisco_multicloud_defense. Chart these sourcetypes per hour and alert when all of them are zero during a staffed hour.",
+  "visualization": "Column chart of event count per hour, split by sourcetype.",
+  "cimModels": [],
+  "schema": "OCSF: network_activity",
+  "references": [
+    {
+      "title": "Cisco Security Cloud (Splunkbase 7404)",
+      "url": "https://splunkbase.splunk.com/app/7404",
+      "retrieved": "2026-11-04"
+    },
+    {
+      "title": "Cisco Security Cloud App for Splunk User Guide",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/cisco-secure-cloud-app/user-guide/cisco-security-cloud-user-guide.pdf",
+      "retrieved": "2026-11-04"
+    },
+    {
+      "title": "Splunk Cisco app navigator: onboarded sourcetypes",
+      "url": "https://github.com/splunk/splunk-cisco-app-navigator/blob/main/amy_validation_report.txt",
+      "retrieved": "2026-11-04"
+    }
+  ],
+  "knownFalsePositives": "1. **Quiet gateways** — a lab gateway with no traffic produces zeros. Compare with the gateway's own traffic graph before paging.\n\n**Suppression:** alert when every sourcetype in this search is zero during staffed hours.",
+  "detectionType": "Baseline",
+  "securityDomain": "cloud",
+  "requiredFields": [
+    "sourcetype"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_multicloud_defense"
+  ],
+  "capabilities": [
+    "multicloud_defense.tls_inspection"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Cisco Security Cloud (`CiscoSecurityCloud`, Splunkbase 7404) on the search heads and on the heavy forwarder or Splunk Cloud Inputs Data Manager that runs its modular inputs.\n• Multicloud Defense sending logs to this HEC token, configured from Security Cloud Control, as the user guide describes.\n• An index for this data (this page uses `cisco_multicloud_defense`) and a role with `srchIndexesAllowed` on it for the SOC.\n\nStep 1 — Configure data collection\n• In Cisco Security Cloud open Application Setup, choose the Multicloud Defense card, and create an input. Set the index to `cisco_multicloud_defense`.\n• The input writes `sourcetype IN (\"cisco:multicloud:defense:tls_log\", \"cisco:multicloud:defense:tls_error\")`.\n• Confirm events arrive with the search in Step 2, over the last hour. A count above zero means the input is writing.\n\nStep 2 — Create the search\n```spl\nindex=cisco_multicloud_defense sourcetype IN (\"cisco:multicloud:defense:tls_log\", \"cisco:multicloud:defense:tls_error\") earliest=-24h\n| timechart span=1h count by sourcetype\n```\n\nUnderstanding this SPL\n• `timechart count by sourcetype` keeps each log type visible. A missing series means that log type stopped.\n• Action, address, and rule fields are not documented, so they are not used.\n\nStep 3 — Validate\n• In Security Cloud Control, open the Multicloud Defense logs for the same hour and log type. Events there and nothing here means the HEC export is down.\n\n• Confirm in the vendor console that the same hour shows the same kind of event before trusting a zero or a spike.\n\nStep 4 — Operationalize\n• Put the panel on the SOC dashboard for Multicloud Defense and refresh it hourly.\n• Alert when the count drops to zero during a staffed period, which means the input stopped, and throttle for 4 hours.\n\nStep 5 — Troubleshooting\n• HTTP 401 or 403 on the HEC token: the token on the Security Cloud Control side does not match the input.\n• Parent sourcetype cisco:multicloud:defense arrives but these specific sourcetypes do not: the gateway is not emitting that log type. Enable it on the gateway before expecting this panel to move.\n• No data for this sourcetype, with an input error in the Cisco Security Cloud log, means the credential or token is incorrect.\n",
+  "grandmaExplanation": "We count the encrypted-traffic inspection records Cisco sends each hour, so we know we can still see where inspection fails.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}
