@@ -88,7 +88,7 @@ internal indexes. Sourcetype comparisons are lowercase and use
 
 ```bash
 PYTHONPATH=src python3 -m splunk_uc generate-starter-packs
-PYTHONPATH=src python3 -m splunk_uc generate-starter-packs --check
+PYTHONPATH=src python3 -m splunk_uc generate-starter-packs --check --validate
 ```
 
 | URL | Content |
@@ -105,8 +105,11 @@ reports no warnings or errors for the pack.
 The `api/` tree is gitignored. `starter-packs` is listed in
 `api_surface._EXTERNAL_SUBTREES`, so `generate-api-surface` leaves it
 alone; `pages.yml` runs `generate-starter-packs` after
-`generate-api-surface`. Inputs are only the pack files, UC sidecars, the
-alias map, and `VERSION`, so `--check` is hermetic.
+`generate-api-surface`, without `--validate`, so the Pages job does not
+need `jsonschema`. `validate.yml` passes `--validate`, and
+`audit-starter-packs` is the pre-merge schema gate. Inputs are only the
+pack files, UC sidecars, the alias map, and `VERSION`, so `--check` is
+hermetic.
 
 **Consumers must show only `status: published` packs by default.**
 

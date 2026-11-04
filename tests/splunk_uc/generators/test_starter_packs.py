@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import builtins
 import json
 from pathlib import Path
+
+import pytest
 
 from splunk_uc.generators import api_surface
 from splunk_uc.generators import starter_packs as gen
@@ -53,6 +56,23 @@ def test_check_mode_detects_drift(tmp_path: Path) -> None:
 
 def test_check_mode_without_tree_only_renders(tmp_path: Path) -> None:
     assert gen.main(["--check", "--out", str(tmp_path / "missing")]) == 0
+
+
+def test_generate_succeeds_without_jsonschema(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pages runs this generator without jsonschema installed."""
+    real_import = builtins.__import__
+
+    def _import(name, globals_=None, locals_=None, fromlist=(), level=0):
+        if name == "jsonschema" or name.startswith("jsonschema."):
+            raise ImportError("jsonschema is not installed")
+        return real_import(name, globals_, locals_, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", _import)
+    out = tmp_path / "starter-packs"
+    assert gen.main(["--out", str(out)]) == 0
+    assert (out / "index.json").is_file()
+    with pytest.raises(ImportError, match="jsonschema is not installed"):
+        gen.main(["--validate", "--out", str(tmp_path / "validated")])
 
 
 def test_subtree_is_external_to_api_surface() -> None:
