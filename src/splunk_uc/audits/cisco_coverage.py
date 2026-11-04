@@ -12,8 +12,8 @@ Builds the same matrix as ``generate-cisco-coverage`` and fails when:
   with ``--write-baseline``).
 
 Waivers live in ``data/cisco-coverage-baseline.json`` under ``waivers``
-and are kept by ``--write-baseline``; ``pendingGaps`` and
-``emptyProducts`` are rewritten from the current state.
+and are kept by ``--write-baseline``, as are ``emptyProductNotes``.
+``pendingGaps`` and ``emptyProducts`` are rewritten from the current state.
 
 Subcategory outcomes are enforced by ``audit-non-technical-sync``, which
 requires every subcategory to have an entry in ``non-technical-view.js``.
@@ -88,13 +88,17 @@ def write_baseline(matrix: dict[str, Any], baseline: dict[str, Any], path: Path 
     out = {
         "$comment": (
             "Ratchet baseline for `python -m splunk_uc audit-cisco-coverage`. "
-            "`waivers` are hand-curated (capability + reason) and preserved; "
+            "`waivers` are hand-curated (capability + reason) and preserved, "
+            "as are `emptyProductNotes`; "
             "`pendingGaps` and `emptyProducts` are rewritten by --write-baseline and may only shrink."
         ),
         "waivers": waivers,
         "pendingGaps": sorted(_gap_key(g) for g in matrix["gaps"] if g["capability"] not in waived),
         "emptyProducts": sorted(p["slug"] for p in matrix["products"] if not p["useCaseCount"]),
     }
+    notes = baseline.get("emptyProductNotes") or []
+    if notes:
+        out["emptyProductNotes"] = notes
     path.write_text(json.dumps(out, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 

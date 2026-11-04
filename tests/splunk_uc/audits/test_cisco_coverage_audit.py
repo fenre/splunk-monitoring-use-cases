@@ -84,11 +84,17 @@ def test_empty_product_must_be_in_backlog():
 def test_write_baseline_keeps_waivers(tmp_path):
     m = _matrix([_uc("UC-1.1.1", ["duo.authentication"])])
     path = tmp_path / "b.json"
-    audit.write_baseline(m, {"waivers": [{"capability": "duo.telephony", "reason": "r"}]}, path)
+    notes = [{"product": "hyperfabric", "reason": "Index without a sourcetype."}]
+    audit.write_baseline(
+        m,
+        {"waivers": [{"capability": "duo.telephony", "reason": "r"}], "emptyProductNotes": notes},
+        path,
+    )
     data = audit.load_baseline(path)
     assert data["waivers"] == [{"capability": "duo.telephony", "reason": "r"}]
     assert data["pendingGaps"] == []
     assert data["emptyProducts"] == ["hyperfabric"]
+    assert data["emptyProductNotes"] == notes
 
 
 def test_repository_baseline_passes():
