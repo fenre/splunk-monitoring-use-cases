@@ -20,12 +20,12 @@
 | **SOX<sup class="ref">[<a href="#ref-11">11</a>]</sup> ITGC** | Tier 1 | US | `PCAOB AS 2201` | 100.0% | 100.0% | [`sox-itgc.md`](sox-itgc.md) |
 | **SOC 2<sup class="ref">[<a href="#ref-1">1</a>]</sup>** | Tier 1 | US, GLOBAL | `2017 TSC` | 100.0% | 100.0% | [`soc-2.md`](soc-2.md) |
 | **ISO 27001<sup class="ref">[<a href="#ref-5">5</a>]</sup>** | Tier 1 | GLOBAL | `2022` | 100.0% | 100.0% | [`iso-27001.md`](iso-27001.md) |
-| **NIST CSF<sup class="ref">[<a href="#ref-6">6</a>]</sup>** | Tier 1 | US, GLOBAL | `2.0` | 100.0% | 100.0% | [`nist-csf.md`](nist-csf.md) |
+| **NIST CSF<sup class="ref">[<a href="#ref-6">6</a>]</sup>** | Tier 1 | US, GLOBAL | `2.0` | 94.1% | 93.8% | [`nist-csf.md`](nist-csf.md) |
 | **NIST 800-53<sup class="ref">[<a href="#ref-7">7</a>]</sup>** | Tier 1 | US | `Rev. 5` | 100.0% | 100.0% | [`nist-800-53.md`](nist-800-53.md) |
 | **NIS2<sup class="ref">[<a href="#ref-2">2</a>]</sup>** | Tier 1 | EU | `Directive (EU) 2022/2555` | 100.0% | 100.0% | [`nis2.md`](nis2.md) |
 | **DORA<sup class="ref">[<a href="#ref-4">4</a>]</sup>** | Tier 1 | EU | `Regulation (EU) 2022/2554` | 100.0% | 100.0% | [`dora.md`](dora.md) |
 | **CMMC<sup class="ref">[<a href="#ref-12">12</a>]</sup>** | Tier 1 | US | `2.0` | 100.0% | 100.0% | [`cmmc.md`](cmmc.md) |
-| **NCA OTCC** | Tier 2 | SA | `1:2022` | 100.0% | 100.0% | [`nca-otcc.md`](nca-otcc.md) |
+| **NCA OTCC** | Tier 2 | SA | `1:2022` | 96.4% | 96.2% | [`nca-otcc.md`](nca-otcc.md) |
 | **SOCI Act** | Tier 1 | AU | `2022-SLACIP+CIRMP-2023` | 100.0% | 100.0% | [`soci.md`](soci.md) |
 | **AWIA** | Tier 1 | US | `2018-amended-SDWA-1433` | 100.0% | 100.0% | [`awia.md`](awia.md) |
 | **CIRCIA** | Tier 1 | US | `2022-act-with-2024-nprm` | 100.0% | 100.0% | [`circia.md`](circia.md) |

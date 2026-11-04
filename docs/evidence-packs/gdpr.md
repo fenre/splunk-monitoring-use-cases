@@ -42,7 +42,7 @@ Applies to any organisation processing personal data of individuals located in t
 - **Clauses tracked**: 20
 - **Clauses covered by at least one UC**: 20 / 20 (100.0%)
 - **Priority-weighted coverage**: 100.0%
-- **Contributing UCs**: 53
+- **Contributing UCs**: 52
 
 Coverage methodology is documented in [`docs/coverage-methodology.md`](../coverage-methodology.md). Priority weights come from `data/regulations.json` commonClauses entries (see [`data/regulations.json`](../../data/regulations.json) priorityWeightRubric).
 
@@ -52,7 +52,7 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 
 | Clause | Topic | Priority | Assurance | UCs |
 |---|---|---|---|---|
-| [`Art.5`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.5) | Principles of processing | 1.0 | `full` | [UC-22.1.1](#uc-22-1-1), [UC-22.49.1](#uc-22-49-1), [UC-22.49.2](#uc-22-49-2) |
+| [`Art.5`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.5) | Principles of processing | 1.0 | `full` | [UC-22.1.1](#uc-22-1-1), [UC-22.49.2](#uc-22-49-2) |
 | [`Art.6`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.6) | Lawful basis | 1.0 | `partial` | [UC-10.4.75](#uc-10-4-75), [UC-10.4.79](#uc-10-4-79), [UC-10.7.154](#uc-10-7-154), [UC-11.3.11](#uc-11-3-11), [UC-22.1.1](#uc-22-1-1), [UC-22.37.1](#uc-22-37-1) |
 | [`Art.7`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.7) | Conditions for consent | 0.7 | `full` | [UC-10.4.111](#uc-10-4-111), [UC-10.4.114](#uc-10-4-114), [UC-10.4.115](#uc-10-4-115), [UC-10.4.24](#uc-10-4-24), [UC-10.4.39](#uc-10-4-39), [UC-10.4.45](#uc-10-4-45) (+2 more) |
 | [`Art.15`](https://eur-lex.europa.eu/eli/reg/2016/679/oj#Art.15) | Right of access | 1.0 | `full` | [UC-22.1.2](#uc-22-1-2), [UC-22.36.1](#uc-22-36-1) |
@@ -375,12 +375,6 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Owner: `DPO`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.44.2.json`](../../content/cat-22-regulatory-compliance/UC-22.44.2.json)
-<a id='uc-22-49-1'></a>
-- **UC-22.49.1** — Retention execution evidence — records past retention still present
-  - Control family: `retention-end-enforcement`
-  - Owner: `DPO`
-  - Evidence fields declared in sidecar: 1
-  - Source: [`content/cat-22-regulatory-compliance/UC-22.49.1.json`](../../content/cat-22-regulatory-compliance/UC-22.49.1.json)
 <a id='uc-22-49-2'></a>
 - **UC-22.49.2** — Disposal workflow completion — failed disposals requiring manual review
   - Control family: `retention-end-enforcement`

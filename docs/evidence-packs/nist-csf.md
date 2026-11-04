@@ -40,9 +40,9 @@ Any organisation seeking a structured, outcome-focused approach to cybersecurity
 ## 3. Catalogue coverage at a glance
 
 - **Clauses tracked**: 17
-- **Clauses covered by at least one UC**: 17 / 17 (100.0%)
-- **Priority-weighted coverage**: 100.0%
-- **Contributing UCs**: 20
+- **Clauses covered by at least one UC**: 16 / 17 (94.1%)
+- **Priority-weighted coverage**: 93.8%
+- **Contributing UCs**: 19
 
 Coverage methodology is documented in [`docs/coverage-methodology.md`](../coverage-methodology.md). Priority weights come from `data/regulations.json` commonClauses entries (see [`data/regulations.json`](../../data/regulations.json) priorityWeightRubric).
 
@@ -61,7 +61,7 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 | [`PR.AA-05`](https://csrc.nist.gov/pubs/cswp/29/final#PR.AA-05) | Access permissions | 1.0 | `full` | [UC-22.7.4](#uc-22-7-4) |
 | [`PR.DS-01`](https://csrc.nist.gov/pubs/cswp/29/final#PR.DS-01) | Data-at-rest protection | 1.0 | `partial` | [UC-22.7.26](#uc-22-7-26) |
 | [`PR.DS-02`](https://csrc.nist.gov/pubs/cswp/29/final#PR.DS-02) | Data-in-transit protection | 1.0 | `partial` | [UC-22.7.27](#uc-22-7-27) |
-| [`PR.PS-04`](https://csrc.nist.gov/pubs/cswp/29/final#PR.PS-04) | Log generation | 1.0 | `full` | [UC-22.7.32](#uc-22-7-32) |
+| [`PR.PS-04`](https://csrc.nist.gov/pubs/cswp/29/final#PR.PS-04) | Log generation | 1.0 | `—` | _not yet covered_ |
 | [`DE.AE-02`](https://csrc.nist.gov/pubs/cswp/29/final#DE.AE-02) | Anomalies and events analysis | 1.0 | `full` | [UC-22.7.37](#uc-22-7-37), [UC-22.7.51](#uc-22-7-51) |
 | [`DE.CM-01`](https://csrc.nist.gov/pubs/cswp/29/final#DE.CM-01) | Network monitoring | 1.0 | `full` | [UC-22.7.31](#uc-22-7-31), [UC-22.7.51](#uc-22-7-51) |
 | [`DE.CM-03`](https://csrc.nist.gov/pubs/cswp/29/final#DE.CM-03) | Personnel activity monitoring | 1.0 | `full` | [UC-22.14.82](#uc-22-14-82), [UC-22.7.33](#uc-22-7-33) |
@@ -132,12 +132,6 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Owner: `—`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.7.31.json`](../../content/cat-22-regulatory-compliance/UC-22.7.31.json)
-<a id='uc-22-7-32'></a>
-- **UC-22.7.32** — Administrative API Logging Volume Drop vs Baseline
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 1
-  - Source: [`content/cat-22-regulatory-compliance/UC-22.7.32.json`](../../content/cat-22-regulatory-compliance/UC-22.7.32.json)
 <a id='uc-22-7-33'></a>
 - **UC-22.7.33** — Proxy Denies Toward Young Threat-Intel Domains
   - Control family: `—`
@@ -272,7 +266,11 @@ No direct statutory penalty. However, CSF is frequently cited by regulators (SEC
 
 ## 11. Pack gaps and remediation backlog
 
-All clauses tracked in `data/regulations.json` for this regulation version are covered by at least one UC. **100 % common-clause coverage**. Remaining work is assurance-upgrade (for example, moving `contributing` entries to `partial` or `full` via explicit control tests) rather than new clause authoring.
+Clauses tracked in `data/regulations.json` that are **not yet covered** by any UC in this catalogue are listed below. These are the backlog items for the next release. Priority order follows priorityWeight.
+
+| Clause | Topic | Priority |
+|---|---|---|
+| `PR.PS-04` | Log generation | 1.0 |
 
 ## 12. Questions an auditor should ask
 
