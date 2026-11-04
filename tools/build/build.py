@@ -226,8 +226,10 @@ def _copy_project_assets(out: Path) -> None:
     the repo as committed files.
 
     Excludes: source-only directories (.git, tools, scripts, src, content,
-    mcp, .github, .cursor), build outputs (dist), and anything the v7
-    render stages own (api/cat-*.json, api/catalog-index.json).
+    mcp, .github, .cursor), the UC review ledger (reports/uc-review — it
+    stays in the repo and is not part of the published site), build
+    outputs (dist), and anything the v7 render stages own
+    (api/cat-*.json, api/catalog-index.json).
     """
     skip_dirs = {
         ".git",
@@ -243,6 +245,7 @@ def _copy_project_assets(out: Path) -> None:
         "dist",
         "tools",
         "scripts",
+        "uc-review",
         "mcp",
         "src",
         "content",

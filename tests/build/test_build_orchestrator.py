@@ -609,6 +609,29 @@ class TestCopyProjectAssets:
         assert not (out / "data" / ".git" / "secret").exists()
         assert not (out / "data" / "tmp.pyc").exists()
 
+    def test_skips_uc_review_ledger_keeps_other_reports(self, tmp_path: Path, monkeypatch):
+        """reports/uc-review stays in the repo and is not published.
+
+        Other files under reports/ still ship, the same way a sibling of
+        scripts/ would.
+        """
+        fake_root = tmp_path / "fake_project"
+        ledger = fake_root / "reports" / "uc-review"
+        ledger.mkdir(parents=True)
+        (ledger / "summary.json").write_text("{}", encoding="utf-8")
+        nested = ledger / "deep" / "cat-15"
+        nested.mkdir(parents=True)
+        (nested / "UC-15.3.25.json").write_text("{}", encoding="utf-8")
+        (fake_root / "reports" / "perf-a11y.json").write_text("{}", encoding="utf-8")
+
+        monkeypatch.setattr(build_mod, "PROJECT_ROOT", fake_root)
+        out = tmp_path / "dist"
+        out.mkdir()
+        build_mod._copy_project_assets(out)
+
+        assert not (out / "reports" / "uc-review").exists()
+        assert (out / "reports" / "perf-a11y.json").read_text(encoding="utf-8") == "{}"
+
     def test_mirrors_index_html_to_browse(self, tmp_path: Path, monkeypatch):
         fake_root = tmp_path / "fake_project"
         fake_root.mkdir()
