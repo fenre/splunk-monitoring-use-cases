@@ -359,6 +359,16 @@ class TestApplyTags:
         assert out["equipment"] == ["aws"]
         assert out["equipmentModels"] == ["aws_cloudtrail"]
 
+    def test_drops_gated_vendor_model_ids_missing_from_registry(self) -> None:
+        sidecar = {
+            "id": "1.1.1",
+            "equipment": ["cisco"],
+            "equipmentModels": ["azure_foo", "cisco_retired_model"],
+        }
+        owned = frozenset({"cisco", "cisco_umbrella"})
+        out = et._apply_tags(sidecar, ["cisco"], ["cisco_umbrella"], owned)
+        assert out["equipmentModels"] == ["azure_foo", "cisco_umbrella"]
+
 
 class TestSerialise:
     def test_returns_indent_2_with_trailing_newline(self) -> None:

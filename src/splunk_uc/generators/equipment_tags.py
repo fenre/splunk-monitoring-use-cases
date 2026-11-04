@@ -252,8 +252,9 @@ def _apply_tags(
           manually-set tags (from Gold uplift agents or hand-edits) are
           never lost. Exception: ids in ``gated_owned`` (evidence-gated
           vendors and their model compounds) are owned by this generator
-          and replaced outright; hand corrections for them live in
-          ``data/equipment-tag-overrides.json`` (``override``).
+          and replaced outright, as is any ``<gated vendor>_*`` model id
+          that is no longer in the registry; hand corrections for them live
+          in ``data/equipment-tag-overrides.json`` (``override``).
         - Empty arrays are ELIDED (key is removed). Keeps diffs small.
         - If the merged arrays equal the existing ones, no change.
         - Keys re-ordered to the canonical field order to keep sidecar
@@ -261,7 +262,11 @@ def _apply_tags(
     """
     out = dict(sidecar)
     existing_eq = set(sidecar.get("equipment") or []) - gated_owned
-    existing_models = set(sidecar.get("equipmentModels") or []) - gated_owned
+    existing_models = {
+        m
+        for m in sidecar.get("equipmentModels") or []
+        if m not in gated_owned and m.split("_", 1)[0] not in gated_owned
+    }
 
     eq_set = existing_eq | set(equipment)
     model_set = existing_models | set(equipment_models)
