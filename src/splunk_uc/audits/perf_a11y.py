@@ -98,7 +98,7 @@ PerfBudget = dict[str, Any]
 _PERF_BUDGETS: list[PerfBudget] = [
     {
         "file": "index.html",
-        "budget_bytes": 760_000,  # ~742 KiB
+        "budget_bytes": 851_312,  # 810,773 + 5%
         "tier": "critical-path",
         "note": (
             "Main catalog landing page; inlines all CSS/JS for offline "
@@ -109,7 +109,8 @@ _PERF_BUDGETS: list[PerfBudget] = [
             "Raised to 740 KiB after catalogue growth pushed index.html "
             "past the v8.11.0 ~720 KiB ceiling. "
             "Raised to 760 KiB after equipment-app-map Recommended Apps "
-            "panel and inventory modal grouping landed in index.html."
+            "panel and inventory modal grouping landed in index.html. "
+            "Owner decision 2026-11-04: grew with the integration; size work belongs to oppgave 12."
         ),
     },
     {
