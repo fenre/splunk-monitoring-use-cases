@@ -153,6 +153,7 @@ All audits are in `.github/workflows/validate.yml`. Key steps:
 - Prerequisite graph (cycles, unknown IDs, wave monotonicity)
 - SPL hallucination audit (unknown commands, invalid eval functions)
 - ESCU drill-down SPL (`python -m splunk_uc audit-escu-drilldown-spl --check` — fails when a search is the ESCU "view risk events for $token$" drill-down instead of the detection; unmatched UCs are listed in `data/escu-drilldown-backlog.json`, which may only shrink)
+- Splunkbase app status (`python -m splunk_uc audit-splunkbase-app-status --check` — resolves every cited Splunkbase id against the live app API and fails on 404, an archived app, or a title that shares no word with the add-on named beside the id; known misses are listed in `data/splunkbase-app-status-backlog.json`, which may only shrink)
 - SPL reference validation (`python -m splunk_uc audit-spl-references --check` — unknown macros / sourcetypes / datamodel paths against curated vocabulary; see [`docs/spl-reference-validation.md`](docs/spl-reference-validation.md))
 - Build freshness (regenerate and diff)
 - Version triple consistency (`VERSION` ↔ `CHANGELOG.md` ↔ `index.html`)
