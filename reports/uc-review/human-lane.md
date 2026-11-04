@@ -667,7 +667,7 @@ Problems in fields the AI fix loop must not edit (`spl`, `cimSpl`, `compliance`,
 ### [UC-15.3.28](../../content/cat-15-data-center-physical-infrastructure/UC-15.3.28.json) — Camera Firmware Compliance and Update Management (Meraki MV)
 
 - **spl** (blocker): The append subsearch uses `upgrade.toVersion.shortName`, `upgrade.time`, `productType` and `product`, none of which exist in meraki:firmwareupgrades. The real fields are toVersion.shortName, time and productTypes (see h… ([evidence](https://docs.ansible.com/ansible/latest/collections/cisco/meraki/organizations_firmware_upgrades_info_module.html))
-- **spl** (major): `latest(network.name)` on meraki:devices is always null: that sourcetype has only a flat networkId, per scripts/_meraki_field_manifests.json. `earliest=-1h` against a daily Devices input usually returns nothing. Join ne…
+- **spl** (major): `latest(network.name)` on meraki:devices is always null: that sourcetype has only a flat networkId, per data/evidence/meraki_field_manifests.json. `earliest=-1h` against a daily Devices input usually returns nothing. Join ne…
 
 ### [UC-15.5.1](../../content/cat-15-data-center-physical-infrastructure/UC-15.5.1.json) — NVR Recording Gap Detection for Splunk CCTV Pipelines
 
@@ -855,7 +855,7 @@ Problems in fields the AI fix loop must not edit (`spl`, `cimSpl`, `compliance`,
 
 ### [UC-15.3.27](../../content/cat-15-data-center-physical-infrastructure/UC-15.3.27.json) — Video Stream Connection Errors and Quality Issues (Meraki MV)
 
-- **spl** (major): meraki:webhook events have no deviceType, `scope.devices{}.name`, `type` or `severity` fields (webhooks use deviceModel, deviceName, alertTypeId and alertLevel; see scripts/_meraki_field_manifests.json). They are filter…
+- **spl** (major): meraki:webhook events have no deviceType, `scope.devices{}.name`, `type` or `severity` fields (webhooks use deviceModel, deviceName, alertTypeId and alertLevel; see data/evidence/meraki_field_manifests.json). They are filter…
 - **spl** (needs_verification): `where alert_count > 1` drops any camera with a single alert. Polled assurance alerts may also be re-ingested hourly while open, so counts may reflect poll repetitions rather than distinct alerts. Check whether the inpu…
 
 ### [UC-15.3.16](../../content/cat-15-data-center-physical-infrastructure/UC-15.3.16.json) — Camera Feed Loss and Recording Gap Detection

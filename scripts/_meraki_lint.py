@@ -81,7 +81,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 CONTENT = REPO / "content"
-MANIFEST_PATH = REPO / "scripts" / "_meraki_field_manifests.json"
+MANIFEST_PATH = REPO / "data" / "evidence" / "meraki_field_manifests.json"
 
 
 # ---- helpers -------------------------------------------------------------
