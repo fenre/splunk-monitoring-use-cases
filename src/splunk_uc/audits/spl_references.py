@@ -20,6 +20,11 @@ Sources of truth (in order of preference):
 4. **The UC's own declarations** — ``splunkbaseApps[].id`` /
    ``dataSources`` strings. A sourcetype that appears in the UC's own
    ``dataSources`` field is by definition expected.
+5. **ESCU macros** (``data/escu-macros.json``) — names fetched from
+   ``splunk/security_content`` ``macros/``. A macro in that list is
+   known only when the use case requires ESCU (Splunkbase 3449),
+   named in ``app`` or ``splunkbaseApps``. The curated
+   ``WELL_KNOWN_MACROS`` list is not extended by hand.
 
 Severity tiers:
 
@@ -257,6 +262,29 @@ def _suggest(name: str, candidates: set[str]) -> str:
     return ""
 
 
+ESCU_MACROS_PATH = REPO / "data" / "escu-macros.json"
+_ESCU_APP_RE = re.compile(r"Splunkbase\s+3449\b")
+
+
+def load_escu_macros(path: Path = ESCU_MACROS_PATH) -> set[str]:
+    """Macro names fetched from ESCU ``macros/``. Empty if the file is absent."""
+    if not path.is_file():
+        return set()
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return {str(name) for name in data.get("macros", []) if name}
+
+
+def requires_escu(payload: dict[str, Any]) -> bool:
+    """True when the use case names ESCU (Splunkbase 3449) as a required app."""
+    app = payload.get("app")
+    if isinstance(app, str) and _ESCU_APP_RE.search(app):
+        return True
+    for entry in payload.get("splunkbaseApps") or []:
+        if isinstance(entry, dict) and entry.get("id") == 3449:
+            return True
+    return False
+
+
 def check_one_spl_field(
     uc_id: str,
     file_label: str,
@@ -265,6 +293,7 @@ def check_one_spl_field(
     vocab: Vocabulary,
     declared_sourcetypes: set[str],
     declared_indexes: set[str],
+    extra_macros: set[str] | None = None,
 ) -> list[Finding]:
     findings: list[Finding] = []
     extracted = parse.extract_all(spl)
@@ -291,7 +320,7 @@ def check_one_spl_field(
     for mref in extracted.macros:
         if not mref.name or _looks_like_token(mref.name):
             continue
-        if mref.name in vocab.macros:
+        if mref.name in vocab.macros or (extra_macros and mref.name in extra_macros):
             continue
         # ESCU convention: every detection ships a per-detection "exclusion
         # filter" macro named ``<detection_name>_filter`` that the customer
@@ -514,6 +543,7 @@ def run_audit(
     """
     if vocab is None:
         vocab = build_vocabulary()
+    escu_macros = load_escu_macros()
     threshold = _SEV_RANK[min_severity]
     out: list[Finding] = []
     for path, payload in iter_uc_sidecars():
@@ -521,6 +551,7 @@ def run_audit(
         rel = path.relative_to(REPO)
         declared_st = declared_sourcetypes_for(payload)
         declared_ix = declared_indexes_for(payload)
+        extra = escu_macros if requires_escu(payload) else None
         for field in _SPL_FIELDS:
             value = payload.get(field)
             if not isinstance(value, str) or not value.strip():
@@ -533,6 +564,7 @@ def run_audit(
                 vocab=vocab,
                 declared_sourcetypes=declared_st,
                 declared_indexes=declared_ix,
+                extra_macros=extra,
             ):
                 if _SEV_RANK[finding.severity] >= threshold:
                     out.append(finding)

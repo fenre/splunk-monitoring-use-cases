@@ -233,6 +233,10 @@ import test — adding entries is a single-line PR.
    * If you see a HIGH finding, stop — it's a real SPL bug.
    * If you see a MEDIUM `unknown-macro`, double-check the macro name
      against the [ESCU repo](https://github.com/splunk/security_content/tree/develop/macros).
+     A macro that exists in ESCU `macros/` is accepted when the use case
+     requires ESCU (Splunkbase 3449) in `app` or `splunkbaseApps`. The
+     names live in `data/escu-macros.json`, fetched from
+     `splunk/security_content`; do not add them to the curated list by hand.
    * If you see a MEDIUM `unknown-sourcetype` and the sourcetype is
      real, append it to `_spl_well_known.py`.
 3. **Commit** and let CI re-confirm the HIGH gate is clean.

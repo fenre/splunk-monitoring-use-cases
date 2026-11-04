@@ -152,6 +152,7 @@ All audits are in `.github/workflows/validate.yml`. Key steps:
 - Catalog schema shape
 - Prerequisite graph (cycles, unknown IDs, wave monotonicity)
 - SPL hallucination audit (unknown commands, invalid eval functions)
+- ESCU drill-down SPL (`python -m splunk_uc audit-escu-drilldown-spl --check` — fails when a search is the ESCU "view risk events for $token$" drill-down instead of the detection; unmatched UCs are listed in `data/escu-drilldown-backlog.json`, which may only shrink)
 - SPL reference validation (`python -m splunk_uc audit-spl-references --check` — unknown macros / sourcetypes / datamodel paths against curated vocabulary; see [`docs/spl-reference-validation.md`](docs/spl-reference-validation.md))
 - Build freshness (regenerate and diff)
 - Version triple consistency (`VERSION` ↔ `CHANGELOG.md` ↔ `index.html`)

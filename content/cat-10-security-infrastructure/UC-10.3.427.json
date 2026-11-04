@@ -15,8 +15,8 @@
     "negativeScenario": "UC-10.3.427 negative (Reg Query): ingest benign `risk` / `target_sourcetype` events where `normalized_risk_object` stays below 168h lookback, or exclude the test entity via `soc_exception_register.csv`. Variant 0 confirms zero alert rows for 'Windows Credentials in Registry Reg Query'."
   },
   "dataSources": "Sysmon EventID 1, Windows Event Log Security 4688, CrowdStrike ProcessRollup2 Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
-  "app": "Splunk Security Essentials / ESCU — Universal Forwarder (Splunkbase 617)",
-  "spl": "| from datamodel Risk.All_Risk | search normalized_risk_object IN (\"$dest$\") starthoursago=168  | stats count min(_time) as firstTime max(_time) as lastTime values(search_name) as \"Search Name\" values(risk_message) as \"Risk Message\" values(analyticstories) as \"Analytic Stories\" values(annotations._all) as \"Annotations\" values(annotations.mitre_attack.mitre_tactic) as \"ATT&CK Tactics\" by normalized_risk_object | `security_content_ctime(firstTime)` | `security_content_ctime(lastTime)`",
+  "app": "Splunk Security Essentials / ESCU (Splunkbase 3449) — Universal Forwarder (Splunkbase 617)",
+  "spl": "| tstats `security_content_summariesonly` count min(_time) as firstTime max(_time) as lastTime from datamodel=Endpoint.Processes where `process_reg` AND Processes.process = \"* query *\" AND Processes.process IN (\"*\\\\Software\\\\ORL\\\\WinVNC3\\\\Password*\", \"*\\\\SOFTWARE\\\\RealVNC\\\\WinVNC4 /v password*\", \"*\\\\CurrentControlSet\\\\Services\\\\SNMP*\", \"*\\\\Software\\\\TightVNC\\\\Server*\", \"*\\\\Software\\\\SimonTatham\\\\PuTTY\\\\Sessions*\", \"*\\\\Software\\\\OpenSSH\\\\Agent\\\\Keys*\", \"*password*\") by Processes.action Processes.dest Processes.original_file_name Processes.parent_process Processes.parent_process_exec Processes.parent_process_guid Processes.parent_process_id Processes.parent_process_name Processes.parent_process_path Processes.process Processes.process_exec Processes.process_guid Processes.process_hash Processes.process_id Processes.process_integrity_level Processes.process_name Processes.process_path Processes.user Processes.user_id Processes.vendor_product | `drop_dm_object_name(Processes)` | `security_content_ctime(firstTime)` | `security_content_ctime(lastTime)` | `windows_credentials_in_registry_reg_query_filter`",
   "description": "Surfaces 'Windows Credentials in Registry Reg Query' (UC-10.3.427) using datamodel `Risk.All_Risk` via filter `normalized_risk_object IN (\"$dest$\") starthoursago=168` by aggregating `firstTime`, `lastTime` grouped by `normalized_risk_object` over `the scheduled window` and alerting when 168h lookback. Keywords: Windows, Credentials, Registry, Reg, Query. Focuses on Reg Query behaviour so security infra teams can triage UC-10.3.427 without ad-hoc log review.",
   "value": "UC-10.3.427 accelerates insight into Reg Query ('Windows Credentials in Registry Reg Query') by tracking `firstTime`, `lastTime` on `Risk.All_Risk` telemetry, reducing missed threat campaigns, control regressions, and SOC SLA breaches before spreadsheet checks hide regressions.",
   "implementation": "The detection is based on data that originates from Endpoint Detection and Response (EDR) agents. These agents are designed to provide security-related telemetry from the endpoints where the agent is installed. To implement this search, you must ingest logs that contain the process GUID, process name, and parent process. Additionally, you must ingest complete command-line executions. These logs mu…",
@@ -55,7 +55,11 @@
   "detectionType": "system",
   "equipment": [
     "crowdstrike",
-    "security_essentials"
+    "security_essentials",
+    "snmp"
+  ],
+  "equipmentModels": [
+    "snmp_trap"
   ],
   "splunkVersions": [
     "9.2+",

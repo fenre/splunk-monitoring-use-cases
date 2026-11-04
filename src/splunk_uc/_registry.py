@@ -686,6 +686,14 @@ register(
 )
 register(
     Verb(
+        name="audit-escu-drilldown-spl",
+        module="audits.escu_drilldown_spl",
+        help="Fail when a UC search is the ESCU risk drill-down instead of the detection.",
+        category="audits",
+    )
+)
+register(
+    Verb(
         name="audit-equipment-models",
         module="audits.equipment_models",
         help="Validate equipment[] slugs and equipmentModels[] against SSOT registry.",

@@ -30,8 +30,8 @@
     "negativeScenario": "UC-10.4.114 negative (Risky Application): ingest benign `risk` / `target_sourcetype` events where `normalized_risk_object` stays below 168h lookback, or exclude the test entity via `soc_exception_register.csv`. Variant 1 confirms zero alert rows for 'O365 User Consent Blocked for Risky Application'."
   },
   "dataSources": "O365 Consent to application. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
-  "app": "Splunk Security Essentials / ESCU — Universal Forwarder (Splunkbase 617)",
-  "spl": "| from datamodel Risk.All_Risk | search normalized_risk_object IN (\"$user$\") starthoursago=168  | stats count min(_time) as firstTime max(_time) as lastTime values(search_name) as \"Search Name\" values(risk_message) as \"Risk Message\" values(analyticstories) as \"Analytic Stories\" values(annotations._all) as \"Annotations\" values(annotations.mitre_attack.mitre_tactic) as \"ATT&CK Tactics\" by normalized_risk_object | `security_content_ctime(firstTime)` | `security_content_ctime(lastTime)`",
+  "app": "Splunk Security Essentials / ESCU (Splunkbase 3449) — Universal Forwarder (Splunkbase 617)",
+  "spl": "`o365_management_activity` Workload=AzureActiveDirectory Operation=\"Consent to application.\" ResultStatus=Failure | eval permissions =mvindex('ModifiedProperties{}.NewValue', 4) | eval reason =mvindex('ModifiedProperties{}.NewValue', 5) | search reason = \"Risky application detected\" | rex field=permissions \"Scope: (?<Scope>[^,]+)\" | fillnull | stats max(_time) as lastTime by user, reason, object, Scope, dest, src, vendor_account, vendor_product, signature | `security_content_ctime(lastTime)` | `o365_user_consent_blocked_for_risky_application_filter`",
   "description": "Surfaces Risky Application activity in UC-10.4.114 ('O365 User Consent Blocked for Risky Application') from datamodel `Risk.All_Risk`. Rolls up `firstTime`, `lastTime` by `normalized_risk_object` across `the scheduled window` and pages when 168h lookback. Uses filter `normalized_risk_object IN (\"$user$\") starthoursago=168`. Security Infra operators treat UC-10.4.114 as the canonical signal.",
   "value": "Operators running UC-10.4.114 on `Risk.All_Risk` telemetry shorten triage for Risky Application tied to 'O365 User Consent Blocked for Risky Application', lowering missed threat campaigns, control regressions, and SOC SLA breaches.",
   "implementation": "You must install the Splunk Microsoft Office 365 Add-on and ingest Office 365 management activity events.",
@@ -76,6 +76,7 @@
   ],
   "detectionType": "user",
   "equipment": [
+    "azure",
     "m365",
     "security_essentials"
   ],

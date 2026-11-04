@@ -15,8 +15,8 @@
     "negativeScenario": "UC-10.4.61 negative (Feature Changed): ingest benign `risk` / `target_sourcetype` events where `normalized_risk_object` stays below 168h lookback, or exclude the test entity via `soc_exception_register.csv`. Variant 13 confirms zero alert rows for 'O365 Email Security Feature Changed'."
   },
   "dataSources": "Office 365 Universal Audit Log Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
-  "app": "Splunk Security Essentials / ESCU — Universal Forwarder (Splunkbase 617)",
-  "spl": "| from datamodel Risk.All_Risk | search normalized_risk_object IN (\"$user$\") starthoursago=168  | stats count min(_time) as firstTime max(_time) as lastTime values(search_name) as \"Search Name\" values(risk_message) as \"Risk Message\" values(analyticstories) as \"Analytic Stories\" values(annotations._all) as \"Annotations\" values(annotations.mitre_attack.mitre_tactic) as \"ATT&CK Tactics\" by normalized_risk_object | `security_content_ctime(firstTime)` | `security_content_ctime(lastTime)`",
+  "app": "Splunk Security Essentials / ESCU (Splunkbase 3449) — Universal Forwarder (Splunkbase 617)",
+  "spl": "`o365_management_activity` Workload=Exchange AND Operation IN (\"Set-*\",\"Disable-*\",\"New-*\",\"Remove-*\") Operation IN (\"*AntiPhish*\",\"*SafeLink*\",\"*SafeAttachment*\",\"*Malware*\")\n  | rename Id as object_id, UserId as user, Operation as signature, ObjectId as object\n  | fillnull\n  | stats count min(_time) as firstTime max(_time) as lastTime\n    BY dest user src\n       vendor_account vendor_product signature\n       object_id object\n  | `security_content_ctime(firstTime)`\n  | `security_content_ctime(lastTime)`\n  | `o365_email_security_feature_changed_filter`",
   "description": "Surfaces UC-10.4.61 — O365, Email, Security, Feature, Changed — using datamodel `Risk.All_Risk`, grouped by `normalized_risk_object`. Outputs `firstTime`, `lastTime` each `the scheduled window`; alert when 168h lookback. Filter chain includes filter `normalized_risk_object IN (\"$user$\") starthoursago=168`. Purpose-built for 'O365 Email Security Feature Changed' in Security Infra workflows.",
   "value": "UC-10.4.61 gives Security Infra teams earlier visibility into Feature Changed through `Risk.All_Risk` telemetry, lowering missed threat campaigns, control regressions, and SOC SLA breaches.",
   "implementation": "ESCU Risk-Based Alerting detection. Enable in ES Content Management as a Correlation Search. Generates risk events attributed to user account entities — Notable Events fire when an entity’s cumulative risk exceeds the configured threshold. Requires Office 365 Universal Audit Log ingested and CIM-normalized.",
@@ -54,6 +54,7 @@
   ],
   "detectionType": "user",
   "equipment": [
+    "exchange",
     "m365",
     "security_essentials"
   ],

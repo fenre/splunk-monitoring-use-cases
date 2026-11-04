@@ -15,8 +15,8 @@
     "negativeScenario": "UC-10.6.147 negative (2022 26134): ingest benign `risk` / `target_sourcetype` events where `normalized_risk_object` stays below 168h lookback, or exclude the test entity via `soc_exception_register.csv`. Variant 9 confirms zero alert rows for 'Confluence Unauthenticated Remote Code Execution CVE-2022-26134'."
   },
   "dataSources": "Palo Alto Network Threat Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
-  "app": "Splunk Security Essentials / ESCU — Universal Forwarder (Splunkbase 617)",
-  "spl": "| from datamodel Risk.All_Risk | search normalized_risk_object IN (\"$dest$\") starthoursago=168  | stats count min(_time) as firstTime max(_time) as lastTime values(search_name) as \"Search Name\" values(risk_message) as \"Risk Message\" values(analyticstories) as \"Analytic Stories\" values(annotations._all) as \"Annotations\" values(annotations.mitre_attack.mitre_tactic) as \"ATT&CK Tactics\" by normalized_risk_object | `security_content_ctime(firstTime)` | `security_content_ctime(lastTime)`",
+  "app": "Splunk Security Essentials / ESCU (Splunkbase 3449) — Universal Forwarder (Splunkbase 617)",
+  "spl": "| tstats `security_content_summariesonly`\n         count min(_time) as firstTime\n               max(_time) as lastTime\n\nFROM datamodel=Web WHERE\n\nWeb.url IN (\n    \"*${*\",\n    \"*%2F%7B*\"\n)\nAND\n(\n    (\n        Web.url=\"*org.apache.commons.io.IOUtils*\"\n        Web.url=\"*java.lang.Runtime@getRuntime().exec*\"\n    )\n    OR\n    (\n        Web.url=\"*java.lang.Runtime%40getRuntime%28%29.exec*\"\n    )\n    OR\n    (\n        Web.url=\"*getEngineByName*\"\n        Web.url=\"*nashorn*\"\n        Web.url=\"*ProcessBuilder*\"\n    )\n)\nBY Web.http_user_agent Web.http_method\n   Web.url,Web.url_length\n   Web.src, Web.dest sourcetype\n| `drop_dm_object_name(\"Web\")`\n| `security_content_ctime(firstTime)`\n| `security_content_ctime(lastTime)`\n| `confluence_unauthenticated_remote_code_execution_cve_2022_26134_filter`",
   "description": "Alerts on UC-10.6.147 — Confluence, Unauthenticated, Remote, Code, Execution — using datamodel `Risk.All_Risk`, grouped by `normalized_risk_object`. Outputs `firstTime`, `lastTime` each `the scheduled window`; alert when 168h lookback. Filter chain includes filter `normalized_risk_object IN (\"$dest$\") starthoursago=168`. Purpose-built for 'Confluence Unauthenticated Remote Code Execution CVE-2022-26134' in Security Infra workflows.",
   "value": "Operators running UC-10.6.147 on `Risk.All_Risk` telemetry shorten triage for 2022 26134 tied to 'Confluence Unauthenticated Remote Code Execution CVE-2022-26134', lowering missed threat campaigns, control regressions, and SOC SLA breaches.",
   "implementation": "ESCU Risk-Based Alerting detection. Enable in ES Content Management as a Correlation Search. Generates risk events attributed to IP address entities — Notable Events fire when an entity’s cumulative risk exceeds the configured threshold. Requires Palo Alto Network Threat ingested and CIM-normalized.",
@@ -52,10 +52,12 @@
   ],
   "detectionType": "ip_address",
   "equipment": [
+    "apache",
     "paloalto",
     "security_essentials"
   ],
   "equipmentModels": [
+    "apache_httpd",
     "paloalto_pan_firewall"
   ],
   "splunkVersions": [

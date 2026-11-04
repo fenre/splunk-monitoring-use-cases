@@ -15,8 +15,8 @@
     "negativeScenario": "UC-10.4.82 negative (Permission Granted): ingest benign `risk` / `target_sourcetype` events where `normalized_risk_object` stays below 168h lookback, or exclude the test entity via `soc_exception_register.csv`. Variant 0 confirms zero alert rows for 'O365 Mailbox Folder Read Permission Granted'."
   },
   "dataSources": "O365 ModifyFolderPermissions Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
-  "app": "Splunk Security Essentials / ESCU — Universal Forwarder (Splunkbase 617)",
-  "spl": "| from datamodel Risk.All_Risk | search normalized_risk_object IN (\"$user$\") starthoursago=168  | stats count min(_time) as firstTime max(_time) as lastTime values(search_name) as \"Search Name\" values(risk_message) as \"Risk Message\" values(analyticstories) as \"Analytic Stories\" values(annotations._all) as \"Annotations\" values(annotations.mitre_attack.mitre_tactic) as \"ATT&CK Tactics\" by normalized_risk_object | `security_content_ctime(firstTime)` | `security_content_ctime(lastTime)`",
+  "app": "Splunk Security Essentials / ESCU (Splunkbase 3449) — Universal Forwarder (Splunkbase 617)",
+  "spl": "`o365_management_activity`\nWorkload=Exchange\nOperation IN (\"Set-MailboxFolderPermission\", \"Add-MailboxFolderPermission\")\n| eval isReadRole=if(match(AccessRights,\"^(ReadItems|Author|NonEditingAuthor|Owner|PublishingAuthor|Reviewer)$\"), \"true\", \"false\")\n| search isReadRole=\"true\"\n| rename UserId as user\n| fillnull\n| stats count min(_time) as firstTime max(_time) as lastTime\n  by signature dest user src vendor_account\n     vendor_product Identity AccessRights\n| `security_content_ctime(firstTime)`\n| `security_content_ctime(lastTime)`\n| `o365_mailbox_folder_read_permission_granted_filter`",
   "description": "Surfaces 'O365 Mailbox Folder Read Permission Granted' (UC-10.4.82) using datamodel `Risk.All_Risk` via filter `normalized_risk_object IN (\"$user$\") starthoursago=168` by aggregating `firstTime`, `lastTime` grouped by `normalized_risk_object` over `the scheduled window` and alerting when 168h lookback. Keywords: O365, Mailbox, Folder, Read, Permission. Focuses on Permission Granted behaviour so security infra teams can triage UC-10.4.82 without ad-hoc log review.",
   "value": "UC-10.4.82 accelerates insight into Permission Granted ('O365 Mailbox Folder Read Permission Granted') by tracking `firstTime`, `lastTime` on `Risk.All_Risk` telemetry, reducing missed threat campaigns, control regressions, and SOC SLA breaches before spreadsheet checks hide regressions.",
   "implementation": "ESCU Risk-Based Alerting detection. Enable in ES Content Management as a Correlation Search. Generates risk events attributed to user account entities — Notable Events fire when an entity’s cumulative risk exceeds the configured threshold. Requires O365 ModifyFolderPermissions ingested and CIM-normalized.",
@@ -51,6 +51,7 @@
   ],
   "detectionType": "user",
   "equipment": [
+    "exchange",
     "m365",
     "security_essentials"
   ],

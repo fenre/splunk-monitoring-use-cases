@@ -15,8 +15,8 @@
     "negativeScenario": "UC-10.7.249 negative (Dump Creation): ingest benign `risk` / `target_sourcetype` events where `normalized_risk_object` stays below 168h lookback, or exclude the test entity via `soc_exception_register.csv`. Variant 1 confirms zero alert rows for 'Access LSASS Memory for Dump Creation'."
   },
   "dataSources": "Sysmon EventID 10 Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
-  "app": "Splunk Security Essentials / ESCU — Universal Forwarder (Splunkbase 617)",
-  "spl": "| from datamodel Risk.All_Risk | search normalized_risk_object IN (\"$dest$\") starthoursago=168  | stats count min(_time) as firstTime max(_time) as lastTime values(search_name) as \"Search Name\" values(risk_message) as \"Risk Message\" values(analyticstories) as \"Analytic Stories\" values(annotations._all) as \"Annotations\" values(annotations.mitre_attack.mitre_tactic) as \"ATT&CK Tactics\" by normalized_risk_object | `security_content_ctime(firstTime)` | `security_content_ctime(lastTime)`",
+  "app": "Splunk Security Essentials / ESCU (Splunkbase 3449) — Universal Forwarder (Splunkbase 617)",
+  "spl": "`sysmon` EventCode=10 TargetImage=*lsass.exe CallTrace=*dbgcore.dll* OR CallTrace=*dbghelp.dll*\n  | stats count min(_time) as firstTime max(_time) as lastTime\n    BY CallTrace EventID GrantedAccess\n       Guid Opcode ProcessID\n       SecurityID SourceImage SourceProcessGUID\n       SourceProcessId TargetImage TargetProcessGUID\n       TargetProcessId UserID dest\n       granted_access parent_process_exec parent_process_guid\n       parent_process_id parent_process_name parent_process_path\n       process_exec process_guid process_id\n       process_name process_path signature\n       signature_id user_id vendor_product\n  | `security_content_ctime(firstTime)`\n  | `security_content_ctime(lastTime)`\n  | `access_lsass_memory_for_dump_creation_filter`",
   "description": "Identifies Dump Creation activity in UC-10.7.249 ('Access LSASS Memory for Dump Creation') from datamodel `Risk.All_Risk`. Rolls up `firstTime`, `lastTime` by `normalized_risk_object` across `the scheduled window` and pages when 168h lookback. Uses filter `normalized_risk_object IN (\"$dest$\") starthoursago=168`. Security Infra operators treat UC-10.7.249 as the canonical signal.",
   "value": "Operators running UC-10.7.249 on `Risk.All_Risk` telemetry shorten triage for Dump Creation tied to 'Access LSASS Memory for Dump Creation', lowering missed threat campaigns, control regressions, and SOC SLA breaches.",
   "implementation": "ESCU Risk-Based Alerting detection. Enable in ES Content Management as a Correlation Search. Generates risk events attributed to process entities — Notable Events fire when an entity’s cumulative risk exceeds the configured threshold. Requires Sysmon EventID 10 ingested and CIM-normalized.",
@@ -51,7 +51,11 @@
   ],
   "detectionType": "process",
   "equipment": [
+    "hardware_bmc",
     "security_essentials"
+  ],
+  "equipmentModels": [
+    "hardware_bmc_edac"
   ],
   "splunkVersions": [
     "9.2+",

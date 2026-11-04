@@ -15,8 +15,8 @@
     "negativeScenario": "UC-10.4.86 negative (Authentication Spike): ingest benign `risk` / `target_sourcetype` events where `normalized_risk_object` stays below 168h lookback, or exclude the test entity via `soc_exception_register.csv`. Variant 9 confirms zero alert rows for 'O365 Multiple AppIDs and UserAgents Authentication Spike'."
   },
   "dataSources": "O365 UserLoggedIn, O365 UserLoginFailed Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
-  "app": "Splunk Security Essentials / ESCU — Universal Forwarder (Splunkbase 617)",
-  "spl": "| from datamodel Risk.All_Risk | search normalized_risk_object IN (\"$user$\") starthoursago=168  | stats count min(_time) as firstTime max(_time) as lastTime values(search_name) as \"Search Name\" values(risk_message) as \"Risk Message\" values(analyticstories) as \"Analytic Stories\" values(annotations._all) as \"Annotations\" values(annotations.mitre_attack.mitre_tactic) as \"ATT&CK Tactics\" by normalized_risk_object | `security_content_ctime(firstTime)` | `security_content_ctime(lastTime)`",
+  "app": "Splunk Security Essentials / ESCU (Splunkbase 3449) — Universal Forwarder (Splunkbase 617)",
+  "spl": "`o365_management_activity` Workload=AzureActiveDirectory (Operation=UserLoggedIn OR Operation=UserLoginFailed)\n  | bucket span=5m _time\n  | stats dc(_raw) as failed_attempts dc(ApplicationId) as unique_app_ids dc(UserAgent) as unique_user_agents values(ApplicationId) values(OS) values(signature) as signature\n    BY _time user src\n       vendor_account vendor_product dest\n  | where failed_attempts > 5 and unique_user_agents > 5 and unique_app_ids > 2\n  | `o365_multiple_appids_and_useragents_authentication_spike_filter`",
   "description": "Detects UC-10.4.86 — O365, Multiple, AppIDs, and, UserAgents — using datamodel `Risk.All_Risk`, grouped by `normalized_risk_object`. Outputs `firstTime`, `lastTime` each `the scheduled window`; alert when 168h lookback. Filter chain includes filter `normalized_risk_object IN (\"$user$\") starthoursago=168`. Purpose-built for 'O365 Multiple AppIDs and UserAgents Authentication Spike' in Security Infra workflows.",
   "value": "Operators running UC-10.4.86 on `Risk.All_Risk` telemetry shorten triage for Authentication Spike tied to 'O365 Multiple AppIDs and UserAgents Authentication Spike', lowering missed threat campaigns, control regressions, and SOC SLA breaches.",
   "implementation": "ESCU Risk-Based Alerting detection. Enable in ES Content Management as a Correlation Search. Generates risk events attributed to IP address entities — Notable Events fire when an entity’s cumulative risk exceeds the configured threshold. Requires O365 UserLoggedIn, O365 UserLoginFailed ingested and CIM-normalized.",
@@ -51,6 +51,7 @@
   ],
   "detectionType": "ip_address",
   "equipment": [
+    "azure",
     "security_essentials"
   ],
   "splunkVersions": [

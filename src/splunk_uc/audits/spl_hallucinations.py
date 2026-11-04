@@ -196,6 +196,7 @@ VALID_COMMANDS: set[str] = {
     "foreach",
     "format",
     "from",
+    "fromjson",
     "gauge",
     "gentimes",
     "geom",

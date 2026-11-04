@@ -15,8 +15,8 @@
     "negativeScenario": "UC-10.4.94 negative (Rule Enabled): ingest benign `risk` / `target_sourcetype` events where `normalized_risk_object` stays below 168h lookback, or exclude the test entity via `soc_exception_register.csv`. Variant 5 confirms zero alert rows for 'O365 New Email Forwarding Rule Enabled'."
   },
   "dataSources": "Various Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
-  "app": "Splunk Security Essentials / ESCU — Universal Forwarder (Splunkbase 617)",
-  "spl": "| from datamodel Risk.All_Risk | search normalized_risk_object IN (\"$user$\") starthoursago=168  | stats count min(_time) as firstTime max(_time) as lastTime values(search_name) as \"Search Name\" values(risk_message) as \"Risk Message\" values(analyticstories) as \"Analytic Stories\" values(annotations._all) as \"Annotations\" values(annotations.mitre_attack.mitre_tactic) as \"ATT&CK Tactics\" by normalized_risk_object | `security_content_ctime(firstTime)` | `security_content_ctime(lastTime)`",
+  "app": "Splunk Security Essentials / ESCU (Splunkbase 3449) — Universal Forwarder (Splunkbase 617)",
+  "spl": "`o365_management_activity` Workload=Exchange Operation=UpdateInboxRules | eval match1=mvfind('OperationProperties{}.Value', \"ForwardToRecipientsAction\") | eval match2=mvfind('OperationProperties{}.Value', \"ForwardAsAttachmentToRecipientsAction\") | eval match3=mvfind('OperationProperties{}.Value', \"RedirectToRecipientsAction\") | eval index = mvfind('OperationProperties{}.Name', \"ServerRule\") | where match1>=0 OR match2>= 0 OR match3>= 0 | eval ServerRule = mvindex('OperationProperties{}.Value',index-1) | spath input=ServerRule path=Actions{}.Recipients{}.Values{}.Value output=valueExtracted | mvexpand valueExtracted | search valueExtracted=\"*@*.*\" | eval ForwardTo=if(match(valueExtracted,\"^[^@]+@[^@]+\\\\.[^@]+$\"), valueExtracted, null) | dedup ForwardTo | where isnotnull(ForwardTo) | fillnull | stats count min(_time) as firstTime max(_time) as lastTime values(Name) as Name by signature dest user src vendor_account vendor_product ForwardTo | `security_content_ctime(firstTime)` | `security_content_ctime(lastTime)` | `o365_new_email_forwarding_rule_enabled_filter`",
   "description": "Detects 'O365 New Email Forwarding Rule Enabled' patterns (UC-10.4.94) sourced from datamodel `Risk.All_Risk`. Threshold bundle: 168h lookback; aggregation grain: `normalized_risk_object`; metrics: `firstTime`, `lastTime`. Enrichment path: filter `normalized_risk_object IN (\"$user$\") starthoursago=168`.",
   "value": "UC-10.4.94 gives Security Infra teams earlier visibility into Rule Enabled through `Risk.All_Risk` telemetry, lowering missed threat campaigns, control regressions, and SOC SLA breaches.",
   "implementation": "You must install the Splunk Microsoft Office 365 Add-on and ingest Office 365 management activity events.",
@@ -53,6 +53,7 @@
   ],
   "detectionType": "user",
   "equipment": [
+    "exchange",
     "m365",
     "security_essentials"
   ],
