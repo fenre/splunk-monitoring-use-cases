@@ -1056,10 +1056,10 @@ def _looks_like_app_label(token: str) -> bool:
     picked up from the comma-split of free-text ``t``.
 
     The ``t`` field is human-authored markdown (e.g.
-    ``"Splunk Add-on for Cisco IOS (\\`Splunk_TA_cisco-ios\\`, Splunkbase 1352)"``).
+    ``"Splunk Add-on for Cisco IOS (\\`Splunk_TA_cisco-ios\\`, Splunkbase 1467)"``).
     Splitting on commas can land mid-parenthesis and produce tokens
     like ``"Splunk Add-on for Cisco IOS (Splunk_TA_cisco-ios"`` or
-    ``"Splunkbase 1352)"`` — neither of which is a Splunk app label and
+    ``"Splunkbase 1467)"`` — neither of which is a Splunk app label and
     both of which pollute the recommender's app-index. This guard:
 
     * rejects unbalanced-paren tokens
@@ -1334,6 +1334,15 @@ def _recommender_uc_thin(
         "equipmentModels": sorted([em for em in (uc.get("em", []) or []) if isinstance(em, str)]),
         "sb": sb_compact,
     }
+    variant_models = sorted(
+        {
+            str(item.get("model"))
+            for item in (uc.get("qv") or [])
+            if isinstance(item, Mapping) and isinstance(item.get("model"), str) and item.get("model")
+        }
+    )
+    if variant_models:
+        record["variantModels"] = variant_models
     # Only non-Splunk-platform UCs carry ``products`` so existing records
     # stay byte-identical.
     non_default = products.non_default_products(dict(uc))
@@ -1438,7 +1447,9 @@ def _recommender_payloads(
                 "of compliance-tagged UCs (category 22). v9.0 adds the "
                 "`sb` field listing required Splunkbase apps; cross-"
                 "reference each id against /recommender/splunkbase-"
-                "index.json for the install metadata."
+                "index.json for the install metadata. Records that "
+                "carry vendor SPL variants list the models in "
+                "`variantModels`."
             ),
             "useCaseCount": len(thin_records),
             "useCases": thin_records,
@@ -2187,7 +2198,9 @@ paths:
         Cross-reference each id against
         ``/recommender/splunkbase-index.json`` for the install
         metadata (display name, URL, latest version, cloud-vetted
-        flag).
+        flag). Records with vendor SPL variants (uc.schema 1.10.0
+        ``splVariants``) also carry ``variantModels``, the equipment
+        model compounds that have their own search.
   /recommender/splunkbase-index.json:
     get:
       summary: Splunkbase app install metadata keyed by Splunkbase id

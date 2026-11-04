@@ -227,6 +227,36 @@ class CostImpact(TypedDict, total=False):
     estimated_by: Literal["maintainer", "ai-advisory", "vendor", "customer-report"]
 
 
+class SplVariant(TypedDict, total=False):
+    """One entry in a UC's ``splVariants`` array (schema v1.10.0).
+
+    ``spl`` stays the default search. A variant is another vendor's
+    search for the same use case and never a new use case id.
+    """
+
+    model: str
+    sourcetypes: list[str]
+    splunkbaseAppId: int
+    spl: str
+    cimSpl: str
+    notes: str
+    status: str
+    requiresSmeReview: bool
+
+
+class CatalogSplVariant(TypedDict, total=False):
+    """One ``qv[]`` item in ``catalog.json`` (abbreviated ``spl`` / ``cimSpl``)."""
+
+    model: str
+    sourcetypes: list[str]
+    splunkbaseAppId: int
+    q: str
+    qs: str
+    notes: str
+    status: str
+    requiresSmeReview: bool
+
+
 class ProductArtifact(TypedDict, total=False):
     """One entry in a UC's ``productArtifacts`` array (schema v1.9.0).
 
@@ -310,6 +340,7 @@ class UseCase(TypedDict, total=False):
     productArtifacts: list[ProductArtifact]
     spl: str
     cimSpl: str
+    splVariants: list[SplVariant]
     cimModels: list[str]
     schema: str
     dataModelAcceleration: str
@@ -370,6 +401,8 @@ class CatalogUC(TypedDict, total=False):
     ``prd``        ``products``           Emitted only when not the default
     ``prdn``       (computed)            Product short names for ``prd`` (badges)
     ``pra``        ``productArtifacts``   Emitted only when present
+    ``qv``         ``splVariants``        Emitted only when present; inner
+                                          ``spl`` / ``cimSpl`` become ``q`` / ``qs``
     ``escu``       (computed)            True when app field includes ESCU/ES
     ``escu_rba``   (computed)            True for risk-based-alerting ESCU UCs
     ``_qs``        (computed)            Quality-score depth indicator (internal)
@@ -403,6 +436,7 @@ class CatalogUC(TypedDict, total=False):
     pra: list[ProductArtifact]
     q: str
     qs: str
+    qv: list[CatalogSplVariant]
     a: list[str]
     schema: str
     dma: str
@@ -503,7 +537,11 @@ class EquipmentEntry(TypedDict, total=False):
     Field names match the wire format (``label``, ``tas``, ``models``).
     ``models`` enumerates specific hardware variants the catalogue knows
     about (e.g. ``["IR1101", "IR829"]`` under the ``cisco-ie`` family);
-    it's omitted when no model-level granularity exists.
+    it's omitted when no model-level granularity exists. ``evidence``
+    (vendor and model level) lists the sourcetypes, indexes and macros the
+    product produces, plus ``cimModels`` and ``references`` when an add-on
+    page names the CIM data models it fills. Present only on
+    evidence-gated vendors.
     """
 
     id: str
@@ -512,6 +550,7 @@ class EquipmentEntry(TypedDict, total=False):
     models: list[str]
     kind: str
     vendor: str
+    evidence: dict[str, list[str]]
 
 
 class ImplementationRoadmapEntry(TypedDict, total=False):

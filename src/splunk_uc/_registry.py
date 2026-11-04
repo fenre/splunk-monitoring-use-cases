@@ -670,6 +670,14 @@ register(
 )
 register(
     Verb(
+        name="audit-cisco-tag-evidence",
+        module="audits.cisco_tag_evidence",
+        help="Classify Cisco-tagged UCs by whether their SPL can see the tagged model's data.",
+        category="audits",
+    )
+)
+register(
+    Verb(
         name="audit-equipment-models",
         module="audits.equipment_models",
         help="Validate equipment[] slugs and equipmentModels[] against SSOT registry.",

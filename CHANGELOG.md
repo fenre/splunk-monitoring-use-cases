@@ -10,10 +10,57 @@ the release notes block in `index.html` by hand.
 
 ---
 
-## [Unreleased]
+## [8.27.0] - 2026-11-03
 
 ### Added
 
+- **Cisco equipment tags follow the search.** A `cisco_<model>` tag is
+  written only when `spl` or `cimSpl` names a sourcetype, index, or macro
+  that model produces, when the search reads a CIM data model that model's
+  add-on populates and `app` names the product, or when `splVariants`
+  carries that model. A `match(sourcetype, "cisco:ios|...")` filter counts
+  as naming those sourcetypes. Prose never attaches a model; generic SNMP,
+  NetFlow, and syslog searches keep `cisco` but no model. Hand exceptions
+  for ESCU detections whose stored search is the Risk drill-down live in
+  `data/equipment-tag-overrides.json`.
+- **Six Cisco models: Duo, Umbrella / Secure Access, Secure Email (ESA),
+  Isovalent, Secure Client / NVM, AI Defense.** Their sourcetypes come from
+  Splunk's "Integrated Enterprise Value for Cisco data" source-type table.
+  The same table adds the `cisco:dc:*` (DC Networking), `cisco:telemetry`,
+  and CUCM CDR sourcetypes to the existing models. The ThousandEyes model
+  recognises the app's `stream_index`, `event_index`, `path_viz_index`,
+  and `activity_index` macros. The 55 ESCU Duo, Isovalent, NVM, and AI
+  Defense overrides now name their model.
+- **Optional `splVariants` (uc.schema 1.10.0).** A use case may carry one
+  extra search per equipment model. `spl` stays the default. `catalog.json`
+  emits `qv` only when the array is present, and `uc-thin.json` adds
+  `variantModels` in that same case. Fifteen Secure Firewall / FTD
+  variants are `status: draft` and `requiresSmeReview: true`: UC-5.2.2,
+  UC-5.2.3, UC-5.2.8, UC-5.2.9, UC-5.2.10, UC-5.2.13–UC-5.2.18, UC-5.20.83,
+  UC-10.1.1, UC-10.2.1, and UC-10.16.6. Field names come from the Cisco
+  Security Cloud eStreamer samples and the Splunk Add-on for Cisco ASA
+  source-type table.
+- **Add-on CIM coverage on the equipment registry.** `cisco_asa` and
+  `cisco_firepower` list the CIM models the Splunk Add-on for Cisco ASA
+  documents for `cisco:asa` and `cisco:ftd` (Authentication, Network
+  Traffic, Change, Network Sessions, Certificates, Intrusion Detection,
+  Alerts). `cisco_ise`, `cisco_meraki`, and `cisco_secure_email` list the
+  models on their add-on source-type pages. The Meraki page does not name
+  Network Traffic. `cisco_ucs` lists Inventory and Performance (Splunk Add-on
+  for Cisco UCS sources page), `cisco_duo` lists Authentication and
+  `cisco_ios` lists Change and Network Traffic (Splunk Lantern), and
+  `cisco_secure_client` lists Endpoint and Network Traffic (Splunk Threat
+  Research NVM blog). SD-WAN and ThousandEyes ship their own data models,
+  and no CIM table is published for the other Cisco add-ons, so those
+  models list none. Every Cisco model except HyperFlex and IM and Presence
+  cites its source in `evidence.references`.
+- **`audit-cisco-tag-evidence --check`.** Fails when a `cisco_<model>` tag
+  has neither a producible sourcetype, index, or macro nor a listed CIM
+  data model in `spl`, `cimSpl`, or the matching `splVariants` entry.
+  ESCU overrides are accepted. No known gaps remain. The work list
+  (`--write-csv reports/cisco-tag-audit.csv`) has no remove, retag, or
+  review rows: every Cisco-tagged use case is backed by its search, a
+  listed CIM model, a reviewed override, or carries only the vendor tag.
 - **Splunk product per use case (ADR-0017).** `data/splunk-products.json`
   defines the Splunk products a UC can be implemented in (Splunk platform,
   Agent Observability, Observability Cloud, ITSI, SOAR, Edge Hub): required
@@ -63,6 +110,45 @@ the release notes block in `index.html` by hand.
   UC-22.7.6 resolves names through a `soar_playbook_names.csv` lookup built from
   `index=phantom_playbook`. The modular-input and `inputs.conf` text is replaced
   with the SOAR forwarder group steps.
+
+### Fixed
+
+- **218 use cases credited a "Splunk Add-on for Cisco Security (Splunkbase
+  1352)".** No add-on has that name; Splunkbase 1352 is the App for Cisco
+  Network Data, a dashboard app. `app`, `dataSources`, and
+  `detailedImplementation` now name the add-on that collects the search's
+  own sourcetype: the Cisco Enterprise Networking Add-on (7538) for IOS,
+  NX-OS, WLC, and SD-WAN; Splunk Add-on for Cisco Identity Services
+  (1915); Splunk Add-on for Cisco ASA (1620); Cisco Secure Access Add-on
+  (7569); Cisco DC Networking (7777); Splunk App for Stream (1809); or
+  Splunk Add-on for Palo Alto Networks (7523). The 55 whose searches read
+  no such sourcetype (UCM CDR, SNMP, NetFlow) drop the claim. The 39
+  reference entries for app 1352 now carry its real title, and 32 use
+  cases that gave `TA-cisco_ios` that ID now cite Splunkbase 1467.
+- **Undocumented Cisco sourcetypes.** UC-9.5.7, 9.5.8, 9.5.9, 9.5.14,
+  9.7.2, and 22.53.21 read `cisco:duo:authentication` /
+  `cisco:duo:administrator` instead of `duo:authentication` /
+  `duo:admin`. UC-22.53.21, 22.56.16, and 22.56.43 read
+  `cisco_anyconnect:vpn` instead of `cisco:anyconnect`. UC-17.3.14 reads
+  `cisco:umbrella:dns`, and UC-10.16.5 reads `cisco:esa:textmail` instead
+  of `cisco:esa:mail`.
+- **Duo searches use the Duo Admin API v2 authentication-log fields.**
+  UC-9.5.7 filters `result="denied"` (not `deny`), UC-9.5.14 filters
+  `factor="duo_push"` (not `push`), UC-9.5.8 reads `trusted_endpoint_status`
+  instead of the undocumented `device_trust_level`, and UC-9.5.9 reads
+  enrollment events from `cisco:duo:authentication` (`event_type` is an
+  authentication-log field, not an administrator-log field). Each renames
+  `user.name`, `access_device.ip`, `auth_device.name`, and
+  `application.name` to the columns its text already describes.
+- **CUCM sourcetypes.** 12 searches read `cucm_cdr` / `cucm_cmr`, the
+  sourcetypes the TA for Cisco CDR Reporting and Analytics (Splunkbase 4434)
+  documents, instead of `cisco:ucm:cdr` / `cisco:ucm:cmr`, and 14 more use
+  cases name them in their text. Five use cases read `cisco:cucm:syslog`
+  from Splunk's Cisco source-type table instead of `cisco:ucm:syslog`. The
+  Unity Connection model no longer matches `cisco:cucm:*`.
+- **Splunk Add-on for Cisco ESA is Splunkbase 1761**, not 2919, in the
+  email-security guide. The email-security and collaboration guides list
+  only the ESA sourcetypes the add-on documents.
 
 ## [8.26.0] - 2026-10-28
 

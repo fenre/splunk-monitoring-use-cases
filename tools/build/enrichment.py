@@ -515,7 +515,34 @@ EQUIPMENT = [
                     "cisco-firepower",
                     "cisco:firepower",
                     "Cisco Secure Firewall"
-                ]
+                ],
+                "evidence": {
+                    "sourcetypes": [
+                        "cisco:firepower*",
+                        "cisco:ftd*",
+                        "cisco:fmc*",
+                        "cisco:estreamer*",
+                        "cisco:sfw*",
+                        "cisco:secure_firewall*"
+                    ],
+                    "macros": [
+                        "cisco_secure_firewall*",
+                        "cisco_firepower*",
+                        "cisco_ftd*"
+                    ],
+                    "cimModels": [
+                        "Alerts",
+                        "Authentication",
+                        "Certificates",
+                        "Change",
+                        "Intrusion_Detection",
+                        "Network_Sessions",
+                        "Network_Traffic"
+                    ],
+                    "references": [
+                        "https://splunk.github.io/splunk-add-on-for-cisco-asa/DataTypes/"
+                    ]
+                }
             },
             {
                 "id": "asa",
@@ -525,7 +552,29 @@ EQUIPMENT = [
                     "Cisco ASA",
                     "cisco-asa",
                     "cisco:asa"
-                ]
+                ],
+                "evidence": {
+                    "sourcetypes": [
+                        "cisco:asa*",
+                        "cisco:pix*",
+                        "cisco:fwsm*"
+                    ],
+                    "macros": [
+                        "cisco_asa*"
+                    ],
+                    "cimModels": [
+                        "Alerts",
+                        "Authentication",
+                        "Certificates",
+                        "Change",
+                        "Intrusion_Detection",
+                        "Network_Sessions",
+                        "Network_Traffic"
+                    ],
+                    "references": [
+                        "https://splunk.github.io/splunk-add-on-for-cisco-asa/DataTypes/"
+                    ]
+                }
             },
             {
                 "id": "ios",
@@ -534,8 +583,31 @@ EQUIPMENT = [
                     "TA-cisco_ios",
                     "Cisco IOS",
                     "cisco-ios",
-                    "cisco:ios"
-                ]
+                    "cisco:ios",
+                    "cisco:iosxe"
+                ],
+                "evidence": {
+                    "references": [
+                        "https://help.splunk.com/en/splunk-cloud-platform/get-started/get-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data",
+                        "https://splunk.github.io/splunk-connect-for-syslog/latest/sources/vendor/Cisco/cisco_ios/",
+                        "https://lantern.splunk.com/Data_Sources/Cisco"
+                    ],
+                    "cimModels": [
+                        "Change",
+                        "Network_Traffic"
+                    ],
+                    "sourcetypes": [
+                        "cisco:ios*",
+                        "cisco:xr*",
+                        "cisco:xe*",
+                        "cisco:telemetry*",
+                        "switch_cisco"
+                    ],
+                    "macros": [
+                        "cisco_networks*",
+                        "cisco_ios*"
+                    ]
+                }
             },
             {
                 "id": "ise",
@@ -545,7 +617,25 @@ EQUIPMENT = [
                     "Cisco ISE",
                     "cisco-ise",
                     "cisco:ise"
-                ]
+                ],
+                "evidence": {
+                    "sourcetypes": [
+                        "cisco:ise*"
+                    ],
+                    "macros": [
+                        "cisco_ise*"
+                    ],
+                    "cimModels": [
+                        "Alerts",
+                        "Authentication",
+                        "Change",
+                        "Inventory",
+                        "Network_Traffic"
+                    ],
+                    "references": [
+                        "https://splunk.github.io/splunk-add-on-for-cisco-identity-services/Sourcetypes/"
+                    ]
+                }
             },
             {
                 "id": "meraki",
@@ -556,7 +646,32 @@ EQUIPMENT = [
                     "Meraki",
                     "cisco_meraki",
                     "meraki"
-                ]
+                ],
+                "evidence": {
+                    "sourcetypes": [
+                        "meraki",
+                        "meraki:*",
+                        "cisco:meraki*"
+                    ],
+                    "indexes": [
+                        "meraki*",
+                        "cisco_meraki*"
+                    ],
+                    "macros": [
+                        "meraki*",
+                        "cisco_meraki*"
+                    ],
+                    "cimModels": [
+                        "Alerts",
+                        "Authentication",
+                        "Change",
+                        "Malware",
+                        "Network_Sessions"
+                    ],
+                    "references": [
+                        "https://splunk.github.io/splunk-add-on-for-cisco-meraki/Sourcetypes/"
+                    ]
+                }
             },
             {
                 "id": "ucs",
@@ -566,7 +681,44 @@ EQUIPMENT = [
                     "Cisco UCS",
                     "cisco:ucs",
                     "UCS Manager"
-                ]
+                ],
+                "evidence": {
+                    "references": [
+                        "https://help.splunk.com/en/splunk-cloud-platform/get-started/get-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data",
+                        "https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/"
+                    ],
+                    "cimModels": [
+                        "Inventory",
+                        "Performance"
+                    ],
+                    "sourcetypes": [
+                        "cisco:ucs*",
+                        "ucsm:*",
+                        "cisco:infraops",
+                        "ta_cisco_ucs"
+                    ],
+                    "indexes": [
+                        "cisco_ucs*"
+                    ]
+                }
+            },
+            {
+                "id": "hyperflex",
+                "label": "Cisco HyperFlex",
+                "tas": [
+                    "cisco:hyperflex",
+                    "Cisco HyperFlex",
+                    "HyperFlex"
+                ],
+                "evidence": {
+                    "sourcetypes": [
+                        "cisco:hyperflex*",
+                        "hyperflex:*"
+                    ],
+                    "indexes": [
+                        "cisco_hyperflex*"
+                    ]
+                }
             },
             {
                 "id": "intersight",
@@ -575,7 +727,19 @@ EQUIPMENT = [
                     "Cisco Intersight Add-on",
                     "cisco:intersight",
                     "Intersight"
-                ]
+                ],
+                "evidence": {
+                    "references": [
+                        "https://help.splunk.com/en/splunk-cloud-platform/get-started/get-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data"
+                    ],
+                    "sourcetypes": [
+                        "cisco:intersight*"
+                    ],
+                    "indexes": [
+                        "cisco_intersight*",
+                        "intersight"
+                    ]
+                }
             },
             {
                 "id": "aci",
@@ -583,10 +747,22 @@ EQUIPMENT = [
                 "tas": [
                     "cisco:aci",
                     "Cisco ACI",
-                    "ACI",
                     "APIC",
                     "TA_cisco-ACI"
-                ]
+                ],
+                "evidence": {
+                    "references": [
+                        "https://help.splunk.com/en/splunk-cloud-platform/get-started/get-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data"
+                    ],
+                    "sourcetypes": [
+                        "cisco:aci*",
+                        "cisco:apic*",
+                        "cisco:dc:aci:*"
+                    ],
+                    "indexes": [
+                        "cisco_aci*"
+                    ]
+                }
             },
             {
                 "id": "nexus",
@@ -598,7 +774,48 @@ EQUIPMENT = [
                     "Cisco DC Networking",
                     "NDFC",
                     "NX-OS"
-                ]
+                ],
+                "evidence": {
+                    "references": [
+                        "https://help.splunk.com/en/splunk-cloud-platform/get-started/get-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data"
+                    ],
+                    "sourcetypes": [
+                        "cisco:nexus*",
+                        "cisco:nxos*",
+                        "cisco:nx-os*",
+                        "cisco:mds*",
+                        "cisco:ndfc*",
+                        "cisco:ndi*",
+                        "cisco:nd:*",
+                        "cisco:dcnm*",
+                        "cisco:dc:nexus9k*",
+                        "cisco:dc:nd:*"
+                    ],
+                    "indexes": [
+                        "cisco_dc*",
+                        "cisco_nexus*"
+                    ]
+                }
+            },
+            {
+                "id": "ndo",
+                "label": "Cisco Nexus Dashboard Orchestrator (MSO)",
+                "tas": [
+                    "cisco:mso",
+                    "cisco:ndo",
+                    "Nexus Dashboard Orchestrator",
+                    "Multi-Site Orchestrator"
+                ],
+                "evidence": {
+                    "references": [
+                        "https://help.splunk.com/en/splunk-cloud-platform/get-started/get-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data"
+                    ],
+                    "sourcetypes": [
+                        "cisco:mso*",
+                        "cisco:ndo*",
+                        "cisco:dc:mso:*"
+                    ]
+                }
             },
             {
                 "id": "sdwan",
@@ -608,7 +825,25 @@ EQUIPMENT = [
                     "Cisco SD-WAN",
                     "vManage",
                     "Catalyst SD-WAN"
-                ]
+                ],
+                "evidence": {
+                    "references": [
+                        "https://help.splunk.com/en/splunk-cloud-platform/get-started/get-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data",
+                        "https://www.cisco.com/c/en/us/solutions/collateral/enterprise-networks/sd-wan/sd-wan-splunk-integration-ug.html"
+                    ],
+                    "sourcetypes": [
+                        "cisco:sdwan*",
+                        "cisco:vmanage*",
+                        "cisco:viptela*"
+                    ],
+                    "indexes": [
+                        "cisco_sdwan*"
+                    ],
+                    "macros": [
+                        "cisco_sd_wan*",
+                        "cisco_sdwan*"
+                    ]
+                }
             },
             {
                 "id": "catalyst_center",
@@ -619,7 +854,22 @@ EQUIPMENT = [
                     "Catalyst Center",
                     "DNA Center",
                     "DNAC"
-                ]
+                ],
+                "evidence": {
+                    "references": [
+                        "https://help.splunk.com/en/splunk-cloud-platform/get-started/get-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data"
+                    ],
+                    "sourcetypes": [
+                        "cisco:dnac*",
+                        "cisco:catalyst_center*",
+                        "cisco:catc*"
+                    ],
+                    "indexes": [
+                        "catalyst",
+                        "cisco_catalyst*",
+                        "cisco_dnac*"
+                    ]
+                }
             },
             {
                 "id": "wlc",
@@ -628,7 +878,15 @@ EQUIPMENT = [
                     "cisco:wlc",
                     "Cisco WLC",
                     "WLC"
-                ]
+                ],
+                "evidence": {
+                    "references": [
+                        "https://splunk.github.io/splunk-connect-for-syslog/latest/sources/vendor/Cisco/cisco_ios/"
+                    ],
+                    "sourcetypes": [
+                        "cisco:wlc*"
+                    ]
+                }
             },
             {
                 "id": "ucm",
@@ -638,7 +896,63 @@ EQUIPMENT = [
                     "Cisco UCM",
                     "UCM CDR",
                     "CUCM"
-                ]
+                ],
+                "evidence": {
+                    "references": [
+                        "https://help.splunk.com/en/splunk-cloud-platform/get-started/get-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data",
+                        "https://sideviewapps.com/documentation/cisco-cdr-reporting-analytics-installation-step-3-data-collection"
+                    ],
+                    "sourcetypes": [
+                        "cisco:ucm*",
+                        "cisco:cucm*",
+                        "cisco:cdr*",
+                        "cisco_cdr*",
+                        "cisco:voip:cdr",
+                        "cisco:voip:cmr",
+                        "ciscoucm:*",
+                        "cucm_cdr",
+                        "cucm_cmr"
+                    ],
+                    "indexes": [
+                        "cisco_cdr"
+                    ]
+                }
+            },
+            {
+                "id": "unity",
+                "label": "Cisco Unity Connection",
+                "tas": [
+                    "cisco:unity",
+                    "Cisco Unity",
+                    "Unity Connection"
+                ],
+                "evidence": {
+                    "references": [
+                        "https://help.splunk.com/en/splunk-cloud-platform/get-started/get-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data"
+                    ],
+                    "sourcetypes": [
+                        "cisco:unity*",
+                        "cisco:cuc",
+                        "cisco:cuc:*",
+                        "cisco:voip:unity"
+                    ]
+                }
+            },
+            {
+                "id": "imp",
+                "label": "Cisco Unified IM and Presence",
+                "tas": [
+                    "cisco:imp",
+                    "Cisco IM and Presence",
+                    "Cisco IM&P",
+                    "Unified Presence"
+                ],
+                "evidence": {
+                    "sourcetypes": [
+                        "cisco:imp*",
+                        "cisco:cup*"
+                    ]
+                }
             },
             {
                 "id": "webex",
@@ -647,7 +961,21 @@ EQUIPMENT = [
                     "Webex",
                     "webex",
                     "ta_cisco_webex"
-                ]
+                ],
+                "evidence": {
+                    "references": [
+                        "https://help.splunk.com/en/splunk-cloud-platform/get-started/get-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data"
+                    ],
+                    "sourcetypes": [
+                        "webex*",
+                        "cisco:webex*",
+                        "wxcc:*"
+                    ],
+                    "indexes": [
+                        "webex*",
+                        "cisco_webex*"
+                    ]
+                }
             },
             {
                 "id": "spaces",
@@ -657,7 +985,18 @@ EQUIPMENT = [
                     "cisco:spaces",
                     "cisco_spaces",
                     "Spaces Add-On"
-                ]
+                ],
+                "evidence": {
+                    "references": [
+                        "https://help.splunk.com/en/splunk-cloud-platform/get-started/get-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data"
+                    ],
+                    "sourcetypes": [
+                        "cisco:spaces*"
+                    ],
+                    "indexes": [
+                        "cisco_spaces*"
+                    ]
+                }
             },
             {
                 "id": "thousandeyes",
@@ -666,7 +1005,28 @@ EQUIPMENT = [
                     "ThousandEyes",
                     "thousandeyes",
                     "Cisco ThousandEyes App"
-                ]
+                ],
+                "evidence": {
+                    "sourcetypes": [
+                        "cisco:thousandeyes*",
+                        "ciscothousandeyes:*",
+                        "thousandeyes*"
+                    ],
+                    "indexes": [
+                        "thousandeyes*",
+                        "cisco_thousandeyes*"
+                    ],
+                    "macros": [
+                        "stream_index",
+                        "event_index",
+                        "path_viz_index",
+                        "activity_index"
+                    ],
+                    "references": [
+                        "https://docs.thousandeyes.com/product-documentation/integration-guides/custom-built-integrations/splunk-app/configuration",
+                        "https://docs.thousandeyes.com/product-documentation/integration-guides/custom-built-integrations/splunk-app/inputs"
+                    ]
+                }
             },
             {
                 "id": "cyber_vision",
@@ -676,11 +1036,205 @@ EQUIPMENT = [
                     "cisco-cybervision",
                     "cisco-cyber-vision",
                     "cisco_cyber_vision"
-                ]
+                ],
+                "evidence": {
+                    "references": [
+                        "https://help.splunk.com/en/splunk-cloud-platform/get-started/get-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data"
+                    ],
+                    "sourcetypes": [
+                        "cisco:cybervision*",
+                        "cisco:cyber_vision*",
+                        "cisco:cyber-vision*"
+                    ],
+                    "indexes": [
+                        "cisco_cybervision*",
+                        "cisco_cyber_vision*",
+                        "cybervision"
+                    ]
+                }
+            },
+            {
+                "id": "duo",
+                "label": "Cisco Duo",
+                "tas": [
+                    "Cisco Duo",
+                    "Duo Security",
+                    "Duo Splunk Connector"
+                ],
+                "evidence": {
+                    "sourcetypes": [
+                        "cisco:duo*",
+                        "duo:*"
+                    ],
+                    "indexes": [
+                        "duo",
+                        "cisco_duo*"
+                    ],
+                    "macros": [
+                        "cisco_duo*"
+                    ],
+                    "cimModels": [
+                        "Authentication"
+                    ],
+                    "references": [
+                        "https://help.splunk.com/en/splunk-cloud-platform/get-started/get-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data",
+                        "https://research.splunk.com/sources/38e22de6-8b6b-449c-ae26-a640c88ff7f9/",
+                        "https://lantern.splunk.com/Security_Use_Cases/Advanced_Threat_Detection/Improving_your_SOC_operations_with_Cisco_Security_Cloud_integrations"
+                    ]
+                }
+            },
+            {
+                "id": "umbrella",
+                "label": "Cisco Umbrella / Secure Access",
+                "tas": [
+                    "Cisco Umbrella",
+                    "Cisco Secure Access Add-on",
+                    "Umbrella TA"
+                ],
+                "evidence": {
+                    "sourcetypes": [
+                        "cisco:umbrella:*",
+                        "cisco:cloud_security:*",
+                        "cisco:secure_access:*",
+                        "opendns:*"
+                    ],
+                    "macros": [
+                        "cisco_umbrella*",
+                        "cisco_secure_access*"
+                    ],
+                    "references": [
+                        "https://help.splunk.com/en/splunk-cloud-platform/get-started/get-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data",
+                        "https://developer.cisco.com/docs/cloud-security/cisco-cloud-security-app-for-splunk/"
+                    ]
+                }
+            },
+            {
+                "id": "secure_email",
+                "label": "Cisco Secure Email Gateway (ESA)",
+                "tas": [
+                    "Splunk Add-on for Cisco ESA",
+                    "Cisco ESA",
+                    "Cisco Secure Email",
+                    "IronPort"
+                ],
+                "evidence": {
+                    "sourcetypes": [
+                        "cisco:esa*"
+                    ],
+                    "macros": [
+                        "cisco_esa*"
+                    ],
+                    "cimModels": [
+                        "Alerts",
+                        "Authentication",
+                        "Change",
+                        "Email",
+                        "Malware",
+                        "Network_Sessions",
+                        "Network_Traffic",
+                        "Web"
+                    ],
+                    "references": [
+                        "https://splunk.github.io/splunk-add-on-for-cisco-esa/Datatypes/",
+                        "https://splunk.github.io/splunk-add-on-for-cisco-esa/Releasenotes/"
+                    ]
+                }
+            },
+            {
+                "id": "isovalent",
+                "label": "Cisco Isovalent",
+                "tas": [
+                    "Cisco Isovalent",
+                    "Isovalent"
+                ],
+                "evidence": {
+                    "sourcetypes": [
+                        "cisco:isovalent*"
+                    ],
+                    "macros": [
+                        "cisco_isovalent*"
+                    ],
+                    "references": [
+                        "https://help.splunk.com/en/splunk-cloud-platform/get-started/get-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data"
+                    ]
+                }
+            },
+            {
+                "id": "secure_client",
+                "label": "Cisco Secure Client (AnyConnect) / NVM",
+                "tas": [
+                    "Cisco Secure Client",
+                    "Cisco Network Visibility Module",
+                    "Cisco NVM",
+                    "AnyConnect NVM"
+                ],
+                "evidence": {
+                    "sourcetypes": [
+                        "cisco:nvm:*",
+                        "cisco_anyconnect:*"
+                    ],
+                    "macros": [
+                        "cisco_network_visibility_module*"
+                    ],
+                    "cimModels": [
+                        "Endpoint",
+                        "Network_Traffic"
+                    ],
+                    "references": [
+                        "https://help.splunk.com/en/splunk-cloud-platform/get-started/get-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data",
+                        "https://research.splunk.com/sources/d49bcd3c-da06-41c6-b33e-8b8d23078f68/",
+                        "https://www.splunk.com/en_us/blog/security/cisco-network-visibility-module-nvm-splunk-endpoint-security-insights.html"
+                    ]
+                }
+            },
+            {
+                "id": "ai_defense",
+                "label": "Cisco AI Defense",
+                "tas": [
+                    "Cisco AI Defense"
+                ],
+                "evidence": {
+                    "sourcetypes": [
+                        "cisco:ai:defense*"
+                    ],
+                    "macros": [
+                        "cisco_ai_defense*"
+                    ],
+                    "references": [
+                        "https://help.splunk.com/en/splunk-cloud-platform/get-started/get-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data"
+                    ]
+                }
             }
         ],
         "kind": "equipment",
-        "vendor": "Cisco"
+        "vendor": "Cisco",
+        "evidence": {
+            "sourcetypes": [
+                "cisco:*",
+                "cisco_*",
+                "meraki*",
+                "webex*",
+                "thousandeyes*",
+                "duo*",
+                "umbrella*",
+                "opendns:*",
+                "ciscoucm:*",
+                "ciscothousandeyes:*",
+                "stealthwatch*",
+                "switch_cisco",
+                "syslog:cisco*",
+                "snmp:cisco*"
+            ],
+            "indexes": [
+                "cisco*",
+                "meraki*",
+                "webex*"
+            ],
+            "macros": [
+                "cisco_*",
+                "meraki*"
+            ]
+        }
     },
     {
         "id": "paloalto",

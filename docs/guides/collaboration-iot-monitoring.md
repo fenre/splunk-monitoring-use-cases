@@ -63,11 +63,11 @@ sourcetypes:
   - cisco:webex:calling:cmr
   - cisco:webex:audit
   - cisco:webex:devices
-  - cisco:ucm:cdr
-  - cisco:ucm:cmr
-  - cisco:esa:mail_logs
-  - cisco:esa:cli
-  - cisco:esa:reporting
+  - cucm_cdr
+  - cucm_cmr
+  - cisco:esa:textmail
+  - cisco:esa:http
+  - cisco:esa:authentication
   - cisco:cybervision:components
   - cisco:cybervision:flows
   - cisco:cybervision:events
@@ -421,7 +421,7 @@ estates.
 
 SMTP policy enforcement + DKIM/DMARC alignment + AMP file
 reputation + Talos sender reputation + outbreak filters.
-`cisco:esa:mail_logs` correlated with **[Mail Flow Health
+`cisco:esa:textmail` correlated with **[Mail Flow Health
 Monitoring](../../index.html#uc-11.1.1)** when transport bifurcates
 across O365 connectors and ESA hops.
 
@@ -857,7 +857,7 @@ index=bms sourcetype="bms:water" metric_name IN ("dhw_supply_temp","dhw_return_t
 ### Cisco UCM toll fraud (CDR pattern)
 
 ```spl
-index=uc_ucm sourcetype="cisco:ucm:cdr" originalCallingPartyNumber=*
+index=uc_ucm sourcetype="cucm_cdr" originalCallingPartyNumber=*
 | eval is_international = case(
     like(finalCalledPartyNumber, "+%") AND NOT like(finalCalledPartyNumber, "+1%"), 1,
     1=1, 0)

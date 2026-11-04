@@ -6,23 +6,30 @@
 
 ## Current release
 
+**v8.27.0 — Splunk product per use case + evidence-based Cisco tags (16,689 use cases)** *(shipped 2026-11-03)*
+
+Theme: **every use case says which Splunk product implements it, and a Cisco
+product tag means the search reads that product's data.**
+
+### Shipped outcomes
+
+- **Splunk product registry (ADR-0017)** and **37** draft Splunk Agent Observability use cases (13.8).
+- **Cisco model tags** need a sourcetype, index, macro, or add-on CIM model in the search; `audit-cisco-tag-evidence --check` gates every pull request.
+- **15** draft Secure Firewall `splVariants` (uc.schema 1.10.0) and six new Cisco models (Duo, Umbrella / Secure Access, Secure Email, Isovalent, Secure Client / NVM, AI Defense).
+
+See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.27.0 release entry.
+
+---
+
+## Previous releases
+
 **v8.26.0 — Permanent use case identifiers (16,652 use cases)** *(shipped 2026-10-28)*
 
 Theme: **a UC identifier, once published, always refers to the same use case.**
 The identity ledger records every identifier ever issued from the v8.25.0
 baseline onward, and CI blocks reuse and unmanifested bulk renumbering.
 
-### Shipped outcomes
-
-- **`data/id-ledger.json`** — 19,074 identifiers (16,652 active, 2,422 removed) with append-only title + SPL fingerprint history.
-- **348** identifiers edited between v8.25.0 and v8.26.0 classified in a committed migration manifest.
-- **`audit-uc-ids`** and **`audit-uc-id-migration-blast`** gate every pull request.
-
 See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.26.0 release entry.
-
----
-
-## Previous releases
 
 **v8.25.0 — Industry expansion + Fun Stuff consolidation (16,644 use cases)** *(shipped 2026-07-24)*
 

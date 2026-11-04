@@ -73,6 +73,7 @@ Each element of `u` is a **use case**. The **UC-ID** is the use case’s `i` and
 | `d` | string | **Data sources:** log/metric sources. |
 | `q` | string | **SPL:** main search query. |
 | `qs` | string | **CIM SPL:** tstats/accelerated query (optional). |
+| `qv` | array | **SPL variants** (optional, uc.schema 1.10.0+). Vendor alternatives to `q`. Authored as `splVariants`. Each item: `model` (an `em` compound such as `cisco_firepower`), `sourcetypes`, `splunkbaseAppId`, `q` (the variant search; `spl` in the sidecar), optional `qs` (`cimSpl`), `notes`, `status`, `requiresSmeReview`. At most one item per model. Emitted only when present. `uc-thin.json` lists the models as `variantModels[]`. |
 | `m` | string | **Implementation:** short deployment summary. |
 | `md` | string | **Detailed implementation:** step-by-step (optional). When not authored in source JSON, the build generates this text; it includes **Understanding this SPL** with a short intro tied to the use case (**Value**, **Data sources**, **App/TA**), a **Pipeline walkthrough** with per-command detail, and optional **Understanding this CIM / accelerated SPL** when `qs` is present. |
 | `z` | string | **Visualization:** suggested panels/charts. |
@@ -203,7 +204,8 @@ Array of equipment/technology entries. Each entry has:
 | `id` | string | Slug (e.g. `"linux"`, `"cisco"`). |
 | `label` | string | Display label. |
 | `tas` | array | Substrings to match in use case App/TA (`t`). |
-| `models` | array | Optional. Finer-grained models: `{ "id", "label", "tas" }`. |
+| `models` | array | Optional. Finer-grained models: `{ "id", "label", "tas", "evidence"? }`. |
+| `evidence` | object | Optional, on the vendor and on each model. `sourcetypes`, `indexes`, and `macros` are glob lists of the data the product produces. `cimModels` lists CIM data models the add-on populates, and `references` cites the add-on page that names them. A vendor that carries `evidence` (currently Cisco) is tagged only when a use case's SPL names that data; see `src/splunk_uc/equipment_evidence.py`. |
 
 Use `e` and `em` on a use case to know which equipment IDs (and model IDs) it matches.
 

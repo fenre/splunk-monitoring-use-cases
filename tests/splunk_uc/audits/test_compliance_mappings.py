@@ -1628,10 +1628,37 @@ class TestEquipmentLint:
     def test_equipment_patterns_compiles_when_lib_ok(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(cm, "_EQUIPMENT_PATTERNS_CACHE", None)
         monkeypatch.setattr(cm, "_EQUIPMENT_LIB_OK", True)
-        sentinel = [("any", object())]
-        monkeypatch.setattr(cm, "compile_patterns", lambda: sentinel, raising=False)
+        sentinel = [("any", "any", object())]
+        monkeypatch.setattr(cm, "load_equipment", lambda: [{"id": "any"}], raising=False)
+        monkeypatch.setattr(cm, "compile_patterns", lambda _eq: sentinel, raising=False)
         result = cm._equipment_patterns()
         assert result == sentinel
+
+    def test_equipment_patterns_skip_evidence_gated_vendors(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(cm, "_EQUIPMENT_PATTERNS_CACHE", None)
+        monkeypatch.setattr(cm, "_EQUIPMENT_LIB_OK", True)
+        equipment = [{"id": "cisco", "evidence": {"sourcetypes": ["cisco:*"]}}, {"id": "paloalto"}]
+        patterns = [("cisco asa", "cisco", "asa"), ("palo alto", "paloalto", None)]
+        monkeypatch.setattr(cm, "load_equipment", lambda: equipment, raising=False)
+        monkeypatch.setattr(cm, "compile_patterns", lambda _eq: patterns, raising=False)
+        assert cm._equipment_patterns() == [("palo alto", "paloalto", None)]
+
+    def test_lint_ignores_narrative_only_cisco_mention(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(cm, "_EQUIPMENT_PATTERNS_CACHE", None)
+        state = AuditState()
+        doc = {
+            "id": "22.1.1",
+            "dataSources": 'optional sourcetype="cisco:asa" configuration events',
+            "spl": 'index=netfw sourcetype="pan:config"',
+            "equipment": ["paloalto"],
+            "equipmentModels": ["paloalto_pan_firewall"],
+        }
+        cm._lint_equipment_orphans(doc, state)
+        assert state.findings == []
 
     def test_lint_skipped_when_lib_unavailable(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(cm, "_EQUIPMENT_LIB_OK", False)

@@ -70,6 +70,7 @@ for the build stages.
 | `v` | Value | `ge` | Plain-language explanation |
 | `t` | App/TA | `d` | Data sources |
 | `q` | SPL query | `qs` | CIM/tstats SPL |
+| `qv` | SPL variants (`splVariants`; inner searches stay `q` / `qs`) | | |
 | `s` | Subcategories | `u` | Use cases |
 | `e` | Equipment IDs | `em` | Equipment model IDs |
 | `wv` | Wave (crawl/walk/run) | `pre` | Prerequisite UC IDs |
@@ -153,6 +154,7 @@ All audits are in `.github/workflows/validate.yml`. Key steps:
 - Stewardship digest schema (PR smoke-test of `python -m splunk_uc generate-stewardship-digest` against `schemas/v2/stewardship-digest.schema.json`)
 - Build reproducibility (nightly + build-pipeline PRs: `python -m splunk_uc audit-reproducibility --keep` runs two consecutive `--reproducible` builds and asserts `dist/integrity.json` byte-identical; see `.github/workflows/build-reproducibility.yml`)
 - Equipment app map (`python3 -m splunk_uc audit-equipment-app-map --check` — Splunkbase ids, DSA ids, UC corroboration for every `kind=equipment` slug; see [`docs/equipment-app-map.md`](docs/equipment-app-map.md))
+- Cisco tag evidence (`python3 -m splunk_uc audit-cisco-tag-evidence --check` — a `cisco_<model>` tag needs a sourcetype, index, macro, or listed CIM data model in `spl`, `cimSpl`, or its `splVariants` entry)
 - Splunkbase catalog freshness (`python3 scripts/sync_splunkbase_catalog.py --check` — validates cached `data/splunkbase-catalog.json` shape)
 - `splunk_uc` dispatcher smoke (per-PR: `python -m splunk_uc --help` and `--version` succeed; pinned by `tests/splunk_uc/test_dispatcher.py`)
 
