@@ -16,7 +16,7 @@
   },
   "dataSources": "Sysmon EventID 10 Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Security Essentials / ESCU — Universal Forwarder (Splunkbase 617)",
-  "spl": "| from datamodel Risk.All_Risk | search normalized_risk_object IN (\"$dest$\") starthoursago=168  | stats count min(_time) as firstTime max(_time) as lastTime values(search_name) as \"Search Name\" values(risk_message) as \"Risk Message\" values(analyticstories) as \"Analytic Stories\" values(annotations._all) as \"Annotations\" values(annotations.mitre_attack.mitre_tactic) as \"ATT&CK Tactics\" by normalized_risk_object | `security_content_ctime(firstTime)` | `security_content_ctime(lastTime)`",
+  "spl": "`sysmon`\nEventCode=10\nSourceImage=\"*\\\\wmiprvse.exe\"\n\n```\nThe 0x1478 mask combines query, VM, and duplicate-handle rights;\nThe 0x1fffff mas is full process access.\nAdditional requested rights are allowed.\n```\n| eval g_access_decimal = tonumber(replace(GrantedAccess,\"0x\",\"\"),16)\n| eval PROCESS_QUERY_INFORMATION = 1024\n| eval PROCESS_QUERY_LIMITED_INFORMATION = 4096\n| eval PROCESS_VM_OPERATION = 8\n| eval PROCESS_VM_READ = 16\n| eval PROCESS_VM_WRITE = 32\n| eval PROCESS_DUP_HANDLE = 64\n| eval WMI_REQUIRED_ACCESS = PROCESS_QUERY_INFORMATION + PROCESS_QUERY_LIMITED_INFORMATION + PROCESS_VM_OPERATION + PROCESS_VM_READ + PROCESS_VM_WRITE + PROCESS_DUP_HANDLE\n| eval PROCESS_ALL_ACCESS = 2097151\n| eval wmi_access_set = bit_and(g_access_decimal, WMI_REQUIRED_ACCESS)\n| eval full_access_set = bit_and(g_access_decimal, PROCESS_ALL_ACCESS)\n| where wmi_access_set == WMI_REQUIRED_ACCESS\n  OR full_access_set == PROCESS_ALL_ACCESS\n\n| stats count min(_time) as firstTime\n                max(_time) as lastTime\n    BY user_id dest\n       signature_id signature granted_access Opcode\n       SourceImage SourceProcessGUID SourceProcessId\n       TargetImage TargetProcessGUID TargetProcessId\n       CallTrace vendor_product\n\n| eval CallTrace=split(CallTrace, \"|\")\n\n| `security_content_ctime(firstTime)`\n| `security_content_ctime(lastTime)`\n| `windows_wmi_impersonate_token_filter`",
   "description": "Identifies 'Windows WMI Impersonate Token' patterns (UC-10.3.659) sourced from datamodel `Risk.All_Risk`. Threshold bundle: 168h lookback; aggregation grain: `normalized_risk_object`; metrics: `firstTime`, `lastTime`. Enrichment path: filter `normalized_risk_object IN (\"$dest$\") starthoursago=168`.",
   "value": "UC-10.3.659 gives Security Infra teams earlier visibility into Impersonate Token through `Risk.All_Risk` telemetry, lowering missed threat campaigns, control regressions, and SOC SLA breaches.",
   "implementation": "This search requires Sysmon Logs and a Sysmon configuration, which includes EventCode 10. This search uses an input macro named `sysmon`. We strongly recommend that you specify your environment-specific configurations (index, source, sourcetype, etc.) for Windows Sysmon logs. Replace the macro definition with configurations for your Splunk environment. The search also uses a post-filter macro desi…",
@@ -54,7 +54,11 @@
   ],
   "detectionType": "system",
   "equipment": [
+    "hardware_bmc",
     "security_essentials"
+  ],
+  "equipmentModels": [
+    "hardware_bmc_edac"
   ],
   "splunkVersions": [
     "9.2+",

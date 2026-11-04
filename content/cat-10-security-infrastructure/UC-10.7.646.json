@@ -16,7 +16,7 @@
   },
   "dataSources": "Sysmon EventID 10 Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Security Essentials / ESCU — Universal Forwarder (Splunkbase 617)",
-  "spl": "| from datamodel Risk.All_Risk | search normalized_risk_object IN (\"$dest$\") starthoursago=168  | stats count min(_time) as firstTime max(_time) as lastTime values(search_name) as \"Search Name\" values(risk_message) as \"Risk Message\" values(analyticstories) as \"Analytic Stories\" values(annotations._all) as \"Annotations\" values(annotations.mitre_attack.mitre_tactic) as \"ATT&CK Tactics\" by normalized_risk_object | `security_content_ctime(firstTime)` | `security_content_ctime(lastTime)`",
+  "spl": "`sysmon`\nEventCode=10\nTargetImage=\"*\\\\lsass.exe\"\n\n```\nPROCESS_TERMINATE is 0x1.\n```\n| eval g_access_decimal = tonumber(replace(GrantedAccess,\"0x\",\"\"),16)\n| eval PROCESS_TERMINATE = 1\n| eval terminate_set = bit_and(g_access_decimal, PROCESS_TERMINATE)\n| where terminate_set == PROCESS_TERMINATE\n\n| stats count min(_time) as firstTime\n                max(_time) as lastTime\n    BY user_id dest\n       signature_id signature granted_access Opcode\n       SourceImage SourceProcessGUID SourceProcessId\n       TargetImage TargetProcessGUID TargetProcessId\n       CallTrace vendor_product\n\n| eval CallTrace=split(CallTrace, \"|\")\n\n| `security_content_ctime(firstTime)`\n| `security_content_ctime(lastTime)`\n| `windows_terminating_lsass_process_filter`",
   "description": "Identifies 'Windows Terminating Lsass Process' patterns (UC-10.7.646) sourced from datamodel `Risk.All_Risk`. Threshold bundle: 168h lookback; aggregation grain: `normalized_risk_object`; metrics: `firstTime`, `lastTime`. Enrichment path: filter `normalized_risk_object IN (\"$dest$\") starthoursago=168`.",
   "value": "UC-10.7.646 gives Security Infra teams earlier visibility into Lsass Process through `Risk.All_Risk` telemetry, lowering missed threat campaigns, control regressions, and SOC SLA breaches.",
   "implementation": "ESCU Risk-Based Alerting detection. Enable in ES Content Management as a Correlation Search. Generates risk events attributed to process entities — Notable Events fire when an entity’s cumulative risk exceeds the configured threshold. Requires Sysmon EventID 10 ingested and CIM-normalized.",
@@ -51,7 +51,11 @@
   ],
   "detectionType": "process",
   "equipment": [
+    "hardware_bmc",
     "security_essentials"
+  ],
+  "equipmentModels": [
+    "hardware_bmc_edac"
   ],
   "splunkVersions": [
     "9.2+",

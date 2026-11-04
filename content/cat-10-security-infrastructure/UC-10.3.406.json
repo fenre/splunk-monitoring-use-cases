@@ -16,7 +16,7 @@
   },
   "dataSources": "Sysmon EventID 11 Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Security Essentials / ESCU — Universal Forwarder (Splunkbase 617)",
-  "spl": "| from datamodel Risk.All_Risk | search normalized_risk_object IN (\"$dest$\") starthoursago=168  | stats count min(_time) as firstTime max(_time) as lastTime values(search_name) as \"Search Name\" values(risk_message) as \"Risk Message\" values(analyticstories) as \"Analytic Stories\" values(annotations._all) as \"Annotations\" values(annotations.mitre_attack.mitre_tactic) as \"ATT&CK Tactics\" by normalized_risk_object | `security_content_ctime(firstTime)` | `security_content_ctime(lastTime)`",
+  "spl": "| tstats `security_content_summariesonly`\n  count values(Filesystem.file_path) as file_path\n        min(_time) as firstTime\n        max(_time) as lastTime\n\nFROM datamodel=Endpoint.Filesystem WHERE\n\nFilesystem.action IN (\"created\", \"modified\")\nFilesystem.file_name=\"*.cab\"\nNOT Filesystem.file_path IN (\n    \"*\\\\AppData\\\\Local\\\\Microsoft\\\\*\",\n    \"*\\\\Windows Kits\\\\10\\\\ADK\\\\Installers\\\\*\",\n    \"C:\\\\Program Files (x86)\\\\*\",\n    \"C:\\\\Program Files\\\\*\",\n    \"C:\\\\ProgramData\\\\Microsoft\\\\*\",\n    \"C:\\\\ProgramData\\\\Package Cache\\\\*\",\n    \"C:\\\\Windows\\\\appcompat\\\\*\",\n    \"C:\\\\Windows\\\\Logs\\\\CBS\\\\*\",\n    \"C:\\\\Windows\\\\servicing\\\\*\",\n    \"C:\\\\Windows\\\\SoftwareDistribution\\\\*\",\n    \"C:\\\\Windows\\\\System32\\\\*\",\n    \"C:\\\\Windows\\\\SystemApps\\\\*\",\n    \"C:\\\\Windows\\\\SysWOW64\\\\*\",\n    \"C:\\\\Windows\\\\WinSxS\\\\*\",\n)\n\nBY Filesystem.action Filesystem.dest Filesystem.file_access_time\n   Filesystem.file_create_time Filesystem.file_hash Filesystem.file_modify_time\n   Filesystem.file_name Filesystem.file_path Filesystem.file_acl\n   Filesystem.file_size Filesystem.process_guid Filesystem.process_id\n   Filesystem.user Filesystem.vendor_product\n\n| `drop_dm_object_name(\"Filesystem\")`\n| `security_content_ctime(firstTime)`\n| `security_content_ctime(lastTime)`\n| `windows_cab_file_on_disk_filter`",
   "description": "Surfaces UC-10.3.406 — Windows, CAB, File, Disk — using datamodel `Risk.All_Risk`, grouped by `normalized_risk_object`. Outputs `firstTime`, `lastTime` each `the scheduled window`; alert when 168h lookback. Filter chain includes filter `normalized_risk_object IN (\"$dest$\") starthoursago=168`. Purpose-built for 'Windows CAB File on Disk' in Security Infra workflows.",
   "value": "UC-10.3.406 accelerates insight into on Disk ('Windows CAB File on Disk') by tracking `firstTime`, `lastTime` on `Risk.All_Risk` telemetry, reducing missed threat campaigns, control regressions, and SOC SLA breaches before spreadsheet checks hide regressions.",
   "implementation": "ESCU Risk-Based Alerting detection. Enable in ES Content Management as a Correlation Search. Generates risk events attributed to host or system entities — Notable Events fire when an entity’s cumulative risk exceeds the configured threshold. Requires Sysmon EventID 11 ingested and CIM-normalized.",
@@ -54,6 +54,7 @@
   ],
   "detectionType": "system",
   "equipment": [
+    "redis",
     "security_essentials"
   ],
   "splunkVersions": [
