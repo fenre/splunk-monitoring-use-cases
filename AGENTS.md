@@ -3,6 +3,10 @@
 > Start here if you are an AI agent (Cursor, Claude Code, Codex, Copilot,
 > or any MCP-capable client) working with this repository.
 
+## Work order
+
+Every task starts from `origin/main`, and its pull request is merged before the next task starts.
+
 ## What this repository is
 
 A curated, machine-readable, versioned catalog of **16,600+ IT infrastructure

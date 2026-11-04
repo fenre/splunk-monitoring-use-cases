@@ -6,26 +6,34 @@
 
 ## Current release
 
+**v8.28.0 — Cisco portfolio, review corrections, and guided onboarding (16,731 use cases)** *(shipped 2026-11-04)*
+
+Theme: **Cisco products with a published sourcetype have a use case, reviewed
+text names the product it describes, and a new reader can start from a pack.**
+
+### Shipped outcomes
+
+- **Cisco portfolio map** and **40** new use cases for Duo, Secure Endpoint, Secure Access, XDR, and the tier 2–4 products that publish a sourcetype or syslog mnemonic. Hyperfabric and Industrial Ethernet stay on the coverage backlog.
+- **Reviewed text corrections.** Wrong Splunkbase numbers and invented add-on names are corrected. Searches were left unchanged. cat-25 stays deferred.
+- **15** draft starter packs and a **Start-here wizard** at `#start`. MCP grows to **14** tools: `list_starter_packs`, `get_starter_pack`, `plan_rollout`.
+- **Two draft use cases:** Kubernetes OOMKilled (UC-3.2.47) and Palo Alto HA failover (UC-10.11.131).
+
+See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.28.0 release entry.
+
+---
+
+## Previous releases
+
 **v8.27.0 — Splunk product per use case + evidence-based Cisco tags (16,689 use cases)** *(shipped 2026-11-03)*
 
 Theme: **every use case says which Splunk product implements it, and a Cisco
 product tag means the search reads that product's data.**
 
-### Shipped outcomes
-
 - **Splunk product registry (ADR-0017)** and **37** draft Splunk Agent Observability use cases (13.8).
 - **Cisco model tags** need a sourcetype, index, macro, or add-on CIM model in the search; `audit-cisco-tag-evidence --check` gates every pull request.
 - **15** draft Secure Firewall `splVariants` (uc.schema 1.10.0) and six new Cisco models (Duo, Umbrella / Secure Access, Secure Email, Isovalent, Secure Client / NVM, AI Defense).
 
-- **15** draft starter packs (Splunk platform, Windows, Linux, Catalyst Center, ThousandEyes, Meraki, ISE pairs; Palo Alto security-only).
-- **Start-here wizard** at `#start` with client-side paste matching and Markdown / CSV / AI-prompt export.
-- **MCP** grows to **14** tools: `list_starter_packs`, `get_starter_pack`, `plan_rollout`.
-
 See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.27.0 release entry.
-
----
-
-## Previous releases
 
 **v8.26.0 — Permanent use case identifiers (16,652 use cases)** *(shipped 2026-10-28)*
 

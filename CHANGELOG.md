@@ -10,7 +10,7 @@ the release notes block in `index.html` by hand.
 
 ---
 
-## [Unreleased]
+## [8.28.0] - 2026-11-04
 
 ### Added
 
@@ -36,165 +36,6 @@ the release notes block in `index.html` by hand.
   tools total). `plan_rollout` shares a JS/Python parity fixture with the
   wizard so both produce the same plan.
 
-
-## [8.27.0] - 2026-11-03
-
-### Added
-
-- **Cisco equipment tags follow the search.** A `cisco_<model>` tag is
-  written only when `spl` or `cimSpl` names a sourcetype, index, or macro
-  that model produces, when the search reads a CIM data model that model's
-  add-on populates and `app` names the product, or when `splVariants`
-  carries that model. A `match(sourcetype, "cisco:ios|...")` filter counts
-  as naming those sourcetypes. Prose never attaches a model; generic SNMP,
-  NetFlow, and syslog searches keep `cisco` but no model. Hand exceptions
-  for ESCU detections whose stored search is the Risk drill-down live in
-  `data/equipment-tag-overrides.json`.
-- **Six Cisco models: Duo, Umbrella / Secure Access, Secure Email (ESA),
-  Isovalent, Secure Client / NVM, AI Defense.** Their sourcetypes come from
-  Splunk's "Integrated Enterprise Value for Cisco data" source-type table.
-  The same table adds the `cisco:dc:*` (DC Networking), `cisco:telemetry`,
-  and CUCM CDR sourcetypes to the existing models. The ThousandEyes model
-  recognises the app's `stream_index`, `event_index`, `path_viz_index`,
-  and `activity_index` macros. The 55 ESCU Duo, Isovalent, NVM, and AI
-  Defense overrides now name their model.
-- **Optional `splVariants` (uc.schema 1.10.0).** A use case may carry one
-  extra search per equipment model. `spl` stays the default. `catalog.json`
-  emits `qv` only when the array is present, and `uc-thin.json` adds
-  `variantModels` in that same case. Fifteen Secure Firewall / FTD
-  variants are `status: draft` and `requiresSmeReview: true`: UC-5.2.2,
-  UC-5.2.3, UC-5.2.8, UC-5.2.9, UC-5.2.10, UC-5.2.13–UC-5.2.18, UC-5.20.83,
-  UC-10.1.1, UC-10.2.1, and UC-10.16.6. Field names come from the Cisco
-  Security Cloud eStreamer samples and the Splunk Add-on for Cisco ASA
-  source-type table.
-- **Add-on CIM coverage on the equipment registry.** `cisco_asa` and
-  `cisco_firepower` list the CIM models the Splunk Add-on for Cisco ASA
-  documents for `cisco:asa` and `cisco:ftd` (Authentication, Network
-  Traffic, Change, Network Sessions, Certificates, Intrusion Detection,
-  Alerts). `cisco_ise`, `cisco_meraki`, and `cisco_secure_email` list the
-  models on their add-on source-type pages. The Meraki page does not name
-  Network Traffic. `cisco_ucs` lists Inventory and Performance (Splunk Add-on
-  for Cisco UCS sources page), `cisco_duo` lists Authentication and
-  `cisco_ios` lists Change and Network Traffic (Splunk Lantern), and
-  `cisco_secure_client` lists Endpoint and Network Traffic (Splunk Threat
-  Research NVM blog). SD-WAN and ThousandEyes ship their own data models,
-  and no CIM table is published for the other Cisco add-ons, so those
-  models list none. Every Cisco model except HyperFlex and IM and Presence
-  cites its source in `evidence.references`.
-- **`audit-cisco-tag-evidence --check`.** Fails when a `cisco_<model>` tag
-  has neither a producible sourcetype, index, or macro nor a listed CIM
-  data model in `spl`, `cimSpl`, or the matching `splVariants` entry.
-  ESCU overrides are accepted. No known gaps remain. The work list
-  (`--write-csv reports/cisco-tag-audit.csv`) has no remove, retag, or
-  review rows: every Cisco-tagged use case is backed by its search, a
-  listed CIM model, a reviewed override, or carries only the vendor tag.
-- **Splunk product per use case (ADR-0017).** `data/splunk-products.json`
-  defines the Splunk products a UC can be implemented in (Splunk platform,
-  Agent Observability, Observability Cloud, ITSI, SOAR, Edge Hub): required
-  fields, which audits and exports apply, ledger fingerprint fields, and the
-  gold-profile implementation heading. uc.schema 1.9.0 adds optional
-  `products` and `productArtifacts`; `catalog.json` carries `prd`, `prdn`, and
-  `pra` only for non-default products. UCs without `products` are unchanged —
-  the existing catalogue builds byte-identical.
-- **Subcategory 13.8 Splunk Agent Observability: 37 draft use cases**
-  (UC-13.8.1–13.8.37) implemented in Splunk Agent Observability, the first
-  use cases with no SPL. They cover trace instrumentation with
-  `SplunkAOLogger`, stream alerts (Latency, Status Code, Trace Count, Cost),
-  evaluators (Tool Selection Quality, Tool Error, the five SaaS Luna judges,
-  custom LLM-as-a-judge, Experiments), Agent Control (deny, steer, observe
-  rollout, fail-closed, clone governance), access reviews, Model Pricing and
-  Tokenomics. Each carries its configuration in `productArtifacts`; the
-  registry adds the `instrumentation`, `experiment`, `access`,
-  `model-pricing` and `tokenomics` artifact types. New guide
-  `docs/guides/splunk-agent-observability.md`, equipment slug `splunk_ao`, and
-  source record `splunk-agent-observability`. All 37 are `status: draft`:
-  they were written from the product documentation without tenant access.
-  `AGENTS.md`, `docs/DESIGN.md`, `docs/PITCH.md`, `llms.txt` and the landing
-  page no longer say every use case has SPL.
-- **`audit-uc-product-fit` (warn-only).** Reports use cases whose SPL does not
-  implement them on the Splunk platform: makeresults-only checklists, SPL over
-  another product's sourcetypes or indexes that its documentation does not
-  list (`data/product-fit-rules.json`, each rule citing a skill or vendor
-  doc), and prose that configures another product while the SPL reads its
-  mirrored data. Reviewed verdicts go in `data/product-fit-review.json`.
-
-### Changed
-
-- **15 Splunk Edge Hub use cases now list `products: [splunk-edge-hub,
-  splunk-platform]`** (UC-14.3.1–14.3.7, 14.3.20, 14.3.32, 14.3.42, 14.5.2–14.5.4,
-  14.5.9, 14.5.13). Each carries the Edge Hub OS Datastreamer configuration as
-  a `source-configuration` artifact and searches the documented indexes
-  (`edge_hub_data`, `edge_hub_status`, `edge_hub_logs`, `edge_hub_opcua`,
-  `edge_hub_modbus`) instead of the hyphenated `edge-hub-*` names. Metrics
-  indexes are queried with `mstats`, log searches group on the documented
-  `priority` field, and the universal forwarder claim is gone (Edge Hub OS does
-  not support one). Identifiers are unchanged; the ledger appends a revision.
-- **UC-10.7.4 and UC-22.7.6 now list `products: [splunk-soar,
-  splunk-platform]`** and carry a `forwarder-group` artifact (new SOAR artifact
-  type in `data/splunk-products.json`). Both search `index=phantom_playbook_run`,
-  the index the SOAR forwarder writes Playbook run records to, and group by the
-  numeric `playbook` ID instead of the undocumented `playbook_name` field.
-  UC-22.7.6 resolves names through a `soar_playbook_names.csv` lookup built from
-  `index=phantom_playbook`. The modular-input and `inputs.conf` text is replaced
-  with the SOAR forwarder group steps.
-
-### Fixed
-
-- **218 use cases credited a "Splunk Add-on for Cisco Security (Splunkbase
-  1352)".** No add-on has that name; Splunkbase 1352 is the App for Cisco
-  Network Data, a dashboard app. `app`, `dataSources`, and
-  `detailedImplementation` now name the add-on that collects the search's
-  own sourcetype: the Cisco Enterprise Networking Add-on (7538) for IOS,
-  NX-OS, WLC, and SD-WAN; Splunk Add-on for Cisco Identity Services
-  (1915); Splunk Add-on for Cisco ASA (1620); Cisco Secure Access Add-on
-  (7569); Cisco DC Networking (7777); Splunk App for Stream (1809); or
-  Splunk Add-on for Palo Alto Networks (7523). The 55 whose searches read
-  no such sourcetype (UCM CDR, SNMP, NetFlow) drop the claim. The 39
-  reference entries for app 1352 now carry its real title, and 32 use
-  cases that gave `TA-cisco_ios` that ID now cite Splunkbase 1467.
-- **Undocumented Cisco sourcetypes.** UC-9.5.7, 9.5.8, 9.5.9, 9.5.14,
-  9.7.2, and 22.53.21 read `cisco:duo:authentication` /
-  `cisco:duo:administrator` instead of `duo:authentication` /
-  `duo:admin`. UC-22.53.21, 22.56.16, and 22.56.43 read
-  `cisco_anyconnect:vpn` instead of `cisco:anyconnect`. UC-17.3.14 reads
-  `cisco:umbrella:dns`, and UC-10.16.5 reads `cisco:esa:textmail` instead
-  of `cisco:esa:mail`.
-- **Duo searches use the Duo Admin API v2 authentication-log fields.**
-  UC-9.5.7 filters `result="denied"` (not `deny`), UC-9.5.14 filters
-  `factor="duo_push"` (not `push`), UC-9.5.8 reads `trusted_endpoint_status`
-  instead of the undocumented `device_trust_level`, and UC-9.5.9 reads
-  enrollment events from `cisco:duo:authentication` (`event_type` is an
-  authentication-log field, not an administrator-log field). Each renames
-  `user.name`, `access_device.ip`, `auth_device.name`, and
-  `application.name` to the columns its text already describes.
-- **CUCM sourcetypes.** 12 searches read `cucm_cdr` / `cucm_cmr`, the
-  sourcetypes the TA for Cisco CDR Reporting and Analytics (Splunkbase 4434)
-  documents, instead of `cisco:ucm:cdr` / `cisco:ucm:cmr`, and 14 more use
-  cases name them in their text. Five use cases read `cisco:cucm:syslog`
-  from Splunk's Cisco source-type table instead of `cisco:ucm:syslog`. The
-  Unity Connection model no longer matches `cisco:cucm:*`.
-- **Splunk Add-on for Cisco ESA is Splunkbase 1761**, not 2919, in the
-  email-security guide. The email-security and collaboration guides list
-  only the ESA sourcetypes the add-on documents.
-
-## [8.26.0] - 2026-10-28
-
-### Added
-
-- **Permanent UC identifiers (ADR-0016).** `data/id-ledger.json` records every
-  identifier ever issued, its status, and an append-only history of title + SPL
-  fingerprints. `audit-uc-ids` fails on reuse of a removed identifier or an
-  unrecorded content change; `audit-uc-id-migration-blast` fails a pull request
-  that changes more than 10 identifiers without a manifest under
-  `data/uc-id-migrations/`. `catalog.json` and the API manifests carry
-  `identityGuaranteeSince`, `identityBaselineVersion`, and the policy text.
-- **Identity baseline.** 8.26.0 is the first release that enforces identifier
-  permanence; 8.25.0 is the recorded baseline. Revision 1 of each of the 16,644
-  identifiers present at tag `v8.25.0` is hashed from that tag. The 348
-  identifiers whose title or SPL changed between 8.25.0 and 8.26.0 carry a
-  second revision and are classified in
-  `data/uc-id-migrations/2026-10-28-v8.26.0-identity-baseline.json`. 2,422
-  removed identifiers are recorded and can never be reissued.
 - **UC text-quality review.** A tiered review of every use case's text for
   clarity, specificity, consistency and factual correctness
   ([`docs/uc-text-review-rubric.md`](docs/uc-text-review-rubric.md), plan in
@@ -233,9 +74,18 @@ the release notes block in `index.html` by hand.
     exports, and Hyperfabric commit summaries and inventory. Secure Access
     App Discovery stays waived because Cisco publishes no field list for it.
 
+- **Hyperfabric and Industrial Ethernet stay on the Cisco coverage backlog.**
+  Neither has a product-specific documented sourcetype the evidence rule can
+  match. Hyperfabric is an index without a sourcetype; Industrial Ethernet
+  searches read `cisco:ios`. The notes live in
+  `data/cisco-coverage-baseline.json` and are kept when the backlog is
+  rewritten. The use cases are in this release; they are not counted as
+  capability coverage.
+
 ### New Use Cases
 
-- **Cisco tier 1 products: +19 use cases (16,652 → 16,671).** Every new use
+
+- **Cisco tier 1 products: +19 use cases.** Every new use
   case is gold depth (95), cites vendor documentation, and is tagged with
   `capabilities[]`.
   - Duo: Trust Monitor priority events (UC-9.5.16, API end of support 31
@@ -274,7 +124,16 @@ the release notes block in `index.html` by hand.
     published field names, so the search counts events in the index named
     on the endpoint.
 
+- **Two draft use cases (16,729 → 16,731).** Kubernetes OOMKilled and
+  memory-eviction detection (UC-3.2.47) and Palo Alto HA failover and HA1
+  control-link health (UC-10.11.131). Both ship as `draft`. Equipment tags
+  come from the evidence-rule generator; the September tag pass was not
+  re-applied. Neither identifier was in the ledger. The catalogue is
+  **16,731** use cases: 16,689 in 8.27.0, plus 40 Cisco portfolio use cases
+  and these two.
+
 ### Changed
+
 
 - Corrected 585 use cases that already had a deep review. Removed the generated
   "Variant N confirms…" and "Purpose-built for…" sentences, deleted cited
@@ -489,6 +348,186 @@ the release notes block in `index.html` by hand.
   cisco-app-navigator validation report, including Secure Network Analytics,
   AI Defense, Secure Workload, Multicloud Defense, Email Threat Defense,
   Secure Malware Analytics, and Isovalent.
+
+- **Equipment app-index byte budget.** Owner decision 2026-11-04: the
+  regenerated equipment map is the one to publish, so the hard budget follows
+  that file (224,369 bytes plus 10%, which is 246,806) instead of shrinking
+  the map.
+- **Published Cisco equipment model ids stay the integration ids.** Umbrella,
+  Secure Email, and Secure Client remain `cisco_umbrella`,
+  `cisco_secure_email`, and `cisco_secure_client`. A `cisco_*` model id that
+  is no longer in the equipment registry is dropped on the next tag
+  generation.
+- **`reports/uc-review` is not copied to the published site.** The review
+  ledger stays in the repository. The Pages asset copy skips that directory
+  the same way it skips `scripts/`.
+
+### Removed
+
+- **Unused one-off scripts.** Nothing in the build or the audits reads
+  `data/uc-link-status.json` or `data/uc-link-fallbacks.json`, so the probes
+  that wrote them are gone. The cat-25 one-off generators
+  (`scripts/gen_cat25_*.py`) are gone too. Evidence signing docs point at the
+  `splunk_uc` module the workflow already runs.
+
+## [8.27.0] - 2026-11-03
+
+### Added
+
+- **Cisco equipment tags follow the search.** A `cisco_<model>` tag is
+  written only when `spl` or `cimSpl` names a sourcetype, index, or macro
+  that model produces, when the search reads a CIM data model that model's
+  add-on populates and `app` names the product, or when `splVariants`
+  carries that model. A `match(sourcetype, "cisco:ios|...")` filter counts
+  as naming those sourcetypes. Prose never attaches a model; generic SNMP,
+  NetFlow, and syslog searches keep `cisco` but no model. Hand exceptions
+  for ESCU detections whose stored search is the Risk drill-down live in
+  `data/equipment-tag-overrides.json`.
+- **Six Cisco models: Duo, Umbrella / Secure Access, Secure Email (ESA),
+  Isovalent, Secure Client / NVM, AI Defense.** Their sourcetypes come from
+  Splunk's "Integrated Enterprise Value for Cisco data" source-type table.
+  The same table adds the `cisco:dc:*` (DC Networking), `cisco:telemetry`,
+  and CUCM CDR sourcetypes to the existing models. The ThousandEyes model
+  recognises the app's `stream_index`, `event_index`, `path_viz_index`,
+  and `activity_index` macros. The 55 ESCU Duo, Isovalent, NVM, and AI
+  Defense overrides now name their model.
+- **Optional `splVariants` (uc.schema 1.10.0).** A use case may carry one
+  extra search per equipment model. `spl` stays the default. `catalog.json`
+  emits `qv` only when the array is present, and `uc-thin.json` adds
+  `variantModels` in that same case. Fifteen Secure Firewall / FTD
+  variants are `status: draft` and `requiresSmeReview: true`: UC-5.2.2,
+  UC-5.2.3, UC-5.2.8, UC-5.2.9, UC-5.2.10, UC-5.2.13–UC-5.2.18, UC-5.20.83,
+  UC-10.1.1, UC-10.2.1, and UC-10.16.6. Field names come from the Cisco
+  Security Cloud eStreamer samples and the Splunk Add-on for Cisco ASA
+  source-type table.
+- **Add-on CIM coverage on the equipment registry.** `cisco_asa` and
+  `cisco_firepower` list the CIM models the Splunk Add-on for Cisco ASA
+  documents for `cisco:asa` and `cisco:ftd` (Authentication, Network
+  Traffic, Change, Network Sessions, Certificates, Intrusion Detection,
+  Alerts). `cisco_ise`, `cisco_meraki`, and `cisco_secure_email` list the
+  models on their add-on source-type pages. The Meraki page does not name
+  Network Traffic. `cisco_ucs` lists Inventory and Performance (Splunk Add-on
+  for Cisco UCS sources page), `cisco_duo` lists Authentication and
+  `cisco_ios` lists Change and Network Traffic (Splunk Lantern), and
+  `cisco_secure_client` lists Endpoint and Network Traffic (Splunk Threat
+  Research NVM blog). SD-WAN and ThousandEyes ship their own data models,
+  and no CIM table is published for the other Cisco add-ons, so those
+  models list none. Every Cisco model except HyperFlex and IM and Presence
+  cites its source in `evidence.references`.
+- **`audit-cisco-tag-evidence --check`.** Fails when a `cisco_<model>` tag
+  has neither a producible sourcetype, index, or macro nor a listed CIM
+  data model in `spl`, `cimSpl`, or the matching `splVariants` entry.
+  ESCU overrides are accepted. No known gaps remain. The work list
+  (`--write-csv reports/cisco-tag-audit.csv`) has no remove, retag, or
+  review rows: every Cisco-tagged use case is backed by its search, a
+  listed CIM model, a reviewed override, or carries only the vendor tag.
+- **Splunk product per use case (ADR-0017).** `data/splunk-products.json`
+  defines the Splunk products a UC can be implemented in (Splunk platform,
+  Agent Observability, Observability Cloud, ITSI, SOAR, Edge Hub): required
+  fields, which audits and exports apply, ledger fingerprint fields, and the
+  gold-profile implementation heading. uc.schema 1.9.0 adds optional
+  `products` and `productArtifacts`; `catalog.json` carries `prd`, `prdn`, and
+  `pra` only for non-default products. UCs without `products` are unchanged —
+  the existing catalogue builds byte-identical.
+- **Subcategory 13.8 Splunk Agent Observability: 37 draft use cases**
+  (UC-13.8.1–13.8.37) implemented in Splunk Agent Observability, the first
+  use cases with no SPL. They cover trace instrumentation with
+  `SplunkAOLogger`, stream alerts (Latency, Status Code, Trace Count, Cost),
+  evaluators (Tool Selection Quality, Tool Error, the five SaaS Luna judges,
+  custom LLM-as-a-judge, Experiments), Agent Control (deny, steer, observe
+  rollout, fail-closed, clone governance), access reviews, Model Pricing and
+  Tokenomics. Each carries its configuration in `productArtifacts`; the
+  registry adds the `instrumentation`, `experiment`, `access`,
+  `model-pricing` and `tokenomics` artifact types. New guide
+  `docs/guides/splunk-agent-observability.md`, equipment slug `splunk_ao`, and
+  source record `splunk-agent-observability`. All 37 are `status: draft`:
+  they were written from the product documentation without tenant access.
+  `AGENTS.md`, `docs/DESIGN.md`, `docs/PITCH.md`, `llms.txt` and the landing
+  page no longer say every use case has SPL.
+- **`audit-uc-product-fit` (warn-only).** Reports use cases whose SPL does not
+  implement them on the Splunk platform: makeresults-only checklists, SPL over
+  another product's sourcetypes or indexes that its documentation does not
+  list (`data/product-fit-rules.json`, each rule citing a skill or vendor
+  doc), and prose that configures another product while the SPL reads its
+  mirrored data. Reviewed verdicts go in `data/product-fit-review.json`.
+
+### Changed
+
+- **15 Splunk Edge Hub use cases now list `products: [splunk-edge-hub,
+  splunk-platform]`** (UC-14.3.1–14.3.7, 14.3.20, 14.3.32, 14.3.42, 14.5.2–14.5.4,
+  14.5.9, 14.5.13). Each carries the Edge Hub OS Datastreamer configuration as
+  a `source-configuration` artifact and searches the documented indexes
+  (`edge_hub_data`, `edge_hub_status`, `edge_hub_logs`, `edge_hub_opcua`,
+  `edge_hub_modbus`) instead of the hyphenated `edge-hub-*` names. Metrics
+  indexes are queried with `mstats`, log searches group on the documented
+  `priority` field, and the universal forwarder claim is gone (Edge Hub OS does
+  not support one). Identifiers are unchanged; the ledger appends a revision.
+- **UC-10.7.4 and UC-22.7.6 now list `products: [splunk-soar,
+  splunk-platform]`** and carry a `forwarder-group` artifact (new SOAR artifact
+  type in `data/splunk-products.json`). Both search `index=phantom_playbook_run`,
+  the index the SOAR forwarder writes Playbook run records to, and group by the
+  numeric `playbook` ID instead of the undocumented `playbook_name` field.
+  UC-22.7.6 resolves names through a `soar_playbook_names.csv` lookup built from
+  `index=phantom_playbook`. The modular-input and `inputs.conf` text is replaced
+  with the SOAR forwarder group steps.
+
+### Fixed
+
+- **218 use cases credited a "Splunk Add-on for Cisco Security (Splunkbase
+  1352)".** No add-on has that name; Splunkbase 1352 is the App for Cisco
+  Network Data, a dashboard app. `app`, `dataSources`, and
+  `detailedImplementation` now name the add-on that collects the search's
+  own sourcetype: the Cisco Enterprise Networking Add-on (7538) for IOS,
+  NX-OS, WLC, and SD-WAN; Splunk Add-on for Cisco Identity Services
+  (1915); Splunk Add-on for Cisco ASA (1620); Cisco Secure Access Add-on
+  (7569); Cisco DC Networking (7777); Splunk App for Stream (1809); or
+  Splunk Add-on for Palo Alto Networks (7523). The 55 whose searches read
+  no such sourcetype (UCM CDR, SNMP, NetFlow) drop the claim. The 39
+  reference entries for app 1352 now carry its real title, and 32 use
+  cases that gave `TA-cisco_ios` that ID now cite Splunkbase 1467.
+- **Undocumented Cisco sourcetypes.** UC-9.5.7, 9.5.8, 9.5.9, 9.5.14,
+  9.7.2, and 22.53.21 read `cisco:duo:authentication` /
+  `cisco:duo:administrator` instead of `duo:authentication` /
+  `duo:admin`. UC-22.53.21, 22.56.16, and 22.56.43 read
+  `cisco_anyconnect:vpn` instead of `cisco:anyconnect`. UC-17.3.14 reads
+  `cisco:umbrella:dns`, and UC-10.16.5 reads `cisco:esa:textmail` instead
+  of `cisco:esa:mail`.
+- **Duo searches use the Duo Admin API v2 authentication-log fields.**
+  UC-9.5.7 filters `result="denied"` (not `deny`), UC-9.5.14 filters
+  `factor="duo_push"` (not `push`), UC-9.5.8 reads `trusted_endpoint_status`
+  instead of the undocumented `device_trust_level`, and UC-9.5.9 reads
+  enrollment events from `cisco:duo:authentication` (`event_type` is an
+  authentication-log field, not an administrator-log field). Each renames
+  `user.name`, `access_device.ip`, `auth_device.name`, and
+  `application.name` to the columns its text already describes.
+- **CUCM sourcetypes.** 12 searches read `cucm_cdr` / `cucm_cmr`, the
+  sourcetypes the TA for Cisco CDR Reporting and Analytics (Splunkbase 4434)
+  documents, instead of `cisco:ucm:cdr` / `cisco:ucm:cmr`, and 14 more use
+  cases name them in their text. Five use cases read `cisco:cucm:syslog`
+  from Splunk's Cisco source-type table instead of `cisco:ucm:syslog`. The
+  Unity Connection model no longer matches `cisco:cucm:*`.
+- **Splunk Add-on for Cisco ESA is Splunkbase 1761**, not 2919, in the
+  email-security guide. The email-security and collaboration guides list
+  only the ESA sourcetypes the add-on documents.
+
+## [8.26.0] - 2026-10-28
+
+### Added
+
+- **Permanent UC identifiers (ADR-0016).** `data/id-ledger.json` records every
+  identifier ever issued, its status, and an append-only history of title + SPL
+  fingerprints. `audit-uc-ids` fails on reuse of a removed identifier or an
+  unrecorded content change; `audit-uc-id-migration-blast` fails a pull request
+  that changes more than 10 identifiers without a manifest under
+  `data/uc-id-migrations/`. `catalog.json` and the API manifests carry
+  `identityGuaranteeSince`, `identityBaselineVersion`, and the policy text.
+- **Identity baseline.** 8.26.0 is the first release that enforces identifier
+  permanence; 8.25.0 is the recorded baseline. Revision 1 of each of the 16,644
+  identifiers present at tag `v8.25.0` is hashed from that tag. The 348
+  identifiers whose title or SPL changed between 8.25.0 and 8.26.0 carry a
+  second revision and are classified in
+  `data/uc-id-migrations/2026-10-28-v8.26.0-identity-baseline.json`. 2,422
+  removed identifiers are recorded and can never be reissued.
 
 ## [8.25.0] - 2026-07-24
 
