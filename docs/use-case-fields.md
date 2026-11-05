@@ -55,6 +55,18 @@ A use case keeps one id and one default search (`spl`). `splVariants` holds anot
 
 `catalog.json` emits the array as `qv`. Inside each item, `spl` and `cimSpl` become `q` and `qs`; the other keys keep these names. `uc-thin.json` lists the models as `variantModels[]` and omits the searches.
 
+## SPL evidence status (optional, uc.schema 1.11.0+)
+
+`splStatus` records whether the field names in `spl` were checked against sample events shipped in the add-on package.
+
+| Value | Meaning |
+|-------|---------|
+| `verified` | Every field name the search uses appears in a package sample. |
+| `example` | The add-on package has no sample events. Field names were not changed. The search is an illustration. |
+| omitted | Not yet assessed. |
+
+`uc-thin.json` emits the value as `ss`, and only on use cases that set it.
+
 ## Quality metadata (optional, v5.1+)
 
 These fields support the repository's quality and freshness tracking. They are **optional today** but CI will warn when they are missing and may gate new UCs in future versions.

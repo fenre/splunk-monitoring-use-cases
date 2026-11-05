@@ -191,6 +191,14 @@ register(
 )
 register(
     Verb(
+        name="audit-cisco-sourcetypes",
+        module="audits.cisco_sourcetypes",
+        help="Fail when a search names a Cisco sourcetype outside data/cisco-sourcetypes.json.",
+        category="audits",
+    )
+)
+register(
+    Verb(
         name="audit-legal-review-signoffs",
         module="audits.legal_review_signoffs",
         help="Validate data/provenance/legal-review-signoffs.json schema + cross-references.",

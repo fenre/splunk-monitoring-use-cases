@@ -1280,6 +1280,7 @@ def _recommender_apps(uc: Mapping[str, Any]) -> list[str]:
 def _recommender_uc_thin(
     uc: Mapping[str, Any],
     sidecar_sb_map: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
+    sidecar_spl_status: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     """Compact UC record consumed by the recommender UI (~200 bytes each).
 
@@ -1354,6 +1355,11 @@ def _recommender_uc_thin(
         "equipmentModels": sorted([em for em in (uc.get("em", []) or []) if isinstance(em, str)]),
         "sb": sb_compact,
     }
+    # ``ss`` is splStatus (uc.schema 1.11.0). Omitted when the sidecar
+    # has not been assessed, so existing records stay byte-identical.
+    spl_status = (sidecar_spl_status or {}).get(uc_id)
+    if spl_status in ("verified", "example"):
+        record["ss"] = spl_status
     variant_models = sorted(
         {
             str(item.get("model"))
@@ -1377,6 +1383,7 @@ def _recommender_uc_thin(
 def _recommender_payloads(
     catalog_ucs: Sequence[Mapping[str, Any]],
     sidecar_sb_map: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
+    sidecar_spl_status: Mapping[str, str] | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Build the recommender JSON payloads from ``catalog.json`` + sidecars.
 
@@ -1402,7 +1409,7 @@ def _recommender_payloads(
             cim_bucket[cim].append(uc_id)
         for app in _recommender_apps(uc):
             app_bucket[app].append(uc_id)
-        thin_records.append(_recommender_uc_thin(uc, sidecar_sb_map))
+        thin_records.append(_recommender_uc_thin(uc, sidecar_sb_map, sidecar_spl_status))
     thin_records.sort(key=lambda r: _uc_sort_key({"id": r["id"]}))
 
     def _finalise(bucket: Mapping[str, list[str]]) -> dict[str, list[str]]:
@@ -2242,7 +2249,9 @@ paths:
         metadata (display name, URL, latest version, cloud-vetted
         flag). Records with vendor SPL variants (uc.schema 1.10.0
         ``splVariants``) also carry ``variantModels``, the equipment
-        model compounds that have their own search.
+        model compounds that have their own search. When a sidecar sets
+        ``splStatus`` (uc.schema 1.11.0), the record carries ``ss``
+        (``verified`` or ``example``).
   /recommender/splunkbase-index.json:
     get:
       summary: Splunkbase app install metadata keyed by Splunkbase id
@@ -2516,6 +2525,7 @@ def _render(out_root: pathlib.Path) -> None:
 
     # Recommender (drives splunk-apps/splunk-uc-recommender)
     sidecar_sb_map: dict[str, list[dict[str, Any]]] = {}
+    sidecar_spl_status: dict[str, str] = {}
     for uc in ucs:
         uc_id = uc.get("id")
         if not isinstance(uc_id, str):  # pragma: no cover - unreachable.
@@ -2529,7 +2539,10 @@ def _render(out_root: pathlib.Path) -> None:
         sb_field = uc.get("splunkbaseApps")
         if isinstance(sb_field, list):
             sidecar_sb_map[uc_id] = [dict(e) for e in sb_field if isinstance(e, Mapping)]
-    recommender = _recommender_payloads(catalog_ucs, sidecar_sb_map)
+        spl_status = uc.get("splStatus")
+        if spl_status in ("verified", "example"):
+            sidecar_spl_status[uc_id] = spl_status
+    recommender = _recommender_payloads(catalog_ucs, sidecar_sb_map, sidecar_spl_status)
     _write_json(
         out_root / "recommender" / "sourcetype-index.json",
         recommender["sourcetype-index"],

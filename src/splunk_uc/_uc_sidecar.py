@@ -70,6 +70,7 @@ SIDECAR_FIELD_ORDER: tuple[str, ...] = (
     "equipmentModels",
     "capabilities",
     "status",
+    "splStatus",
     "lastReviewed",
     "splunkVersions",
     "reviewer",
