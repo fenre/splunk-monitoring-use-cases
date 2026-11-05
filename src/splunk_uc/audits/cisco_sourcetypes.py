@@ -11,10 +11,15 @@ Use cases with ``splStatus`` ``example`` may keep unofficial sourcetypes
 for ACI, UCS, Intersight, SD-WAN, Webex, and Spaces. Those products have
 no sample events in the add-on package, so their searches are
 illustrations. Every other Cisco sourcetype in ``spl``, ``cimSpl``, or
-a ``splVariants`` search must be on the list.
+a ``splVariants`` search must be on the list or in the backlog.
+
+``data/cisco-sourcetype-backlog.json`` lists the use-case and sourcetype
+pairs that already fail. The list may only shrink: ``--check`` fails on
+a hit that is not listed and on a listed pair that no longer fails.
 
 Run::
 
+    PYTHONPATH=src python3 -m splunk_uc audit-cisco-sourcetypes
     PYTHONPATH=src python3 -m splunk_uc audit-cisco-sourcetypes --check
 """
 
@@ -31,6 +36,7 @@ from splunk_uc.equipment_evidence import extract_spl_evidence
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 LIST_PATH = REPO_ROOT / "data" / "cisco-sourcetypes.json"
+BACKLOG = REPO_ROOT / "data" / "cisco-sourcetype-backlog.json"
 
 # Prefixes that identify a Cisco-product sourcetype even when the token
 # is not on the supported list. ``meraki`` without a colon is the
@@ -140,15 +146,33 @@ def unofficial_sourcetypes(sidecar: dict[str, Any], official: set[str]) -> list[
     return bad
 
 
-def findings(official: set[str] | None = None) -> list[str]:
-    """One line per use case and unofficial Cisco sourcetype."""
+def collect(official: set[str] | None = None) -> list[dict[str, str]]:
+    """One row per use case and unofficial Cisco sourcetype."""
     allowed = official if official is not None else load_official()
-    lines: list[str] = []
+    rows: list[dict[str, str]] = []
     for _path, sidecar in iter_uc_sidecars():
-        uc_id = str(sidecar.get("id") or "")
+        uc_id = f"UC-{sidecar.get('id')}"
+        title = str(sidecar.get("title") or "")
         for token in unofficial_sourcetypes(sidecar, allowed):
-            lines.append(f"UC-{uc_id} sourcetype={token}")
-    return lines
+            rows.append({"id": uc_id, "title": title, "sourcetype": token})
+    rows.sort(key=lambda row: (row["id"], row["sourcetype"]))
+    return rows
+
+
+def load_backlog(path: Path | None = None) -> set[tuple[str, str]]:
+    """Return ``(UC id, sourcetype)`` pairs the backlog already accepts."""
+    data = json.loads((path or BACKLOG).read_text(encoding="utf-8"))
+    return {(entry["id"], entry["sourcetype"]) for entry in data.get("useCases", [])}
+
+
+def compare(
+    current: list[dict[str, str]], backlog: set[tuple[str, str]]
+) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
+    """Return (new hits not in the backlog, backlog entries that no longer hit)."""
+    keys = {(row["id"], row["sourcetype"]) for row in current}
+    new = sorted(keys - backlog)
+    stale = sorted(backlog - keys)
+    return new, stale
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -156,25 +180,35 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--check",
         action="store_true",
-        help="Fail when a search names a Cisco sourcetype outside the official list.",
+        help="Fail on an unlisted unofficial sourcetype or a backlog entry that is gone.",
     )
     args = parser.parse_args(argv)
-    if not args.check:
-        parser.print_help()
-        return 2
     try:
-        rows = findings()
-    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        rows = collect()
+        backlog = load_backlog()
+    except (OSError, ValueError, json.JSONDecodeError, KeyError) as exc:
         print(f"Cisco sourcetype list: {exc}", file=sys.stderr)
         return 1
-    if rows:
-        print(f"Cisco sourcetype list: {len(rows)} unofficial sourcetype uses:")
-        for line in rows[:40]:
-            print(f"  {line}")
-        if len(rows) > 40:
-            print(f"  … {len(rows) - 40} more")
+    new, stale = compare(rows, backlog)
+    ucs = {row["id"] for row in rows}
+    print(
+        f"Cisco sourcetype list: {len(rows)} unofficial uses "
+        f"in {len(ucs)} use cases ({len(backlog)} in backlog)"
+    )
+    for uc_id, sourcetype in new[:40]:
+        print(f"  NEW   {uc_id} sourcetype={sourcetype}")
+    if len(new) > 40:
+        print(f"  ... {len(new) - 40} more new uses")
+    for uc_id, sourcetype in stale[:40]:
+        print(f"  STALE {uc_id} sourcetype={sourcetype}")
+    if len(stale) > 40:
+        print(f"  ... {len(stale) - 40} more stale backlog entries")
+    if args.check and (new or stale):
+        print(
+            "FAIL: a search names a Cisco sourcetype outside the official list, "
+            f"or a backlog entry no longer fails. See {BACKLOG.relative_to(REPO_ROOT)}."
+        )
         return 1
-    print(f"Cisco sourcetype list check passed ({len(load_official())} official sourcetypes).")
     return 0
 
 

@@ -193,7 +193,7 @@ register(
     Verb(
         name="audit-cisco-sourcetypes",
         module="audits.cisco_sourcetypes",
-        help="Fail when a search names a Cisco sourcetype outside data/cisco-sourcetypes.json.",
+        help="Ratchet gate: Cisco sourcetypes must be on the IEV list or in the shrinking backlog.",
         category="audits",
     )
 )

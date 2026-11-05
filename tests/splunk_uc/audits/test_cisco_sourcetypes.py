@@ -8,7 +8,10 @@ from pathlib import Path
 import jsonschema
 
 from splunk_uc.audits.cisco_sourcetypes import (
+    collect,
+    compare,
     is_cisco_sourcetype,
+    load_backlog,
     load_official,
     unofficial_sourcetypes,
 )
@@ -53,6 +56,22 @@ def test_official_sourcetype_passes() -> None:
     assert unofficial_sourcetypes(sidecar, official) == []
     assert is_cisco_sourcetype("cisco:ios", official) is True
     assert is_cisco_sourcetype("pan:traffic", official) is False
+
+
+def test_compare_reports_new_and_stale() -> None:
+    current = [
+        {"id": "UC-5.1.1", "title": "A", "sourcetype": "cisco:ios:config"},
+        {"id": "UC-5.1.2", "title": "B", "sourcetype": "snort:alert"},
+    ]
+    new, stale = compare(current, {("UC-5.1.2", "snort:alert"), ("UC-5.1.3", "cisco:ndfc:audit")})
+    assert new == [("UC-5.1.1", "cisco:ios:config")]
+    assert stale == [("UC-5.1.3", "cisco:ndfc:audit")]
+
+
+def test_catalogue_matches_backlog() -> None:
+    new, stale = compare(collect(), load_backlog())
+    assert new == []
+    assert stale == []
 
 
 def test_spl_status_schema_and_thin_key() -> None:
