@@ -1,7 +1,7 @@
 """Hermetic tests for ``tools/build/render_search.py``.
 
 Covers tokenisation, DF pruning, FNV-1a sharding, and the end-to-end
-``render()`` orchestration that emits ``search-vocab.json`` plus 16
+``render()`` orchestration that emits ``search-vocab.json`` plus SHARD_COUNT
 content-hashed shard files.
 """
 
@@ -321,9 +321,9 @@ class TestRender:
         assert not (assets / "search-vocab.json").exists()
         assert "search_vocab" not in cat.asset_hashes
 
-    def test_render_emits_vocab_and_16_shards(self, tmp_path: Path):
+    def test_render_emits_vocab_and_all_shards(self, tmp_path: Path):
         """Smoke-test that a non-empty catalog produces a valid vocab
-        file + exactly SHARD_COUNT (16) shard files, all referenced
+        file + exactly SHARD_COUNT shard files, all referenced
         from ``vocab.shardFiles`` and with content-hashed filenames."""
         # Build many UCs so token DFs land in [MIN_DF, MAX_DF).
         ucs = []

@@ -35,6 +35,7 @@
 	generate-observability-metrics audit-observability-drift \
        generate-backlinks generate-doc-references \
        sync-generated sync-generated-check \
+       sync-catalogue-rollups sync-catalogue-rollups-check \
        preflight preflight-check preflight-fast ci \
        bootstrap check-python _require-py311 \
        check-source-links audit-auto-gen-provenance \
@@ -535,6 +536,61 @@ sync-generated-check: _require-py311 ## CI drift gate — run every cascade gene
 	fi; \
 	echo "==> sync-generated-check: clean"
 
+# Catalogue-size rollups. These committed reports embed the use-case
+# count. They sit outside ``sync-generated`` (that umbrella mutates
+# sidecars and checks a different set). One target regenerates all of
+# them; CI calls the check target from a single step, so a content
+# change that adds or removes a use case updates every rollup in that
+# pull request instead of failing ``main`` one report at a time.
+#
+# The compliance report stamps ``generatedAt`` from the HEAD commit, so
+# a timestamp-only diff is reverted and ignored. A count or coverage
+# change still fails the check.
+sync-catalogue-rollups: _require-py311 ## Regenerate the committed rollups that embed the use-case count
+	@echo "==> [1/4] compliance coverage"
+	@$(SPLUNK_UC) audit-compliance-mappings
+	@echo "==> [2/4] sandbox validation"
+	@$(SPLUNK_UC) audit-sandbox-validation
+	@echo "==> [3/4] attack simulation"
+	@$(PYTHON) scripts/simulate_controltest.py
+	@echo "==> [4/4] splunk version matrix"
+	@$(SPLUNK_UC) audit-splunk-version-matrix
+	@echo "==> sync-catalogue-rollups: done"
+
+sync-catalogue-rollups-check: _require-py311 ## Regenerate catalogue-count rollups and fail if a committed copy differs
+	@set +e; failed=0; \
+	echo "==> [1/4] compliance coverage"; \
+	$(SPLUNK_UC) audit-compliance-mappings || failed=1; \
+	echo "==> [2/4] sandbox validation"; \
+	$(SPLUNK_UC) audit-sandbox-validation || failed=1; \
+	echo "==> [3/4] attack simulation"; \
+	$(PYTHON) scripts/simulate_controltest.py || failed=1; \
+	echo "==> [4/4] splunk version matrix"; \
+	$(SPLUNK_UC) audit-splunk-version-matrix || failed=1; \
+	structural=$$(git diff --unified=0 -- reports/compliance-coverage.json docs/compliance-coverage.md \
+	  | grep '^[+-]' | grep -v '^[+-]\{3\}' | grep -v 'generatedAt' | grep -v 'Generated:' || true); \
+	if [ -n "$$structural" ]; then \
+	  failed=1; \
+	  echo "DRIFT: compliance coverage"; \
+	  git --no-pager diff --stat -- reports/compliance-coverage.json docs/compliance-coverage.md; \
+	else \
+	  git checkout -- reports/compliance-coverage.json docs/compliance-coverage.md; \
+	fi; \
+	if ! git diff --exit-code -- reports/sandbox-validation.json reports/attack-simulation.json \
+	  data/splunk-version-matrix.json docs/splunk-version-matrix.md; then \
+	  failed=1; \
+	  echo "DRIFT: sandbox validation, attack simulation, or splunk version matrix"; \
+	  git --no-pager diff --stat -- reports/sandbox-validation.json reports/attack-simulation.json \
+	    data/splunk-version-matrix.json docs/splunk-version-matrix.md; \
+	fi; \
+	if [ $$failed -ne 0 ]; then \
+	  echo ""; \
+	  echo "FAIL: catalogue rollups are stale, or a generator reported findings."; \
+	  echo "      Fix: run \`make sync-catalogue-rollups\`, review, and commit the diff."; \
+	  exit 1; \
+	fi; \
+	echo "==> sync-catalogue-rollups-check: clean"
+
 # --- Preflight (local "make CI green before you push") ---
 #
 # The drift gates in .github/workflows/validate.yml are partitioned across
@@ -556,9 +612,10 @@ sync-generated-check: _require-py311 ## CI drift gate — run every cascade gene
 #                          cascade derived reports read the mutated sidecars.
 #   2. build               dist/ (catalog.json, dist/reports/*) reflects (1).
 #   3. api-surface         api/v1/* is regenerated from dist/.
-#   4. report writers      cloud-compat, version-matrix, attack-sim,
-#                          oscal-roundtrip (needs api/v1), perf-a11y (needs
-#                          dist/) — each writes one committed report/doc.
+#   4. report writers      catalogue-count rollups (compliance, sandbox,
+#                          attack simulation, version matrix), then
+#                          cloud-compat, oscal-roundtrip (needs api/v1),
+#                          perf-a11y (needs dist/).
 #   5. emit:legacy         non-technical-view.js is re-emitted from the TS SOT.
 preflight: _require-py311 ## Regenerate every committed derived artefact, then show the diff to commit
 	@echo "==> preflight [1/5] cascade generators (sidecar mutators + derived reports)"
@@ -569,12 +626,10 @@ preflight: _require-py311 ## Regenerate every committed derived artefact, then s
 	@$(SPLUNK_UC) generate-api-surface
 	@$(SPLUNK_UC) generate-starter-packs
 	@echo "==> preflight [4/5] standalone report writers"
+	@echo "    → catalogue-count rollups (compliance, sandbox, attack simulation, version matrix)"
+	@$(MAKE) --no-print-directory sync-catalogue-rollups
 	@echo "    → docs/splunk-cloud-compat.md"
 	@$(SPLUNK_UC) audit-splunk-cloud-compat
-	@echo "    → data/splunk-version-matrix.json + docs/splunk-version-matrix.md"
-	@$(SPLUNK_UC) audit-splunk-version-matrix
-	@echo "    → reports/attack-simulation.json"
-	@$(PYTHON) scripts/simulate_controltest.py
 	@echo "    → reports/oscal-roundtrip.json"
 	@$(SPLUNK_UC) audit-oscal-roundtrip
 	@echo "    → reports/perf-a11y.json"
@@ -614,6 +669,7 @@ preflight-check: _require-py311 ## CI-faithful drift mirror: fail if any committ
 	echo "==> preflight-check [3/5] api/v1 static surface (--check)"; \
 	$(SPLUNK_UC) generate-api-surface --check || { failed=1; echo "    DRIFT: api/v1"; }; \
 	echo "==> preflight-check [4/5] standalone report writers"; \
+	$(MAKE) --no-print-directory sync-catalogue-rollups-check || failed=1; \
 	$(SPLUNK_UC) audit-splunk-cloud-compat; \
 	if ! git diff --exit-code docs/splunk-cloud-compat.md >/dev/null 2>&1; then failed=1; echo "    DRIFT: docs/splunk-cloud-compat.md"; fi; \
 	$(SPLUNK_UC) audit-splunk-version-matrix --check || { failed=1; echo "    DRIFT: splunk-version-matrix"; }; \

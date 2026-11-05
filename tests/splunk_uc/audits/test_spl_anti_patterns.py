@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import subprocess
@@ -211,3 +212,40 @@ def test_output_json_has_summary_fields(mini_corpus: Path) -> None:
     summary = report["summary"]
     for key in ("total_ucs_scanned", "total_matches", "by_severity", "by_pattern", "top_offenders"):
         assert key in summary
+
+
+def _waiver_file(tmp_path: Path, corpus: Path, uc_id: str, rules: list[dict], spl: str | None = None) -> Path:
+    if spl is None:
+        spl = json.loads((corpus / "cat-99-fixture" / f"UC-{uc_id}.json").read_text(encoding="utf-8"))["spl"]
+    entry = {"uc_id": uc_id, "spl_sha256": hashlib.sha256(spl.encode("utf-8")).hexdigest(), "rules": rules}
+    path = tmp_path / "waivers.json"
+    path.write_text(json.dumps({"waivers": [entry]}) + "\n", encoding="utf-8")
+    return path
+
+
+def test_waiver_removes_match_from_check(mini_corpus: Path, tmp_path: Path) -> None:
+    args = ["--content", str(mini_corpus), "--check", "--include-pattern", "ANTIPAT-001"]
+    assert sap.main(args) == 1
+    waivers = _waiver_file(tmp_path, mini_corpus, "99.1.2", [{"entry_id": "ANTIPAT-001", "count": 1}])
+    assert sap.main([*args, "--waivers", str(waivers)]) == 0
+
+
+def test_waiver_is_stale_once_spl_changes(mini_corpus: Path, tmp_path: Path) -> None:
+    waivers = _waiver_file(
+        tmp_path, mini_corpus, "99.1.2", [{"entry_id": "ANTIPAT-001", "count": 1}], spl="index=other | join x [search y]"
+    )
+    rc = sap.main(["--content", str(mini_corpus), "--check", "--limit", "999", "--waivers", str(waivers)])
+    assert rc == 1
+
+
+def test_waiver_is_stale_when_rule_stops_matching(mini_corpus: Path, tmp_path: Path) -> None:
+    waivers = _waiver_file(tmp_path, mini_corpus, "99.1.1", [{"entry_id": "ANTIPAT-001", "count": 1}])
+    rc = sap.main(["--content", str(mini_corpus), "--check", "--limit", "999", "--waivers", str(waivers)])
+    assert rc == 1
+
+
+def test_escu_waiver_file_only_shrinks() -> None:
+    """59 UCs / 65 matches from verbatim ESCU searches (#161). The numbers may go down, never up."""
+    payload = json.loads(sap.DEFAULT_WAIVERS_PATH.read_text(encoding="utf-8"))
+    assert len(payload["waivers"]) <= 59
+    assert sum(int(r.get("count", 1)) for w in payload["waivers"] for r in w["rules"]) <= 65

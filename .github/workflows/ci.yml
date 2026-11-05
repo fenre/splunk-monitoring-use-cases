@@ -1,125 +1,163 @@
-name: Validate catalog
+name: CI
 
-# Repo-overhaul plan §P2 (2026-05-12, PR-5): the previous monolithic
-# ``validate`` job (1,073 lines, 84 steps, single sequential lane) was
-# split into five parallel jobs so a slow audit never delays the lint
-# signal:
+# One catalog build per pull request and per push to main.
 #
-#   * lint            — fast pre-flight (schema, syntax, version, pin audit)
-#   * audits-content  — UC content audits + generator --check guards
-#   * audits-build    — full build + post-build audits + recommender .spl
-#   * mcp             — MCP server install + tests + tool schema drift
-#   * frontend        — render tests + Phase 4.5 drift guards
+# The build job writes dist/ once and uploads it. audits-build, mcp,
+# frontend and the fixture check download that artifact. lint,
+# audits-content, data-sizing and the manifest check do not need dist/
+# and start immediately.
 #
-# Job dependencies are intentionally **none** — every job is independent,
-# so a slow audit doesn't delay the lint signal. Cross-job artefact
-# independence: jobs that need ``api/v1/`` or ``dist/`` regenerate them
-# locally (cheap, deterministic — ~5-30s) rather than depending on
-# ``audits-build``. This keeps the parallelism pure.
+# Deploy publishes that same artifact and waits only for build. Once
+# main has been green for a week, deploy should also need the content
+# checks (lint, audits-content, audits-build, mcp, frontend).
 #
-# The partition is enforced by ``tests/build/test_validate_workflow_partition.py``
-# (72 structural tests) and ``tests/build/test_ci_architecture.py`` (15
-# tests). Both pin the five-job shape, the composite-action contract,
-# and the critical-step coverage. See ``docs/ci-architecture.md`` for
-# the maintainer-facing description of each job.
+# CodeQL, SARIF and Lighthouse run weekly. The reproducibility double
+# build stays in build-reproducibility.yml. On every Pages deploy,
+# Sigstore signs dist/integrity.json and dist/BUILD-INFO.json.
 
 on:
   pull_request:
     branches: [main]
-    paths:
-      - "content/**"
-      - "Makefile"
-      - "openapi.yaml"
-      - "non-technical-view.js"
-      - "docs-uc-map.js"
-      - "scripts/**"
-      - "schemas/**"
-      - "data/**"
-      - "tests/**"
-      - "api/**"
-      - "apps/**"
-      - "splunk-apps/**"
-      - "docs/**"
-      - "CHANGELOG.md"
-      - "index.html"
-      - "scorecard.html"
-      - "graph.html"
-      - "graph-data.json"
-      - "reports/**"
-      - "scorecard.json"
-      - "VERSION"
-      - "custom-text.js"
-      - "LEGAL.md"
-      - "tools/**"
-      - "package.json"
-      - "package-lock.json"
-      - "mcp/**"
-      - "src/**"
-      - "public/**"
-      - ".github/workflows/**"
-      - ".github/actions/**"
-      - "README.md"
-      - "CONTRIBUTING.md"
-      - "SECURITY.md"
-      - "GOVERNANCE.md"
-      - "ta/**"
   push:
     branches: [main]
-    paths:
-      - "content/**"
-      - "Makefile"
-      - "openapi.yaml"
-      - "non-technical-view.js"
-      - "docs-uc-map.js"
-      - "scripts/**"
-      - "schemas/**"
-      - "data/**"
-      - "tests/**"
-      - "api/**"
-      - "apps/**"
-      - "splunk-apps/**"
-      - "docs/**"
-      - "CHANGELOG.md"
-      - "index.html"
-      - "scorecard.html"
-      - "graph.html"
-      - "graph-data.json"
-      - "reports/**"
-      - "scorecard.json"
-      - "VERSION"
-      - "custom-text.js"
-      - "LEGAL.md"
-      - "tools/**"
-      - "package.json"
-      - "package-lock.json"
-      - "mcp/**"
-      - "src/**"
-      - "public/**"
-      - ".github/workflows/**"
-      - ".github/actions/**"
-      - "README.md"
-      - "CONTRIBUTING.md"
-      - "SECURITY.md"
-      - "GOVERNANCE.md"
-      - "ta/**"
   workflow_dispatch:
+    inputs:
+      uc_filter:
+        description: 'Glob on UC directory names (e.g. "UC-1.*"). Empty = run all with positive.log.'
+        required: false
+        default: ""
 
 permissions:
   contents: read
 
-# Cancel superseded *PR* runs so a rapid push-push-push to a branch
-# doesn't stack three full ~13-min, 6-job validations (the merge gate is
-# the most expensive workflow in the tree and was the only PR-triggered
-# gate without a concurrency group — codeql / gitleaks / sarif /
-# dependency-review / build-reproducibility all have one). Pushes to
-# ``main`` are deliberately NOT cancelled (``cancel-in-progress`` is
-# false for the ``push`` event) so every commit that lands on ``main``
-# is fully validated even when bots push in quick succession.
+# Cancel superseded PR runs. Pushes to main queue instead of cancelling,
+# so every landed commit is validated and deploys finish in order.
 concurrency:
-  group: validate-${{ github.event.pull_request.number || github.ref }}
+  group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+      attestations: write
+    outputs:
+      uc-count: ${{ steps.summary.outputs.uc_count }}
+      build-sha: ${{ steps.summary.outputs.sha }}
+    steps:
+      - name: Record start
+        id: timing
+        run: echo "start_epoch=$(date +%s)" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: ./.github/actions/setup-python
+        with:
+          install-audits: "true"
+
+      # api/v1 generation order is load-bearing (issue #68).
+      # generate-api-surface reads dist/catalog.json. build.py mirrors
+      # api/ into dist/ and does not populate api/v1 itself. Order:
+      # parse+meta, generators, one full build, then compare catalogs.
+      - name: Write catalog.json (parse + meta only)
+        run: |
+          python3 tools/build/build.py --out dist --only parse meta --reproducible
+          test -s dist/catalog.json || { echo "::error::dist/catalog.json missing/empty after parse+meta — generators would emit empty api/v1 indexes (issue #68)"; exit 1; }
+          cp dist/catalog.json "$RUNNER_TEMP/catalog-parse-meta.json"
+
+      - name: Regenerate api/v1/
+        run: |
+          PYTHONPATH=src python3 -m splunk_uc generate-api-surface
+          PYTHONPATH=src python3 -m splunk_uc generate-evidence-packs
+          PYTHONPATH=src python3 -m splunk_uc generate-starter-packs --validate
+
+      - name: Publish dist/ (one full build)
+        run: python3 tools/build/build.py --out dist --reproducible
+
+      - name: catalog.json matches the parse+meta output
+        run: |
+          if ! cmp -s "$RUNNER_TEMP/catalog-parse-meta.json" dist/catalog.json; then
+            echo "::error::dist/catalog.json differs from the catalog written by --only parse meta"
+            exit 1
+          fi
+
+      - name: Guard — api/v1 recommender + equipment indexes are non-empty
+        run: python3 tools/audits/api_surface_nonempty.py dist
+
+      - name: Build check (catalog regeneration)
+        run: |
+          CHANGED=$(git diff --name-only -- provenance.json provenance.js docs/provenance-coverage.md scorecard.json docs/scorecard.md)
+          if [ -n "$CHANGED" ]; then
+            echo "::error::Generated files are out of date — run 'make build' and commit: $CHANGED"
+            git --no-pager diff --stat -- provenance.json provenance.js docs/provenance-coverage.md scorecard.json docs/scorecard.md
+            exit 1
+          fi
+
+      - name: Summary
+        id: summary
+        run: |
+          uc_count=$(jq -r '.counts.useCases' dist/BUILD-INFO.json)
+          sha=$(jq -r '.git.shortSha' dist/BUILD-INFO.json)
+          now=$(date +%s)
+          elapsed=$((now - ${{ steps.timing.outputs.start_epoch }}))
+          echo "uc_count=$uc_count" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha"           >> "$GITHUB_OUTPUT"
+          echo "duration_seconds=$elapsed" >> "$GITHUB_OUTPUT"
+          echo "## Build summary"            >> "$GITHUB_STEP_SUMMARY"
+          echo "- UC count: $uc_count"        >> "$GITHUB_STEP_SUMMARY"
+          echo "- git SHA:  $sha"             >> "$GITHUB_STEP_SUMMARY"
+          echo "- size:     $(du -sh dist/ | cut -f1)" >> "$GITHUB_STEP_SUMMARY"
+          printf -- '- duration: %dm %ds (%ds)\n' $((elapsed / 60)) $((elapsed % 60)) "$elapsed" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload catalog build
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: catalog-dist
+          retention-days: 1
+          path: |
+            dist
+            api/v1
+
+      - name: Upload integrity manifest as workflow artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: integrity-manifest
+          path: |
+            dist/integrity.json
+            dist/BUILD-INFO.json
+          retention-days: 90
+
+      # One attestation covers both files. Verifiable with
+      #   gh attestation verify dist/integrity.json --owner <owner>
+      #   gh attestation verify dist/BUILD-INFO.json --owner <owner>
+      - name: Sign integrity manifest and BUILD-INFO (Sigstore via OIDC)
+        if: github.event_name != 'pull_request'
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            dist/integrity.json
+            dist/BUILD-INFO.json
+
+      - name: Setup Pages
+        if: github.event_name != 'pull_request'
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+
+      - name: Upload Pages artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: dist
+
   # ============================================================================
   # Job 1: lint (~5 min budget)
   # ============================================================================
@@ -261,22 +299,26 @@ jobs:
 
       - name: Schema-cycle gate (parallel atlas §3.1)
         # At most one schemas/uc.schema.json bump may land on main per 24-hour
-        # merge cycle. PRs that touch the schema while main already received a
-        # bump in that window fail closed.
+        # merge cycle. A PR that touches the schema while main already
+        # received a bump in that window fails closed. PRs that leave the
+        # schema alone pass: main's history is not theirs to fix.
+        # The PR's own diff is base.sha...head.sha, not the merge ref, and
+        # bumps are counted per landed merge (first parent), not per commit.
         if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           git fetch origin main --depth=200
-          RECENT=$(git log origin/main --since="24 hours ago" --diff-filter=AM --oneline -- schemas/uc.schema.json | wc -l | tr -d ' ')
-          echo "Schema commits on main (last 24h): ${RECENT}"
-          if [ "${RECENT}" -gt 1 ]; then
-            echo "::error::More than one schema bump on main in 24h (found ${RECENT}). Serialise schema PRs per docs/parallel-execution-substrate.md §3.1."
-            exit 1
+          if ! git diff --name-only "${BASE_SHA}...${HEAD_SHA}" | grep -qx 'schemas/uc.schema.json'; then
+            echo "Schema-cycle gate PASS (this PR does not modify schemas/uc.schema.json)"
+            exit 0
           fi
-          if git diff --name-only origin/main...HEAD | grep -qx 'schemas/uc.schema.json'; then
-            if [ "${RECENT}" -ge 1 ]; then
-              echo "::error::This PR modifies schemas/uc.schema.json but main already had a schema bump in the last 24h."
-              exit 1
-            fi
+          RECENT=$(git log origin/main --first-parent --since="24 hours ago" --oneline -- schemas/uc.schema.json | wc -l | tr -d ' ')
+          echo "Schema bumps landed on main (last 24h): ${RECENT}"
+          if [ "${RECENT}" -ge 1 ]; then
+            echo "::error::This PR modifies schemas/uc.schema.json but main already had a schema bump in the last 24h. Serialise schema PRs per docs/parallel-execution-substrate.md §3.1."
+            exit 1
           fi
           echo "Schema-cycle gate PASS"
 
@@ -293,10 +335,9 @@ jobs:
   # ============================================================================
   # Job 2: audits-content (~25 min budget)
   # ============================================================================
-  # UC content audits + cascade-generator drift gates. Reads sidecars +
-  # scripts + reports directly; does run ``tools/build/build.py`` once
-  # to materialise ``dist/catalog.json`` for the prereq / compliance-gap
-  # / sandbox audits.
+  # UC content audits. Reads sidecars, scripts and reports directly.
+  # Steps that need dist/catalog.json run in audits-build, which
+  # downloads the artifact from the build job.
   #
   # The 14 cascade-style "generator regeneration check" steps that used
   # to fan out one CI step each were collapsed into a single umbrella
@@ -646,83 +687,6 @@ jobs:
         # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
         run: PYTHONPATH=src python3 -m splunk_uc audit-repo-consistency
 
-      - name: Build catalog (required by catalog-schema + downstream regen guards)
-        # PR-5 hotfix #7 (2026-05-12): every downstream step from
-        # ``Catalog schema validation`` onwards reads ``dist/catalog.json``
-        # (preferred per ADR-0009 / P1 step 5c) or the legacy
-        # ``catalog.json`` fallback at the repo root. The old monolithic
-        # workflow built the catalogue once early on; PR-5's partition
-        # only built it in the ``mcp`` job because the build was wired
-        # to ``Generate api/v1 tree``. Reintroduce a discrete build
-        # step here so ``audit-catalog-schema``, ``audit-prerequisites``,
-        # ``audit-quality-metadata``, every ``regen-check`` step, and
-        # the gold-standard / Markdown-freshness guards all see a
-        # populated catalogue. The build is single-pass and reused by
-        # all subsequent steps in the same job.
-        run: python3 tools/build/build.py --out dist
-
-      - name: Catalog schema validation
-        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
-        run: PYTHONPATH=src python3 -m splunk_uc audit-catalog-schema
-
-      - name: Cascade-generator drift gate (umbrella)
-        # PR-2 lean-mode collapse (2026-05-17, drift ledger #20). One
-        # umbrella step replaces 14 cascade-style per-generator --check
-        # gates that used to fan out one CI step each. 2026-05-18 (F21
-        # close) retired ``generate-md-from-json`` — the in-tree
-        # ``content/cat-*/UC-*.md`` companions were deleted and the
-        # umbrella now drives 13 generators instead of 14. 2026-05-27
-        # restored a 14th step (``generate-recommender-app --check``)
-        # after a release-day drift miss: the
-        # ``splunk-apps/splunk-uc-recommender/`` tree (5 files: README,
-        # app.manifest, app.conf, catalog-fallback.json, the static
-        # lookup CSV) stamps the catalogue ``VERSION`` and release date,
-        # but the regenerator was never inside ``sync-generated`` so
-        # version bumps silently drifted until the ``Validate catalog``
-        # step in audits-build caught it post-push.
-        #
-        # `make sync-generated-check` runs the same 14 generators with
-        # --check flags in dependency-safe order:
-        #   1. phase3-1 / phase3-2 / phase3-3 (sidecar compliance[])
-        #   2. equipment-tags (sidecar equipment[]/equipmentModels[])
-        #   3. grandma-explanations (sidecar grandmaExplanation)
-        #   4. migrate-cat22-ntv (non-technical-view.js cat-22 block)
-        #   5. audit-prerequisites (reports/prerequisites-audit.json)
-        #   6. audit-compliance-gaps (reports/compliance-gaps.json +
-        #      docs/compliance-gaps.md)
-        #   7. audit-sandbox-validation (reports/sandbox-validation.json)
-        #   8. generate-evidence-packs (docs/evidence-packs/* +
-        #      api/v1/evidence-packs/*)
-        #   9. generate-mapping-ledger (data/provenance/mapping-ledger.json)
-        #  10. generate-recommender-app (splunk-apps/splunk-uc-recommender/
-        #      tree — version/release-date stamps + catalog fallback)
-        #  11. generate-backlinks (docs/backlinks.md)
-        #  12. generate-doc-references (APA References footer + inline
-        #      [N] markers in every .md)
-        #
-        # Each generator is idempotent — a forgotten regeneration, a
-        # hand-edited derivative artefact, or a stale manifest entry all
-        # fail this gate. On failure, the local recovery procedure is:
-        #
-        #   make sync-generated && git add -A && git diff --staged
-        #
-        # The umbrella runs the generators in a single shell with `set
-        # -e` overridden so every drift surface appears in one log
-        # (rather than stopping at the first failure). The Makefile
-        # target collects per-step failures, prints DRIFT lines, and
-        # exits 1 once all 14 have run.
-        #
-        # Generators that need `dist/catalog.json` (audit-prerequisites,
-        # audit-compliance-gaps, audit-sandbox-validation) read it
-        # from the previous "Build catalog" step. Generators that only
-        # read sidecars are catalog-independent but live in the same
-        # umbrella for one-stop drift recovery.
-        #
-        # `generate-api-surface --check` is intentionally excluded — it
-        # lives in the audits-build job because it consumes the full
-        # post-build dist/ tree.
-        run: make sync-generated-check
-
       - name: Compliance mapping audit (schema + regulations + golden + baseline)
         # Validates every content/cat-*/UC-*.json sidecar against
         # schemas/uc.schema.json, reconciles each compliance[] entry against
@@ -765,16 +729,19 @@ jobs:
         # UC traceability, and NO KBF ↔ NIS2 dual-mapping assurance policy.
         run: PYTHONPATH=src python3 -m splunk_uc audit-no-kbf-coverage
 
-      - name: Compliance audit — generated reports committed
-        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
-        run: |
-          PYTHONPATH=src python3 -m splunk_uc audit-compliance-mappings
-          STRUCTURAL=$(git diff --unified=0 -- reports/compliance-coverage.json docs/compliance-coverage.md | grep '^[+-]' | grep -v '^[+-]\{3\}' | grep -v 'generatedAt' | grep -v 'Generated:' || true)
-          if [ -n "$STRUCTURAL" ]; then
-            echo "::error::Compliance audit reports are out of date — run \`python -m splunk_uc audit-compliance-mappings\` (or \`make audit-compliance-mappings\`) and commit"
-            git --no-pager diff --stat -- reports/compliance-coverage.json docs/compliance-coverage.md
-            exit 1
-          fi
+      - name: Catalogue rollups (regenerate and diff)
+        # One place for the committed reports that embed the use-case
+        # count: compliance coverage, sandbox validation, ATT&CK
+        # simulation, and the Splunk version matrix. A content change
+        # that adds or removes a use case rewrites all of them. This
+        # step regenerates every one and fails if any committed copy
+        # differs, so the content pull request updates them together
+        # instead of leaving main red one report at a time.
+        # Local recovery: make sync-catalogue-rollups
+        # Runs even when an earlier audit failed (!cancelled), so the
+        # log shows every stale rollup in one step.
+        if: ${{ !cancelled() }}
+        run: make sync-catalogue-rollups-check
 
       - name: Gold Standard quality audit
         # Validates UC content depth against the Gold Standard quality
@@ -791,11 +758,13 @@ jobs:
       # ------------------------------------------------------------------
       # Phase 4.5 / 5.x — signoff + sandbox-validation gates
       # ------------------------------------------------------------------
-      # Six gates that block merges unless the repository is auditor-ready:
+      # Gates that block merges unless the repository is auditor-ready:
       # peer reviews are recorded, legal reviews are recorded, SME reviews
-      # are recorded, the regulatory change-watch state is fresh, the
-      # mapping ledger is deterministic, and the sandbox fixtures backing
-      # every UC's controlTest are wired correctly.
+      # are recorded, the mapping ledger is deterministic, and the sandbox
+      # fixtures backing every UC's controlTest are wired correctly.
+      # The regulatory change-watch check runs weekly in
+      # regulatory-watch.yml: it tracks upstream publishers, which a PR
+      # cannot change.
       #
       # The companion Node drift guards (4.5c/d/e/f) live in the
       # ``frontend`` job because they share the npm-installed Node
@@ -839,19 +808,6 @@ jobs:
         # Exit 1 on any schema or semantic violation.
         # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
         run: PYTHONPATH=src python3 -m splunk_uc audit-sme-review-signoffs
-
-      - name: Phase 5.3 regulatory change-watch (hermetic)
-        # python3 -m splunk_uc audit-regulatory-change-watch --check validates
-        # data/regulations-watch.json against its schema, confirms every
-        # sha256-vendor strategy references a known source_id in
-        # data/provenance/ingest-manifest.json, checks every
-        # regulationId against data/regulations.json frameworks[] (or
-        # the MITRE allow-list), and computes staleness from each
-        # entry's lastCheckedAt using the file's stalenessPolicy.
-        # Hermetic: no network calls, safe for pull-request CI.
-        # --fetch runs weekly in .github/workflows/regulatory-watch.yml.
-        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
-        run: PYTHONPATH=src python3 -m splunk_uc audit-regulatory-change-watch --check
 
       - name: Phase 5.4 signed provenance ledger audit
         # ``audit-mapping-ledger`` validates the ledger against
@@ -966,14 +922,14 @@ jobs:
   # ============================================================================
   # Job 3: audits-build (~30 min budget)
   # ============================================================================
-  # The only job that runs ``tools/build/build.py``. Drives the wall-clock.
-  # When this job fails, the most common cause is a missing ``make build``
-  # commit. The job's diff output names the offending files. URL freeze
-  # and byte budget failures usually mean a deliberate URL change or asset
-  # bloat — see ``docs/external-consumer-matrix.md`` for the URL stability
-  # contract.
+  # Downloads the catalog artifact from the build job. Does not run
+  # tools/build/build.py. When this job fails, the most common cause is
+  # a missing regeneration commit. URL freeze and byte budget failures
+  # usually mean a deliberate URL change or asset bloat — see
+  # docs/external-consumer-matrix.md for the URL stability contract.
   audits-build:
     name: audits-build
+    needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -999,38 +955,73 @@ jobs:
         with:
           install-deps: "false"
 
-      - name: Build catalog (required by Phase 3a smoke test + api/v1 generator)
-        # ``_phase3a_smoke.js`` loads ``catalog.json`` to populate window
-        # globals (DATA / EQUIPMENT / CAT_META / CAT_GROUPS / FILTER_FACETS)
-        # before exercising 01-state.js / 02-filters.js / 04-panel.js.
-        # The legacy committed root-level ``catalog.json`` was retired in
-        # v8.2.0 (commit faffd68e4); the catalog is now produced under
-        # ``dist/catalog.json`` by the build pipeline. The smoke test
-        # already probes both locations (``dist/`` first, then root) so
-        # this step just ensures the file exists before we run it.
-        #
-        # IMPORTANT: this step MUST run before the api/v1 generation step
-        # below. ``generate-api-surface`` reads the equipment slug list out
-        # of ``dist/catalog.json`` (every UC's ``e`` field) so cross-vendor
-        # slugs not in the static EQUIPMENT registry (a10, akamai, ...)
-        # can be emitted. Running api gen before the build leaves it with
-        # an empty catalog → the registry-only subset of equipment files,
-        # which then drifts from the post-build ``--check`` rerun.
-        #
-        # The full audits-build job runs build twice (here + in the
-        # later "Build check (catalog regeneration)" step that diffs the
-        # output for freshness). The duplication is intentional: this
-        # build feeds the smoke test + api gen, the later one verifies
-        # the committed derivative artefacts are fresh.
-        run: python3 tools/build/build.py --out dist
+      - name: Download catalog build
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: catalog-dist
+          path: .
 
-      - name: Generate api/v1 tree (required by smoke tests)
-        # P6 (scripts taxonomy, Tier 2 batch 2, 2026-05-09): routed through the dispatcher.
-        # MUST run after the build step above so dist/catalog.json exists
-        # and the equipment slug list is complete (see comment above).
-        run: |
-          PYTHONPATH=src python3 -m splunk_uc generate-api-surface
-          PYTHONPATH=src python3 -m splunk_uc generate-starter-packs --validate
+      - name: Catalog schema validation
+        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
+        run: PYTHONPATH=src python3 -m splunk_uc audit-catalog-schema
+
+      - name: Cascade-generator drift gate (umbrella)
+        # PR-2 lean-mode collapse (2026-05-17, drift ledger #20). One
+        # umbrella step replaces 14 cascade-style per-generator --check
+        # gates that used to fan out one CI step each. 2026-05-18 (F21
+        # close) retired ``generate-md-from-json`` — the in-tree
+        # ``content/cat-*/UC-*.md`` companions were deleted and the
+        # umbrella now drives 13 generators instead of 14. 2026-05-27
+        # restored a 14th step (``generate-recommender-app --check``)
+        # after a release-day drift miss: the
+        # ``splunk-apps/splunk-uc-recommender/`` tree (5 files: README,
+        # app.manifest, app.conf, catalog-fallback.json, the static
+        # lookup CSV) stamps the catalogue ``VERSION`` and release date,
+        # but the regenerator was never inside ``sync-generated`` so
+        # version bumps silently drifted until the ``Validate catalog``
+        # step in audits-build caught it post-push.
+        #
+        # `make sync-generated-check` runs the same 14 generators with
+        # --check flags in dependency-safe order:
+        #   1. phase3-1 / phase3-2 / phase3-3 (sidecar compliance[])
+        #   2. equipment-tags (sidecar equipment[]/equipmentModels[])
+        #   3. grandma-explanations (sidecar grandmaExplanation)
+        #   4. migrate-cat22-ntv (non-technical-view.js cat-22 block)
+        #   5. audit-prerequisites (reports/prerequisites-audit.json)
+        #   6. audit-compliance-gaps (reports/compliance-gaps.json +
+        #      docs/compliance-gaps.md)
+        #   7. audit-sandbox-validation (reports/sandbox-validation.json)
+        #   8. generate-evidence-packs (docs/evidence-packs/* +
+        #      api/v1/evidence-packs/*)
+        #   9. generate-mapping-ledger (data/provenance/mapping-ledger.json)
+        #  10. generate-recommender-app (splunk-apps/splunk-uc-recommender/
+        #      tree — version/release-date stamps + catalog fallback)
+        #  11. generate-backlinks (docs/backlinks.md)
+        #  12. generate-doc-references (APA References footer + inline
+        #      [N] markers in every .md)
+        #
+        # Each generator is idempotent — a forgotten regeneration, a
+        # hand-edited derivative artefact, or a stale manifest entry all
+        # fail this gate. On failure, the local recovery procedure is:
+        #
+        #   make sync-generated && git add -A && git diff --staged
+        #
+        # The umbrella runs the generators in a single shell with `set
+        # -e` overridden so every drift surface appears in one log
+        # (rather than stopping at the first failure). The Makefile
+        # target collects per-step failures, prints DRIFT lines, and
+        # exits 1 once all 14 have run.
+        #
+        # Generators that need `dist/catalog.json` (audit-prerequisites,
+        # audit-compliance-gaps, audit-sandbox-validation) read it
+        # from the catalog artifact downloaded above. Generators that only
+        # read sidecars are catalog-independent but live in the same
+        # umbrella for one-stop drift recovery.
+        #
+        # `generate-api-surface --check` is intentionally excluded — it
+        # lives in the audits-build job because it consumes the full
+        # post-build dist/ tree.
+        run: make sync-generated-check
 
       - name: Story-layer UI smoke tests
         # Node.js headless shims exercise the JS in index.html,
@@ -1074,26 +1065,6 @@ jobs:
         # recommender app is now standalone.)
         # P6 (scripts taxonomy, 2026-05-10): routed through the dispatcher.
         run: PYTHONPATH=src python3 -m splunk_uc generate-recommender-app --check
-
-      - name: Build check (catalog regeneration)
-        # Drift gate + dist/ rebuild: ``!cancelled()`` keeps it running even
-        # after an earlier gate failed, which also guarantees the dist/-
-        # consuming audits below see a freshly-built tree.
-        if: ${{ !cancelled() }}
-        # Verifies that the committed derivative artefacts match what the
-        # build pipeline regenerates from the SSOT under content/. The
-        # legacy root-level artefacts (catalog.json / llms*.txt /
-        # sitemap.xml / api/*.json) were retired in v8.2.0 (commit
-        # faffd68e4) — they now live only in dist/ as build outputs and
-        # are not committed to git, so they no longer participate in
-        # the freshness diff.
-        run: |
-          python3 tools/build/build.py --out dist
-          CHANGED=$(git diff --name-only -- provenance.json provenance.js docs/provenance-coverage.md scorecard.json docs/scorecard.md)
-          if [ -n "$CHANGED" ]; then
-            echo "::error::Generated files are out of date — run 'make build' and commit: $CHANGED"
-            exit 1
-          fi
 
       - name: Audit — api/v1 recommender + equipment indexes are non-empty
         # Regression guard for issue #68 (2026-06-03). The preceding build
@@ -1169,27 +1140,12 @@ jobs:
         # the canonical vocabulary in
         # ``data/splunk-version-vocabulary.json``. ``--check`` exits
         # non-zero on any unknown-token finding, blocking the PR
-        # rather than silently regenerating an artefact in CI. The
-        # in-tree ``data/splunk-version-matrix.json`` +
-        # ``docs/splunk-version-matrix.md`` stay byte-identical to
-        # ``main`` because ``--check`` skips the write step (the
-        # drift guard below catches any committed-but-stale copy).
+        # rather than silently regenerating an artefact in CI.
+        # ``--check`` skips the write. Freshness of
+        # ``data/splunk-version-matrix.json`` and
+        # ``docs/splunk-version-matrix.md`` is the catalogue-rollups
+        # step in audits-content (``make sync-catalogue-rollups-check``).
         run: PYTHONPATH=src python3 -m splunk_uc audit-splunk-version-matrix --check
-
-      - name: Splunk version-matrix audit — generated artefacts are committed
-        if: ${{ !cancelled() }}
-        # The audit, run in *write* mode, must produce byte-identical
-        # output to what's on disk. A diff means a maintainer changed
-        # ``splunkVersions`` on a sidecar (or the vocabulary file) and
-        # forgot to commit the regenerated rollup.
-        run: |
-          PYTHONPATH=src python3 -m splunk_uc audit-splunk-version-matrix >/dev/null
-          CHANGED=$(git diff --name-only -- data/splunk-version-matrix.json docs/splunk-version-matrix.md)
-          if [ -n "$CHANGED" ]; then
-            echo "::error::splunk-version-matrix artefacts are out of date — run \`python -m splunk_uc audit-splunk-version-matrix\` and commit"
-            git --no-pager diff --stat -- data/splunk-version-matrix.json docs/splunk-version-matrix.md
-            exit 1
-          fi
 
       - name: Generate RAG chunked corpus (P17)
         if: ${{ !cancelled() }}
@@ -1304,6 +1260,7 @@ jobs:
   # ``outputSchema``. The drift guard names the offending tool + field.
   mcp:
     name: mcp
+    needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -1315,33 +1272,11 @@ jobs:
         with:
           install-audits: "true"
 
-      - name: Build catalog (required by generate-api-surface)
-        # PR-5 hotfix (2026-05-12): ``generate-api-surface`` calls
-        # ``_resolve_catalog_path()`` and returns the catalog as
-        # ``[]`` (empty) when neither ``dist/catalog.json`` nor the
-        # legacy root ``catalog.json`` exists. With no use cases, the
-        # downstream ``recommender/uc-thin.json`` is empty, and every
-        # MCP catalog-loading test asserts ``count >= 20`` (categories)
-        # or ``totalMatched >= 1`` (search) against an empty catalog
-        # → 11 hard failures.  ``tools/build/build.py --out dist``
-        # writes the SSOT ``dist/catalog.json`` so the next step
-        # populates ``api/v1/`` with the full 7 677 UCs and the MCP
-        # tests can resolve their fixtures.
-        # Cross-job artefact independence: the mcp job builds its own
-        # ``dist/`` rather than depending on audits-build (per
-        # ci-architecture.md §86-88).
-        run: python3 tools/build/build.py --out dist
-
-      - name: Generate api/v1 tree (required by MCP drift guard)
-        # Cross-job artefact independence: the mcp job regenerates
-        # api/v1 locally rather than depending on audits-build (per
-        # ci-architecture.md §86-88). ~5 seconds, deterministic.
-        # Requires ``dist/catalog.json`` from the previous step;
-        # see ``_resolve_catalog_path()`` in
-        # ``src/splunk_uc/generators/api_surface.py``.
-        run: |
-          PYTHONPATH=src python3 -m splunk_uc generate-api-surface
-          PYTHONPATH=src python3 -m splunk_uc generate-starter-packs --validate
+      - name: Download catalog build
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: catalog-dist
+          path: .
 
       - name: Install MCP server (splunk-uc-mcp) for drift guard + tests
         # Phase 6 deliverable. The MCP server (mcp/) exposes the
@@ -1396,6 +1331,7 @@ jobs:
   # ``reports/*.json`` — drift is usually a missed regeneration.
   frontend:
     name: frontend
+    needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -1417,33 +1353,11 @@ jobs:
         with:
           install-deps: "true"
 
-      - name: Pre-build dist/ for Phase 4.5f perf + a11y
-        # The Phase 4.5f budget list (``audit-perf-a11y``) reads
-        # ``dist/catalog.json``, ``dist/llms.txt`` and
-        # ``dist/llms-full.txt`` per ADR-0009 (P1 step 5c moved the
-        # SSOT artefacts under ``dist/``). The ``audits-build`` job
-        # builds ``dist/`` too, but ``frontend`` runs in parallel and
-        # therefore needs its own copy. Without this pre-build,
-        # perf-a11y sees the three ``dist/*`` budget targets as
-        # ``status=missing`` and the ``--check`` comparator drifts vs.
-        # the committed report (which is always written from a
-        # populated ``dist/``). Build dist/ here so the perf-a11y
-        # gate observes the same files locally and in CI.
-        run: python3 tools/build/build.py --out dist
-
-      - name: Generate api/v1 tree (required by Phase 4.5e OSCAL gate)
-        # PR-5 hotfix (2026-05-12): ``api/v1/oscal/component-definitions/``
-        # is a build artefact, gitignored under ``api/*`` in
-        # ``.gitignore`` (see line 116). The OSCAL round-trip gate
-        # (``audit-oscal-roundtrip --check``) globs ``*.json`` from
-        # that directory and renders a report; with no files present
-        # the regenerated report has ``files_examined: 0`` and
-        # drifts from the committed ``reports/oscal-roundtrip.json``
-        # (which captured ``files_examined: 1`` for UC-22.35.1).
-        # ``generate-api-surface`` writes the OSCAL component
-        # definitions (and the rest of ``api/v1/``) from the freshly
-        # built ``dist/catalog.json`` above. ~5 seconds, deterministic.
-        run: PYTHONPATH=src python3 -m splunk_uc generate-api-surface
+      - name: Download catalog build
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: catalog-dist
+          path: .
 
       - name: Recommender frontend unit tests
         # Drift/QA gate: ``!cancelled()`` lets every frontend gate report
@@ -1744,3 +1658,227 @@ jobs:
         run: node --test tools/data-sizing/__tests__/*.test.js
       - name: Calibration coverage (advisory)
         run: python3 tools/data-sizing/scripts/calibration-coverage.py
+
+  deploy:
+    # Waits only for the catalog build. Once main has been green for a
+    # week, this job should also need the content checks:
+    # lint, audits-content, audits-build, mcp, frontend.
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
+
+  fixtures:
+    name: Validate fixtures
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: ./.github/actions/setup-python
+        with:
+          install-audits: "true"
+
+      - name: Download catalog build
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: catalog-dist
+          path: .
+
+      - name: Validate sample manifests
+        run: python3 scripts/samples_index.py --strict
+
+      - name: Dry-run test runner
+        run: python3 scripts/run_uc_tests.py --dry-run
+
+      - name: Upload dry-run JUnit artefact
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: junit-dry-run
+          path: test-results/
+
+  precheck:
+    name: Precheck secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      has-secrets: ${{ steps.check.outputs.has-secrets }}
+    steps:
+      - id: check
+        name: Check Splunk test secrets
+        env:
+          UC_PW: ${{ secrets.UC_TEST_SPLUNK_PASSWORD }}
+        run: |
+          if [ -n "${UC_PW}" ]; then
+            echo "has-secrets=true" >> "$GITHUB_OUTPUT"
+            echo "UC_TEST_SPLUNK_PASSWORD is configured — E2E job will run."
+          else
+            echo "has-secrets=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::UC_TEST_SPLUNK_PASSWORD not set; skipping E2E run. See docs/enterprise-deployment.md for how to configure."
+          fi
+
+  splunk-e2e:
+    name: Run against Splunk Enterprise
+    needs: precheck
+    if: >-
+      needs.precheck.outputs.has-secrets == 'true' && (
+        github.event_name == 'workflow_dispatch' ||
+        (github.event_name == 'push' && github.ref == 'refs/heads/main')
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      splunk:
+        image: splunk/splunk:9.4.1
+        env:
+          SPLUNK_START_ARGS: --accept-license
+          SPLUNK_PASSWORD: ${{ secrets.UC_TEST_SPLUNK_PASSWORD }}
+          SPLUNK_HEC_TOKEN: ${{ secrets.UC_TEST_HEC_TOKEN }}
+        ports:
+          - 8000:8000
+          - 8088:8088
+          - 8089:8089
+        options: >-
+          --health-cmd "curl -ksSf https://localhost:8089/services/server/info --user admin:$SPLUNK_PASSWORD || exit 1"
+          --health-interval 15s
+          --health-timeout 5s
+          --health-retries 40
+          --health-start-period 120s
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: ./.github/actions/setup-python
+        with:
+          install-audits: "true"
+
+      - name: Wait for Splunk
+        env:
+          SPLUNK_PASSWORD: ${{ secrets.UC_TEST_SPLUNK_PASSWORD }}
+        run: |
+          for i in {1..60}; do
+            if curl -ksSf -u "admin:${SPLUNK_PASSWORD}" \
+                 https://localhost:8089/services/server/info >/dev/null 2>&1; then
+              echo "Splunk is up."
+              exit 0
+            fi
+            echo "  waiting ($i)..."
+            sleep 10
+          done
+          echo "Splunk did not become healthy in time."
+          exit 1
+
+      - name: Create indexes referenced by manifests
+        env:
+          SPLUNK_PASSWORD: ${{ secrets.UC_TEST_SPLUNK_PASSWORD }}
+        run: |
+          INDEXES=$(python3 -c "
+          import glob, os, sys
+          sys.path.insert(0, 'scripts')
+          from samples_index import _load_yaml
+          names = set()
+          for m in glob.glob('samples/UC-*/manifest.yaml'):
+              try:
+                  names.add(_load_yaml(__import__('pathlib').Path(m)).get('index'))
+              except Exception:
+                  pass
+          print(' '.join(sorted(n for n in names if n and not n.startswith('_'))))
+          ")
+          for IDX in $INDEXES; do
+            echo "Creating index $IDX"
+            curl -ksS -u "admin:${SPLUNK_PASSWORD}" \
+              -d "name=${IDX}" \
+              https://localhost:8089/services/data/indexes >/dev/null || true
+          done
+
+      - name: Enable HEC
+        env:
+          SPLUNK_PASSWORD: ${{ secrets.UC_TEST_SPLUNK_PASSWORD }}
+          SPLUNK_HEC_TOKEN: ${{ secrets.UC_TEST_HEC_TOKEN }}
+        run: |
+          curl -ksS -u "admin:${SPLUNK_PASSWORD}" \
+            -X POST \
+            -d "disabled=0" \
+            -d "enableSSL=1" \
+            https://localhost:8089/services/data/inputs/http/http >/dev/null
+          curl -ksS -u "admin:${SPLUNK_PASSWORD}" \
+            -X POST \
+            -d "name=uc-tests" \
+            -d "token=${SPLUNK_HEC_TOKEN}" \
+            -d "index=main" \
+            -d "indexes=main,os,wineventlog,aws,k8s,network,firewall,ids,devops,_internal" \
+            -d "disabled=0" \
+            https://localhost:8089/servicesNS/admin/splunk_httpinput/data/inputs/http >/dev/null \
+            || echo "(HEC token may already exist)"
+
+      - name: Run UC tests
+        env:
+          SPLUNK_URL: https://localhost:8089
+          SPLUNK_HEC_URL: https://localhost:8088
+          SPLUNK_HEC_TOKEN: ${{ secrets.UC_TEST_HEC_TOKEN }}
+          SPLUNK_USER: admin
+          SPLUNK_PASSWORD: ${{ secrets.UC_TEST_SPLUNK_PASSWORD }}
+          SPLUNK_VERIFY_TLS: "0"
+        run: |
+          FILTER='${{ github.event.inputs.uc_filter }}'
+          if [ -n "$FILTER" ]; then
+            python3 scripts/run_uc_tests.py --filter "$FILTER"
+          else
+            python3 scripts/run_uc_tests.py
+          fi
+
+      - name: Upload JUnit report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: junit-splunk-e2e
+          path: test-results/
+
+  manifest:
+    name: UC manifest
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: ./.github/actions/setup-python
+
+      - name: Generate manifest-all.json
+        run: python3 scripts/parse_uc_catalog.py --output /tmp/manifest-all.json --check
+
+      - name: Validate JSON and UC count
+        run: |
+          python3 - <<'PY'
+          import json
+          with open("/tmp/manifest-all.json", encoding="utf-8") as f:
+              d = json.load(f)
+          n = d.get("uc_count", 0)
+          assert n >= 4000, f"expected uc_count >= 4000, got {n}"
+          assert len(d.get("use_cases", [])) == n
+          print("ok: uc_count =", n)
+          PY
+
+      - name: HEC NDJSON generator (top 10)
+        run: |
+          PYTHONPATH=src python3 -m splunk_uc generate-manifest-samples \
+            --manifest eventgen_data/manifest-top10.json \
+            --output /tmp/top10.ndjson
+          test -s /tmp/top10.ndjson
+

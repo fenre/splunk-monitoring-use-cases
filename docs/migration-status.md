@@ -74,6 +74,7 @@ semantically equivalent; tracked in `tests/build/test_legacy_artifacts_parity.py
 
 ## Completed Migrations
 
+- [x] Regulatory change-watch `--check` moved from PR CI (`ci.yml` `audits-content`) to the weekly `regulatory-watch.yml` (2026-11-05). It checks upstream publisher drift, which a pull request cannot fix. `tests/build/test_validate_workflow_partition.py::test_regulatory_change_watch_check_runs_weekly` keeps it from disappearing.
 - [x] Primary catalog loading (v7.0): `content/` is default, `use-cases/` is fallback
 - [x] grandmaExplanation (v7.1): loaded exclusively from `content/`
 - [x] Equipment enrichment (v7.3): `content/` is primary, `use-cases/` is fallback (10.1)

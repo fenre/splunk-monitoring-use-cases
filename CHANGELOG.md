@@ -10,6 +10,39 @@ the release notes block in `index.html` by hand.
 
 ---
 
+## [Unreleased]
+
+### Changed
+
+- **One CI workflow.** `.github/workflows/ci.yml` builds the catalog once
+  per pull request and per push to `main`, and the content checks, fixture
+  validation and Pages deploy reuse that artifact. CodeQL, SARIF and
+  Lighthouse run weekly. The roadmap export no longer runs on push.
+  Sigstore attests `dist/integrity.json` and `dist/BUILD-INFO.json` on
+  every Pages deploy.
+- **Catalogue rollups in one CI step.** `make sync-catalogue-rollups`
+  regenerates the committed reports that embed the use-case count
+  (compliance coverage, sandbox validation, ATT&CK simulation, Splunk
+  version matrix). `ci.yml` regenerates and diffs them in one step, so
+  a content pull request that changes the count updates every rollup
+  in that pull request.
+- **Regulatory change-watch check moved to the weekly workflow.**
+  `audit-regulatory-change-watch --check` no longer runs on pull
+  requests. It fails on upstream publisher drift, which no pull request
+  can fix, so it kept every PR red. It now runs at the end of
+  `regulatory-watch.yml`, after the fetch, issue and artifact steps, and
+  fails that job instead. `make audit-regulatory-change-watch` still
+  runs it locally.
+- **ESCU waivers for the SPL anti-pattern ratchet.** 59 cat-10 use
+  cases took ESCU detection SPL verbatim in #161, adding 65 high-severity
+  matches (34 `join`, 29 `search` after `stats`, 2 unbounded
+  `transaction`) and pushing the ratchet to 2,107 against its 2,060 cap.
+  `data/spl-anti-patterns-escu-waivers.json` lists exactly those
+  matches, each pinned to the use case's `spl` by SHA-256. `--check`
+  fails when a `spl` stops being the verbatim ESCU search or a rule stops
+  matching, so entries must be removed; a test caps the file at 59 use
+  cases and 65 matches. The cap is unchanged; the count is back to 2,042.
+
 ## [8.28.0] - 2026-11-04
 
 ### Added

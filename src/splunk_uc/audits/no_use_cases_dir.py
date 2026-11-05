@@ -111,7 +111,7 @@ ALLOWLIST_PATHS: frozenset[str] = frozenset(
         # ── CLI dispatcher registry mentions every verb name + help string ──
         "src/splunk_uc/_registry.py",
         # ── CI / Make targets that DOCUMENT the guard itself ─────────────
-        ".github/workflows/validate.yml",
+        ".github/workflows/ci.yml",
         "Makefile",
         # ── AGENTS.md advertises the verb in its quick-commands list ─────
         "AGENTS.md",

@@ -141,7 +141,7 @@ share the same identity, last-modified stamp, and catalogue version.
 
 ## CI gates
 
-All audits are in `.github/workflows/validate.yml`. Key steps:
+All audits are in `.github/workflows/ci.yml`. Key steps:
 
 - UC ID uniqueness and permanent-identity ledger (`audit-uc-ids`, `data/id-ledger.json`)
 - UC identifier blast-radius guard (`audit-uc-id-migration-blast` — bulk remaps require a manifest)

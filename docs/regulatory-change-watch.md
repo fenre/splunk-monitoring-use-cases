@@ -20,8 +20,7 @@ stale.
 | `data/regulations-watch.json` | Ledger of every regulation we track, the detection strategy, and the last observed state. |
 | `schemas/regulations-watch.schema.json` | JSON Schema (Draft 2020-12) that governs the ledger. |
 | `python3 -m splunk_uc audit-regulatory-change-watch` | Audit + fetch + freeze tool. Three modes: `--check` (hermetic CI), `--fetch` (network probe), `--freeze` (seed/reset timestamps). |
-| `.github/workflows/validate.yml` | Runs `--check` on every pull request; fails CI when the ledger is too stale. |
-| `.github/workflows/regulatory-watch.yml` | Runs `--fetch` weekly (Monday 09:00 UTC), commits the refreshed ledger, and opens a GitHub issue when upstream changes are detected. |
+| `.github/workflows/regulatory-watch.yml` | Runs `--fetch` weekly (Monday 09:00 UTC), commits the refreshed ledger, opens a GitHub issue when upstream changes are detected, then runs `--check`; the job fails when the ledger is too stale or disagrees with the ingest manifest. Pull requests do not run it. |
 | `reports/regulatory-change-watch.json` | Latest fetch snapshot — bundled into the QA-gates artifact. |
 
 ## 2. Detection strategies
@@ -53,9 +52,9 @@ be tuned without editing code:
 
 Semantics:
 
-- **Warn** — PR CI prints a warning but the gate passes. Treat as a reminder
+- **Warn** — the weekly job prints a warning but the check passes. Treat as a reminder
   that the weekly job has not run (or has been silently broken).
-- **Fail** — PR CI blocks the merge. Fix by running `--fetch` locally or
+- **Fail** — the weekly job fails. Fix by running `--fetch` locally or
   re-triggering the scheduled workflow, then commit the refreshed ledger.
 
 Tier is chosen per entry. Use **tier 1** for any regulation that Phase 5.1
@@ -66,7 +65,7 @@ frameworks, and anything else where a slow cadence is acceptable.
 
 ## 4. Operator workflows
 
-### 4.1 Daily — reviewer responding to a PR check failure
+### 4.1 Responding to a weekly check failure
 
 1. Read the CI failure output. It will identify the affected watchlist
    entries and the number of stale days.

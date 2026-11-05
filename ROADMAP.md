@@ -954,7 +954,7 @@ correct and every quality signal transparently measured.
 - UC test harness ([`scripts/run_uc_tests.py`](scripts/run_uc_tests.py))
   ingests samples via HEC, runs each UC's SPL in an ephemeral Splunk 9.4
   container, asserts on results, emits JUnit XML
-- End-to-end CI workflow ([`.github/workflows/uc-tests.yml`](.github/workflows/uc-tests.yml))
+- End-to-end CI workflow ([`.github/workflows/ci.yml`](.github/workflows/ci.yml), `splunk-e2e` job)
 - Splunk Cloud compatibility audit — see
   [`docs/splunk-cloud-compat.md`](docs/splunk-cloud-compat.md) for the
   rolling report (0 pack-level findings, 5 SPL-level warnings)
@@ -997,7 +997,7 @@ See [`CHANGELOG.md`](CHANGELOG.md) for full release notes.
 > / 809 below profile (10.5%) across 7,677 UCs. The goal is to grow
 > Gold and Silver year-over-year while keeping the non-blocking
 > summary gate visible in CI (see `audit-gold-profile --summary` in
-> `validate.yml`). The platform infrastructure side of v8.3 is the
+> `ci.yml`). The platform infrastructure side of v8.3 is the
 > [Repo Health Check plan](docs/health-check-2026-progress.md) work,
 > tracked separately; this section covers the content side.
 

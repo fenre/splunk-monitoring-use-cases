@@ -22,6 +22,7 @@ Usage::
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import sys
@@ -36,6 +37,7 @@ from splunk_uc.audits.spl_grammar import _strip_comments
 REPO = Path(__file__).resolve().parents[3]
 DEFAULT_PATTERNS_PATH = REPO / "data" / "spl-anti-patterns.json"
 DEFAULT_OUT_DIR = REPO / "dist" / "audits"
+DEFAULT_WAIVERS_PATH = REPO / "data" / "spl-anti-patterns-escu-waivers.json"
 
 _SEV_RANK = {"high": 3, "medium": 2, "low": 1}
 
@@ -524,6 +526,51 @@ def write_outputs(report: dict[str, Any], out_dir: Path, patterns_path: Path) ->
     return json_path, md_path
 
 
+def load_waivers(path: Path | None) -> list[dict[str, Any]]:
+    """Return the waiver entries from the waiver file, or ``[]``."""
+    if path is None or not path.is_file():
+        return []
+    return list(json.loads(path.read_text(encoding="utf-8")).get("waivers", []))
+
+
+def apply_waivers(
+    matches: list[dict[str, Any]],
+    waivers: list[dict[str, Any]],
+    content_root: Path,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Drop waived ``spl`` matches; report entries that are stale.
+
+    An entry is stale when the UC's ``spl`` no longer hashes to
+    ``spl_sha256`` (it is no longer the verbatim ESCU search) or when a
+    rule matches fewer times than the entry waives.
+    """
+    stale: list[str] = []
+    remaining: dict[tuple[str, str], int] = {}
+    for w in waivers:
+        uc_id = str(w["uc_id"])
+        paths = sorted(content_root.glob(f"cat-*/UC-{uc_id}.json"))
+        spl = json.loads(paths[0].read_text(encoding="utf-8")).get("spl", "") if paths else None
+        if spl is None or hashlib.sha256(spl.encode("utf-8")).hexdigest() != w["spl_sha256"]:
+            stale.append(f"UC-{uc_id}: spl is no longer the waived ESCU search")
+            continue
+        for rule in w["rules"]:
+            remaining[(uc_id, str(rule["entry_id"]))] = int(rule.get("count", 1))
+    waived = dict(remaining)
+    kept: list[dict[str, Any]] = []
+    for m in matches:
+        key = (str(m["uc_id"]), str(m["entry_id"]))
+        if m["field"] == "spl" and remaining.get(key, 0) > 0:
+            remaining[key] -= 1
+            continue
+        kept.append(m)
+    stale.extend(
+        f"UC-{u} {e}: waives {waived[(u, e)]}, matched {waived[(u, e)] - left}"
+        for (u, e), left in sorted(remaining.items())
+        if left > 0
+    )
+    return kept, stale
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="Audit UC SPL for documented anti-patterns.")
     p.add_argument(
@@ -575,7 +622,18 @@ def main(argv: list[str] | None = None) -> int:
         default=0,
         help="Allow up to N matches before --check fails (0 = zero tolerance)",
     )
+    p.add_argument(
+        "--waivers",
+        type=Path,
+        default=None,
+        help=(
+            "Shrink-only waiver file (default: data/spl-anti-patterns-escu-waivers.json "
+            "when --content is the repository's content/)"
+        ),
+    )
     args = p.parse_args(argv)
+    if args.waivers is None and args.content.resolve() == (REPO / "content").resolve():
+        args.waivers = DEFAULT_WAIVERS_PATH
 
     report = evaluate_corpus(args.content, args.patterns)
     threshold = _SEV_RANK[args.severity]
@@ -597,6 +655,27 @@ def main(argv: list[str] | None = None) -> int:
             )
 
     if args.check:
+        waivers = [
+            {
+                **w,
+                "rules": [
+                    r
+                    for r in w["rules"]
+                    if (not args.include_pattern or r["entry_id"] in args.include_pattern)
+                    and r["entry_id"] not in args.exclude_pattern
+                ],
+            }
+            for w in load_waivers(args.waivers)
+        ]
+        filtered, stale = apply_waivers(filtered, waivers, args.content)
+        if stale:
+            sys.stderr.write(
+                "SPL anti-pattern audit: stale waivers — remove them from "
+                f"{args.waivers}:\n"
+            )
+            for line in stale:
+                sys.stderr.write(f"  {line}\n")
+            return 1
         actionable = len(filtered)
         if actionable > args.limit:
             sys.stderr.write(

@@ -1,4 +1,4 @@
-"""Structural invariants for the parallel-job split of ``validate.yml``.
+"""Structural invariants for the parallel-job split of ``ci.yml``.
 
 Repo-overhaul plan §P2 (2026-05-09): the previous monolithic
 ``validate`` job was split into five parallel jobs (``lint``,
@@ -50,14 +50,14 @@ import pytest
 import yaml
 
 # v8.x: PR-5 (2026-05-12) landed the five-job parallel split of
-# validate.yml — ``lint`` / ``audits-content`` / ``audits-build`` /
+# ci.yml — ``lint`` / ``audits-content`` / ``audits-build`` /
 # ``mcp`` / ``frontend``. The structural assertions in this module are
 # now the contract between the workflow and any future re-partition,
 # refactor, or hand-edit. Restoring the skip marker is forbidden — the
 # whole point of this module is to keep CI honest about the partition.
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-VALIDATE_YML = REPO_ROOT / ".github" / "workflows" / "validate.yml"
+VALIDATE_YML = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 
 # The five jobs the partition created. Adding a new job is allowed,
 # but the test below asserts the *minimum* set is present so a job
@@ -72,7 +72,7 @@ SETUP_PREFIXES = ("Checkout", "Set up Python", "Set up Node")
 # Step names that MUST exist somewhere in the partition. Each entry
 # is a substring match — the partition test isn't title-format
 # sensitive, just coverage sensitive. If any of these strings
-# disappears from validate.yml the partition has lost coverage for
+# disappears from ci.yml the partition has lost coverage for
 # a critical audit. Adding a step here is mandatory when adding a
 # new audit; removing a step here is allowed only with a paired PR
 # that justifies the removal in CHANGELOG.md + docs/migration-status.md.
@@ -117,11 +117,15 @@ CRITICAL_STEP_NAMES = [
     # the per-step names here in the same PR.
     "Cascade-generator drift gate (umbrella)",
     "Compliance mapping audit",
+    # Catalogue-count rollups (compliance coverage, sandbox validation,
+    # ATT&CK simulation, Splunk version matrix) are regenerated and
+    # diffed in this one step. Losing it lets a content PR change the
+    # use-case count without updating the committed reports.
+    "Catalogue rollups (regenerate and diff)",
     "Gold Standard quality audit",
     "Phase 4.5a peer-review signoff audit",
     "Phase 4.5b legal-review signoff audit",
     "Phase 5.2 SME-review signoff audit",
-    "Phase 5.3 regulatory change-watch",
     "Phase 5.4 signed provenance ledger",
     # Build job
     "Build check (catalog regeneration)",
@@ -157,7 +161,7 @@ MINIMUM_TOTAL_CONTENT_STEPS = 80
 
 @pytest.fixture(scope="module")
 def workflow() -> dict[str, Any]:
-    assert VALIDATE_YML.is_file(), f"validate.yml missing at {VALIDATE_YML}"
+    assert VALIDATE_YML.is_file(), f"ci.yml missing at {VALIDATE_YML}"
     data = yaml.safe_load(VALIDATE_YML.read_text(encoding="utf-8"))
     assert isinstance(data, dict)
     return data
@@ -194,7 +198,7 @@ def test_all_expected_jobs_exist(workflow: dict[str, Any]) -> None:
     actual = set(workflow["jobs"].keys())
     missing = set(EXPECTED_JOBS) - actual
     assert not missing, (
-        f"validate.yml is missing the following parallel-split jobs: {sorted(missing)}. "
+        f"ci.yml is missing the following parallel-split jobs: {sorted(missing)}. "
         f"If you renamed or removed a job, update EXPECTED_JOBS in this test "
         f"so the rename is reviewable."
     )
@@ -272,7 +276,7 @@ def test_total_content_steps_above_floor(workflow: dict[str, Any]) -> None:
     """
     total = len(_all_content_steps(workflow))
     assert total >= MINIMUM_TOTAL_CONTENT_STEPS, (
-        f"validate.yml has only {total} content steps across all jobs; "
+        f"ci.yml has only {total} content steps across all jobs; "
         f"floor is {MINIMUM_TOTAL_CONTENT_STEPS}. Either restore the missing "
         f"steps or update MINIMUM_TOTAL_CONTENT_STEPS in this test with "
         f"justification."
@@ -290,7 +294,7 @@ def test_critical_step_present(workflow: dict[str, Any], expected: str) -> None:
     """
     all_names = " || ".join(_all_content_steps(workflow))
     assert expected in all_names, (
-        f"critical step {expected!r} not found in any job in validate.yml. "
+        f"critical step {expected!r} not found in any job in ci.yml. "
         f"If the step was renamed, update CRITICAL_STEP_NAMES in this test."
     )
 
@@ -309,7 +313,7 @@ def test_no_workflow_pins_setup_python_directly(workflow: dict[str, Any]) -> Non
     """
     raw = VALIDATE_YML.read_text(encoding="utf-8")
     assert "actions/setup-python@" not in raw, (
-        "validate.yml directly pins actions/setup-python@<sha> somewhere. "
+        "ci.yml directly pins actions/setup-python@<sha> somewhere. "
         "Use ``uses: ./.github/actions/setup-python`` instead — the "
         "composite action is the single point of truth for the SHA."
     )
@@ -319,7 +323,7 @@ def test_no_workflow_pins_setup_node_directly(workflow: dict[str, Any]) -> None:
     """No job may re-introduce ``actions/setup-node@<sha>`` directly."""
     raw = VALIDATE_YML.read_text(encoding="utf-8")
     assert "actions/setup-node@" not in raw, (
-        "validate.yml directly pins actions/setup-node@<sha> somewhere. "
+        "ci.yml directly pins actions/setup-node@<sha> somewhere. "
         "Use ``uses: ./.github/actions/setup-node`` instead."
     )
 
@@ -341,7 +345,7 @@ def test_referenced_python_scripts_exist(workflow: dict[str, Any]) -> None:
         if not candidate.is_file():
             missing.append(ref)
     assert not missing, (
-        f"validate.yml references the following Python scripts that do not "
+        f"ci.yml references the following Python scripts that do not "
         f"exist on disk: {missing}. Either restore the script, remove the "
         f"step, or fix the path."
     )
@@ -358,7 +362,7 @@ def test_referenced_node_test_files_exist(workflow: dict[str, Any]) -> None:
         if not candidate.is_file():
             missing.append(ref)
     assert not missing, (
-        f"validate.yml references the following Node test files that do not "
+        f"ci.yml references the following Node test files that do not "
         f"exist on disk: {missing}."
     )
 
@@ -394,3 +398,12 @@ def test_uniform_node_setup_action_path(workflow: dict[str, Any]) -> None:
                     f"job {job_name!r}: setup-node ``uses:`` is "
                     f"{uses!r}; expected {canonical!r}."
                 )
+
+
+def test_regulatory_change_watch_check_runs_weekly() -> None:
+    """The change-watch --check left PR CI for the weekly workflow; it must not vanish."""
+    weekly = yaml.safe_load(
+        (REPO_ROOT / ".github" / "workflows" / "regulatory-watch.yml").read_text(encoding="utf-8")
+    )
+    runs = [step.get("run", "") for job in weekly["jobs"].values() for step in job["steps"]]
+    assert any("audit-regulatory-change-watch --check" in r for r in runs)
