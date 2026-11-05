@@ -435,8 +435,11 @@ filtered to the build pipeline itself (`tools/build/**`,
 know we didn't break reproducibility. On failure both build trees
 are uploaded as artefacts so the maintainer can diff them locally.
 The same nightly run prints the Gold quality-tier summary, runs one
-build smoke (`audit-reproducibility --first-build-only`) and reruns
-the RAG chunker with `--check`. None of those three gates a pull request.
+build smoke (`audit-reproducibility --first-build-only`), reruns the
+RAG chunker with `--check`, and runs the unit suite under coverage
+plus `audit-coverage-budget`. With pytest-xdist, coverage added
+several minutes on the pull-request runner, so it is not a pull-request
+gate. The other three were not gates either.
 
 ## Committed generated artefacts & the drift gates
 

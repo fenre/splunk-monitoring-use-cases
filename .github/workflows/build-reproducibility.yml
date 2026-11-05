@@ -71,6 +71,7 @@ jobs:
         uses: ./.github/actions/setup-python
         with:
           install-audits: "true"
+          install-extras: "test"
 
       - name: Reproducibility audit (two consecutive --reproducible builds)
         # The dispatcher path is the canonical entry point as of P6
@@ -83,6 +84,20 @@ jobs:
         # capture their paths from stderr and upload them on failure.
         # If the audit passes, the cleanup happens implicitly when
         # the runner shuts down.
+
+      - name: Coverage budget audit (per-file ratchet vs baseline)
+        # Same suite as pull-request CI, plus coverage. The --cov filter
+        # for tools/build is a filesystem path, not a module name: tests
+        # import ``build.*`` via tools/ on sys.path, and a module filter
+        # records those files at 0%. splunk_uc stays a module filter
+        # because tests import it as ``splunk_uc``.
+        run: |
+          PYTHONPATH=src python3 -m pytest tests/build/ tests/scripts/ tests/splunk_uc/ -q -n auto --dist loadscope -m "not nightly" \
+            --cov=tools/build --cov=splunk_uc \
+            --cov-report=json:coverage-report.json
+          PYTHONPATH=src python3 -m splunk_uc audit-coverage-budget \
+            --baseline data/baselines/coverage-v9.1.0.json \
+            --report coverage-report.json
 
       - name: Gold Standard quality audit
         # --summary prints the tier mix and exits 0. It is not a pull-request gate.

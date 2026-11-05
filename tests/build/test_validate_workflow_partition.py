@@ -85,7 +85,6 @@ CRITICAL_STEP_NAMES = [
     "Version consistency",
     # Content audits
     "Unit tests (build pipeline",  # P16 renamed to "...build pipeline + audits)"; substring match
-    "Coverage budget audit",
     # v8.2.0 (2026-05-11) retired the legacy ``use-cases/cat-*.md``
     # corpus, which made the original ``audit-legacy-orphans`` verb
     # meaningless (nothing left to be orphaned from). The replacement
@@ -419,6 +418,7 @@ def test_nightly_keeps_the_checks_that_left_pull_requests() -> None:
     assert "audit-gold-profile --summary" in nightly
     assert "audit-reproducibility --first-build-only" in nightly
     assert "generate-rag-chunks --check" in nightly
+    assert "audit-coverage-budget" in nightly
     weekly = "\n".join(_workflow_runs("splunkbase-sync.yml"))
     assert "audit-splunkbase-app-status --check" in weekly
     pr = "\n".join(

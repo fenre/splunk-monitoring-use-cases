@@ -430,9 +430,8 @@ jobs:
         # ``pip install -e .`` here. This mirrors every other splunk_uc
         # invocation in this workflow.
         #
-        # PR-5 (2026-05-12): the coverage report is captured as JSON so
-        # the per-file coverage budget audit (next step) can ratchet
-        # against ``data/baselines/coverage-vX.Y.Z.json``.
+        # Coverage and the per-file budget run nightly in
+        # build-reproducibility.yml. With xdist, --cov took 506s here.
         #
         # PR-5 hotfix (2026-05-12): test dependencies (pytest, pytest-cov,
         # pytest-asyncio, hypothesis, respx) are now installed by the
@@ -442,49 +441,10 @@ jobs:
         # under ``tests/scripts/``.
         env:
           PYTHONPATH: src
-        run: |
-          # PR-5 hotfix #2 (2026-05-12): use a filesystem PATH for the
-          # ``tools/build`` filter (``--cov=tools/build``) instead of a
-          # dotted MODULE name (``--cov=tools.build``). The tests under
-          # ``tests/build/`` insert ``tools/`` into ``sys.path`` and
-          # ``from build import build_info``, so the imported module
-          # identity is ``build.build_info`` (not ``tools.build.
-          # build_info``). With a module-name filter, coverage.py knows
-          # the file lives at ``tools/build/build_info.py`` and includes
-          # it in the JSON, but records 0% executed lines because the
-          # collected tracing is against the ``build.*`` identity →
-          # every tier-1 file reports 0.0% and the per-file ratchet
-          # blocks the build. Switching to a path filter sidesteps the
-          # mismatch; ``splunk_uc`` still uses the module-name form
-          # because tests import it as ``splunk_uc.X`` (matching the
-          # package layout under ``src/``).
-          # 2026-05-18 (P16 wave C-2): widened to ``tests/splunk_uc/`` so the
-          # in-tree unit tests under ``tests/splunk_uc/`` (api_surface,
-          # generators, dispatcher, lift, spl_references) count toward the
-          # per-file ratchet in ``data/baselines/coverage-v9.1.0.json``.
-          # Previously those tests ran via the dispatcher smoke job but their
-          # coverage went unrecorded, so floors on ``src/splunk_uc/**`` could
-          # silently regress.
-          pytest tests/build/ tests/scripts/ tests/splunk_uc/ -v -n auto --dist loadscope -m "not nightly" \
-            --cov=tools/build --cov=splunk_uc \
-            --cov-report=term-missing \
-            --cov-report=json:coverage-report.json
-
-      - name: Coverage budget audit (per-file ratchet vs baseline)
-        # Per-file pytest-cov ratchet for tier-1 (``tools/build/``) and
-        # tier-2 (``scripts/audit_*.py`` + named extras) paths. Tier-1
-        # / tier-2 per-file coverage may not regress more than 1.0pp from
-        # the baseline; new tier-1 files must clear a 60% floor, new
-        # tier-2 files must clear 40%. Tier-3 (one-shot uplift /
-        # migration / generator helpers) is exempt by design. See
-        # ``python3 -m splunk_uc audit-coverage-budget --help`` for the
-        # full classification policy and §P16 of the overhaul plan.
-        env:
-          PYTHONPATH: src
-        run: |
-          python3 -m splunk_uc audit-coverage-budget \
-            --baseline data/baselines/coverage-v9.1.0.json \
-            --report coverage-report.json
+        # Coverage and its per-file budget run nightly. On this
+        # runner, pytest-xdist plus --cov took 506s against about a
+        # minute without coverage.
+        run: pytest tests/build/ tests/scripts/ tests/splunk_uc/ -q -n auto --dist loadscope -m "not nightly"
 
       - name: UC ID uniqueness and permanent-identity ledger
         run: |

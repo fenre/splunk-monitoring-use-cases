@@ -22,7 +22,9 @@ the release notes block in `index.html` by hand.
   `--summary`, the RAG determinism rerun and the build smoke run nightly.
   Splunkbase app status checks changed use cases on a pull request; the
   full sweep is weekly. The unit-test step runs under `pytest-xdist`
-  (`-n auto`). Shared test harness directories include the worker id.
+  (`-n auto`). Coverage and the per-file budget moved to the nightly
+  run: with xdist, `--cov` took 506s against about a minute without it.
+  Shared test harness directories include the worker id.
 - **One CI workflow.** `.github/workflows/ci.yml` builds the catalog once
   per pull request and per push to `main`, and the content checks, fixture
   validation and Pages deploy reuse that artifact. CodeQL, SARIF and
