@@ -1,6 +1,6 @@
 # Compliance coverage report
 
-_Generated: 2026-11-04T20:22:53Z_ by `python -m splunk_uc audit-compliance-mappings`. Do not hand-edit.
+_Generated: 2026-11-05T09:02:21Z_ by `python -m splunk_uc audit-compliance-mappings`. Do not hand-edit.
 
 Status: **passed**
 
