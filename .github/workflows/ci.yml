@@ -299,22 +299,26 @@ jobs:
 
       - name: Schema-cycle gate (parallel atlas §3.1)
         # At most one schemas/uc.schema.json bump may land on main per 24-hour
-        # merge cycle. PRs that touch the schema while main already received a
-        # bump in that window fail closed.
+        # merge cycle. A PR that touches the schema while main already
+        # received a bump in that window fails closed. PRs that leave the
+        # schema alone pass: main's history is not theirs to fix.
+        # The PR's own diff is base.sha...head.sha, not the merge ref, and
+        # bumps are counted per landed merge (first parent), not per commit.
         if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           git fetch origin main --depth=200
-          RECENT=$(git log origin/main --since="24 hours ago" --diff-filter=AM --oneline -- schemas/uc.schema.json | wc -l | tr -d ' ')
-          echo "Schema commits on main (last 24h): ${RECENT}"
-          if [ "${RECENT}" -gt 1 ]; then
-            echo "::error::More than one schema bump on main in 24h (found ${RECENT}). Serialise schema PRs per docs/parallel-execution-substrate.md §3.1."
-            exit 1
+          if ! git diff --name-only "${BASE_SHA}...${HEAD_SHA}" | grep -qx 'schemas/uc.schema.json'; then
+            echo "Schema-cycle gate PASS (this PR does not modify schemas/uc.schema.json)"
+            exit 0
           fi
-          if git diff --name-only origin/main...HEAD | grep -qx 'schemas/uc.schema.json'; then
-            if [ "${RECENT}" -ge 1 ]; then
-              echo "::error::This PR modifies schemas/uc.schema.json but main already had a schema bump in the last 24h."
-              exit 1
-            fi
+          RECENT=$(git log origin/main --first-parent --since="24 hours ago" --oneline -- schemas/uc.schema.json | wc -l | tr -d ' ')
+          echo "Schema bumps landed on main (last 24h): ${RECENT}"
+          if [ "${RECENT}" -ge 1 ]; then
+            echo "::error::This PR modifies schemas/uc.schema.json but main already had a schema bump in the last 24h. Serialise schema PRs per docs/parallel-execution-substrate.md §3.1."
+            exit 1
           fi
           echo "Schema-cycle gate PASS"
 
