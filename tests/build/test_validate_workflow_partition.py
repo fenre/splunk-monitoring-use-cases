@@ -126,7 +126,6 @@ CRITICAL_STEP_NAMES = [
     "Phase 4.5a peer-review signoff audit",
     "Phase 4.5b legal-review signoff audit",
     "Phase 5.2 SME-review signoff audit",
-    "Phase 5.3 regulatory change-watch",
     "Phase 5.4 signed provenance ledger",
     # Build job
     "Build check (catalog regeneration)",
@@ -399,3 +398,12 @@ def test_uniform_node_setup_action_path(workflow: dict[str, Any]) -> None:
                     f"job {job_name!r}: setup-node ``uses:`` is "
                     f"{uses!r}; expected {canonical!r}."
                 )
+
+
+def test_regulatory_change_watch_check_runs_weekly() -> None:
+    """The change-watch --check left PR CI for the weekly workflow; it must not vanish."""
+    weekly = yaml.safe_load(
+        (REPO_ROOT / ".github" / "workflows" / "regulatory-watch.yml").read_text(encoding="utf-8")
+    )
+    runs = [step.get("run", "") for job in weekly["jobs"].values() for step in job["steps"]]
+    assert any("audit-regulatory-change-watch --check" in r for r in runs)

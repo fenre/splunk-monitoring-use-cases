@@ -26,6 +26,13 @@ the release notes block in `index.html` by hand.
   version matrix). `ci.yml` regenerates and diffs them in one step, so
   a content pull request that changes the count updates every rollup
   in that pull request.
+- **Regulatory change-watch check moved to the weekly workflow.**
+  `audit-regulatory-change-watch --check` no longer runs on pull
+  requests. It fails on upstream publisher drift, which no pull request
+  can fix, so it kept every PR red. It now runs at the end of
+  `regulatory-watch.yml`, after the fetch, issue and artifact steps, and
+  fails that job instead. `make audit-regulatory-change-watch` still
+  runs it locally.
 
 ## [8.28.0] - 2026-11-04
 

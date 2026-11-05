@@ -385,10 +385,11 @@ which is hermetic.
 ## Regulatory-watch.yml
 
 Weekly: fetches the regulator-published artefacts named in
-`data/regulations-watch.json` and computes their SHA-256s. The PR
-gate (`audit_regulatory_change_watch.py --check`) is hermetic and
-runs in `audits-content`; the fetch step here is the only thing
-that touches the internet for regulatory data.
+`data/regulations-watch.json` and computes their SHA-256s, then runs
+the hermetic `audit-regulatory-change-watch --check`. The check is
+not a pull-request gate: it tracks upstream publishers, which a PR
+cannot change. The fetch step is the only thing that touches the
+internet for regulatory data.
 
 ## Link-check.yml
 
