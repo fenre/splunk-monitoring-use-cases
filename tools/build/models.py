@@ -339,6 +339,8 @@ class UseCase(TypedDict, total=False):
     products: list[str]
     productArtifacts: list[ProductArtifact]
     spl: str
+    # schema v1.11.0. Absent means the SPL field names have not been assessed.
+    splStatus: Literal["verified", "example"]
     cimSpl: str
     splVariants: list[SplVariant]
     cimModels: list[str]
