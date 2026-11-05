@@ -7,7 +7,7 @@ Replaces the in-memory ``_searchBlob`` linear scan over the legacy 39 MB
 Outputs
 -------
 * ``dist/assets/search-vocab.json``                  (~150 KB raw / ~45 KB gz)
-* ``dist/assets/search-shard-NN.<hash>.json`` × 16   (~80 KB gz per shard)
+* ``dist/assets/search-shard-NN.<hash>.json`` × 32   (~150 KB gz per shard)
 
 The vocab keeps a stable filename so the SPA can fetch it cold without
 needing to know its hash; per-shard filenames carry a content hash so
@@ -21,7 +21,7 @@ Format (v2)
     {
       "$schema":     "/schemas/v2/search-index.schema.json",
       "version":     2,
-      "shardCount":  16,
+      "shardCount":  32,
       "hash":        "fnv1a32",            # how shards are routed
       "ucIds":       ["1.1.1", ...],       # array index = compact docid
       "tokens":      ["abuse", ...],       # sorted, full vocabulary
@@ -52,7 +52,7 @@ Design notes
   excluded; they have zero discriminative value.
 * Shards are routed by ``fnv1a32(token) % shardCount``; on a query, the
   client fetches only the shards whose buckets contain the query's
-  tokens (typically 1–2 of 16). Vocab is pulled once per session.
+  tokens (typically 1–2 of 32). Vocab is pulled once per session.
 * Compact docids (``ucIds.indexOf(uc.i)``) keep posting lists ~3 bytes
   per entry instead of 8 for ``"X.YY.ZZZ"``.
 
@@ -79,9 +79,11 @@ from .parse_content import Catalog
 # Tunables
 # ---------------------------------------------------------------------------
 
-SHARD_COUNT = 16
+SHARD_COUNT = 32
 """Total number of shards. Must equal the value in vocab.json. Bumping
-this breaks every cached shard at the client."""
+this breaks every cached shard at the client. Sized so the largest shard
+stays well under the ``search-shard`` gzip budget in budgets.json; at 16
+the largest shard crossed it."""
 
 MIN_TOKEN_LEN = 3
 MAX_TOKEN_LEN = 30
@@ -122,7 +124,7 @@ _HASH_LEN = 10  # match render_assets.HASH_LEN
 # ---------------------------------------------------------------------------
 
 def render(catalog: Catalog, out_dir: Path, *, reproducible: bool = False) -> None:
-    """Emit ``dist/assets/search-vocab.json`` + 16 fingerprinted shard files."""
+    """Emit ``dist/assets/search-vocab.json`` + SHARD_COUNT fingerprinted shard files."""
     assets = out_dir / "assets"
     assets.mkdir(parents=True, exist_ok=True)
 
