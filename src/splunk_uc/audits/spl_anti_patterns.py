@@ -36,6 +36,7 @@ from splunk_uc.audits.spl_grammar import _strip_comments
 REPO = Path(__file__).resolve().parents[3]
 DEFAULT_PATTERNS_PATH = REPO / "data" / "spl-anti-patterns.json"
 DEFAULT_OUT_DIR = REPO / "dist" / "audits"
+DEFAULT_WAIVERS_PATH = REPO / "data" / "spl-anti-patterns-escu-waivers.json"
 
 _SEV_RANK = {"high": 3, "medium": 2, "low": 1}
 
@@ -524,6 +525,38 @@ def write_outputs(report: dict[str, Any], out_dir: Path, patterns_path: Path) ->
     return json_path, md_path
 
 
+def load_waivers(path: Path | None) -> dict[tuple[str, str, str], int]:
+    """Return ``{(uc_id, field, entry_id): count}`` from the waiver file, or ``{}``."""
+    if path is None or not path.is_file():
+        return {}
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    waivers: dict[tuple[str, str, str], int] = {}
+    for w in payload.get("waivers", []):
+        waivers[(str(w["uc_id"]), str(w["field"]), str(w["entry_id"]))] = int(w.get("count", 1))
+    return waivers
+
+
+def apply_waivers(
+    matches: list[dict[str, Any]],
+    waivers: dict[tuple[str, str, str], int],
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Drop up to ``count`` matches per waived key; report waivers that matched less."""
+    remaining = dict(waivers)
+    kept: list[dict[str, Any]] = []
+    for m in matches:
+        key = (str(m["uc_id"]), str(m["field"]), str(m["entry_id"]))
+        if remaining.get(key, 0) > 0:
+            remaining[key] -= 1
+            continue
+        kept.append(m)
+    stale = [
+        f"UC-{u} {f} {e}: waives {waivers[(u, f, e)]}, matched {waivers[(u, f, e)] - left}"
+        for (u, f, e), left in sorted(remaining.items())
+        if left > 0
+    ]
+    return kept, stale
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="Audit UC SPL for documented anti-patterns.")
     p.add_argument(
@@ -575,7 +608,18 @@ def main(argv: list[str] | None = None) -> int:
         default=0,
         help="Allow up to N matches before --check fails (0 = zero tolerance)",
     )
+    p.add_argument(
+        "--waivers",
+        type=Path,
+        default=None,
+        help=(
+            "Shrink-only waiver file (default: data/spl-anti-patterns-escu-waivers.json "
+            "when --content is the repository's content/)"
+        ),
+    )
     args = p.parse_args(argv)
+    if args.waivers is None and args.content.resolve() == (REPO / "content").resolve():
+        args.waivers = DEFAULT_WAIVERS_PATH
 
     report = evaluate_corpus(args.content, args.patterns)
     threshold = _SEV_RANK[args.severity]
@@ -597,6 +641,21 @@ def main(argv: list[str] | None = None) -> int:
             )
 
     if args.check:
+        waivers = {
+            key: n
+            for key, n in load_waivers(args.waivers).items()
+            if (not args.include_pattern or key[2] in args.include_pattern)
+            and key[2] not in args.exclude_pattern
+        }
+        filtered, stale = apply_waivers(filtered, waivers)
+        if stale:
+            sys.stderr.write(
+                "SPL anti-pattern audit: stale waivers — remove them from "
+                f"{args.waivers}:\n"
+            )
+            for line in stale:
+                sys.stderr.write(f"  {line}\n")
+            return 1
         actionable = len(filtered)
         if actionable > args.limit:
             sys.stderr.write(

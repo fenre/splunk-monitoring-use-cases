@@ -33,6 +33,13 @@ the release notes block in `index.html` by hand.
   `regulatory-watch.yml`, after the fetch, issue and artifact steps, and
   fails that job instead. `make audit-regulatory-change-watch` still
   runs it locally.
+- **ESCU waivers for the SPL anti-pattern ratchet.** 59 cat-10 use
+  cases took ESCU detection SPL verbatim in #161, adding 65 high-severity
+  matches (34 `join`, 29 `search` after `stats`, 2 unbounded
+  `transaction`) and pushing the ratchet to 2,107 against its 2,060 cap.
+  `data/spl-anti-patterns-escu-waivers.json` lists exactly those
+  matches. `--check` fails when a waiver goes stale, a test caps the file
+  at 65, and the cap is unchanged; the count is back to 2,042.
 
 ## [8.28.0] - 2026-11-04
 

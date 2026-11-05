@@ -94,14 +94,25 @@ investigation, not permanent catalogue edits.
 CI runs:
 
 ```yaml
-python3 -m splunk_uc audit-spl-anti-patterns --check --severity high --limit 2000
+python3 -m splunk_uc audit-spl-anti-patterns --check --severity high --limit 2060
 ```
 
 The `--limit` allows the current high-severity backlog while **blocking
 new** high-severity offenders. As Lane N drains the queue:
 
-1. Lower `--limit` in `.github/workflows/validate.yml` to the new count.
+1. Lower `--limit` in `.github/workflows/ci.yml` to the new count.
 2. Optionally raise `--severity` to `medium` once high-severity debt is gone.
+
+### ESCU waivers
+
+`data/spl-anti-patterns-escu-waivers.json` waives 65 high-severity
+matches in 59 cat-10 use cases whose `spl` is an ESCU detection search
+copied verbatim from splunk/security_content (#161): 34 `join`, 29
+`search` after `stats`, 2 unbounded `transaction`. Each entry names one
+use case, field and rule, and waives at most `count` matches. `--check`
+applies the file only when scanning the repository's `content/`, and
+fails when an entry no longer matches, so the file can only shrink.
+A unit test caps it at 65. Do not add entries; fix the SPL instead.
 
 Unit tests use a hermetic fixture under `tests/splunk_uc/audits/` and
 assert that a synthetic offender fails `--check` at `--limit 0`.

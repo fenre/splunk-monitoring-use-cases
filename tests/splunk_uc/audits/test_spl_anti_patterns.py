@@ -211,3 +211,34 @@ def test_output_json_has_summary_fields(mini_corpus: Path) -> None:
     summary = report["summary"]
     for key in ("total_ucs_scanned", "total_matches", "by_severity", "by_pattern", "top_offenders"):
         assert key in summary
+
+
+def _waiver_file(tmp_path: Path, waivers: list[dict]) -> Path:
+    path = tmp_path / "waivers.json"
+    path.write_text(json.dumps({"waivers": waivers}) + "\n", encoding="utf-8")
+    return path
+
+
+def test_waiver_removes_match_from_check(mini_corpus: Path, tmp_path: Path) -> None:
+    args = ["--content", str(mini_corpus), "--check", "--include-pattern", "ANTIPAT-001"]
+    assert sap.main(args) == 1
+    waivers = _waiver_file(
+        tmp_path, [{"uc_id": "99.1.2", "field": "spl", "entry_id": "ANTIPAT-001", "count": 1}]
+    )
+    assert sap.main([*args, "--waivers", str(waivers)]) == 0
+
+
+def test_stale_waiver_fails_check(mini_corpus: Path, tmp_path: Path) -> None:
+    waivers = _waiver_file(
+        tmp_path, [{"uc_id": "99.1.1", "field": "spl", "entry_id": "ANTIPAT-001", "count": 1}]
+    )
+    rc = sap.main(
+        ["--content", str(mini_corpus), "--check", "--limit", "999", "--waivers", str(waivers)]
+    )
+    assert rc == 1
+
+
+def test_escu_waiver_file_only_shrinks() -> None:
+    """65 matches from verbatim ESCU searches (#161). The number may go down, never up."""
+    payload = json.loads(sap.DEFAULT_WAIVERS_PATH.read_text(encoding="utf-8"))
+    assert sum(int(w.get("count", 1)) for w in payload["waivers"]) <= 65
