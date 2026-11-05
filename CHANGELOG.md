@@ -38,8 +38,10 @@ the release notes block in `index.html` by hand.
   matches (34 `join`, 29 `search` after `stats`, 2 unbounded
   `transaction`) and pushing the ratchet to 2,107 against its 2,060 cap.
   `data/spl-anti-patterns-escu-waivers.json` lists exactly those
-  matches. `--check` fails when a waiver goes stale, a test caps the file
-  at 65, and the cap is unchanged; the count is back to 2,042.
+  matches, each pinned to the use case's `spl` by SHA-256. `--check`
+  fails when a `spl` stops being the verbatim ESCU search or a rule stops
+  matching, so entries must be removed; a test caps the file at 59 use
+  cases and 65 matches. The cap is unchanged; the count is back to 2,042.
 
 ## [8.28.0] - 2026-11-04
 

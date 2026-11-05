@@ -108,11 +108,13 @@ new** high-severity offenders. As Lane N drains the queue:
 `data/spl-anti-patterns-escu-waivers.json` waives 65 high-severity
 matches in 59 cat-10 use cases whose `spl` is an ESCU detection search
 copied verbatim from splunk/security_content (#161): 34 `join`, 29
-`search` after `stats`, 2 unbounded `transaction`. Each entry names one
-use case, field and rule, and waives at most `count` matches. `--check`
-applies the file only when scanning the repository's `content/`, and
-fails when an entry no longer matches, so the file can only shrink.
-A unit test caps it at 65. Do not add entries; fix the SPL instead.
+`search` after `stats`, 2 unbounded `transaction`. Each entry pins one
+use case's `spl` by SHA-256 and waives at most `count` matches per rule
+in that `spl`. `--check` applies the file only when scanning the
+repository's `content/`, and fails when a `spl` no longer hashes to its
+entry (it is no longer verbatim ESCU) or a rule no longer matches; the
+entry must then be removed, so the file can only shrink. A unit test
+caps it at 59 use cases and 65 matches. Do not add entries.
 
 Unit tests use a hermetic fixture under `tests/splunk_uc/audits/` and
 assert that a synthetic offender fails `--check` at `--limit 0`.
