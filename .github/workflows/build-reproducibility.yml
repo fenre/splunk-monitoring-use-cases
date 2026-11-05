@@ -51,7 +51,7 @@ permissions:
 jobs:
   reproducibility:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
       - name: Checkout
         # Full history so audit can read git HEAD epoch.
@@ -83,6 +83,21 @@ jobs:
         # capture their paths from stderr and upload them on failure.
         # If the audit passes, the cleanup happens implicitly when
         # the runner shuts down.
+
+      - name: Gold Standard quality audit
+        # --summary prints the tier mix and exits 0. It is not a pull-request gate.
+        run: PYTHONPATH=src python3 -m splunk_uc audit-gold-profile --summary
+
+      - name: Build smoke test
+        # One real build. Kept off the pull-request unit-test step
+        # (pytest -m "not nightly"); the nightly run is where it belongs.
+        run: PYTHONPATH=src python3 -m splunk_uc audit-reproducibility --first-build-only
+
+      - name: RAG chunker determinism
+        run: |
+          python3 tools/build/build.py --out dist --reproducible
+          PYTHONPATH=src python3 -m splunk_uc generate-rag-chunks
+          PYTHONPATH=src python3 -m splunk_uc generate-rag-chunks --check
 
       - name: Full-corpus observability metrics (Lane L)
         run: |

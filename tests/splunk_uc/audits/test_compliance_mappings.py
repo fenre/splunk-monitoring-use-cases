@@ -44,6 +44,7 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import re
 from pathlib import Path
 from typing import Any
@@ -745,7 +746,8 @@ class TestReconcileCompliance:
 class TestMetricsFor:
     def test_zero_denominator_short_circuits(self) -> None:
         m = cm._metrics_for([], {})
-        assert m == Metrics(0, 0.0, 0.0, 0.0, 0.0, 0, 0.0, 0.0)
+        # cm.Metrics, not the class captured at import: a later test reloads the module.
+        assert m == cm.Metrics(0, 0.0, 0.0, 0.0, 0.0, 0, 0.0, 0.0)
 
     def test_full_coverage(self) -> None:
         common = [("A", 1.0), ("B", 2.0)]
@@ -1897,7 +1899,7 @@ def _stub_uc_payload_doc(uc_id: str = "1.1.1") -> dict[str, Any]:
     }
 
 
-_HARNESS_DIR = cm.REPO_ROOT / ".pytest-tmp-compliance-main"
+_HARNESS_DIR = cm.REPO_ROOT / f".pytest-tmp-compliance-main-{os.environ.get('PYTEST_XDIST_WORKER', 'gw0')}"
 
 
 def _setup_main_harness(

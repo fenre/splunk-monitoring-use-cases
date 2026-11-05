@@ -14,6 +14,15 @@ the release notes block in `index.html` by hand.
 
 ### Changed
 
+- **CI critical path.** The fixture dry-run reads `catalog.json` once.
+  Unit tests share one session-scoped catalogue load, and the real-build
+  smoke is marked `nightly`. `api/v1` drift is a `git diff` in the build
+  job. The catalog artifact uploads as one tar. Sidecar quality scores
+  are cached by content hash and scored in parallel on a miss. The Gold
+  `--summary`, the RAG determinism rerun and the build smoke run nightly.
+  Splunkbase app status checks changed use cases on a pull request; the
+  full sweep is weekly. The unit-test step runs under `pytest-xdist`
+  (`-n auto`). Shared test harness directories include the worker id.
 - **One CI workflow.** `.github/workflows/ci.yml` builds the catalog once
   per pull request and per push to `main`, and the content checks, fixture
   validation and Pages deploy reuse that artifact. CodeQL, SARIF and

@@ -43,6 +43,7 @@ unexercised).  The tests below pin every documented contract:
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 from collections.abc import Iterable
@@ -59,7 +60,7 @@ from splunk_uc.audits import spl_hallucinations as sh
 # ---------------------------------------------------------------------------
 
 
-_HARNESS_DIR = Path(sh.REPO_ROOT) / ".pytest-tmp-spl-hallucinations"
+_HARNESS_DIR = Path(sh.REPO_ROOT) / f".pytest-tmp-spl-hallucinations-{os.environ.get('PYTEST_XDIST_WORKER', 'gw0')}"
 
 
 def _harness_cat_dir(monkeypatch: pytest.MonkeyPatch) -> Path:

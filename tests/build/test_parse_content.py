@@ -1,6 +1,7 @@
 """Tests for tools/build/parse_content.py — schema validation and content loading."""
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -95,19 +96,16 @@ class TestValidateUcJson:
 
 
 class TestCatalogLoad:
-    def test_load_returns_catalog(self):
-        cat = parse_content.load(REPO_ROOT, reproducible=True)
-        assert isinstance(cat, parse_content.Catalog)
-        assert len(cat.categories) > 0
+    def test_load_returns_catalog(self, real_catalog):
+        assert isinstance(real_catalog, parse_content.Catalog)
+        assert len(real_catalog.categories) > 0
 
-    def test_catalog_has_categories(self):
-        cat = parse_content.load(REPO_ROOT, reproducible=True)
-        assert len(cat.categories) >= 20
+    def test_catalog_has_categories(self, real_catalog):
+        assert len(real_catalog.categories) >= 20
 
-    def test_catalog_uc_count(self):
-        cat = parse_content.load(REPO_ROOT, reproducible=True)
+    def test_catalog_uc_count(self, real_catalog):
         total_ucs = 0
-        for c in cat.categories:
+        for c in real_catalog.categories:
             for sub in c.get("s", []):
                 total_ucs += len(sub.get("u", []))
         assert total_ucs >= 7000
@@ -275,3 +273,18 @@ class TestCanonicalUcCmpRowsEmpty:
         uc = parse_content._canonical_uc_to_legacy(canonical)
         assert uc.get("cmp") and len(uc["cmp"]) == 1
         assert uc["cmp"][0]["r"] == "GDPR"
+
+
+def test_quality_cache_reuses_a_sidecar_hash(tmp_path: Path) -> None:
+    path = tmp_path / "sidecar-quality-scores.json"
+    cache = parse_content._QualityScoreCache(path)
+    raw = b'{"id":"1.1.1"}'
+    digest = hashlib.sha256(raw).hexdigest()
+    cache.store({"_digest": digest, "_qs": 3, "_qt": "bronze", "_qg": ["gap"]})
+    cache.seen.add(digest)
+    cache.save()
+    again = parse_content._QualityScoreCache(path)
+    hit = again.lookup(raw)
+    assert hit is not None
+    assert hit["_qs"] == 3
+    assert hit["_qt"] == "bronze"

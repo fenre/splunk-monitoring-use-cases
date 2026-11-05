@@ -64,6 +64,14 @@ jobs:
         with:
           install-audits: "true"
 
+      - name: Restore sidecar quality-score cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: .cache/sidecar-quality-scores.json
+          key: sidecar-quality-${{ hashFiles('content/**/*.json', 'src/splunk_uc/audits/gold_profile.py', 'src/splunk_uc/audits/gold_profile_v2.py') }}
+          restore-keys: |
+            sidecar-quality-
+
       # api/v1 generation order is load-bearing (issue #68).
       # generate-api-surface reads dist/catalog.json. build.py mirrors
       # api/ into dist/ and does not populate api/v1 itself. Order:
@@ -79,6 +87,17 @@ jobs:
           PYTHONPATH=src python3 -m splunk_uc generate-api-surface
           PYTHONPATH=src python3 -m splunk_uc generate-evidence-packs
           PYTHONPATH=src python3 -m splunk_uc generate-starter-packs --validate
+
+      - name: API surface (api/v1) is committed
+        # The build job just regenerated api/v1 from the catalogue.
+        # A content change that forgets to commit it fails here, in
+        # place of regenerating the tree a second time downstream.
+        run: |
+          if ! git diff --exit-code -- api/v1; then
+            echo "::error::api/v1 is out of date. Run 'python3 -m splunk_uc generate-api-surface' and commit it."
+            git --no-pager diff --stat -- api/v1
+            exit 1
+          fi
 
       - name: Publish dist/ (one full build)
         run: python3 tools/build/build.py --out dist --reproducible
@@ -118,14 +137,18 @@ jobs:
           echo "- size:     $(du -sh dist/ | cut -f1)" >> "$GITHUB_STEP_SUMMARY"
           printf -- '- duration: %dm %ds (%ds)\n' $((elapsed / 60)) $((elapsed % 60)) "$elapsed" >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Pack catalog build
+        # One archive. Uploading dist/ file-by-file spends the time on
+        # zip headers for tens of thousands of files.
+        run: tar -cf catalog-dist.tar.gz --use-compress-program='gzip -1' dist api/v1
+
       - name: Upload catalog build
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: catalog-dist
           retention-days: 1
-          path: |
-            dist
-            api/v1
+          compression-level: 0
+          path: catalog-dist.tar.gz
 
       - name: Upload integrity manifest as workflow artifact
         if: github.event_name != 'pull_request'
@@ -442,7 +465,7 @@ jobs:
           # Previously those tests ran via the dispatcher smoke job but their
           # coverage went unrecorded, so floors on ``src/splunk_uc/**`` could
           # silently regress.
-          pytest tests/build/ tests/scripts/ tests/splunk_uc/ -v \
+          pytest tests/build/ tests/scripts/ tests/splunk_uc/ -v -n auto --dist loadscope -m "not nightly" \
             --cov=tools/build --cov=splunk_uc \
             --cov-report=term-missing \
             --cov-report=json:coverage-report.json
@@ -519,11 +542,26 @@ jobs:
         run: PYTHONPATH=src python3 -m splunk_uc audit-escu-drilldown-spl --check
 
       - name: Splunkbase app status
-        # Every cited Splunkbase id is resolved against the live app API.
-        # 404, archived apps, and a title that shares no word with the
-        # add-on named beside the id fail. Known misses are listed in
+        # On a pull request, only sidecars this PR changes are resolved
+        # against the live app API. The full sweep, including backlog
+        # staleness for untouched use cases, runs weekly in
+        # splunkbase-sync.yml. Known misses stay in
         # data/splunkbase-app-status-backlog.json, which may only shrink.
-        run: PYTHONPATH=src python3 -m splunk_uc audit-splunkbase-app-status --check
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ -z "$BASE_SHA" ]; then
+            echo "Full Splunkbase sweep runs weekly (splunkbase-sync.yml)."
+            exit 0
+          fi
+          mapfile -t files < <(git diff --name-only "$BASE_SHA"...HEAD -- content | grep -E '/UC-.*\.json$' || true)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No use-case sidecars changed."
+            exit 0
+          fi
+          args=()
+          for f in "${files[@]}"; do args+=(--only "$f"); done
+          PYTHONPATH=src python3 -m splunk_uc audit-splunkbase-app-status --check "${args[@]}"
 
       - name: SPL hallucination audit
         # Flags fabricated command names, non-existent macros, and other
@@ -743,17 +781,8 @@ jobs:
         if: ${{ !cancelled() }}
         run: make sync-catalogue-rollups-check
 
-      - name: Gold Standard quality audit
-        # Validates UC content depth against the Gold Standard quality
-        # profile. Runs in --summary mode (no --check), which prints the
-        # gold/silver/bronze distribution per category and exits 0 by
-        # design — it does not enforce a quality floor on PRs.
-        # Per-subcategory --check enforcement is added by uplift PRs as
-        # they land.
-        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
-        # F7 (2026-05-12): dropped the redundant continue-on-error: true
-        # flag — --summary cannot fail, so the flag never had effect.
-        run: PYTHONPATH=src python3 -m splunk_uc audit-gold-profile --summary
+      # Gold --summary prints the tier mix and exits 0. It gates nothing,
+      # so it runs nightly in build-reproducibility.yml.
 
       # ------------------------------------------------------------------
       # Phase 4.5 / 5.x — signoff + sandbox-validation gates
@@ -960,6 +989,8 @@ jobs:
         with:
           name: catalog-dist
           path: .
+      - name: Unpack catalog build
+        run: tar -xzf catalog-dist.tar.gz && rm -f catalog-dist.tar.gz
 
       - name: Catalog schema validation
         # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
@@ -1037,21 +1068,6 @@ jobs:
           node tools/audits/_phase3c_smoke.js
           node tools/audits/_phase5_primer_smoke.js
           node tools/audits/starter_plan_parity.js
-
-      - name: API surface (api/v1) regeneration check
-        # Drift gate: run even if an earlier gate failed (``!cancelled()``)
-        # so one CI round-trip surfaces every stale committed artefact
-        # instead of one-per-push. The prerequisite build + api/v1 gen
-        # steps above stay fail-fast, so this only runs on a built tree.
-        if: ${{ !cancelled() }}
-        # Phase 1.7 deliverable. ``generate-api-surface`` is the single
-        # source of truth for /api/v1/*: it reads the UC sidecars,
-        # data/regulations.json, data/crosswalks/*, and the compliance
-        # coverage report, and emits a deterministic static JSON API.
-        # --check regenerates the tree into a tempdir and diffs it against
-        # the committed tree, so a forgotten regeneration fails CI.
-        # P6 (scripts taxonomy, Tier 2 batch 2, 2026-05-09): routed through the dispatcher.
-        run: PYTHONPATH=src python3 -m splunk_uc generate-api-surface --check
 
       - name: Splunk UC Recommender generator regeneration check
         if: ${{ !cancelled() }}
@@ -1154,13 +1170,10 @@ jobs:
         # one frontmatter-stamped chunk per markdown section + the
         # ``manifest.json`` + ``manifest.md`` rollup. ``dist/`` is
         # gitignored, so the artefact is rebuilt fresh on every CI
-        # run; the chunker's ``--check`` flag (run right after) acts
-        # as a determinism smoke test by re-running the chunker and
-        # comparing against the just-written manifest. A non-zero
-        # exit there would be a real generator-non-determinism bug.
-        run: |
-          PYTHONPATH=src python3 -m splunk_uc generate-rag-chunks
-          PYTHONPATH=src python3 -m splunk_uc generate-rag-chunks --check
+        # run. The determinism rerun (``--check``) is nightly, in
+        # build-reproducibility.yml. This step still generates the
+        # corpus the retrieval-eval gate reads.
+        run: PYTHONPATH=src python3 -m splunk_uc generate-rag-chunks
 
       - name: Retrieval-eval drift gate (P17 wave D)
         if: ${{ !cancelled() }}
@@ -1277,6 +1290,8 @@ jobs:
         with:
           name: catalog-dist
           path: .
+      - name: Unpack catalog build
+        run: tar -xzf catalog-dist.tar.gz && rm -f catalog-dist.tar.gz
 
       - name: Install MCP server (splunk-uc-mcp) for drift guard + tests
         # Phase 6 deliverable. The MCP server (mcp/) exposes the
@@ -1358,6 +1373,8 @@ jobs:
         with:
           name: catalog-dist
           path: .
+      - name: Unpack catalog build
+        run: tar -xzf catalog-dist.tar.gz && rm -f catalog-dist.tar.gz
 
       - name: Recommender frontend unit tests
         # Drift/QA gate: ``!cancelled()`` lets every frontend gate report
@@ -1697,6 +1714,8 @@ jobs:
         with:
           name: catalog-dist
           path: .
+      - name: Unpack catalog build
+        run: tar -xzf catalog-dist.tar.gz && rm -f catalog-dist.tar.gz
 
       - name: Validate sample manifests
         run: python3 scripts/samples_index.py --strict
