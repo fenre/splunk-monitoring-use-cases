@@ -476,7 +476,7 @@ comes from *better drift tooling* (below), not from deleting artefacts.
 
 | Target | Scope | Cost | Use |
 |--------|-------|-----:|-----|
-| `make preflight` | **Regenerate** every committed derived artefact (cascade via `sync-generated`, full build, `api/v1`, splunk-cloud-compat, version-matrix, control-test, OSCAL round-trip, perf/a11y, legacy `emit:legacy`). | ~3–5 min | Before committing a content change — fixes drift in one shot. |
+| `make preflight` | **Regenerate** every committed derived artefact (cascade via `sync-generated`, catalogue-count rollups via `sync-catalogue-rollups`, full build, `api/v1`, splunk-cloud-compat, OSCAL round-trip, perf/a11y, legacy `emit:legacy`). | ~3–5 min | Before committing a content change — fixes drift in one shot. |
 | `make preflight-check` | **CI-faithful drift mirror** — runs the same set in `--check` mode (or `git diff` for writers without a `--check` flag). Read-only. | ~3–5 min | Reproduce a CI drift failure locally. |
 | `make preflight-fast` | The ~30s subset: `sync-generated-check` + the `non-technical-view.js` legacy-emit guard. | ~30 s | Pre-push hook (below). |
 | `make ci` | **Full local mirror of the merge gate** — `preflight-check` (drift) + `test-unit` (pytest) + `audit-full` (content audits). Aggregates failures instead of stopping at the first, mirroring the un-masked CI gates. | ~5–8 min | Reproduce the *whole* `validate.yml` verdict before pushing a large or risky change. |
@@ -559,7 +559,7 @@ hard — the tests are the contract.
 | `Build check` fails — generated files out-of-date | Run `make build` and commit the diff.                                            |
 | `Cascade-generator drift gate (umbrella)` fails | Run `make sync-generated && git add -A && git diff --staged` and commit the regenerated tree. |
 | Other named generator `--check` fails           | Re-run the named script without `--check` and commit the regenerated output.    |
-| `Compliance audit — generated reports committed` fails | Regenerate `reports/compliance-coverage.json` + `docs/compliance-coverage.md` and commit. |
+| `Catalogue rollups (regenerate and diff)` fails | Run `make sync-catalogue-rollups` and commit the diff. That refreshes compliance coverage, sandbox validation, the ATT&CK simulation report, and the Splunk version matrix together. |
 | `URL freeze` fails                              | URL change is breaking — see [external-consumer-matrix.md](external-consumer-matrix.md). |
 | MCP `cov-fail-under=70` fails                   | Add tests; coverage floor is intentionally low to allow uplift.                  |
 | Node test "module not found"                    | `npm ci` in the workspace root; the composite handles this in CI.                |

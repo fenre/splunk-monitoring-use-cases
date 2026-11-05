@@ -725,16 +725,19 @@ jobs:
         # UC traceability, and NO KBF ↔ NIS2 dual-mapping assurance policy.
         run: PYTHONPATH=src python3 -m splunk_uc audit-no-kbf-coverage
 
-      - name: Compliance audit — generated reports committed
-        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
-        run: |
-          PYTHONPATH=src python3 -m splunk_uc audit-compliance-mappings
-          STRUCTURAL=$(git diff --unified=0 -- reports/compliance-coverage.json docs/compliance-coverage.md | grep '^[+-]' | grep -v '^[+-]\{3\}' | grep -v 'generatedAt' | grep -v 'Generated:' || true)
-          if [ -n "$STRUCTURAL" ]; then
-            echo "::error::Compliance audit reports are out of date — run \`python -m splunk_uc audit-compliance-mappings\` (or \`make audit-compliance-mappings\`) and commit"
-            git --no-pager diff --stat -- reports/compliance-coverage.json docs/compliance-coverage.md
-            exit 1
-          fi
+      - name: Catalogue rollups (regenerate and diff)
+        # One place for the committed reports that embed the use-case
+        # count: compliance coverage, sandbox validation, ATT&CK
+        # simulation, and the Splunk version matrix. A content change
+        # that adds or removes a use case rewrites all of them. This
+        # step regenerates every one and fails if any committed copy
+        # differs, so the content pull request updates them together
+        # instead of leaving main red one report at a time.
+        # Local recovery: make sync-catalogue-rollups
+        # Runs even when an earlier audit failed (!cancelled), so the
+        # log shows every stale rollup in one step.
+        if: ${{ !cancelled() }}
+        run: make sync-catalogue-rollups-check
 
       - name: Gold Standard quality audit
         # Validates UC content depth against the Gold Standard quality
@@ -1144,27 +1147,12 @@ jobs:
         # the canonical vocabulary in
         # ``data/splunk-version-vocabulary.json``. ``--check`` exits
         # non-zero on any unknown-token finding, blocking the PR
-        # rather than silently regenerating an artefact in CI. The
-        # in-tree ``data/splunk-version-matrix.json`` +
-        # ``docs/splunk-version-matrix.md`` stay byte-identical to
-        # ``main`` because ``--check`` skips the write step (the
-        # drift guard below catches any committed-but-stale copy).
+        # rather than silently regenerating an artefact in CI.
+        # ``--check`` skips the write. Freshness of
+        # ``data/splunk-version-matrix.json`` and
+        # ``docs/splunk-version-matrix.md`` is the catalogue-rollups
+        # step in audits-content (``make sync-catalogue-rollups-check``).
         run: PYTHONPATH=src python3 -m splunk_uc audit-splunk-version-matrix --check
-
-      - name: Splunk version-matrix audit — generated artefacts are committed
-        if: ${{ !cancelled() }}
-        # The audit, run in *write* mode, must produce byte-identical
-        # output to what's on disk. A diff means a maintainer changed
-        # ``splunkVersions`` on a sidecar (or the vocabulary file) and
-        # forgot to commit the regenerated rollup.
-        run: |
-          PYTHONPATH=src python3 -m splunk_uc audit-splunk-version-matrix >/dev/null
-          CHANGED=$(git diff --name-only -- data/splunk-version-matrix.json docs/splunk-version-matrix.md)
-          if [ -n "$CHANGED" ]; then
-            echo "::error::splunk-version-matrix artefacts are out of date — run \`python -m splunk_uc audit-splunk-version-matrix\` and commit"
-            git --no-pager diff --stat -- data/splunk-version-matrix.json docs/splunk-version-matrix.md
-            exit 1
-          fi
 
       - name: Generate RAG chunked corpus (P17)
         if: ${{ !cancelled() }}

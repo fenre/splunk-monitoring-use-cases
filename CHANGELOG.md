@@ -20,6 +20,12 @@ the release notes block in `index.html` by hand.
   Lighthouse run weekly. The roadmap export no longer runs on push.
   Sigstore attests `dist/integrity.json` and `dist/BUILD-INFO.json` on
   every Pages deploy.
+- **Catalogue rollups in one CI step.** `make sync-catalogue-rollups`
+  regenerates the committed reports that embed the use-case count
+  (compliance coverage, sandbox validation, ATT&CK simulation, Splunk
+  version matrix). `ci.yml` regenerates and diffs them in one step, so
+  a content pull request that changes the count updates every rollup
+  in that pull request.
 
 ## [8.28.0] - 2026-11-04
 

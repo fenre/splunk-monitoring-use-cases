@@ -117,6 +117,11 @@ CRITICAL_STEP_NAMES = [
     # the per-step names here in the same PR.
     "Cascade-generator drift gate (umbrella)",
     "Compliance mapping audit",
+    # Catalogue-count rollups (compliance coverage, sandbox validation,
+    # ATT&CK simulation, Splunk version matrix) are regenerated and
+    # diffed in this one step. Losing it lets a content PR change the
+    # use-case count without updating the committed reports.
+    "Catalogue rollups (regenerate and diff)",
     "Gold Standard quality audit",
     "Phase 4.5a peer-review signoff audit",
     "Phase 4.5b legal-review signoff audit",
