@@ -41,7 +41,7 @@ def _sidecar() -> dict:
 
 
 def test_schema_version_and_valid_variant() -> None:
-    assert SCHEMA["schemaVersion"] == "1.10.0"
+    assert SCHEMA["schemaVersion"] == "1.11.0"
     jsonschema.validate(_sidecar(), SCHEMA)
 
 
