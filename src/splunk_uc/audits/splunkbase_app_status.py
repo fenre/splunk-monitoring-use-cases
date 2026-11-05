@@ -87,10 +87,16 @@ def _walk_strings(value: Any, path: str = "") -> Iterator[tuple[str, str]]:
         yield path, f"Splunkbase {value}"
 
 
-def collect_citations() -> list[dict[str, Any]]:
-    """One row per use case and cited app id, keeping the strongest problem seen later."""
+def collect_citations(only: set[Path] | None = None) -> list[dict[str, Any]]:
+    """One row per use case and cited app id, keeping the strongest problem seen later.
+
+    ``only`` limits the walk to those sidecar paths. The weekly full sweep
+    passes None.
+    """
     found: dict[tuple[str, str], dict[str, Any]] = {}
-    for _path, payload in iter_uc_sidecars():
+    for path, payload in iter_uc_sidecars():
+        if only is not None and path.resolve() not in only:
+            continue
         uc_id = f"UC-{payload.get('id')}"
         for _field, text in _walk_strings(payload):
             for match in ID_RE.finditer(text):
@@ -198,9 +204,17 @@ def fetch_apps(app_ids: set[str]) -> dict[str, dict[str, Any]]:
 def main(argv: list[str] | None = None, fetcher: Fetcher | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--check", action="store_true", help="Exit 1 on unlisted or stale citations.")
+    parser.add_argument(
+        "--only",
+        action="append",
+        default=[],
+        metavar="PATH",
+        help="Scan only this sidecar (repeatable). Stale backlog entries outside it are ignored.",
+    )
     args = parser.parse_args(argv)
 
-    citations = collect_citations()
+    only = {Path(path).resolve() for path in args.only} or None
+    citations = collect_citations(only)
     app_ids = {str(row["appId"]) for row in citations}
     try:
         facts = (fetcher or fetch_apps)(app_ids)
@@ -210,6 +224,9 @@ def main(argv: list[str] | None = None, fetcher: Fetcher | None = None) -> int:
     violations = classify(citations, facts)
     backlog = load_backlog()
     new, stale = compare(violations, backlog)
+    if only is not None:
+        scanned = {f"UC-{path.stem[3:]}" if path.stem.startswith("UC-") else path.stem for path in only}
+        stale = [row for row in stale if row[0] in scanned]
 
     by_reason: dict[str, int] = {}
     for row in violations:

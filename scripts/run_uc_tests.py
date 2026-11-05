@@ -243,15 +243,30 @@ class TestResult:
     failures: list[str] = field(default_factory=list)
 
 
+_SPL_BY_ID: dict[str, str] | None = None
+_SPL_INDEX_PATH: Path | None = None
+
+
+def _spl_by_id() -> dict[str, str]:
+    """Load catalog.json once per path. The dry-run calls this for every sample."""
+    global _SPL_BY_ID, _SPL_INDEX_PATH
+    if _SPL_BY_ID is None or _SPL_INDEX_PATH != CATALOG_PATH:
+        with CATALOG_PATH.open("r", encoding="utf-8") as fh:
+            cat = json.load(fh)
+        index: dict[str, str] = {}
+        for category in cat.get("DATA", []):
+            for sub in category.get("s", []):
+                for uc in sub.get("u", []):
+                    uc_id = uc.get("i")
+                    if uc_id:
+                        index[uc_id] = uc.get("q") or uc.get("qs") or ""
+        _SPL_BY_ID = index
+        _SPL_INDEX_PATH = CATALOG_PATH
+    return _SPL_BY_ID
+
+
 def _get_uc_spl(uc_id: str) -> str | None:
-    with CATALOG_PATH.open("r", encoding="utf-8") as fh:
-        cat = json.load(fh)
-    for c in cat.get("DATA", []):
-        for sc in c.get("s", []):
-            for uc in sc.get("u", []):
-                if uc.get("i") == uc_id:
-                    return uc.get("q") or uc.get("qs") or ""
-    return None
+    return _spl_by_id().get(uc_id)
 
 
 def _assert_expected(results: list[dict[str, Any]], manifest: dict[str, Any]) -> list[str]:

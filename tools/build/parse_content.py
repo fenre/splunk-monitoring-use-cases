@@ -31,11 +31,13 @@ the v6 site uses (see docs/catalog-schema.md):
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
 import sys
 from collections.abc import Iterator
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -284,6 +286,8 @@ def _load_categories_from_content(cat: Catalog, project_root: Path, *, reproduci
     # ``enrichment`` module.
     legacy = _enrichment
     cat.files = []
+    score_cache = _QualityScoreCache()
+    score_pool = _QualityPool()
     for cat_dir in cat_dirs:
         meta_path = cat_dir / "_category.json"
         if not meta_path.exists():
@@ -372,10 +376,11 @@ def _load_categories_from_content(cat: Catalog, project_root: Path, *, reproduci
         # has any ``#<n>`` disambiguator stripped so it stays a valid
         # ``^\d+\.\d+$`` id.
         uc_files = sorted(cat_dir.glob("UC-*.json"))
+        score_misses: list[tuple[dict[str, Any], Path]] = []
         for uc_path in uc_files:
             try:
-                with uc_path.open(encoding="utf-8") as f:
-                    canonical = json.load(f)
+                raw = uc_path.read_bytes()
+                canonical = json.loads(raw)
             except (OSError, json.JSONDecodeError) as exc:
                 print(f"WARNING: skipping {uc_path}: {exc}", file=sys.stderr)
                 continue
@@ -394,8 +399,22 @@ def _load_categories_from_content(cat: Catalog, project_root: Path, *, reproduci
                 sub_buckets[bucket_key] = sub_record
                 record["s"].append(sub_record)
             uc_short = _canonical_uc_to_legacy(canonical)
-            _attach_sidecar_quality_scores(uc_short, canonical, uc_path)
+            if score_cache.covers(uc_path):
+                hit = score_cache.lookup(raw)
+                if hit is None:
+                    score_misses.append((uc_short, uc_path))
+                else:
+                    _apply_quality(uc_short, hit)
+            else:
+                scored = _score_canonical(canonical, uc_path)
+                if scored:
+                    _apply_quality(uc_short, scored)
             sub_record["u"].append(uc_short)
+
+        for uc_short, scored in score_pool.score(score_misses):
+            if scored:
+                score_cache.store(scored)
+                _apply_quality(uc_short, scored)
 
         # Re-derive every field the legacy post-processor block sets.
         _post_process_category(record, legacy)
@@ -412,6 +431,8 @@ def _load_categories_from_content(cat: Catalog, project_root: Path, *, reproduci
 
     if reproducible:
         cat.categories.sort(key=lambda c: c.get("i", 0))
+    score_pool.close()
+    score_cache.save()
 
 
 # ---------------------------------------------------------------------------
@@ -1016,14 +1037,27 @@ def _compute_quality(uc: dict[str, Any]) -> tuple[str, int, list[str]]:
     return (tier, max(0, min(100, depth)), gaps)
 
 
-def _attach_sidecar_quality_scores(
-    uc_short: dict[str, Any],
-    canonical: dict[str, Any],
-    uc_path: Path,
-) -> None:
-    """Score from canonical sidecar truth (gold v1 + v2 audits)."""
+_QUALITY_CACHE_PATH = _REPO_ROOT / ".cache" / "sidecar-quality-scores.json"
+_RUBRIC_FILES = (
+    _REPO_ROOT / "src" / "splunk_uc" / "audits" / "gold_profile.py",
+    _REPO_ROOT / "src" / "splunk_uc" / "audits" / "gold_profile_v2.py",
+)
+
+
+def _rubric_stamp() -> str:
+    digest = hashlib.sha256()
+    for path in _RUBRIC_FILES:
+        try:
+            digest.update(path.read_bytes())
+        except OSError:
+            digest.update(b"missing")
+    return digest.hexdigest()[:16]
+
+
+def _score_canonical(canonical: dict[str, Any], uc_path: Path) -> dict[str, Any] | None:
+    """Gold v1 + v2 depth fields for one sidecar. None when scoring is unavailable."""
     if _audit_uc_gold_v1 is None or _audit_uc_gold_v2 is None:
-        return
+        return None
     audit_path = uc_path
     try:
         audit_path.relative_to(_REPO_ROOT)
@@ -1033,17 +1067,128 @@ def _attach_sidecar_quality_scores(
         v1 = _audit_uc_gold_v1(canonical, audit_path)
         v2 = _audit_uc_gold_v2(canonical, audit_path)
     except ValueError:
-        return
-    uc_short["_qs"] = v1["depth_score"]
+        return None
     tier = v1["tier"]
     if v2["tier"] == "v2-pass":
         tier = "gold"
-    uc_short["_qt"] = tier
     gaps = list(v1.get("gaps") or [])
     if v2["tier"] != "v2-pass":
         gaps.extend(v2.get("gaps") or [])
-    if gaps:
-        uc_short["_qg"] = gaps
+    return {"_qs": v1["depth_score"], "_qt": tier, "_qg": gaps}
+
+
+def _score_file(path_str: str) -> dict[str, Any] | None:
+    """Worker entry: re-read one sidecar and score it. Returns the content digest."""
+    path = Path(path_str)
+    try:
+        raw = path.read_bytes()
+        canonical = json.loads(raw)
+    except (OSError, json.JSONDecodeError, UnicodeError):
+        return None
+    scored = _score_canonical(canonical, path)
+    if scored is None:
+        return None
+    scored["_digest"] = hashlib.sha256(raw).hexdigest()
+    return scored
+
+
+def _apply_quality(uc_short: dict[str, Any], scored: dict[str, Any]) -> None:
+    uc_short["_qs"] = scored["_qs"]
+    uc_short["_qt"] = scored["_qt"]
+    if scored.get("_qg"):
+        uc_short["_qg"] = list(scored["_qg"])
+
+
+class _QualityScoreCache:
+    """Content-hash cache of sidecar quality scores. A rubric change drops it."""
+
+    def __init__(self, path: Path | None = None) -> None:
+        self.path = path or _QUALITY_CACHE_PATH
+        self.scores: dict[str, dict[str, Any]] = {}
+        self.seen: set[str] = set()
+        self._stamp = _rubric_stamp()
+        self._dirty = False
+        if self.path.is_file():
+            try:
+                payload = json.loads(self.path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                payload = {}
+            if payload.get("rubric") == self._stamp and isinstance(payload.get("scores"), dict):
+                self.scores = payload["scores"]
+
+    def covers(self, uc_path: Path) -> bool:
+        try:
+            uc_path.resolve().relative_to((_REPO_ROOT / "content").resolve())
+        except ValueError:
+            return False
+        return os.environ.get("SPLUNK_UC_QUALITY_CACHE", "1") != "0"
+
+    def lookup(self, raw: bytes) -> dict[str, Any] | None:
+        digest = hashlib.sha256(raw).hexdigest()
+        self.seen.add(digest)
+        return self.scores.get(digest)
+
+    def store(self, scored: dict[str, Any]) -> None:
+        digest = scored.get("_digest")
+        if not digest:
+            return
+        self.scores[digest] = {
+            "_qs": scored["_qs"],
+            "_qt": scored["_qt"],
+            "_qg": list(scored.get("_qg") or []),
+        }
+        self.seen.add(digest)
+        self._dirty = True
+
+    def save(self) -> None:
+        if not self.seen:
+            return
+        kept = {digest: self.scores[digest] for digest in self.seen if digest in self.scores}
+        if not self._dirty and set(kept) == set(self.scores):
+            return
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {"rubric": self._stamp, "scores": kept}
+        tmp = self.path.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
+        tmp.replace(self.path)
+
+
+class _QualityPool:
+    """Score cache misses across processes once a category has enough of them."""
+
+    def __init__(self) -> None:
+        self._pool: ProcessPoolExecutor | None = None
+
+    def score(
+        self, misses: list[tuple[dict[str, Any], Path]]
+    ) -> list[tuple[dict[str, Any], dict[str, Any] | None]]:
+        if not misses:
+            return []
+        paths = [str(path) for _uc, path in misses]
+        if len(paths) < 48:
+            scored = [_score_file(path) for path in paths]
+        else:
+            if self._pool is None:
+                workers = min(8, os.cpu_count() or 2)
+                self._pool = ProcessPoolExecutor(max_workers=workers)
+            scored = list(self._pool.map(_score_file, paths, chunksize=32))
+        return list(zip((uc for uc, _path in misses), scored, strict=True))
+
+    def close(self) -> None:
+        if self._pool is not None:
+            self._pool.shutdown()
+            self._pool = None
+
+
+def _attach_sidecar_quality_scores(
+    uc_short: dict[str, Any],
+    canonical: dict[str, Any],
+    uc_path: Path,
+) -> None:
+    """Score from canonical sidecar truth (gold v1 + v2 audits)."""
+    scored = _score_canonical(canonical, uc_path)
+    if scored:
+        _apply_quality(uc_short, scored)
 
 
 def _inject_quality_scores(record: dict[str, Any]) -> None:

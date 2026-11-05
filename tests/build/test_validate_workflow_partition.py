@@ -85,7 +85,6 @@ CRITICAL_STEP_NAMES = [
     "Version consistency",
     # Content audits
     "Unit tests (build pipeline",  # P16 renamed to "...build pipeline + audits)"; substring match
-    "Coverage budget audit",
     # v8.2.0 (2026-05-11) retired the legacy ``use-cases/cat-*.md``
     # corpus, which made the original ``audit-legacy-orphans`` verb
     # meaningless (nothing left to be orphaned from). The replacement
@@ -122,7 +121,6 @@ CRITICAL_STEP_NAMES = [
     # diffed in this one step. Losing it lets a content PR change the
     # use-case count without updating the committed reports.
     "Catalogue rollups (regenerate and diff)",
-    "Gold Standard quality audit",
     "Phase 4.5a peer-review signoff audit",
     "Phase 4.5b legal-review signoff audit",
     "Phase 5.2 SME-review signoff audit",
@@ -133,7 +131,7 @@ CRITICAL_STEP_NAMES = [
     "Audit — URL freeze",
     "Splunk Cloud compatibility audit",
     "Splunk UC Recommender generator regeneration check",
-    "API surface (api/v1) regeneration check",
+    "API surface (api/v1) is committed",
     "Story-layer UI smoke tests",
     "Package recommender .spl",
     # MCP job
@@ -407,3 +405,26 @@ def test_regulatory_change_watch_check_runs_weekly() -> None:
     )
     runs = [step.get("run", "") for job in weekly["jobs"].values() for step in job["steps"]]
     assert any("audit-regulatory-change-watch --check" in r for r in runs)
+
+
+def _workflow_runs(name: str) -> list[str]:
+    loaded = yaml.safe_load((REPO_ROOT / ".github" / "workflows" / name).read_text(encoding="utf-8"))
+    return [step.get("run", "") or "" for job in loaded["jobs"].values() for step in job["steps"]]
+
+
+def test_nightly_keeps_the_checks_that_left_pull_requests() -> None:
+    """Gold summary, the build smoke, and the RAG determinism rerun moved off PR CI."""
+    nightly = "\n".join(_workflow_runs("build-reproducibility.yml"))
+    assert "audit-gold-profile --summary" in nightly
+    assert "audit-reproducibility --first-build-only" in nightly
+    assert "generate-rag-chunks --check" in nightly
+    assert "audit-coverage-budget" in nightly
+    weekly = "\n".join(_workflow_runs("splunkbase-sync.yml"))
+    assert "audit-splunkbase-app-status --check" in weekly
+    pr = "\n".join(
+        step.get("run", "") or ""
+        for job in yaml.safe_load((REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8"))["jobs"].values()
+        for step in job["steps"]
+    )
+    assert "audit-gold-profile --summary" not in pr
+    assert "generate-rag-chunks --check" not in pr

@@ -74,6 +74,8 @@ semantically equivalent; tracked in `tests/build/test_legacy_artifacts_parity.py
 
 ## Completed Migrations
 
+- [x] Pull-request CI no longer runs coverage or `audit-coverage-budget` (2026-11-05). With pytest-xdist, `--cov` took 506s against about a minute without it. Both run in the nightly `build-reproducibility.yml`.
+- [x] Pull-request CI no longer runs the Gold `--summary`, the RAG chunker determinism rerun, or the real-build smoke test (2026-11-05). All three run in the nightly `build-reproducibility.yml`. Splunkbase app status on a pull request covers changed use cases; the full sweep is the weekly `splunkbase-sync.yml` job `app-status`.
 - [x] Regulatory change-watch `--check` moved from PR CI (`ci.yml` `audits-content`) to the weekly `regulatory-watch.yml` (2026-11-05). It checks upstream publisher drift, which a pull request cannot fix. `tests/build/test_validate_workflow_partition.py::test_regulatory_change_watch_check_runs_weekly` keeps it from disappearing.
 - [x] Primary catalog loading (v7.0): `content/` is default, `use-cases/` is fallback
 - [x] grandmaExplanation (v7.1): loaded exclusively from `content/`

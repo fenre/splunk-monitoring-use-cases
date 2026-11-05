@@ -538,6 +538,22 @@ class TestGetUcSpl:
         _seed_catalog(monkeypatch, tmp_path)
         assert M._get_uc_spl("99.99.99") is None
 
+    def test_reads_the_catalog_once_per_path(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _seed_catalog(monkeypatch, tmp_path)
+        calls = {"n": 0}
+        real_load = M.json.load
+
+        def counting(fh, *args, **kwargs):
+            calls["n"] += 1
+            return real_load(fh, *args, **kwargs)
+
+        monkeypatch.setattr(M.json, "load", counting)
+        assert M._get_uc_spl("1.1.1") == "search index=main"
+        assert M._get_uc_spl("1.1.2") == "| tstats count from datamodel=Foo"
+        assert calls["n"] == 1
+
 
 # ----------------------------------------------------- _assert_expected
 

@@ -176,6 +176,7 @@ def test_module_exports_run_build() -> None:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.nightly
 @pytest.mark.skipif(
     os.environ.get("SKIP_SLOW_TESTS") == "1",
     reason="set SKIP_SLOW_TESTS=1 to skip the ~30s real-build smoke",

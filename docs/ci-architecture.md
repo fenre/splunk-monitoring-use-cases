@@ -377,7 +377,9 @@ Hermetic secret-leak detection across the diff.
 ## Splunkbase-sync.yml
 
 The **only** workflow that talks to splunkbase.splunk.com. Refreshes
-`data/splunkbase-catalog.json` on a weekly schedule. Manually
+`data/splunkbase-catalog.json` on a weekly schedule, and runs the full
+`audit-splunkbase-app-status --check` sweep. A pull request resolves
+only the Splunkbase ids in the use cases it changes. Manually
 triggerable. The catalog cache is the input to
 `scripts/sync_splunkbase_catalog.py --check` in `audits-content`,
 which is hermetic.
@@ -432,6 +434,12 @@ filtered to the build pipeline itself (`tools/build/**`,
 (~90s) is acceptable here because if we change build code we must
 know we didn't break reproducibility. On failure both build trees
 are uploaded as artefacts so the maintainer can diff them locally.
+The same nightly run prints the Gold quality-tier summary, runs one
+build smoke (`audit-reproducibility --first-build-only`), reruns the
+RAG chunker with `--check`, and runs the unit suite under coverage
+plus `audit-coverage-budget`. With pytest-xdist, coverage added
+several minutes on the pull-request runner, so it is not a pull-request
+gate. The other three were not gates either.
 
 ## Committed generated artefacts & the drift gates
 

@@ -39,6 +39,7 @@ regulations.json rc=1, happy-path rc=0).
 from __future__ import annotations
 
 import json
+import os
 import shutil
 from collections.abc import Iterable
 from pathlib import Path
@@ -53,7 +54,7 @@ from splunk_uc.audits import compliance_gaps as cg
 # ---------------------------------------------------------------------------
 
 
-_HARNESS_DIR = cg.REPO_ROOT / ".pytest-tmp-compliance-gaps"
+_HARNESS_DIR = cg.REPO_ROOT / f".pytest-tmp-compliance-gaps-{os.environ.get('PYTEST_XDIST_WORKER', 'gw0')}"
 
 
 def _good_regulations() -> dict[str, Any]:

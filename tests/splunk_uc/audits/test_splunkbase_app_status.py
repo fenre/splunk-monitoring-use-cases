@@ -127,3 +127,18 @@ def test_check_passes_when_the_backlog_matches(fake_repo: Path) -> None:
         return {"617": {"httpStatus": 404}}
 
     assert audit.main(["--check"], fetcher=fetcher) == 0
+
+
+def test_only_scans_the_named_sidecar(fake_repo: Path) -> None:
+    _write_uc(fake_repo, "1.0.9", app="do not cite Splunkbase 617")
+    _write_uc(fake_repo, "1.0.10", app="do not cite Splunkbase 618")
+    _write_backlog(fake_repo, [{"id": "UC-9.9.9", "appId": 1, "reason": "missing"}])
+    target = fake_repo / "content" / "cat-01-test" / "UC-1.0.9.json"
+    seen: set[str] = set()
+
+    def fetcher(ids: set[str]) -> dict[str, dict[str, object]]:
+        seen.update(ids)
+        return {app_id: {"httpStatus": 404} for app_id in ids}
+
+    assert audit.main(["--check", "--only", str(target)], fetcher=fetcher) == 1
+    assert seen == {"617"}

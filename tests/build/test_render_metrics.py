@@ -483,9 +483,9 @@ def test_synthetic_metrics_validates_against_schema(
     jsonschema.Draft202012Validator(schema).validate(m)
 
 
-def test_real_catalog_metrics_validates_against_schema() -> None:
+def test_real_catalog_metrics_validates_against_schema(real_catalog) -> None:
     """The full live catalogue metrics must validate, not just synthetic."""
-    catalog = parse_content.load(REPO_ROOT)
+    catalog = real_catalog
     with SCHEMA_PATH.open(encoding="utf-8") as f:
         schema = json.load(f)
     m = render_metrics.build_metrics(catalog, reproducible=True)
