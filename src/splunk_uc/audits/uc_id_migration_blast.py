@@ -175,7 +175,8 @@ def manifest_change_keys(manifest: dict[str, Any]) -> set[tuple[str, str | None,
         from_id = row.get("from")
         to_id = row.get("to")
         from_s = str(from_id).strip() if from_id else None
-        to_s = str(to_id).strip() if to_id else None
+        # On a remove row ``to`` is the ledger's replacedBy pointer, not part of the change.
+        to_s = str(to_id).strip() if to_id and kind != "remove" else None
         keys.add((kind, from_s, to_s))
     return keys
 

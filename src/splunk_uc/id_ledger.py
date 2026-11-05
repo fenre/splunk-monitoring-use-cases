@@ -555,11 +555,30 @@ def _removed_entry(
     return entry
 
 
+def manifest_replacements(migrations_dir: Path | None = None) -> dict[str, str]:
+    """Map each retired identifier to the ``to`` of its ``remove`` manifest row."""
+    replacements: dict[str, str] = {}
+    for path in sorted((migrations_dir or MIGRATIONS_DIR).glob("*.json")):
+        try:
+            doc = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        for row in doc.get("changes", []):
+            if not isinstance(row, dict) or row.get("kind") != "remove":
+                continue
+            from_id = str(row.get("from") or "").strip()
+            to_id = str(row.get("to") or "").strip()
+            if from_id and to_id:
+                replacements[from_id] = to_id
+    return replacements
+
+
 def build_ledger_document(
     *,
     catalogue: dict[str, CatalogueUC] | None = None,
     previous: dict[str, Any] | None = None,
     baseline: dict[str, dict[str, Any]] | None = None,
+    replacements: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Build the ledger, appending to ``previous`` when given.
 
@@ -582,8 +601,19 @@ def build_ledger_document(
                 uc_id, catalogue[uc_id].payload, previous_entries.get(uc_id, {}), baseline, version
             )
         )
+    if replacements is None:
+        replacements = manifest_replacements()
     for uc_id in sorted(removed_ids - set(catalogue), key=_id_sort_key):
-        entries.append(_removed_entry(uc_id, previous_entries.get(uc_id, {}), baseline, version))
+        entry = _removed_entry(uc_id, previous_entries.get(uc_id, {}), baseline, version)
+        target = replacements.get(uc_id)
+        if target:
+            if target not in catalogue:
+                raise ValueError(
+                    f"UC-{uc_id} is retired with replacedBy UC-{target}, "
+                    "which is not an active use case"
+                )
+            entry = {**entry, "replacedBy": target}
+        entries.append(entry)
 
     unchanged = (
         previous is not None
@@ -599,7 +629,7 @@ def build_ledger_document(
 
     return {
         "$schema": "../schemas/id-ledger.schema.json",
-        "schemaVersion": "1.1.0",
+        "schemaVersion": "1.2.0",
         "generatedAt": generated_at,
         "catalogueCommit": commit,
         "catalogueVersion": version,

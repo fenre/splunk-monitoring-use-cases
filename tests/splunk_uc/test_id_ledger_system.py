@@ -69,7 +69,7 @@ def _write_ledger(fake_repo: pathlib.Path, entries: list[dict[str, Any]]) -> Non
             ]
         normalized.append(row)
     doc = {
-        "schemaVersion": "1.1.0",
+        "schemaVersion": "1.2.0",
         "generatedAt": "2026-09-01T00:00:00Z",
         "catalogueCommit": "abc1234",
         "catalogueVersion": "9.9.9",
@@ -307,6 +307,54 @@ class TestGenerateIdLedger:
         assert by_id["1.1.3"]["firstSeenVersion"] == "9.9.9"
         assert "firstSeenVersionSource" not in by_id["1.1.3"]
 
+    def test_remove_row_with_to_sets_replaced_by(
+        self, fake_repo: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        cat = _make_cat(fake_repo, 1)
+        _write_uc(cat, "1.1.2")
+        fp = id_ledger.content_fingerprint({"title": "Test UC", "spl": "index=x"})
+        previous = {
+            "entries": [
+                {"id": "1.1.1", "status": "active", "contentFingerprint": fp, "firstSeenVersion": "8.25.0"},
+                {"id": "1.1.2", "status": "active", "contentFingerprint": fp, "firstSeenVersion": "8.25.0"},
+            ]
+        }
+        (fake_repo / "data" / "uc-id-migrations" / "retire.json").write_text(
+            json.dumps(
+                {
+                    "schemaVersion": "1.0.0",
+                    "description": "Retire a duplicate",
+                    "changes": [
+                        {"kind": "remove", "from": "1.1.1", "to": "1.1.2", "identityPreserved": False}
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(id_ledger, "discover_removed_ids", lambda _catalogue: set())
+        doc = id_ledger.build_ledger_document(previous=previous)
+        by_id = {e["id"]: e for e in doc["entries"]}
+        assert by_id["1.1.1"]["status"] == "removed"
+        assert by_id["1.1.1"]["replacedBy"] == "1.1.2"
+        assert "replacedBy" not in by_id["1.1.2"]
+
+        again = id_ledger.build_ledger_document(previous=doc, replacements={})
+        assert {e["id"]: e for e in again["entries"]}["1.1.1"]["replacedBy"] == "1.1.2"
+
+    def test_replaced_by_must_point_to_active_use_case(
+        self, fake_repo: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _make_cat(fake_repo, 1)
+        fp = id_ledger.content_fingerprint({"title": "Test UC", "spl": "index=x"})
+        previous = {
+            "entries": [
+                {"id": "1.1.1", "status": "active", "contentFingerprint": fp, "firstSeenVersion": "8.25.0"}
+            ]
+        }
+        monkeypatch.setattr(id_ledger, "discover_removed_ids", lambda _catalogue: set())
+        with pytest.raises(ValueError, match="not an active use case"):
+            id_ledger.build_ledger_document(previous=previous, replacements={"1.1.1": "1.1.9"})
+
     def test_removal_before_baseline_omits_removed_in_version(
         self, fake_repo: pathlib.Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -487,6 +535,16 @@ class TestMigrationBlastGuard:
                     "to": "2.2.2",
                     "identityPreserved": True,
                 }
+            ]
+        }
+        keys = uc_id_migration_blast.manifest_change_keys(manifest)
+        assert uc_id_migration_blast.change_key(change) in keys
+
+    def test_remove_row_pointer_does_not_change_key(self) -> None:
+        change = uc_id_migration_blast.IdentifierChange("remove", "1.1.1", None)
+        manifest = {
+            "changes": [
+                {"kind": "remove", "from": "1.1.1", "to": "1.1.2", "identityPreserved": False}
             ]
         }
         keys = uc_id_migration_blast.manifest_change_keys(manifest)

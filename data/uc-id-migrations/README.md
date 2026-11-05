@@ -70,6 +70,25 @@ changes:
 }
 ```
 
+### Retiring a duplicate (remove row with a pointer)
+
+When two use cases cover the same detection, delete the duplicate's sidecar
+and add a `remove` row whose `to` names the use case that is kept. The
+identifier stays retired and is never reissued
+([ADR-0016](../../docs/adr/0016-permanent-uc-identifiers.md)).
+`generate-id-ledger` copies `to` into the removed entry's `replacedBy`, and
+fails if `to` is not an active use case:
+
+```json
+{
+  "kind": "remove",
+  "from": "10.3.587",
+  "to": "10.3.300",
+  "identityPreserved": false,
+  "note": "Ran the same ESCU search as UC-10.3.300. UC-10.3.300 is kept."
+}
+```
+
 ## CI gate
 
 `python -m splunk_uc audit-uc-id-migration-blast --check` compares the **whole
