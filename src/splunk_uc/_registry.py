@@ -782,7 +782,11 @@ register(
     Verb(
         name="generate-id-ledger",
         module="generators.id_ledger",
-        help="Generate or verify the append-only UC identifier ledger (data/id-ledger.json).",
+        help=(
+            "Refresh id, status, and firstSeenVersion in data/id-ledger.json. "
+            "--record-revisions appends fingerprint history (release.yml). "
+            "--check does not require the latest content fingerprint."
+        ),
         category="generators",
     )
 )

@@ -38,16 +38,19 @@ Enforcement (catalogue version **8.26.0** onward; **8.25.0** is the
 historical baseline):
 
 1. **`data/id-ledger.json`** — append-only record of every identifier ever
-   issued: `id`, `status` (`active` | `removed`), `firstSeenVersion`,
-   `contentFingerprint` (SHA-256 over `title` + `spl`) and
-   `fingerprintRevisions[]`. Revision 1 of every identifier present at tag
-   `v8.25.0` is hashed from that tag's content; later edits are appended as
-   new revisions. The 348 identifiers whose title or SPL changed between
-   v8.25.0 and v8.26.0 (before enforcement existed) are classified in
+   issued: `id`, `status` (`active` | `removed`), `firstSeenVersion`, and
+   `fingerprintRevisions[]` (SHA-256 over `title` plus the primary product's
+   fingerprint fields, `spl` on the Splunk platform). Revision 1 of every
+   identifier present at tag `v8.25.0` is hashed from that tag's content.
+   Later revisions are appended when a version is cut, not on every pull
+   request. The 348 identifiers whose title or SPL changed between v8.25.0
+   and v8.26.0 (before enforcement existed) are classified in
    `data/uc-id-migrations/2026-10-28-v8.26.0-identity-baseline.json`.
-2. **`audit-uc-ids`** — hard CI failures for fingerprint mismatch, reuse of a
+2. **`audit-uc-ids`** — hard CI failures for duplicate identifiers, reuse of a
    removed identifier, or catalogue IDs missing from the ledger. **No gap
-   detection.**
+   detection. No live-fingerprint match on pull requests.** The build writes
+   the live fingerprint into `dist/data/id-ledger.json`. `release.yml` runs
+   `generate-id-ledger --record-revisions` and commits the appended history.
 3. **`audit-uc-id-migration-blast`** — fail when a PR changes more than **10**
    identifiers unless a committed manifest under `data/uc-id-migrations/`
    lists every change and `identityPreserved` per row.
@@ -67,8 +70,10 @@ The positional `UC-X.Y.Z` string remains the public identifier for now. Opaque
 
 **Negative:**
 
-- Legitimate content edits on an active ID require regenerating the ledger
-  (`python -m splunk_uc generate-id-ledger`) in the same PR.
+- Adding or removing an identifier still requires
+  `python -m splunk_uc generate-id-ledger` in the same PR. A title or SPL
+  edit does not. The recorded fingerprint lags the sidecars until the next
+  version cut.
 - The ledger file is large (~19k rows including historical removals).
 - Pre-guarantee collisions in category 25 remain documented but not fixed.
 

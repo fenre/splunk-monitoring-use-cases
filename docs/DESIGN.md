@@ -235,7 +235,7 @@ If there is no sensible CIM data model, use `- **CIM Models:** N/A` and omit the
 ### 5.5 Rules that are not obvious
 
 - UC IDs must be **unique repo-wide**, not just per file.
-- UC IDs must appear in [`data/id-ledger.json`](../data/id-ledger.json) with a matching content fingerprint. Run `python -m splunk_uc generate-id-ledger` after adding, removing, or editing title/SPL on an active identifier.
+- UC IDs must appear in [`data/id-ledger.json`](../data/id-ledger.json) with `id`, `status`, and `firstSeenVersion`. Run `python -m splunk_uc generate-id-ledger` after adding or removing an identifier. A title or SPL edit does not update the ledger on the pull request: the build computes the live content fingerprint, and `release.yml` appends a `fingerprintRevisions` row when a version is cut.
 - **Gaps in `Z` within a subcategory are expected** when a use case is removed or relocated; do not backfill or renumber to close them. [`audit-uc-ids`](../src/splunk_uc/audits/uc_ids.py) enforces permanent identity, not gap-free ordering.
 - The SPL fenced block must immediately follow the `- **SPL:**` line. Intervening prose breaks the parser.
 - Multi-model CIM lists are comma-separated: `- **CIM Models:** Authentication, Change`.
@@ -399,7 +399,7 @@ All audits are pure Python (stdlib) and live under [`scripts/`](../scripts/). Ea
 | Script | Checks |
 |---|---|
 | [`audit-uc-ids`](../../src/splunk_uc/audits/uc_ids.py) | Repo-wide UC ID uniqueness; `X` vs filename; permanent-identity ledger invariants |
-| [`generate-id-ledger`](../../src/splunk_uc/generators/id_ledger.py) | Regenerate `data/id-ledger.json` from the live catalogue |
+| [`generate-id-ledger`](../../src/splunk_uc/generators/id_ledger.py) | Refresh `id`, `status`, and `firstSeenVersion` in `data/id-ledger.json`. `--record-revisions` appends fingerprint history at release |
 | [`audit-uc-id-migration-blast`](../../src/splunk_uc/audits/uc_id_migration_blast.py) | Block bulk identifier remaps without a committed migration manifest |
 | [`audit_uc_structure.py`](../scripts/audit_uc_structure.py) | Required fields present; enum values valid; SPL fenced block present |
 | [`audit_catalog_schema.py`](../scripts/audit_catalog_schema.py) | `catalog.json` shape: categories, subcategories, required keys, enum values (including per-UC `wv` / `pre` shape and the top-level `implementationRoadmap` object) |

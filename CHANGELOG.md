@@ -14,6 +14,15 @@ the release notes block in `index.html` by hand.
 
 ### Changed
 
+- **Identifier fingerprints are recorded at release.** Git keeps `id`,
+  `status`, `firstSeenVersion`, and the fingerprint revisions already
+  recorded. A pull request that edits a title or SPL no longer updates
+  `data/id-ledger.json` and no longer fails `generate-id-ledger --check`
+  or `audit-uc-ids` for fingerprint drift. Adding, removing, or reusing
+  an identifier still fails those checks. The build writes the live
+  fingerprint into `dist/data/id-ledger.json` without appending history.
+  `release.yml` runs `generate-id-ledger --record-revisions` and commits
+  the new revisions to `main` when a version is cut.
 - **CI stamps generated dates from the HEAD commit.** `setup-python`
   sets `SOURCE_DATE_EPOCH` to `git log -1 --format=%ct` before generators
   and the build, so two runs of one commit match and a new commit moves

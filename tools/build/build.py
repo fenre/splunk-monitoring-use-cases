@@ -215,7 +215,26 @@ def _stage_public(opts: BuildOptions) -> None:
             shutil.copy2(src, dst)
 
     _copy_project_assets(out)
+    _publish_id_ledger(out)
     _log("public/ + project assets copied", t0)
+
+
+def _publish_id_ledger(out: Path) -> None:
+    """Write live content fingerprints into the published ledger.
+
+    Git keeps the recorded revision history. ``dist/data/id-ledger.json``
+    carries the fingerprint of the sidecars this build read. When those
+    already match the committed file, the copied bytes are left alone.
+    """
+    dst = out / "data" / "id-ledger.json"
+    if not dst.is_file():
+        return
+    from splunk_uc.id_ledger import published_ledger_text
+
+    source = dst.read_text(encoding="utf-8")
+    published = published_ledger_text(source)
+    if published != source:
+        dst.write_text(published, encoding="utf-8")
 
 
 def _copy_project_assets(out: Path) -> None:

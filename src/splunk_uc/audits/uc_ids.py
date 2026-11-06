@@ -101,7 +101,10 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=(
             "Audit UC-* IDs in content/cat-*/UC-*.json for duplicates, wrong category, "
-            "filename mismatch, and permanent-identity ledger invariants."
+            "filename mismatch, and permanent-identity ledger invariants "
+            "(no reuse of a removed id, no missing ledger row, no duplicate id). "
+            "A title or SPL edit does not fail this audit; the build computes "
+            "the live fingerprint and release.yml records it."
         )
     )
     parser.parse_args(argv)

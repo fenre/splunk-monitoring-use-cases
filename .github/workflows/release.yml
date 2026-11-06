@@ -17,10 +17,10 @@ name: Release
 # It can also be triggered manually via "workflow_dispatch"; the user
 # supplies the version string in that case.
 #
-# The workflow is **read-only** on the repo filesystem (nothing is
-# committed back) and uses the built-in GITHUB_TOKEN with
-# `contents: write` scope only for creating the release and uploading
-# the .spl artefacts.
+# The workflow uses the built-in GITHUB_TOKEN with `contents: write`
+# to create the release, upload the .spl artefacts, and, when a
+# fingerprint changed since the last cut, commit the appended
+# id-ledger revision history back to main. Nothing else is committed.
 
 on:
   push:
@@ -94,6 +94,44 @@ jobs:
             echo "::error::CHANGELOG top entry (${CL_VER}) does not match release (${VER})"
             exit 1
           fi
+
+      - name: Record identifier fingerprint revisions
+        # Pull requests keep id, status, firstSeenVersion, and the
+        # revisions already in git. A version cut appends one revision
+        # per identifier whose title or SPL changed since the last cut.
+        # The catalogue build below copies this file into dist/.
+        run: PYTHONPATH=src python3 -m splunk_uc generate-id-ledger --record-revisions
+
+      - name: Commit recorded identifier revisions
+        # Tag pushes cut a version from main. workflow_dispatch can be
+        # pointed at an older ref; recording stays in that run's
+        # artefacts and is not pushed back onto main.
+        if: github.event_name == 'push'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/id-ledger.json
+          if git diff --cached --quiet; then
+            echo "No identifier revisions to record."
+            exit 0
+          fi
+          git commit -m "chore(id-ledger): record content fingerprints for v${{ steps.resolve.outputs.version }}"
+          # The tag checkout is detached at the release commit. Push the
+          # new commit onto main so the recorded history stays in git.
+          # Concurrent pushes to main are rebased and retried; this commit
+          # touches only data/id-ledger.json.
+          push_attempts=0
+          max_attempts=5
+          until git push origin HEAD:main; do
+            push_attempts=$((push_attempts + 1))
+            if [ "$push_attempts" -ge "$max_attempts" ]; then
+              echo "::error::Failed to push id-ledger revisions after $max_attempts attempts."
+              exit 1
+            fi
+            echo "Push rejected (remote advanced); rebasing and retrying ($push_attempts/$max_attempts)…"
+            git fetch origin main
+            git rebase origin/main
+          done
 
       - name: Regenerate catalog artefacts
         run: python3 tools/build/build.py --out dist

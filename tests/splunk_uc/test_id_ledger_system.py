@@ -182,7 +182,7 @@ class TestLedgerValidation:
         issues = id_ledger.validate_catalogue_against_ledger()
         assert any("Reuse of removed identifier" in i for i in issues)
 
-    def test_fingerprint_mismatch_fails(self, fake_repo: pathlib.Path) -> None:
+    def test_fingerprint_drift_is_not_a_pull_request_failure(self, fake_repo: pathlib.Path) -> None:
         cat = _make_cat(fake_repo, 1)
         _write_uc(cat, "1.1.1", title="Live title", spl="index=live")
         _write_ledger(
@@ -196,8 +196,7 @@ class TestLedgerValidation:
                 }
             ],
         )
-        issues = id_ledger.validate_catalogue_against_ledger()
-        assert any("Fingerprint mismatch" in i for i in issues)
+        assert id_ledger.validate_catalogue_against_ledger() == []
 
 
 class TestAuditUcIdsIntegration:
@@ -406,7 +405,7 @@ class TestGenerateIdLedger:
         assert doc["generatedAt"] == "2026-09-01T00:00:00Z"
         assert doc["catalogueCommit"] == "abc1234"
 
-    def test_header_refreshes_when_entries_change(
+    def test_title_edit_keeps_recorded_history(
         self, fake_repo: pathlib.Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         cat = _make_cat(fake_repo, 1)
@@ -427,8 +426,39 @@ class TestGenerateIdLedger:
         }
         monkeypatch.setattr(id_ledger, "discover_removed_ids", lambda _catalogue: set())
         doc = id_ledger.build_ledger_document(previous=previous)
+        assert doc["generatedAt"] == "2026-09-01T00:00:00Z"
+        assert doc["catalogueCommit"] == "abc1234"
+        assert doc["entries"][0]["contentFingerprint"] == "a" * 64
+        assert len(doc["entries"][0]["fingerprintRevisions"]) == 1
+
+    def test_record_revisions_appends_and_refreshes_header(
+        self, fake_repo: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        cat = _make_cat(fake_repo, 1)
+        _write_uc(cat, "1.1.1", title="Edited")
+        previous = {
+            "generatedAt": "2026-09-01T00:00:00Z",
+            "catalogueCommit": "abc1234",
+            "catalogueVersion": "9.9.9",
+            "entries": [
+                {
+                    "id": "1.1.1",
+                    "status": "active",
+                    "contentFingerprint": "a" * 64,
+                    "fingerprintRevisions": [{"contentFingerprint": "a" * 64, "catalogueVersion": "8.25.0"}],
+                    "firstSeenVersion": "8.25.0",
+                }
+            ],
+        }
+        monkeypatch.setattr(id_ledger, "discover_removed_ids", lambda _catalogue: set())
+        monkeypatch.setattr(id_ledger, "_git_short_head", lambda: "deadbeef")
+        doc = id_ledger.build_ledger_document(previous=previous, record_revisions=True)
         assert doc["generatedAt"] != "2026-09-01T00:00:00Z"
         assert len(doc["entries"][0]["fingerprintRevisions"]) == 2
+        assert doc["entries"][0]["fingerprintRevisions"][-1]["catalogueCommit"] == "deadbeef"
+        assert doc["entries"][0]["contentFingerprint"] == id_ledger.content_fingerprint(
+            {"title": "Edited", "spl": "index=x"}
+        )
 
     def test_main_writes_then_check_passes(
         self, fake_repo: pathlib.Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
@@ -463,7 +493,32 @@ class TestGenerateIdLedger:
         assert gen_id_ledger.main(["--check"]) == 1
         assert "missing" in capsys.readouterr().err
 
-    def test_main_check_fails_when_catalogue_changed(
+    def test_main_check_ignores_title_edit(
+        self, fake_repo: pathlib.Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        cat = _make_cat(fake_repo, 1)
+        _write_uc(cat, "1.1.1")
+        fp = id_ledger.content_fingerprint({"title": "Test UC", "spl": "index=x"})
+        _write_ledger(
+            fake_repo,
+            [
+                {
+                    "id": "1.1.1",
+                    "status": "active",
+                    "contentFingerprint": fp,
+                    "firstSeenVersion": "8.25.0",
+                }
+            ],
+        )
+        monkeypatch.setattr(id_ledger, "discover_removed_ids", lambda _catalogue: set())
+        # Canonicalise the simplified fixture, then edit the title.
+        assert gen_id_ledger.main([]) == 0
+        capsys.readouterr()
+        _write_uc(cat, "1.1.1", title="Renamed")
+        assert gen_id_ledger.main(["--check"]) == 0
+        assert "PASS: id-ledger OK" in capsys.readouterr().out
+
+    def test_main_check_fails_when_uc_added(
         self, fake_repo: pathlib.Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
         cat = _make_cat(fake_repo, 1)
@@ -482,9 +537,49 @@ class TestGenerateIdLedger:
             ],
         )
         monkeypatch.setattr(id_ledger, "discover_removed_ids", lambda _catalogue: set())
-        _write_uc(cat, "1.1.1", title="Renamed")
+        assert gen_id_ledger.main([]) == 0
+        capsys.readouterr()
+        _write_uc(cat, "1.1.2")
         assert gen_id_ledger.main(["--check"]) == 1
         assert "stale" in capsys.readouterr().err
+
+    def test_published_ledger_keeps_bytes_when_current(
+        self, fake_repo: pathlib.Path
+    ) -> None:
+        cat = _make_cat(fake_repo, 1)
+        _write_uc(cat, "1.1.1")
+        fp = id_ledger.content_fingerprint({"title": "Test UC", "spl": "index=x"})
+        _write_ledger(
+            fake_repo,
+            [{"id": "1.1.1", "status": "active", "contentFingerprint": fp, "firstSeenVersion": "8.25.0"}],
+        )
+        text = (fake_repo / "data" / "id-ledger.json").read_text(encoding="utf-8")
+        assert id_ledger.published_ledger_text(text) == text
+
+    def test_published_ledger_updates_fingerprint_without_new_revision(
+        self, fake_repo: pathlib.Path
+    ) -> None:
+        cat = _make_cat(fake_repo, 1)
+        _write_uc(cat, "1.1.1", title="Edited")
+        _write_ledger(
+            fake_repo,
+            [
+                {
+                    "id": "1.1.1",
+                    "status": "active",
+                    "contentFingerprint": "a" * 64,
+                    "firstSeenVersion": "8.25.0",
+                }
+            ],
+        )
+        text = (fake_repo / "data" / "id-ledger.json").read_text(encoding="utf-8")
+        published = json.loads(id_ledger.published_ledger_text(text))
+        row = published["entries"][0]
+        assert row["contentFingerprint"] == id_ledger.content_fingerprint(
+            {"title": "Edited", "spl": "index=x"}
+        )
+        assert len(row["fingerprintRevisions"]) == 1
+        assert row["fingerprintRevisions"][0]["contentFingerprint"] == "a" * 64
 
     def test_main_reseed_fails_when_baseline_tag_is_absent(
         self, fake_repo: pathlib.Path, capsys: pytest.CaptureFixture[str]

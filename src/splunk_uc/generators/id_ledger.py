@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
-"""Generate or verify ``data/id-ledger.json`` from the live catalogue."""
+"""Generate or verify ``data/id-ledger.json`` from the live catalogue.
+
+The default rewrite refreshes membership only: new identifiers, removals,
+and ``firstSeenVersion``. It does not append a fingerprint revision when
+title or SPL changes. ``--record-revisions`` does that, and ``release.yml``
+runs it when a version is cut. ``--check`` fails when membership or the
+recorded history would change, not when the live fingerprint is ahead of
+the last recorded revision.
+"""
 
 from __future__ import annotations
 
@@ -33,7 +41,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--check",
         action="store_true",
-        help="Recompute the ledger and fail if data/id-ledger.json would change.",
+        help=(
+            "Recompute membership and fail if data/id-ledger.json would change. "
+            "Does not require the latest content fingerprint."
+        ),
+    )
+    parser.add_argument(
+        "--record-revisions",
+        action="store_true",
+        help=(
+            "Append a fingerprint revision for content that changed since the "
+            "last recorded revision. release.yml runs this when a version is cut."
+        ),
     )
     parser.add_argument(
         "--reseed",
@@ -60,6 +79,7 @@ def main(argv: list[str] | None = None) -> int:
         catalogue=catalogue,
         previous=None if args.reseed else previous,
         baseline=baseline,
+        record_revisions=args.record_revisions,
     )
     revision_issues = validate_ledger_revision_monotonicity(previous, generated)
     rendered = _canonical_json(generated)
@@ -76,7 +96,8 @@ def main(argv: list[str] | None = None) -> int:
         on_disk = LEDGER_PATH.read_text(encoding="utf-8")
         if on_disk != rendered:
             print(
-                "FAIL: data/id-ledger.json is stale — run "
+                "FAIL: data/id-ledger.json is stale (id, status, firstSeenVersion, "
+                "or recorded history) — run "
                 "PYTHONPATH=src python3 -m splunk_uc generate-id-ledger",
                 file=sys.stderr,
             )
@@ -89,6 +110,11 @@ def main(argv: list[str] | None = None) -> int:
         for issue in revision_issues:
             print(f"  - {issue}", file=sys.stderr)
         return 1
+
+    on_disk = LEDGER_PATH.read_text(encoding="utf-8") if LEDGER_PATH.is_file() else None
+    if on_disk == rendered:
+        print(f"id-ledger unchanged ({generated['entryCount']} entries)")
+        return 0
 
     LEDGER_PATH.parent.mkdir(parents=True, exist_ok=True)
     LEDGER_PATH.write_text(rendered, encoding="utf-8")

@@ -1,9 +1,11 @@
 """UC identifier ledger — permanent ID contract and content fingerprints.
 
-An identifier, once published, permanently refers to one use case. The
-append-only ledger records every identifier ever issued, its status, and a
-stable content fingerprint (title + primary SPL) so CI can detect silent
-reuse without renumbering the catalogue.
+An identifier, once published, permanently refers to one use case. Git
+keeps every identifier, its status, the version that first issued it, and
+the fingerprint revisions recorded when it was issued and at each release.
+Pull requests do not refresh the latest fingerprint. The build computes
+that from the sidecars, and ``release.yml`` appends a revision when a
+version is cut.
 """
 
 from __future__ import annotations
@@ -437,15 +439,33 @@ def _active_entry(
     prior: dict[str, Any],
     baseline: dict[str, dict[str, Any]] | None,
     version: str,
+    *,
+    record_revisions: bool = False,
+    catalogue_commit: str | None = None,
 ) -> dict[str, Any]:
     fp = content_fingerprint(payload)
     fields = fingerprint_field_names(payload)
     if prior:
-        revisions = merge_fingerprint_revisions(prior, fp, version, fields=fields)
+        if record_revisions:
+            revisions = merge_fingerprint_revisions(
+                prior, fp, version, catalogue_commit, fields
+            )
+            recorded = fp
+        else:
+            # Keep the recorded history. A title or SPL edit waits for the
+            # release cut; it does not append a revision on a pull request.
+            revisions = list(entry_fingerprint_revisions(prior))
+            if not revisions:
+                revisions = [
+                    _revision_record(
+                        fp, str(prior.get("firstSeenVersion") or version), fields=fields
+                    )
+                ]
+            recorded = latest_fingerprint({"fingerprintRevisions": revisions}) or fp
         entry: dict[str, Any] = {
             "id": uc_id,
             "status": "active",
-            "contentFingerprint": fp,
+            "contentFingerprint": recorded,
             "fingerprintRevisions": revisions,
             "firstSeenVersion": prior.get("firstSeenVersion") or version,
         }
@@ -579,6 +599,7 @@ def build_ledger_document(
     previous: dict[str, Any] | None = None,
     baseline: dict[str, dict[str, Any]] | None = None,
     replacements: dict[str, str] | None = None,
+    record_revisions: bool = False,
 ) -> dict[str, Any]:
     """Build the ledger, appending to ``previous`` when given.
 
@@ -586,10 +607,16 @@ def build_ledger_document(
     identifiers with no prior row, i.e. when seeding the ledger from scratch.
     Header timestamps and commit are carried over unchanged when the entries
     and catalogue version are unchanged, so ``--check`` is reproducible.
+
+    ``record_revisions`` appends a fingerprint revision when an existing
+    identifier's content changed. Release uses it. Pull-request checks leave
+    the recorded history as it stands and only refresh membership: new ids,
+    removals, and ``firstSeenVersion``.
     """
     catalogue = catalogue or catalogue_index()
     previous_entries = ledger_entries_by_id(previous) if previous else {}
     version = read_catalogue_version()
+    catalogue_commit = _git_short_head() if record_revisions else None
 
     removed_ids = discover_removed_ids(catalogue)
     removed_ids.update(uc_id for uc_id in previous_entries if uc_id not in catalogue)
@@ -598,7 +625,13 @@ def build_ledger_document(
     for uc_id in sorted(catalogue.keys(), key=_id_sort_key):
         entries.append(
             _active_entry(
-                uc_id, catalogue[uc_id].payload, previous_entries.get(uc_id, {}), baseline, version
+                uc_id,
+                catalogue[uc_id].payload,
+                previous_entries.get(uc_id, {}),
+                baseline,
+                version,
+                record_revisions=record_revisions,
+                catalogue_commit=catalogue_commit,
             )
         )
     if replacements is None:
@@ -662,7 +695,7 @@ def validate_catalogue_against_ledger(
     by_id = ledger_entries_by_id(ledger)
     issues: list[str] = []
 
-    for uc_id, uc in sorted(catalogue.items(), key=lambda kv: kv[0]):
+    for uc_id, _uc in sorted(catalogue.items(), key=lambda kv: kv[0]):
         entry = by_id.get(uc_id)
         if entry is None:
             issues.append(f"Catalogue id {uc_id!r} is missing from data/id-ledger.json")
@@ -675,15 +708,6 @@ def validate_catalogue_against_ledger(
             continue
         if status != "active":
             issues.append(f"Catalogue id {uc_id!r} has unexpected ledger status {status!r}")
-            continue
-        expected = content_fingerprint(uc.payload)
-        recorded = latest_fingerprint(entry)
-        if recorded and recorded != expected:
-            issues.append(
-                f"Fingerprint mismatch for {uc_id!r}: ledger has {recorded[:12]}… "
-                f"but catalogue computes {expected[:12]}… "
-                "(run python -m splunk_uc generate-id-ledger to refresh, or record an explicit migration)"
-            )
 
     active_ids = set(catalogue.keys())
     for uc_id, entry in sorted(by_id.items()):
@@ -694,3 +718,31 @@ def validate_catalogue_against_ledger(
             )
 
     return issues
+
+
+def published_ledger_text(
+    source: str,
+    catalogue: dict[str, CatalogueUC] | None = None,
+) -> str:
+    """Ledger text for ``dist/``, with each active fingerprint computed live.
+
+    ``fingerprintRevisions`` stay as recorded in git. When every live
+    fingerprint already matches the file, the original text is returned
+    unchanged so a build of unchanged content is byte-identical.
+    """
+    doc = json.loads(source)
+    catalogue = catalogue_index() if catalogue is None else catalogue
+    changed = False
+    for entry in doc.get("entries", []):
+        if not isinstance(entry, dict) or str(entry.get("status")) != "active":
+            continue
+        uc = catalogue.get(str(entry.get("id", "")).strip())
+        if uc is None:
+            continue
+        live = content_fingerprint(uc.payload)
+        if entry.get("contentFingerprint") != live:
+            entry["contentFingerprint"] = live
+            changed = True
+    if not changed:
+        return source
+    return json.dumps(doc, indent=2, ensure_ascii=False) + "\n"
