@@ -143,7 +143,7 @@ share the same identity, last-modified stamp, and catalogue version.
 
 All audits are in `.github/workflows/ci.yml`. Key steps:
 
-- UC ID uniqueness and permanent-identity ledger (`audit-uc-ids`, `data/id-ledger.json`)
+- UC ID uniqueness and permanent-identity ledger (`audit-uc-ids`, `data/id-ledger.json`; id, status, firstSeenVersion, and recorded history — the live content fingerprint is computed at build time and appended in `release.yml`)
 - UC identifier blast-radius guard (`audit-uc-id-migration-blast` — bulk remaps require a manifest)
 - Product fit (`audit-uc-product-fit --check`, warn-only — UCs whose SPL fakes another Splunk product; verdicts in `data/product-fit-review.json`)
 - UC structure and required fields
@@ -200,8 +200,9 @@ PYTHONPATH=src python3 -m splunk_uc lift-batch --category cat-NN # manifest of w
 PYTHONPATH=src python3 -m splunk_uc generate-equipment-app-map       # regenerate equipment slug → Splunkbase/DSA map
 PYTHONPATH=src python3 -m splunk_uc audit-equipment-app-map --check  # validate data/equipment-app-map.json
 PYTHONPATH=src python3 -m splunk_uc audit-uc-ids # UC ID uniqueness + permanent-identity ledger gate
-PYTHONPATH=src python3 -m splunk_uc generate-id-ledger # regenerate data/id-ledger.json after UC add/remove/title+SPL edit
-PYTHONPATH=src python3 -m splunk_uc generate-id-ledger --check # CI drift gate for the identifier ledger
+PYTHONPATH=src python3 -m splunk_uc generate-id-ledger # refresh id, status, and firstSeenVersion after a UC add/remove
+PYTHONPATH=src python3 -m splunk_uc generate-id-ledger --check # CI drift gate; does not require the latest content fingerprint
+PYTHONPATH=src python3 -m splunk_uc generate-id-ledger --record-revisions # append fingerprint history (release.yml, when a version is cut)
 PYTHONPATH=src python3 -m splunk_uc audit-uc-id-migration-blast --check # bulk identifier remap blast-radius guard
 PYTHONPATH=src python3 -m splunk_uc lift-validate UC-X.Y.Z --diff <path>  # apply + firewall-check an AI diff
 ```

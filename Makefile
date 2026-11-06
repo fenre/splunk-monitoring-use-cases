@@ -199,10 +199,10 @@ audit-auto-gen-provenance: ## Verify every auto-generated doc carries a 'Generat
 audit-ids: ## Validate UC IDs (duplicates, category match, permanent-identity ledger)
 	$(SPLUNK_UC) audit-uc-ids
 
-audit-id-ledger: ## Regenerate data/id-ledger.json from the live catalogue
+audit-id-ledger: ## Refresh id, status, and firstSeenVersion in data/id-ledger.json
 	$(SPLUNK_UC) generate-id-ledger
 
-audit-id-ledger-check: ## CI drift gate for data/id-ledger.json
+audit-id-ledger-check: ## CI drift gate: membership and recorded history, not the live fingerprint
 	$(SPLUNK_UC) generate-id-ledger --check
 
 audit-uc-id-migration-blast: ## Fail when bulk identifier changes lack a migration manifest
