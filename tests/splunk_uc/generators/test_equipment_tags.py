@@ -794,3 +794,24 @@ class TestCiscoPortfolioModels:
     def test_generic_phrases_do_not_tag_cisco_products(self, text: str) -> None:
         models = self._models(dataSources=text, description=text)
         assert not [m for m in models if m.startswith("cisco_")]
+
+
+# Ceilings match the committed residue. A smaller file passes; a larger
+# file fails. Lower both numbers in the same change that removes tags so
+# the residue cannot grow back. Oppgave 21 (equipment tagger evidence
+# rule for all vendors) decides which retained tags are real.
+RETAINED_UC_CEILING = 6306
+RETAINED_TAG_CEILING = 6891
+
+
+def test_retained_equipment_tags_only_shrink() -> None:
+    payload = json.loads(et._RETAINED_PATH.read_text(encoding="utf-8"))
+    retained = payload["retained"]
+    tag_count = sum(
+        len(entry.get("equipment") or []) + len(entry.get("equipmentModels") or [])
+        for entry in retained.values()
+    )
+    assert len(retained) <= RETAINED_UC_CEILING
+    assert tag_count <= RETAINED_TAG_CEILING
+    assert "may only shrink" in payload["$comment"]
+    assert "Oppgave 21" in payload["$comment"]

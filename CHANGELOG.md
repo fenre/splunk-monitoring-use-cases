@@ -60,7 +60,9 @@ the release notes block in `index.html` by hand.
   Sidecars no longer store the arrays. Tags the current text no longer
   implies stay in `src/splunk_uc/generators/equipment_tag_retained.json`,
   which is not copied into `dist/`, so the published catalogue stays
-  byte-identical.
+  byte-identical. The residue may only shrink: its test fails if a use
+  case or tag is added. Oppgave 21 (equipment tagger evidence rule for
+  all vendors) decides which retained tags are real.
 - **CI critical path.** The fixture dry-run reads `catalog.json` once.
   Unit tests share one session-scoped catalogue load, and the real-build
   smoke is marked `nightly`. The catalog artifact uploads as one tar. Sidecar quality scores
