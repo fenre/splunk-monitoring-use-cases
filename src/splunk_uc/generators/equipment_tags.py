@@ -267,7 +267,7 @@ def _engine() -> tuple[
         )
         patterns = [p for p in compile_patterns(equipment_registry) if p[1] not in gated_ids]
         _ENGINE = (patterns, gated, gated_owned, _load_overrides(), _load_retained())
-    return _ENGINE  # type: ignore[return-value]
+    return _ENGINE
 
 
 def tags_for_sidecar(
