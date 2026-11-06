@@ -28,36 +28,38 @@ Grades:
 
 ## Global rollup
 
-- **Total UCs:** 7,929
-- **Weighted composite score:** 72.0 — overall grade **Silver**
+- **Total UCs:** 16,726
+- **Weighted composite score:** 71.0 — overall grade **Silver**
 
 ## Per-category scorecard
 
 | Cat | Category | UCs | Depth | Refs | KFP | MITRE* | Fresh | Prov. | Samples | Composite | Grade |
 | --- | -------- | --- | ----- | ---- | --- | ------ | ----- | ----- | ------- | --------- | ----- |
-| 1 | Server & Compute | 281 | 35 | 100.0% | 96.4% | 0% | 23d | 98 | 1.8% | **71.4** | **Silver** |
-| 2 | Virtualization | 224 | 35 | 100.0% | 100.0% | 30% | 23d | 71 | 23.2% | **70.2** | **Silver** |
-| 3 | Containers & Orchestration | 129 | 89 | 100.0% | 100.0% | 20% | 21d | 92 | 0.8% | **83.0** | **Silver** |
-| 4 | Cloud Infrastructure | 227 | 36 | 100.0% | 100.0% | 83% | — | 100 | 0.9% | **63.8** | **Bronze** |
-| 5 | Network Infrastructure | 720 | 61 | 100.0% | 100.0% | 12% | 14d | 60 | 3.2% | **70.6** | **Silver** |
-| 6 | Storage & Backup | 152 | 36 | 100.0% | 100.0% | 0% | 23d | 63 | 0.0% | **64.7** | **Bronze** |
-| 7 | Database & Data Platforms | 187 | 36 | 100.0% | 100.0% | 0% | 350d | 72 | 0.0% | **61.4** | **Bronze** |
-| 8 | Application Infrastructure | 241 | 37 | 100.0% | 100.0% | 0% | 23d | 55 | 0.0% | **63.4** | **Bronze** |
-| 9 | Identity & Access Management | 116 | 36 | 100.0% | 100.0% | 75% | 23d | 92 | 0.9% | **76.6** | **Silver** |
-| 10 | Security Infrastructure | 2,455 | 28 | 100.0% | 99.0% | 84% | 23d | 87 | 0.3% | **74.5** | **Silver** |
-| 11 | Email & Collaboration | 135 | 35 | 100.0% | 100.0% | 4% | 23d | 83 | 0.0% | **69.1** | **Bronze** |
-| 12 | DevOps & CI/CD | 126 | 36 | 100.0% | 100.0% | 0% | 23d | 76 | 0.8% | **67.5** | **Bronze** |
-| 13 | Observability & Monitoring Stack | 184 | 62 | 100.0% | 100.0% | 3% | 21d | 82 | 0.5% | **74.0** | **Silver** |
-| 14 | IoT & Operational Technology (OT) | 249 | 36 | 100.0% | 94.0% | 0% | 23d | 94 | 0.0% | **70.3** | **Silver** |
-| 15 | Data Center Physical Infrastructure | 117 | 34 | 100.0% | 100.0% | 0% | 23d | 75 | 0.0% | **67.0** | **Bronze** |
-| 16 | Service Management & ITSM | 102 | 34 | 100.0% | 100.0% | 0% | 23d | 84 | 0.0% | **68.5** | **Bronze** |
-| 17 | Network Security & Zero Trust | 208 | 41 | 100.0% | 100.0% | 73% | 11d | 60 | 0.0% | **71.2** | **Silver** |
-| 18 | Data Center Fabric & SDN | 76 | 87 | 100.0% | 100.0% | 27% | 18d | 100 | 0.0% | **84.5** | **Silver** |
-| 19 | Compute Infrastructure (HCI & Converged) | 93 | 76 | 100.0% | 100.0% | 12% | 22d | 82 | 0.0% | **77.5** | **Silver** |
-| 20 | Cost & Capacity Management | 77 | 36 | 100.0% | 100.0% | 0% | 21d | 100 | 0.0% | **72.2** | **Silver** |
-| 21 | Industry Verticals | 146 | 39 | 100.0% | 100.0% | 0% | 17d | 91 | 0.0% | **70.9** | **Silver** |
-| 22 | Regulatory and Compliance Frameworks | 1,621 | 44 | 100.0% | 100.0% | 26% | 25d | 83 | 0.0% | **72.4** | **Silver** |
-| 23 | Business Analytics & Executive Intelligence | 63 | 79 | 100.0% | 100.0% | 0% | 19d | 100 | 0.0% | **80.9** | **Silver** |
+| 1 | Server & Compute | 281 | 62 | 100.0% | 100.0% | 92% | 101d | 92 | 1.8% | **81.2** | **Silver** |
+| 2 | Virtualization | 224 | 74 | 100.0% | 100.0% | 70% | 196d | 98 | 23.2% | **81.2** | **Silver** |
+| 3 | Containers & Orchestration | 133 | 80 | 100.0% | 100.0% | 20% | 194d | 97 | 0.8% | **76.8** | **Silver** |
+| 4 | Cloud Infrastructure | 1,235 | 68 | 100.0% | 100.0% | 89% | — | 100 | 0.2% | **70.7** | **Silver** |
+| 5 | Network Infrastructure | 720 | 81 | 100.0% | 100.0% | 17% | 187d | 100 | 3.2% | **77.5** | **Silver** |
+| 6 | Storage & Backup | 152 | 71 | 100.0% | 100.0% | 0% | 196d | 100 | 0.0% | **73.9** | **Silver** |
+| 7 | Database & Data Platforms | 187 | 77 | 100.0% | 100.0% | 0% | 523d | 100 | 0.0% | **71.5** | **Silver** |
+| 8 | Application Infrastructure | 241 | 68 | 100.0% | 100.0% | 0% | 196d | 100 | 0.0% | **73.4** | **Silver** |
+| 9 | Identity & Access Management | 120 | 70 | 100.0% | 100.0% | 74% | 196d | 100 | 0.8% | **79.7** | **Silver** |
+| 10 | Security Infrastructure | 2,471 | 69 | 100.0% | 100.0% | 83% | 196d | 99 | 0.3% | **80.1** | **Silver** |
+| 11 | Email & Collaboration | 135 | 71 | 100.0% | 100.0% | 4% | 196d | 100 | 0.0% | **74.2** | **Silver** |
+| 12 | DevOps & CI/CD | 126 | 70 | 100.0% | 100.0% | 0% | 196d | 100 | 0.8% | **73.8** | **Silver** |
+| 13 | Observability & Monitoring Stack | 221 | 65 | 100.0% | 100.0% | 3% | 194d | 92 | 0.5% | **71.4** | **Silver** |
+| 14 | IoT & Operational Technology (OT) | 252 | 64 | 100.0% | 100.0% | 0% | 196d | 100 | 0.0% | **72.5** | **Silver** |
+| 15 | Data Center Physical Infrastructure | 117 | 80 | 100.0% | 100.0% | 38% | 196d | 100 | 0.0% | **78.8** | **Silver** |
+| 16 | Service Management & ITSM | 102 | 64 | 100.0% | 100.0% | 0% | 196d | 100 | 0.0% | **72.6** | **Silver** |
+| 17 | Network Security & Zero Trust | 217 | 75 | 100.0% | 100.0% | 74% | 184d | 100 | 0.0% | **80.7** | **Silver** |
+| 18 | Data Center Fabric & SDN | 77 | 86 | 100.0% | 100.0% | 28% | 191d | 100 | 0.0% | **79.1** | **Silver** |
+| 19 | Compute Infrastructure (HCI & Converged) | 93 | 83 | 100.0% | 100.0% | 17% | 195d | 97 | 0.0% | **77.0** | **Silver** |
+| 20 | Cost & Capacity Management | 77 | 74 | 100.0% | 100.0% | 0% | 194d | 100 | 0.0% | **74.6** | **Silver** |
+| 21 | Industry Verticals | 860 | 61 | 100.0% | 100.0% | 100% | 190d | 100 | 0.0% | **79.9** | **Silver** |
+| 22 | Regulatory and Compliance Frameworks | 1,683 | 62 | 100.0% | 100.0% | 28% | 198d | 98 | 0.0% | **73.9** | **Silver** |
+| 23 | Business Analytics & Executive Intelligence | 63 | 72 | 100.0% | 100.0% | 0% | 192d | 99 | 0.0% | **73.9** | **Silver** |
+| 24 | Business Intelligence & Analytics Platforms | 508 | 67 | 100.0% | 100.0% | 0% | — | 100 | 0.0% | **63.5** | **Bronze** |
+| 25 | Personal & Hobbyist Monitoring | 6,431 | 67 | 100.0% | 100.0% | 0% | — | 100 | 0.0% | **63.4** | **Bronze** |
 
 \* MITRE coverage counts only UCs whose `pillar` is `security` or `both`.
 
@@ -70,495 +72,537 @@ weights match the Methodology table above; the `Contribution`
 column shows the weighted dimension score that feeds the composite.
 
 <a id="cat-01-server-compute"></a>
-### 1. Server & Compute — **Silver** (71.4)
+### 1. Server & Compute — **Silver** (81.2)
 
-- **Volume:** 281 UCs (115 security)
+- **Volume:** 281 UCs (265 security)
 - **Content:** [`content/cat-01-server-compute/`](../content/cat-01-server-compute/)
 - **CODEOWNERS row:** `/content/cat-01-server-compute/`
 
 | Dimension | Score | Weight | Contribution |
 | --------- | ----- | ------ | ------------ |
-| Content depth | 35 | 20% | 7.0 |
+| Content depth | 62 | 20% | 12.5 |
 | References | 100.0% | 20% | 20.0 |
-| Provenance authority | 98 | 20% | 19.7 |
-| Freshness (23d median) | 100 | 15% | 15.0 |
-| Known false positives | 96.4% | 10% | 9.6 |
-| MITRE ATT&CK coverage | 0% | 8% | 0.0 |
+| Provenance authority | 92 | 20% | 18.5 |
+| Freshness (101d median) | 85 | 15% | 12.8 |
+| Known false positives | 100.0% | 10% | 10.0 |
+| MITRE ATT&CK coverage | 92% | 8% | 7.3 |
 | Sample fixtures | 1.8% | 7% | 0.1 |
 
-**Depth tiers:** Bronze 276 · Gold 5
-**Provenance origins:** splunk-official 275 · contributor 6
-**Status mix:** unset 268 · verified 7 · draft 6
+**Depth tiers:** Gold 281
+**Provenance origins:** splunk-official 203 · splunk-blog 53 · vendor-official 16 · nist-compliance 8 · mitre-attack 1
+**Status mix:** draft 250 · unset 18 · community 13
 
 <a id="cat-02-virtualization"></a>
-### 2. Virtualization — **Silver** (70.2)
+### 2. Virtualization — **Silver** (81.2)
 
-- **Volume:** 224 UCs (43 security)
+- **Volume:** 224 UCs (64 security)
 - **Content:** [`content/cat-02-virtualization/`](../content/cat-02-virtualization/)
 - **CODEOWNERS row:** `/content/cat-02-virtualization/`
 
 | Dimension | Score | Weight | Contribution |
 | --------- | ----- | ------ | ------------ |
-| Content depth | 35 | 20% | 6.9 |
+| Content depth | 74 | 20% | 14.8 |
 | References | 100.0% | 20% | 20.0 |
-| Provenance authority | 71 | 20% | 14.3 |
-| Freshness (23d median) | 100 | 15% | 15.0 |
+| Provenance authority | 98 | 20% | 19.5 |
+| Freshness (196d median) | 65 | 15% | 9.8 |
 | Known false positives | 100.0% | 10% | 10.0 |
-| MITRE ATT&CK coverage | 30% | 8% | 2.4 |
+| MITRE ATT&CK coverage | 70% | 8% | 5.6 |
 | Sample fixtures | 23.2% | 7% | 1.6 |
 
-**Depth tiers:** Bronze 224
-**Provenance origins:** splunk-official 133 · contributor 48 · unclassified 37 · vendor-official 6
-**Status mix:** unset 176 · verified 48
+**Depth tiers:** Gold 224
+**Provenance origins:** splunk-official 208 · splunk-blog 14 · vendor-official 2
+**Status mix:** unset 120 · draft 59 · verified 45
 
 <a id="cat-03-containers-orchestration"></a>
-### 3. Containers & Orchestration — **Silver** (83.0)
+### 3. Containers & Orchestration — **Silver** (76.8)
 
-- **Volume:** 129 UCs (114 security)
+- **Volume:** 133 UCs (116 security)
 - **Content:** [`content/cat-03-containers-orchestration/`](../content/cat-03-containers-orchestration/)
 - **CODEOWNERS row:** `/content/cat-03-containers-orchestration/`
 
 | Dimension | Score | Weight | Contribution |
 | --------- | ----- | ------ | ------------ |
-| Content depth | 89 | 20% | 17.9 |
+| Content depth | 80 | 20% | 16.0 |
 | References | 100.0% | 20% | 20.0 |
-| Provenance authority | 92 | 20% | 18.5 |
-| Freshness (21d median) | 100 | 15% | 15.0 |
+| Provenance authority | 97 | 20% | 19.4 |
+| Freshness (194d median) | 65 | 15% | 9.8 |
 | Known false positives | 100.0% | 10% | 10.0 |
 | MITRE ATT&CK coverage | 20% | 8% | 1.6 |
 | Sample fixtures | 0.8% | 7% | 0.1 |
 
-**Depth tiers:** Gold 129
-**Provenance origins:** splunk-official 115 · unclassified 14
-**Status mix:** verified 129
+**Depth tiers:** Gold 133
+**Provenance origins:** splunk-official 86 · vendor-official 40 · community 6 · unclassified 1
+**Status mix:** draft 109 · verified 21 · unset 3
 
 <a id="cat-04-cloud-infrastructure"></a>
-### 4. Cloud Infrastructure — **Bronze** (63.8)
+### 4. Cloud Infrastructure — **Silver** (70.7)
 
-- **Volume:** 227 UCs (107 security)
+- **Volume:** 1,235 UCs (1,235 security)
 - **Content:** [`content/cat-04-cloud-infrastructure/`](../content/cat-04-cloud-infrastructure/)
 - **CODEOWNERS row:** `/content/cat-04-cloud-infrastructure/`
 
 | Dimension | Score | Weight | Contribution |
 | --------- | ----- | ------ | ------------ |
-| Content depth | 36 | 20% | 7.1 |
+| Content depth | 68 | 20% | 13.6 |
 | References | 100.0% | 20% | 20.0 |
 | Provenance authority | 100 | 20% | 20.0 |
 | Freshness | 0 | 15% | 0.0 |
 | Known false positives | 100.0% | 10% | 10.0 |
-| MITRE ATT&CK coverage | 83% | 8% | 6.7 |
-| Sample fixtures | 0.9% | 7% | 0.1 |
+| MITRE ATT&CK coverage | 89% | 8% | 7.1 |
+| Sample fixtures | 0.2% | 7% | 0.0 |
 
-**Depth tiers:** Bronze 227
-**Provenance origins:** splunk-official 227
-**Status mix:** unset 227
+**Depth tiers:** Silver 1,151 · Gold 84
+**Provenance origins:** splunk-official 1,235
+**Status mix:** community 1,008 · unset 227
 
 <a id="cat-05-network-infrastructure"></a>
-### 5. Network Infrastructure — **Silver** (70.6)
+### 5. Network Infrastructure — **Silver** (77.5)
 
-- **Volume:** 720 UCs (315 security)
+- **Volume:** 720 UCs (235 security)
 - **Content:** [`content/cat-05-network-infrastructure/`](../content/cat-05-network-infrastructure/)
 - **CODEOWNERS row:** `/content/cat-05-network-infrastructure/`
 
 | Dimension | Score | Weight | Contribution |
 | --------- | ----- | ------ | ------------ |
-| Content depth | 61 | 20% | 12.3 |
+| Content depth | 81 | 20% | 16.2 |
 | References | 100.0% | 20% | 20.0 |
-| Provenance authority | 60 | 20% | 12.1 |
-| Freshness (14d median) | 100 | 15% | 15.0 |
+| Provenance authority | 100 | 20% | 20.0 |
+| Freshness (187d median) | 65 | 15% | 9.8 |
 | Known false positives | 100.0% | 10% | 10.0 |
-| MITRE ATT&CK coverage | 12% | 8% | 1.0 |
+| MITRE ATT&CK coverage | 17% | 8% | 1.3 |
 | Sample fixtures | 3.2% | 7% | 0.2 |
 
-**Depth tiers:** Gold 361 · Bronze 352 · Silver 7
-**Provenance origins:** splunk-official 358 · contributor 346 · unclassified 11 · vendor-official 5
-**Status mix:** verified 350 · unset 294 · draft 56 · community 20
+**Depth tiers:** Gold 720
+**Provenance origins:** splunk-official 698 · nist-compliance 21 · vendor-official 1
+**Status mix:** verified 347 · unset 294 · draft 59 · community 20
 
 <a id="cat-06-storage-backup"></a>
-### 6. Storage & Backup — **Bronze** (64.7)
+### 6. Storage & Backup — **Silver** (73.9)
 
-- **Volume:** 152 UCs (28 security)
+- **Volume:** 152 UCs (22 security)
 - **Content:** [`content/cat-06-storage-backup/`](../content/cat-06-storage-backup/)
 - **CODEOWNERS row:** `/content/cat-06-storage-backup/`
 
 | Dimension | Score | Weight | Contribution |
 | --------- | ----- | ------ | ------------ |
-| Content depth | 36 | 20% | 7.2 |
+| Content depth | 71 | 20% | 14.1 |
 | References | 100.0% | 20% | 20.0 |
-| Provenance authority | 63 | 20% | 12.5 |
-| Freshness (23d median) | 100 | 15% | 15.0 |
+| Provenance authority | 100 | 20% | 20.0 |
+| Freshness (196d median) | 65 | 15% | 9.8 |
 | Known false positives | 100.0% | 10% | 10.0 |
 | MITRE ATT&CK coverage | 0% | 8% | 0.0 |
 | Sample fixtures | 0.0% | 7% | 0.0 |
 
-**Depth tiers:** Bronze 150 · Gold 2
-**Provenance origins:** splunk-official 81 · contributor 71
+**Depth tiers:** Gold 152
+**Provenance origins:** splunk-official 152
 **Status mix:** unset 79 · draft 69 · verified 4
 
 <a id="cat-07-database-data-platforms"></a>
-### 7. Database & Data Platforms — **Bronze** (61.4)
+### 7. Database & Data Platforms — **Silver** (71.5)
 
-- **Volume:** 187 UCs (17 security)
+- **Volume:** 187 UCs (13 security)
 - **Content:** [`content/cat-07-database-data-platforms/`](../content/cat-07-database-data-platforms/)
 - **CODEOWNERS row:** `/content/cat-07-database-data-platforms/`
 
 | Dimension | Score | Weight | Contribution |
 | --------- | ----- | ------ | ------------ |
-| Content depth | 36 | 20% | 7.2 |
+| Content depth | 77 | 20% | 15.5 |
 | References | 100.0% | 20% | 20.0 |
-| Provenance authority | 72 | 20% | 14.4 |
-| Freshness (350d median) | 65 | 15% | 9.8 |
+| Provenance authority | 100 | 20% | 20.0 |
+| Freshness (523d median) | 40 | 15% | 6.0 |
 | Known false positives | 100.0% | 10% | 10.0 |
 | MITRE ATT&CK coverage | 0% | 8% | 0.0 |
 | Sample fixtures | 0.0% | 7% | 0.0 |
 
-**Depth tiers:** Bronze 187
-**Provenance origins:** splunk-official 122 · contributor 65
+**Depth tiers:** Gold 187
+**Provenance origins:** splunk-official 187
 **Status mix:** unset 120 · draft 65 · verified 2
 
 <a id="cat-08-application-infrastructure"></a>
-### 8. Application Infrastructure — **Bronze** (63.4)
+### 8. Application Infrastructure — **Silver** (73.4)
 
-- **Volume:** 241 UCs (42 security)
+- **Volume:** 241 UCs (31 security)
 - **Content:** [`content/cat-08-application-infrastructure/`](../content/cat-08-application-infrastructure/)
 - **CODEOWNERS row:** `/content/cat-08-application-infrastructure/`
 
 | Dimension | Score | Weight | Contribution |
 | --------- | ----- | ------ | ------------ |
-| Content depth | 37 | 20% | 7.3 |
+| Content depth | 68 | 20% | 13.7 |
 | References | 100.0% | 20% | 20.0 |
-| Provenance authority | 55 | 20% | 11.0 |
-| Freshness (23d median) | 100 | 15% | 15.0 |
+| Provenance authority | 100 | 20% | 20.0 |
+| Freshness (196d median) | 65 | 15% | 9.8 |
 | Known false positives | 100.0% | 10% | 10.0 |
 | MITRE ATT&CK coverage | 0% | 8% | 0.0 |
 | Sample fixtures | 0.0% | 7% | 0.0 |
 
-**Depth tiers:** Bronze 239 · Gold 2
-**Provenance origins:** contributor 135 · splunk-official 106
+**Depth tiers:** Gold 241
+**Provenance origins:** splunk-official 241
 **Status mix:** draft 122 · unset 106 · verified 13
 
 <a id="cat-09-identity-access-management"></a>
-### 9. Identity & Access Management — **Silver** (76.6)
+### 9. Identity & Access Management — **Silver** (79.7)
 
-- **Volume:** 116 UCs (116 security)
+- **Volume:** 120 UCs (120 security)
 - **Content:** [`content/cat-09-identity-access-management/`](../content/cat-09-identity-access-management/)
 - **CODEOWNERS row:** `/content/cat-09-identity-access-management/`
 
 | Dimension | Score | Weight | Contribution |
 | --------- | ----- | ------ | ------------ |
-| Content depth | 36 | 20% | 7.2 |
+| Content depth | 70 | 20% | 14.0 |
 | References | 100.0% | 20% | 20.0 |
-| Provenance authority | 92 | 20% | 18.3 |
-| Freshness (23d median) | 100 | 15% | 15.0 |
+| Provenance authority | 100 | 20% | 20.0 |
+| Freshness (196d median) | 65 | 15% | 9.8 |
 | Known false positives | 100.0% | 10% | 10.0 |
-| MITRE ATT&CK coverage | 75% | 8% | 6.0 |
-| Sample fixtures | 0.9% | 7% | 0.1 |
+| MITRE ATT&CK coverage | 74% | 8% | 5.9 |
+| Sample fixtures | 0.8% | 7% | 0.1 |
 
-**Depth tiers:** Bronze 116
-**Provenance origins:** splunk-official 104 · contributor 12
-**Status mix:** unset 102 · verified 9 · draft 5
+**Depth tiers:** Gold 120
+**Provenance origins:** splunk-official 120
+**Status mix:** unset 106 · verified 9 · draft 5
 
 <a id="cat-10-security-infrastructure"></a>
-### 10. Security Infrastructure — **Silver** (74.5)
+### 10. Security Infrastructure — **Silver** (80.1)
 
-- **Volume:** 2,455 UCs (2,455 security)
+- **Volume:** 2,471 UCs (2,471 security)
 - **Content:** [`content/cat-10-security-infrastructure/`](../content/cat-10-security-infrastructure/)
 - **CODEOWNERS row:** `/content/cat-10-security-infrastructure/`
 
 | Dimension | Score | Weight | Contribution |
 | --------- | ----- | ------ | ------------ |
-| Content depth | 28 | 20% | 5.5 |
+| Content depth | 69 | 20% | 13.8 |
 | References | 100.0% | 20% | 20.0 |
-| Provenance authority | 87 | 20% | 17.3 |
-| Freshness (23d median) | 100 | 15% | 15.0 |
-| Known false positives | 99.0% | 10% | 9.9 |
-| MITRE ATT&CK coverage | 84% | 8% | 6.7 |
+| Provenance authority | 99 | 20% | 19.9 |
+| Freshness (196d median) | 65 | 15% | 9.8 |
+| Known false positives | 100.0% | 10% | 10.0 |
+| MITRE ATT&CK coverage | 83% | 8% | 6.7 |
 | Sample fixtures | 0.3% | 7% | 0.0 |
 
-**Depth tiers:** Bronze 2,442 · Gold 13
-**Provenance origins:** splunk-official 630 · vendor-official 572 · threat-intel 469 · mitre-attack 300 · unclassified 156 · community 142 · nist-compliance 93 · splunk-blog 47 · contributor 46
-**Status mix:** unset 2,409 · verified 38 · draft 8
+**Depth tiers:** Gold 2,471
+**Provenance origins:** splunk-official 2,153 · vendor-official 177 · mitre-attack 61 · threat-intel 51 · nist-compliance 17 · community 8 · splunk-blog 3 · unclassified 1
+**Status mix:** unset 2,424 · verified 37 · draft 10
 
 <a id="cat-11-email-collaboration"></a>
-### 11. Email & Collaboration — **Bronze** (69.1)
+### 11. Email & Collaboration — **Silver** (74.2)
 
-- **Volume:** 135 UCs (53 security)
+- **Volume:** 135 UCs (48 security)
 - **Content:** [`content/cat-11-email-collaboration/`](../content/cat-11-email-collaboration/)
 - **CODEOWNERS row:** `/content/cat-11-email-collaboration/`
 
 | Dimension | Score | Weight | Contribution |
 | --------- | ----- | ------ | ------------ |
-| Content depth | 35 | 20% | 7.1 |
+| Content depth | 71 | 20% | 14.2 |
 | References | 100.0% | 20% | 20.0 |
-| Provenance authority | 83 | 20% | 16.7 |
-| Freshness (23d median) | 100 | 15% | 15.0 |
+| Provenance authority | 100 | 20% | 20.0 |
+| Freshness (196d median) | 65 | 15% | 9.8 |
 | Known false positives | 100.0% | 10% | 10.0 |
 | MITRE ATT&CK coverage | 4% | 8% | 0.3 |
 | Sample fixtures | 0.0% | 7% | 0.0 |
 
-**Depth tiers:** Bronze 135
-**Provenance origins:** splunk-official 107 · contributor 28
-**Status mix:** unset 105 · verified 17 · draft 13
+**Depth tiers:** Gold 135
+**Provenance origins:** splunk-official 135
+**Status mix:** unset 105 · draft 15 · verified 15
 
 <a id="cat-12-devops-ci-cd"></a>
-### 12. DevOps & CI/CD — **Bronze** (67.5)
+### 12. DevOps & CI/CD — **Silver** (73.8)
 
-- **Volume:** 126 UCs (33 security)
+- **Volume:** 126 UCs (31 security)
 - **Content:** [`content/cat-12-devops-ci-cd/`](../content/cat-12-devops-ci-cd/)
 - **CODEOWNERS row:** `/content/cat-12-devops-ci-cd/`
 
 | Dimension | Score | Weight | Contribution |
 | --------- | ----- | ------ | ------------ |
-| Content depth | 36 | 20% | 7.3 |
+| Content depth | 70 | 20% | 14.0 |
 | References | 100.0% | 20% | 20.0 |
-| Provenance authority | 76 | 20% | 15.2 |
-| Freshness (23d median) | 100 | 15% | 15.0 |
+| Provenance authority | 100 | 20% | 20.0 |
+| Freshness (196d median) | 65 | 15% | 9.8 |
 | Known false positives | 100.0% | 10% | 10.0 |
 | MITRE ATT&CK coverage | 0% | 8% | 0.0 |
 | Sample fixtures | 0.8% | 7% | 0.1 |
 
-**Depth tiers:** Bronze 126
-**Provenance origins:** splunk-official 88 · contributor 38
-**Status mix:** unset 84 · draft 23 · verified 19
+**Depth tiers:** Gold 126
+**Provenance origins:** splunk-official 126
+**Status mix:** unset 84 · draft 24 · verified 18
 
 <a id="cat-13-observability-monitoring-stack"></a>
-### 13. Observability & Monitoring Stack — **Silver** (74.0)
+### 13. Observability & Monitoring Stack — **Silver** (71.4)
 
-- **Volume:** 184 UCs (104 security)
+- **Volume:** 221 UCs (100 security)
 - **Content:** [`content/cat-13-observability-monitoring-stack/`](../content/cat-13-observability-monitoring-stack/)
 - **CODEOWNERS row:** `/content/cat-13-observability-monitoring-stack/`
 
 | Dimension | Score | Weight | Contribution |
 | --------- | ----- | ------ | ------------ |
-| Content depth | 62 | 20% | 12.3 |
+| Content depth | 65 | 20% | 13.0 |
 | References | 100.0% | 20% | 20.0 |
-| Provenance authority | 82 | 20% | 16.4 |
-| Freshness (21d median) | 100 | 15% | 15.0 |
+| Provenance authority | 92 | 20% | 18.3 |
+| Freshness (194d median) | 65 | 15% | 9.8 |
 | Known false positives | 100.0% | 10% | 10.0 |
 | MITRE ATT&CK coverage | 3% | 8% | 0.2 |
 | Sample fixtures | 0.5% | 7% | 0.0 |
 
-**Depth tiers:** Bronze 95 · Gold 89
-**Provenance origins:** splunk-official 143 · contributor 41
-**Status mix:** verified 96 · unset 74 · draft 14
+**Depth tiers:** Gold 188 · Silver 33
+**Provenance origins:** splunk-official 174 · splunk-blog 37 · unclassified 5 · vendor-official 3 · nist-compliance 2
+**Status mix:** verified 93 · unset 74 · draft 54
 
 <a id="cat-14-iot-operational-technology-ot"></a>
-### 14. IoT & Operational Technology (OT) — **Silver** (70.3)
+### 14. IoT & Operational Technology (OT) — **Silver** (72.5)
 
-- **Volume:** 249 UCs (73 security)
+- **Volume:** 252 UCs (66 security)
 - **Content:** [`content/cat-14-iot-operational-technology-ot/`](../content/cat-14-iot-operational-technology-ot/)
 - **CODEOWNERS row:** `/content/cat-14-iot-operational-technology-ot/`
 
 | Dimension | Score | Weight | Contribution |
 | --------- | ----- | ------ | ------------ |
-| Content depth | 36 | 20% | 7.1 |
+| Content depth | 64 | 20% | 12.8 |
 | References | 100.0% | 20% | 20.0 |
-| Provenance authority | 94 | 20% | 18.8 |
-| Freshness (23d median) | 100 | 15% | 15.0 |
-| Known false positives | 94.0% | 10% | 9.4 |
+| Provenance authority | 100 | 20% | 20.0 |
+| Freshness (196d median) | 65 | 15% | 9.8 |
+| Known false positives | 100.0% | 10% | 10.0 |
 | MITRE ATT&CK coverage | 0% | 8% | 0.0 |
 | Sample fixtures | 0.0% | 7% | 0.0 |
 
-**Depth tiers:** Bronze 249
-**Provenance origins:** splunk-official 230 · contributor 19
-**Status mix:** unset 225 · verified 20 · draft 4
+**Depth tiers:** Gold 248 · Silver 4
+**Provenance origins:** splunk-official 252
+**Status mix:** unset 228 · verified 20 · draft 4
 
 <a id="cat-15-data-center-physical-infrastructure"></a>
-### 15. Data Center Physical Infrastructure — **Bronze** (67.0)
+### 15. Data Center Physical Infrastructure — **Silver** (78.8)
 
-- **Volume:** 117 UCs (16 security)
+- **Volume:** 117 UCs (13 security)
 - **Content:** [`content/cat-15-data-center-physical-infrastructure/`](../content/cat-15-data-center-physical-infrastructure/)
 - **CODEOWNERS row:** `/content/cat-15-data-center-physical-infrastructure/`
 
 | Dimension | Score | Weight | Contribution |
 | --------- | ----- | ------ | ------------ |
-| Content depth | 34 | 20% | 6.9 |
+| Content depth | 80 | 20% | 16.0 |
 | References | 100.0% | 20% | 20.0 |
-| Provenance authority | 75 | 20% | 15.1 |
-| Freshness (23d median) | 100 | 15% | 15.0 |
+| Provenance authority | 100 | 20% | 20.0 |
+| Freshness (196d median) | 65 | 15% | 9.8 |
 | Known false positives | 100.0% | 10% | 10.0 |
-| MITRE ATT&CK coverage | 0% | 8% | 0.0 |
+| MITRE ATT&CK coverage | 38% | 8% | 3.1 |
 | Sample fixtures | 0.0% | 7% | 0.0 |
 
-**Depth tiers:** Bronze 117
-**Provenance origins:** splunk-official 81 · contributor 36
-**Status mix:** unset 81 · verified 26 · draft 10
+**Depth tiers:** Gold 117
+**Provenance origins:** splunk-official 117
+**Status mix:** unset 81 · draft 36
 
 <a id="cat-16-service-management-itsm"></a>
-### 16. Service Management & ITSM — **Bronze** (68.5)
+### 16. Service Management & ITSM — **Silver** (72.6)
 
-- **Volume:** 102 UCs (12 security)
+- **Volume:** 102 UCs (4 security)
 - **Content:** [`content/cat-16-service-management-itsm/`](../content/cat-16-service-management-itsm/)
 - **CODEOWNERS row:** `/content/cat-16-service-management-itsm/`
 
 | Dimension | Score | Weight | Contribution |
 | --------- | ----- | ------ | ------------ |
-| Content depth | 34 | 20% | 6.8 |
+| Content depth | 64 | 20% | 12.9 |
 | References | 100.0% | 20% | 20.0 |
-| Provenance authority | 84 | 20% | 16.7 |
-| Freshness (23d median) | 100 | 15% | 15.0 |
+| Provenance authority | 100 | 20% | 20.0 |
+| Freshness (196d median) | 65 | 15% | 9.8 |
 | Known false positives | 100.0% | 10% | 10.0 |
 | MITRE ATT&CK coverage | 0% | 8% | 0.0 |
 | Sample fixtures | 0.0% | 7% | 0.0 |
 
-**Depth tiers:** Bronze 102
-**Provenance origins:** splunk-official 81 · contributor 21
-**Status mix:** unset 78 · draft 19 · verified 5
+**Depth tiers:** Gold 102
+**Provenance origins:** splunk-official 102
+**Status mix:** unset 78 · draft 20 · verified 4
 
 <a id="cat-17-network-security-zero-trust"></a>
-### 17. Network Security & Zero Trust — **Silver** (71.2)
+### 17. Network Security & Zero Trust — **Silver** (80.7)
 
-- **Volume:** 208 UCs (208 security)
+- **Volume:** 217 UCs (217 security)
 - **Content:** [`content/cat-17-network-security-zero-trust/`](../content/cat-17-network-security-zero-trust/)
 - **CODEOWNERS row:** `/content/cat-17-network-security-zero-trust/`
 
 | Dimension | Score | Weight | Contribution |
 | --------- | ----- | ------ | ------------ |
-| Content depth | 41 | 20% | 8.2 |
+| Content depth | 75 | 20% | 15.1 |
 | References | 100.0% | 20% | 20.0 |
-| Provenance authority | 60 | 20% | 12.1 |
-| Freshness (11d median) | 100 | 15% | 15.0 |
+| Provenance authority | 100 | 20% | 20.0 |
+| Freshness (184d median) | 65 | 15% | 9.8 |
 | Known false positives | 100.0% | 10% | 10.0 |
-| MITRE ATT&CK coverage | 73% | 8% | 5.8 |
+| MITRE ATT&CK coverage | 74% | 8% | 5.9 |
 | Sample fixtures | 0.0% | 7% | 0.0 |
 
-**Depth tiers:** Bronze 173 · Gold 22 · Silver 13
-**Provenance origins:** splunk-official 105 · contributor 103
-**Status mix:** unset 103 · verified 93 · draft 12
+**Depth tiers:** Gold 217
+**Provenance origins:** splunk-official 216 · vendor-official 1
+**Status mix:** unset 112 · verified 91 · draft 14
 
 <a id="cat-18-data-center-fabric-sdn"></a>
-### 18. Data Center Fabric & SDN — **Silver** (84.5)
+### 18. Data Center Fabric & SDN — **Silver** (79.1)
 
-- **Volume:** 76 UCs (44 security)
+- **Volume:** 77 UCs (43 security)
 - **Content:** [`content/cat-18-data-center-fabric-sdn/`](../content/cat-18-data-center-fabric-sdn/)
 - **CODEOWNERS row:** `/content/cat-18-data-center-fabric-sdn/`
 
 | Dimension | Score | Weight | Contribution |
 | --------- | ----- | ------ | ------------ |
-| Content depth | 87 | 20% | 17.3 |
+| Content depth | 86 | 20% | 17.1 |
 | References | 100.0% | 20% | 20.0 |
 | Provenance authority | 100 | 20% | 20.0 |
-| Freshness (18d median) | 100 | 15% | 15.0 |
+| Freshness (191d median) | 65 | 15% | 9.8 |
 | Known false positives | 100.0% | 10% | 10.0 |
-| MITRE ATT&CK coverage | 27% | 8% | 2.2 |
+| MITRE ATT&CK coverage | 28% | 8% | 2.2 |
 | Sample fixtures | 0.0% | 7% | 0.0 |
 
-**Depth tiers:** Gold 72 · Silver 3 · Bronze 1
-**Provenance origins:** splunk-official 76
-**Status mix:** verified 76
+**Depth tiers:** Gold 76 · Silver 1
+**Provenance origins:** splunk-official 75 · vendor-official 2
+**Status mix:** draft 70 · verified 6 · unset 1
 
 <a id="cat-19-compute-infrastructure-hci-converged"></a>
-### 19. Compute Infrastructure (HCI & Converged) — **Silver** (77.5)
+### 19. Compute Infrastructure (HCI & Converged) — **Silver** (77.0)
 
-- **Volume:** 93 UCs (33 security)
+- **Volume:** 93 UCs (24 security)
 - **Content:** [`content/cat-19-compute-infrastructure-hci-converged/`](../content/cat-19-compute-infrastructure-hci-converged/)
 - **CODEOWNERS row:** `/content/cat-19-compute-infrastructure-hci-converged/`
 
 | Dimension | Score | Weight | Contribution |
 | --------- | ----- | ------ | ------------ |
-| Content depth | 76 | 20% | 15.2 |
+| Content depth | 83 | 20% | 16.6 |
 | References | 100.0% | 20% | 20.0 |
-| Provenance authority | 82 | 20% | 16.4 |
-| Freshness (22d median) | 100 | 15% | 15.0 |
+| Provenance authority | 97 | 20% | 19.4 |
+| Freshness (195d median) | 65 | 15% | 9.8 |
 | Known false positives | 100.0% | 10% | 10.0 |
-| MITRE ATT&CK coverage | 12% | 8% | 1.0 |
+| MITRE ATT&CK coverage | 17% | 8% | 1.3 |
 | Sample fixtures | 0.0% | 7% | 0.0 |
 
-**Depth tiers:** Gold 67 · Bronze 26
-**Provenance origins:** splunk-official 72 · contributor 21
-**Status mix:** verified 93
+**Depth tiers:** Gold 93
+**Provenance origins:** splunk-official 84 · vendor-official 5 · unclassified 4
+**Status mix:** draft 53 · verified 40
 
 <a id="cat-20-cost-capacity-management"></a>
-### 20. Cost & Capacity Management — **Silver** (72.2)
+### 20. Cost & Capacity Management — **Silver** (74.6)
 
-- **Volume:** 77 UCs (5 security)
+- **Volume:** 77 UCs (1 security)
 - **Content:** [`content/cat-20-cost-capacity-management/`](../content/cat-20-cost-capacity-management/)
 - **CODEOWNERS row:** `/content/cat-20-cost-capacity-management/`
 
 | Dimension | Score | Weight | Contribution |
 | --------- | ----- | ------ | ------------ |
-| Content depth | 36 | 20% | 7.2 |
+| Content depth | 74 | 20% | 14.9 |
 | References | 100.0% | 20% | 20.0 |
 | Provenance authority | 100 | 20% | 20.0 |
-| Freshness (21d median) | 100 | 15% | 15.0 |
+| Freshness (194d median) | 65 | 15% | 9.8 |
 | Known false positives | 100.0% | 10% | 10.0 |
 | MITRE ATT&CK coverage | 0% | 8% | 0.0 |
 | Sample fixtures | 0.0% | 7% | 0.0 |
 
-**Depth tiers:** Bronze 76 · Gold 1
+**Depth tiers:** Gold 77
 **Provenance origins:** splunk-official 77
 **Status mix:** unset 76 · verified 1
 
 <a id="cat-21-industry-verticals"></a>
-### 21. Industry Verticals — **Silver** (70.9)
+### 21. Industry Verticals — **Silver** (79.9)
 
-- **Volume:** 146 UCs (5 security)
+- **Volume:** 860 UCs (860 security)
 - **Content:** [`content/cat-21-industry-verticals/`](../content/cat-21-industry-verticals/)
 - **CODEOWNERS row:** `/content/cat-21-industry-verticals/`
 
 | Dimension | Score | Weight | Contribution |
 | --------- | ----- | ------ | ------------ |
-| Content depth | 39 | 20% | 7.8 |
+| Content depth | 61 | 20% | 12.2 |
 | References | 100.0% | 20% | 20.0 |
-| Provenance authority | 91 | 20% | 18.1 |
-| Freshness (17d median) | 100 | 15% | 15.0 |
+| Provenance authority | 100 | 20% | 20.0 |
+| Freshness (190d median) | 65 | 15% | 9.8 |
 | Known false positives | 100.0% | 10% | 10.0 |
-| MITRE ATT&CK coverage | 0% | 8% | 0.0 |
+| MITRE ATT&CK coverage | 100% | 8% | 8.0 |
 | Sample fixtures | 0.0% | 7% | 0.0 |
 
-**Depth tiers:** Bronze 135 · Gold 11
-**Provenance origins:** splunk-official 129 · contributor 17
-**Status mix:** unset 129 · verified 11 · draft 6
+**Depth tiers:** Silver 713 · Gold 147
+**Provenance origins:** splunk-official 860
+**Status mix:** community 714 · unset 129 · verified 11 · draft 6
 
 <a id="cat-22-regulatory-compliance"></a>
-### 22. Regulatory and Compliance Frameworks — **Silver** (72.4)
+### 22. Regulatory and Compliance Frameworks — **Silver** (73.9)
 
-- **Volume:** 1,621 UCs (1,457 security)
+- **Volume:** 1,683 UCs (1,517 security)
 - **Content:** [`content/cat-22-regulatory-compliance/`](../content/cat-22-regulatory-compliance/)
 - **CODEOWNERS row:** `/content/cat-22-regulatory-compliance/`
 
 | Dimension | Score | Weight | Contribution |
 | --------- | ----- | ------ | ------------ |
-| Content depth | 44 | 20% | 8.8 |
+| Content depth | 62 | 20% | 12.4 |
 | References | 100.0% | 20% | 20.0 |
-| Provenance authority | 83 | 20% | 16.5 |
-| Freshness (25d median) | 100 | 15% | 15.0 |
+| Provenance authority | 98 | 20% | 19.5 |
+| Freshness (198d median) | 65 | 15% | 9.8 |
 | Known false positives | 100.0% | 10% | 10.0 |
-| MITRE ATT&CK coverage | 26% | 8% | 2.1 |
+| MITRE ATT&CK coverage | 28% | 8% | 2.3 |
 | Sample fixtures | 0.0% | 7% | 0.0 |
 
-**Depth tiers:** Bronze 1,288 · Gold 304 · Silver 29
-**Provenance origins:** splunk-official 1,167 · contributor 311 · nist-compliance 51 · mitre-attack 46 · unclassified 46
-**Status mix:** unset 1,026 · verified 549 · draft 34 · community 12
+**Depth tiers:** Gold 1,674 · Silver 9
+**Provenance origins:** splunk-official 1,496 · nist-compliance 81 · unclassified 58 · mitre-attack 45 · vendor-official 3
+**Status mix:** unset 1,034 · verified 552 · community 58 · draft 39
 
 <a id="cat-23-business-analytics"></a>
-### 23. Business Analytics & Executive Intelligence — **Silver** (80.9)
+### 23. Business Analytics & Executive Intelligence — **Silver** (73.9)
 
-- **Volume:** 63 UCs (6 security)
+- **Volume:** 63 UCs (3 security)
 - **Content:** [`content/cat-23-business-analytics/`](../content/cat-23-business-analytics/)
 - **CODEOWNERS row:** `/content/cat-23-business-analytics/`
 
 | Dimension | Score | Weight | Contribution |
 | --------- | ----- | ------ | ------------ |
-| Content depth | 79 | 20% | 15.9 |
+| Content depth | 72 | 20% | 14.4 |
 | References | 100.0% | 20% | 20.0 |
-| Provenance authority | 100 | 20% | 20.0 |
-| Freshness (19d median) | 100 | 15% | 15.0 |
+| Provenance authority | 99 | 20% | 19.8 |
+| Freshness (192d median) | 65 | 15% | 9.8 |
 | Known false positives | 100.0% | 10% | 10.0 |
 | MITRE ATT&CK coverage | 0% | 8% | 0.0 |
 | Sample fixtures | 0.0% | 7% | 0.0 |
 
-**Depth tiers:** Gold 53 · Bronze 10
-**Provenance origins:** splunk-official 63
-**Status mix:** verified 63
+**Depth tiers:** Gold 63
+**Provenance origins:** splunk-official 62 · unclassified 1
+**Status mix:** draft 56 · verified 7
+
+<a id="cat-24-business-intelligence-analytics-platforms"></a>
+### 24. Business Intelligence & Analytics Platforms — **Bronze** (63.5)
+
+- **Volume:** 508 UCs (6 security)
+- **Content:** [`content/cat-24-business-intelligence-analytics-platforms/`](../content/cat-24-business-intelligence-analytics-platforms/)
+- **CODEOWNERS row:** `/content/cat-24-business-intelligence-analytics-platforms/`
+
+| Dimension | Score | Weight | Contribution |
+| --------- | ----- | ------ | ------------ |
+| Content depth | 67 | 20% | 13.5 |
+| References | 100.0% | 20% | 20.0 |
+| Provenance authority | 100 | 20% | 20.0 |
+| Freshness | 0 | 15% | 0.0 |
+| Known false positives | 100.0% | 10% | 10.0 |
+| MITRE ATT&CK coverage | 0% | 8% | 0.0 |
+| Sample fixtures | 0.0% | 7% | 0.0 |
+
+**Depth tiers:** Gold 508
+**Provenance origins:** splunk-official 508
+**Status mix:** unset 508
+
+<a id="cat-25-personal-hobbyist-monitoring"></a>
+### 25. Personal & Hobbyist Monitoring — **Bronze** (63.4)
+
+- **Volume:** 6,431 UCs (393 security)
+- **Content:** [`content/cat-25-personal-hobbyist-monitoring/`](../content/cat-25-personal-hobbyist-monitoring/)
+- **CODEOWNERS row:** `/content/cat-25-personal-hobbyist-monitoring/`
+
+| Dimension | Score | Weight | Contribution |
+| --------- | ----- | ------ | ------------ |
+| Content depth | 67 | 20% | 13.4 |
+| References | 100.0% | 20% | 20.0 |
+| Provenance authority | 100 | 20% | 20.0 |
+| Freshness | 0 | 15% | 0.0 |
+| Known false positives | 100.0% | 10% | 10.0 |
+| MITRE ATT&CK coverage | 0% | 8% | 0.0 |
+| Sample fixtures | 0.0% | 7% | 0.0 |
+
+**Depth tiers:** Gold 6,431
+**Provenance origins:** splunk-official 6,431
+**Status mix:** unset 6,431
 
 ## Grade distribution
 
 | Grade | Categories | Total UCs |
 | ----- | ---------- | --------- |
 | **Gold** | 0 | 0 |
-| **Silver** | 15 | 6,642 |
-| **Bronze** | 8 | 1,287 |
+| **Silver** | 23 | 9,787 |
+| **Bronze** | 2 | 6,939 |
 | **Needs work** | 0 | 0 |
 
 ## How to improve a score
