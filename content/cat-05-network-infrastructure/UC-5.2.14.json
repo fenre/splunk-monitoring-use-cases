@@ -26,11 +26,12 @@
     {
       "model": "cisco_firepower",
       "sourcetypes": [
-        "cisco:ftd"
+        "cisco:asa",
+        "cisco:ftd:syslog"
       ],
       "splunkbaseAppId": 1620,
-      "spl": "index=firewall sourcetype=\"cisco:ftd\" failover\n| table _time host\n| sort - _time",
-      "notes": "Draft. sourcetype cisco:ftd and the event types cisco_asa_configuration_change, cisco_asa_audit_change and cisco_authentication are published by the Splunk Add-on for Cisco ASA (Splunkbase 1620). https://splunk.github.io/splunk-add-on-for-cisco-asa/DataTypes/ That page lists the message IDs for each event type and the CIM data model it fills. It does not publish command, path, or admin field names, so this search does not use any. The published event-type table does not include a failover event type, so this draft matches the word failover in the event text.",
+      "spl": "index=firewall sourcetype IN (\"cisco:asa\",\"cisco:ftd:syslog\") (104001 OR 104002)\n| rex \"\\((?<unit>Primary|Secondary)\\) Switching to (?<new_state>ACTIVE|STANDBY) - (?<reason>.+?)\\.?$\"\n| table _time, host, unit, new_state, reason\n| sort - _time",
+      "notes": "Draft. Message IDs and text are from the Cisco Secure Firewall ASA syslog reference (messages 101001 to 199027): %ASA-1-104001 \"(Primary) Switching to ACTIVE - <reason>.\" and %ASA-1-104002 \"(Secondary) Switching to STANDBY - <reason>.\"; either unit can appear as Primary or Secondary, and the reason is text such as \"state check\", \"bad/incomplete config\" or \"ifc [interface] check, mate is healthier\". https://www.cisco.com/c/en/us/td/docs/security/asa/syslog/asa-syslog/syslog-messages-101001-to-199021.html Threat Defense logs the same message IDs; its syslog is read as cisco:ftd:syslog. unit, new_state and reason are extracted with rex because the add-on does not publish field names for these messages.",
       "status": "draft",
       "requiresSmeReview": true
     }
@@ -55,6 +56,11 @@
       "title": "Palo Alto Networks documentation",
       "url": "https://docs.paloaltonetworks.com/",
       "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Secure Firewall ASA Series Syslog Messages — 101001 to 199027 (104001, 104002)",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/asa/syslog/asa-syslog/syslog-messages-101001-to-199021.html",
+      "retrieved": "2026-11-05"
     }
   ],
   "knownFalsePositives": "1. **Maintenance window on `firewall` (UC-5.2.14)** — Planned work for 'Firewall HA Failover Events' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `pan:system`** — Scheduled automation elevates `src` without crossing configured threshold for UC-5.2.14. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `firewall` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `pan:system`** — First 48h baseline for UC-5.2.14 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
