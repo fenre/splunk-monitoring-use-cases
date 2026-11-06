@@ -111,8 +111,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  - {issue}", file=sys.stderr)
         return 1
 
-    on_disk = LEDGER_PATH.read_text(encoding="utf-8") if LEDGER_PATH.is_file() else None
-    if on_disk == rendered:
+    current = LEDGER_PATH.read_text(encoding="utf-8") if LEDGER_PATH.is_file() else None
+    if current == rendered:
         print(f"id-ledger unchanged ({generated['entryCount']} entries)")
         return 0
 
