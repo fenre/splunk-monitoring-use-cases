@@ -79,7 +79,10 @@ from importlib import metadata as _importlib_metadata
 from pathlib import Path
 from typing import Any, Protocol, cast
 
-from splunk_uc.published_rollup_stamp import frozen_published_stamp
+from splunk_uc.published_rollup_stamp import (
+    frozen_published_stamp,
+    resolve_published_stamp,
+)
 
 
 class _MetadataLike(Protocol):
@@ -654,7 +657,7 @@ def build_inventory(
         "$schema": _SCHEMA_REL,
         "version": _read_repo_version(),
         "captured_at": captured_at
-        or frozen_published_stamp("license-inventory")
+        or resolve_published_stamp("license-inventory")
         or _dt.datetime.now(_dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "git_head": git_head
         if git_head is not None

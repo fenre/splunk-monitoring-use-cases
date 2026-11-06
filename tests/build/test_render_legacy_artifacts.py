@@ -392,6 +392,7 @@ class TestRender:
         # (the module reference). Patch both for hermetic test.
         monkeypatch.setattr(rla, "_enrichment", stub)
         monkeypatch.setattr(rla, "SITE_BASE_URL", stub.SITE_BASE_URL)
+        monkeypatch.delenv("SOURCE_DATE_EPOCH", raising=False)
 
         cat = _empty_catalog(
             tmp_path,

@@ -44,7 +44,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT / "src") not in sys.path:
     sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from splunk_uc.published_rollup_stamp import frozen_published_stamp
+from splunk_uc.published_rollup_stamp import resolve_published_stamp
 
 # Per ADR-0009 + P1 step 5c, dist/catalog.json is the SSOT-authoritative
 # copy. Prefer dist/, fall back to project root for the one-release
@@ -304,22 +304,11 @@ def build_ledger() -> dict:
 
 
 def _reproducible_now() -> str:
-    """Return a UTC timestamp pinned to SOURCE_DATE_EPOCH when set.
-
-    Honors the reproducible-builds standard env var so that
-    ``tools/build/build.py --reproducible`` produces byte-identical
-    provenance ledgers across consecutive builds. Falls back to the
-    real wall clock when the env var is missing (interactive runs).
-    """
-    import os
-    epoch = os.environ.get("SOURCE_DATE_EPOCH")
-    if epoch and epoch.isdigit():
-        return datetime.fromtimestamp(int(epoch), tz=timezone.utc).strftime(
-            "%Y-%m-%dT%H:%M:%SZ"
-        )
-    return frozen_published_stamp("provenance") or datetime.now(timezone.utc).strftime(
-        "%Y-%m-%dT%H:%M:%SZ"
-    )
+    """Commit clock: SOURCE_DATE_EPOCH, else HEAD, else the fixed fallback."""
+    resolved = resolve_published_stamp("provenance")
+    if resolved:
+        return resolved
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def render_coverage_doc(ledger: dict) -> str:

@@ -68,7 +68,10 @@ class TestPureHelpers:
     def test_sort_key_numeric_segments(self):
         assert render_api._sort_key("3.2.10") > render_api._sort_key("3.2.5")
 
-    def test_ts_reproducible(self):
+    def test_ts_reproducible(self, monkeypatch: pytest.MonkeyPatch):
+        # CI sets SOURCE_DATE_EPOCH to the HEAD commit. This asserts the
+        # unset fallback, which is the Unix epoch.
+        monkeypatch.delenv("SOURCE_DATE_EPOCH", raising=False)
         assert render_api._ts(True) == "1970-01-01T00:00:00Z"
 
     def test_normalise_cat_groups(self):
@@ -542,7 +545,8 @@ class TestRenderApi:
         "regulations",
     })
 
-    def test_catalog_index_structure(self, tmp_path: Path):
+    def test_catalog_index_structure(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.delenv("SOURCE_DATE_EPOCH", raising=False)
         catalog = _minimal_catalog(tmp_path)
         api_dir = tmp_path / "api"
         api_dir.mkdir(parents=True)
