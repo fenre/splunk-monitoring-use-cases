@@ -155,12 +155,17 @@ def _deterministic_timestamp() -> str:
 
       1. ``SOURCE_DATE_EPOCH`` environment variable (reproducible-builds
          convention; CI sets this per commit).
-      2. The committer date of ``HEAD`` for this repo, via ``git log``.
-         Both local runs and CI runs on the same commit therefore produce
-         byte-identical reports, so the "generated reports are committed"
-         gate only fails when the *structural* contents change.
-      3. Current wall-clock UTC time (ultimate fallback).
+      2. The stamp already published for this rollup. The body is
+         regenerated; the stamp stays so ``dist/`` does not change when
+         the body does not.
+      3. The committer date of ``HEAD`` for this repo, via ``git log``.
+      4. Current wall-clock UTC time (ultimate fallback).
     """
+    from splunk_uc.published_rollup_stamp import frozen_published_stamp
+
+    frozen = frozen_published_stamp("compliance-coverage")
+    if frozen:
+        return frozen
     fmt = "%Y-%m-%dT%H:%M:%SZ"
     sde = os.environ.get("SOURCE_DATE_EPOCH", "").strip()
     if sde.isdigit():

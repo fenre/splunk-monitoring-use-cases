@@ -546,6 +546,23 @@ sync-generated-check: _require-py311 ## CI drift gate — run every cascade gene
 # The compliance report stamps ``generatedAt`` from the HEAD commit, so
 # a timestamp-only diff is reverted and ignored. A count or coverage
 # change still fails the check.
+# Rollups that are generated in the CI build job and copied into dist/.
+# They are gitignored. SOURCE_DATE_EPOCH is left unset so each generator
+# keeps the published stamp; set the variable to pin the reproducible clock.
+generate-published-rollups: _require-py311 ## Regenerate the gitignored rollups the build copies into dist/
+	@$(SPLUNK_UC) generate-equipment-app-map
+	@$(SPLUNK_UC) generate-cisco-coverage
+	@$(SPLUNK_UC) audit-prerequisites
+	@$(SPLUNK_UC) audit-compliance-gaps
+	@$(SPLUNK_UC) audit-sandbox-validation
+	@$(PYTHON) scripts/simulate_controltest.py
+	@$(SPLUNK_UC) audit-splunk-version-matrix
+	@$(SPLUNK_UC) audit-compliance-mappings
+	@$(SPLUNK_UC) generate-recommender-app
+	@$(PYTHON) scripts/generate_backlinks.py
+	@$(SPLUNK_UC) audit-splunk-cloud-compat
+	@echo "==> generate-published-rollups: done"
+
 sync-catalogue-rollups: _require-py311 ## Regenerate the committed rollups that embed the use-case count
 	@echo "==> [1/4] compliance coverage"
 	@$(SPLUNK_UC) audit-compliance-mappings
@@ -574,7 +591,9 @@ sync-catalogue-rollups-check: _require-py311 ## Regenerate catalogue-count rollu
 	  echo "DRIFT: compliance coverage"; \
 	  git --no-pager diff --stat -- reports/compliance-coverage.json docs/compliance-coverage.md; \
 	else \
-	  git checkout -- reports/compliance-coverage.json docs/compliance-coverage.md; \
+	  if git ls-files --error-unmatch reports/compliance-coverage.json >/dev/null 2>&1; then \
+	    git checkout -- reports/compliance-coverage.json docs/compliance-coverage.md; \
+	  fi; \
 	fi; \
 	if ! git diff --exit-code -- reports/sandbox-validation.json reports/attack-simulation.json \
 	  data/splunk-version-matrix.json docs/splunk-version-matrix.md; then \
