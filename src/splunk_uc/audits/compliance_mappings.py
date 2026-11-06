@@ -1303,6 +1303,8 @@ def main(argv: list[str] | None = None) -> int:
     validator = Draft202012Validator(schema)
     regs = RegulationsCatalogue.load()
 
+    from splunk_uc.generators.equipment_tags import with_resolved_tags
+
     for uc_path in _iter_uc_files():
         state.uc_files_checked += 1
         doc = _validate_uc_schema(validator, uc_path, state)
@@ -1310,7 +1312,7 @@ def main(argv: list[str] | None = None) -> int:
             continue
         state.uc_files_valid += 1
         _reconcile_compliance(doc, regs, state)
-        _lint_equipment_orphans(doc, state)
+        _lint_equipment_orphans(with_resolved_tags(doc), state)
 
     golden = _run_golden_tests(state.entries, state)
     coverage = _compute_coverage(state.entries, regs)

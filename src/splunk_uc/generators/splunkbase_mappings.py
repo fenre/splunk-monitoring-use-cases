@@ -398,6 +398,8 @@ def main(argv: list[str] | None = None) -> int:
     skipped_human_signed = 0
     no_match = 0
 
+    from splunk_uc.generators.equipment_tags import with_resolved_tags
+
     for path in uc_paths:
         try:
             uc = json.loads(path.read_text(encoding="utf-8"))
@@ -409,7 +411,7 @@ def main(argv: list[str] | None = None) -> int:
             skipped_human_signed += 1
             continue
 
-        proposal = _build_proposal(uc, catalog)
+        proposal = _build_proposal(with_resolved_tags(uc), catalog)
         if not proposal:
             no_match += 1
             continue

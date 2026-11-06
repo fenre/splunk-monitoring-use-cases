@@ -55,8 +55,11 @@ def load_portfolio(path: Path = PORTFOLIO) -> dict[str, Any]:
 
 def collect_ucs() -> list[dict[str, Any]]:
     """Return the sidecar fields the matrix needs, one dict per UC."""
+    from splunk_uc.generators.equipment_tags import with_resolved_tags
+
     out: list[dict[str, Any]] = []
     for _path, sc in iter_uc_sidecars():
+        sc = with_resolved_tags(sc)
         out.append(
             {
                 "id": f"UC-{sc.get('id', '')}",

@@ -188,8 +188,11 @@ def _extract_uc_app_ids(payload: dict[str, Any]) -> set[str]:
 
 
 def build_corroboration_index() -> Counter[tuple[str, str]]:
+    from splunk_uc.generators.equipment_tags import with_resolved_tags
+
     counts: Counter[tuple[str, str]] = Counter()
     for _path, payload in iter_uc_sidecars():
+        payload = with_resolved_tags(payload)
         equipment = {
             slug.strip()
             for slug in (payload.get("equipment") or [])

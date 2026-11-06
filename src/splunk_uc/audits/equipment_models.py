@@ -145,7 +145,10 @@ def audit_sidecars(
     from equipment_lib import resolve_equipment_slug  # noqa: WPS433
 
     findings: list[Finding] = []
+    from splunk_uc.generators.equipment_tags import with_resolved_tags
+
     for path, payload in iter_uc_sidecars():
+        payload = with_resolved_tags(payload)
         label = uc_label(path, payload)
         for slug in get_list_field(payload, "equipment"):
             if not isinstance(slug, str) or not slug.strip():

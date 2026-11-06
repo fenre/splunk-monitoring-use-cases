@@ -243,6 +243,8 @@ def _load_json(path: pathlib.Path) -> Any:
 
 
 def _load_ucs() -> list[dict[str, Any]]:
+    from splunk_uc.generators.equipment_tags import with_resolved_tags
+
     ucs: list[dict[str, Any]] = []
     for path in sorted(REPO_ROOT.glob(UC_GLOB)):
         try:
@@ -254,7 +256,7 @@ def _load_ucs() -> list[dict[str, Any]]:
             raise SystemExit(f"ERROR: {path} is missing a string 'id'")
         data["_category"] = int(uc_id.split(".", 1)[0])
         data["_sourcePath"] = str(path.relative_to(REPO_ROOT))
-        ucs.append(data)
+        ucs.append(with_resolved_tags(data))
     ucs.sort(key=_uc_sort_key)
     return ucs
 

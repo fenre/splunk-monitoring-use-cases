@@ -10,18 +10,19 @@ PROBLEM (Apr 2026 audit of cat-22):
     or "Industrial Controls" got false-negative results.
 
 FIX:
-    Make ``equipment`` and ``equipmentModels`` first-class, schema-validated
-    arrays on every UC sidecar. This generator is their sole writer. It
-    computes them deterministically from substring-matching
-    ``app`` + ``dataSources`` + ``spl`` + ``implementation`` against the
+    ``equipment`` and ``equipmentModels`` stay schema-validated arrays.
+    The catalogue build computes them. Sidecars do not store them.
+    ``tags_for_sidecar`` matches ``app`` plus the narrative against the
     EQUIPMENT table in build.py.
 
 CONTRACT:
     - Deterministic: byte-for-byte identical output on re-runs at the same
       catalogue state. Sorted outputs, stable field order.
-    - Generator-owned: ``equipment[]`` and ``equipmentModels[]`` in sidecars
-      are always recomputed from source text. Do NOT hand-edit. Add missing
-      patterns to build.py's EQUIPMENT table instead.
+    - The catalogue build computes ``equipment[]`` and ``equipmentModels[]``.
+      Sidecars do not store them. ``tags_for_sidecar`` is the function the
+      build and the audits call. It uses the EQUIPMENT table, the evidence
+      rule, ``data/equipment-tag-overrides.json``, and
+      ``equipment_tag_retained.json`` for tags the text no longer implies.
     - Evidence-gated vendors (registry entries with an ``evidence`` block,
       currently Cisco) are tagged only from search evidence; see
       ``splunk_uc.equipment_evidence``. Their tags are replaced, not
@@ -33,10 +34,9 @@ CONTRACT:
       the existing optional-field convention).
 
 USAGE:
-    python3 -m splunk_uc generate-equipment-tags           # write in place
-    python3 -m splunk_uc generate-equipment-tags --check   # exit 1 on drift, print diff
-    python3 -m splunk_uc generate-equipment-tags --report  # also print per-equipment
-                                                            #   coverage summary
+    python3 -m splunk_uc generate-equipment-tags           # strip stored tags
+    python3 -m splunk_uc generate-equipment-tags --check   # exit 1 if any sidecar still stores them
+    python3 -m splunk_uc generate-equipment-tags --report  # print the computed coverage
 """
 
 from __future__ import annotations
@@ -67,6 +67,8 @@ from equipment_lib import compile_patterns, load_equipment, match_equipment  # n
 from splunk_uc import equipment_evidence as _ev  # noqa: E402
 
 _OVERRIDES_PATH = _REPO_ROOT / "data" / "equipment-tag-overrides.json"
+_RETAINED_PATH = Path(__file__).resolve().parent / "equipment_tag_retained.json"
+_ENGINE: tuple[Any, ...] | None = None
 
 # Canonical sidecar field order.  Mirrors
 # ``scripts/generate_phase3_1_backfill.py`` (queued for migration into
@@ -222,6 +224,107 @@ def _load_overrides(path: Path = _OVERRIDES_PATH) -> dict[str, dict[str, list[st
     return out
 
 
+def _load_retained(path: Path = _RETAINED_PATH) -> dict[str, tuple[list[str], list[str]]]:
+    """Tags the text no longer implies, keyed by bare UC id.
+
+    The generator used to merge computed tags with whatever a sidecar
+    already stored, so a tag survived after its pattern stopped matching.
+    Those residues are listed here. The file lives next to this module,
+    not under ``data/``, because ``data/`` is copied into ``dist/``.
+    """
+    if not path.is_file():
+        return {}
+    data = json.loads(path.read_text(encoding="utf-8"))
+    out: dict[str, tuple[list[str], list[str]]] = {}
+    for uc_id, entry in (data.get("retained") or {}).items():
+        out[str(uc_id).removeprefix("UC-")] = (
+            [str(tag) for tag in entry.get("equipment") or []],
+            [str(tag) for tag in entry.get("equipmentModels") or []],
+        )
+    return out
+
+
+def clear_tag_cache() -> None:
+    """Drop the compiled matcher. Tests patch the registry after import."""
+    global _ENGINE
+    _ENGINE = None
+
+
+def _engine() -> tuple[
+    Any,
+    list[dict[str, Any]],
+    frozenset[str],
+    dict[str, dict[str, list[str]]],
+    dict[str, tuple[list[str], list[str]]],
+]:
+    global _ENGINE
+    if _ENGINE is None:
+        equipment_registry = load_equipment()
+        gated = _ev.gated_entries(equipment_registry)
+        gated_ids = {e["id"] for e in gated}
+        gated_owned = frozenset(
+            gated_ids | {f"{e['id']}_{m['id']}" for e in gated for m in e.get("models") or []}
+        )
+        patterns = [p for p in compile_patterns(equipment_registry) if p[1] not in gated_ids]
+        _ENGINE = (patterns, gated, gated_owned, _load_overrides(), _load_retained())
+    return _ENGINE  # type: ignore[return-value]
+
+
+def tags_for_sidecar(
+    sidecar: dict[str, Any],
+    *,
+    include_retained: bool = True,
+) -> tuple[list[str], list[str]]:
+    """Return ``(equipment, equipmentModels)`` for one sidecar.
+
+    Stored ``equipment`` / ``equipmentModels`` keys are ignored. The result
+    is the matcher, the evidence rule, the overrides file, and (unless
+    ``include_retained`` is false) the retained residue.
+    """
+    patterns, gated, gated_owned, overrides, retained = _engine()
+    bare = dict(sidecar)
+    bare.pop("equipment", None)
+    bare.pop("equipmentModels", None)
+    equipment, equipment_models = _compute_tags(bare, patterns)
+    gated_eq, gated_models = _compute_gated_tags(bare, gated)
+    equipment = sorted(set(equipment) | gated_eq)
+    equipment_models = sorted(set(equipment_models) | gated_models)
+    applied = _apply_tags(
+        bare,
+        equipment,
+        equipment_models,
+        gated_owned,
+        overrides.get(str(sidecar.get("id") or "")),
+    )
+    eq = set(applied.get("equipment") or [])
+    models = set(applied.get("equipmentModels") or [])
+    if include_retained:
+        extra_eq, extra_models = retained.get(str(sidecar.get("id") or ""), ([], []))
+        eq |= set(extra_eq)
+        models |= set(extra_models)
+    return sorted(eq), sorted(models)
+
+
+def with_resolved_tags(sidecar: dict[str, Any]) -> dict[str, Any]:
+    """Fill equipment tags when the sidecar does not store them.
+
+    A sidecar that already has ``equipment`` or ``equipmentModels`` is
+    returned as-is, so a fixture that sets those keys keeps them. Empty
+    computed results stay omitted.
+    """
+    if "equipment" in sidecar or "equipmentModels" in sidecar:
+        return sidecar
+    equipment, equipment_models = tags_for_sidecar(sidecar)
+    if not equipment and not equipment_models:
+        return sidecar
+    out = dict(sidecar)
+    if equipment:
+        out["equipment"] = equipment
+    if equipment_models:
+        out["equipmentModels"] = equipment_models
+    return out
+
+
 def _reorder_sidecar(sidecar: dict[str, Any]) -> dict[str, Any]:
     """Return a dict with keys in ``_SIDECAR_FIELD_ORDER`` then sorted extras.
 
@@ -302,16 +405,8 @@ def _serialise(sidecar: dict[str, Any]) -> str:
 def _process_sidecars(
     check: bool,
 ) -> tuple[int, int, list[Path], Counter[str], Counter[str]]:
-    """Iterate every sidecar; return (processed, changed, changed_paths, eq_counts, model_counts)."""
-    equipment_registry = load_equipment()
-    gated = _ev.gated_entries(equipment_registry)
-    gated_ids = {e["id"] for e in gated}
-    gated_owned = frozenset(
-        gated_ids
-        | {f"{e['id']}_{m['id']}" for e in gated for m in e.get("models") or []}
-    )
-    patterns = [p for p in compile_patterns(equipment_registry) if p[1] not in gated_ids]
-    overrides = _load_overrides()
+    """Strip stored tags. Return (processed, stripped, paths, eq_counts, model_counts)."""
+    clear_tag_cache()
     processed = 0
     changed_paths: list[Path] = []
     eq_counts: Counter[str] = Counter()
@@ -322,32 +417,20 @@ def _process_sidecars(
         if sidecar is None:
             continue
         processed += 1
-
-        equipment, equipment_models = _compute_tags(sidecar, patterns)
-        gated_eq, gated_models = _compute_gated_tags(sidecar, gated)
-        equipment = sorted(set(equipment) | gated_eq)
-        equipment_models = sorted(set(equipment_models) | gated_models)
-        for e in equipment:
-            eq_counts[e] += 1
-        for m in equipment_models:
-            model_counts[m] += 1
-
-        new_sidecar = _apply_tags(
-            sidecar,
-            equipment,
-            equipment_models,
-            gated_owned,
-            overrides.get(str(sidecar["id"])),
-        )
-        new_text = _serialise(new_sidecar)
-        old_text = path.read_text(encoding="utf-8")
-
-        if new_text == old_text:
+        equipment, equipment_models = tags_for_sidecar(sidecar)
+        for tag in equipment:
+            eq_counts[tag] += 1
+        for tag in equipment_models:
+            model_counts[tag] += 1
+        if "equipment" not in sidecar and "equipmentModels" not in sidecar:
             continue
-
         changed_paths.append(path)
-        if not check:
-            path.write_text(new_text, encoding="utf-8")
+        if check:
+            continue
+        stripped = dict(sidecar)
+        stripped.pop("equipment", None)
+        stripped.pop("equipmentModels", None)
+        path.write_text(_serialise(stripped), encoding="utf-8")
 
     return processed, len(changed_paths), changed_paths, eq_counts, model_counts
 
@@ -391,12 +474,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.check:
         if changed > 0:
             print(
-                f"FATAL: {changed}/{processed} UC sidecars have stale "
-                f"equipment/equipmentModels tags.",
+                f"FATAL: {changed}/{processed} UC sidecars still store "
+                f"equipment/equipmentModels. The build computes those tags.",
                 file=sys.stderr,
             )
             print(
-                "Re-run `python -m splunk_uc generate-equipment-tags` to refresh. Affected files:",
+                "Re-run `python -m splunk_uc generate-equipment-tags` to remove them. Affected files:",
                 file=sys.stderr,
             )
             for p in changed_paths[:25]:
@@ -404,13 +487,13 @@ def main(argv: list[str] | None = None) -> int:
             if changed > 25:
                 print(f"  ... and {changed - 25} more", file=sys.stderr)
             return 1
-        print(f"OK: {processed} UC sidecars have up-to-date equipment tags.")
+        print(f"OK: {processed} UC sidecars store no equipment tags.")
         return 0
 
     if args.report:
         _print_report(processed, changed, eq_counts, model_counts)
     else:
-        print(f"Processed {processed} sidecars, updated {changed}.")
+        print(f"Processed {processed} sidecars, stripped {changed}.")
     return 0
 
 
