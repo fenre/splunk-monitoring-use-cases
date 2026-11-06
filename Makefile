@@ -485,7 +485,7 @@ sync-generated: _require-py311 ## Run every cascade-style generator (write-mode)
 	@echo "==> [6/15] derived report: cat-22 non-technical-view block"
 	@$(SPLUNK_UC) migrate-cat22-ntv
 	@echo "==> [7/15] derived report: prerequisites graph"
-	@$(SPLUNK_UC) audit-prerequisites
+	@$(SPLUNK_UC) audit-prerequisites --write-report
 	@echo "==> [8/15] derived report: compliance gaps"
 	@$(SPLUNK_UC) audit-compliance-gaps
 	@echo "==> [9/15] derived report: sandbox validation"
@@ -552,7 +552,7 @@ sync-generated-check: _require-py311 ## CI drift gate — run every cascade gene
 generate-published-rollups: _require-py311 ## Regenerate the gitignored rollups the build copies into dist/
 	@$(SPLUNK_UC) generate-equipment-app-map
 	@$(SPLUNK_UC) generate-cisco-coverage
-	@$(SPLUNK_UC) audit-prerequisites
+	@$(SPLUNK_UC) audit-prerequisites --write-report
 	@$(SPLUNK_UC) audit-compliance-gaps
 	@$(SPLUNK_UC) audit-sandbox-validation
 	@$(PYTHON) scripts/simulate_controltest.py
