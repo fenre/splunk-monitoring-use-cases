@@ -24,6 +24,8 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -862,6 +864,45 @@ class TestMainCli:
         out = capsys.readouterr().out
         assert "Wrote" in out
         assert "Provenance indexed: 1 UCs" in out
+
+    def test_provenance_js_decodes_to_the_flat_map(
+        self,
+        bp: ModuleType,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        node = shutil.which("node")
+        if node is None:
+            pytest.skip("node is not installed")
+        paths = _patch_paths(bp, monkeypatch, tmp_path)
+        ucs = [
+            ("1.1.1", "https://docs.splunk.com/A"),
+            ("1.1.2", "https://docs.splunk.com/B"),
+            ("1.1.3", "https://docs.splunk.com/C"),
+            ("1.1.5", "https://docs.splunk.com/D"),
+            ("1.1.6", "https://attack.mitre.org/T1"),
+            ("1.2.1", "https://docs.splunk.com/E"),
+            ("10.3.9", "https://docs.splunk.com/F"),
+            ("10.3.10", "https://docs.splunk.com/G"),
+            ("10.3.11", ""),
+        ]
+        _seed_catalog(
+            paths["catalog"],
+            use_cases=[{"i": i, "refs": f"[x]({u})" if u else ""} for i, u in ucs],
+        )
+        monkeypatch.setattr(sys, "argv", ["build_provenance"])
+        assert bp.main() == 0
+        ledger = json.loads(paths["provenance"].read_text("utf-8"))["entries"]
+        code = {"splunk-official": "SO", "mitre-attack": "MA", "contributor": "CT"}
+        expected = {uc_id: code[entry["origin"]] for uc_id, entry in ledger.items()}
+        script = (
+            "const vm=require('vm'),fs=require('fs');const ctx={window:{}};"
+            f"vm.runInNewContext(fs.readFileSync({json.dumps(str(paths['provenance_js']))},'utf8'),ctx);"
+            "process.stdout.write(JSON.stringify(ctx.window.PROVENANCE));"
+        )
+        decoded = json.loads(subprocess.check_output([node, "-e", script], text=True))
+        assert decoded == expected
+        assert bp.encode_origin_ranges(expected)["SO"] == "1.1.1-3,1.1.5,1.2.1,10.3.9-10"
 
     def test_no_write_suppresses_files_but_still_prints_summary(
         self,

@@ -79,6 +79,8 @@ from importlib import metadata as _importlib_metadata
 from pathlib import Path
 from typing import Any, Protocol, cast
 
+from splunk_uc.published_rollup_stamp import frozen_published_stamp
+
 
 class _MetadataLike(Protocol):
     """Runtime-stable interface a package-metadata object must expose.
@@ -541,7 +543,8 @@ def _is_inside_skip_dir(path: Path, repo_root: Path) -> bool:
        ``.mypy_cache/``, ``.ruff_cache/``, ``.cursor/``, ``.idea/``,
        ``.vscode/``, ``.venv/``, ``.venv-feasibility/``, …). Anything
        starting with ``.`` or named ``__pycache__`` is treated as
-       infrastructure noise.
+       infrastructure noise. ``node_modules/`` is skipped at any depth
+       too (``apps/web/node_modules`` exists wherever the web app is built).
     2. Top-level build/vendor output dirs listed in
        :data:`_SKIP_TOP_LEVEL_DIRS`. Always gitignored.
     """
@@ -550,7 +553,7 @@ def _is_inside_skip_dir(path: Path, repo_root: Path) -> bool:
     if not parts:
         return False
     for part in parts:
-        if part.startswith(".") or part == "__pycache__":
+        if part.startswith(".") or part in ("__pycache__", "node_modules"):
             return True
     if parts[0] in _SKIP_TOP_LEVEL_DIRS:
         return True
@@ -650,8 +653,12 @@ def build_inventory(
     return {
         "$schema": _SCHEMA_REL,
         "version": _read_repo_version(),
-        "captured_at": captured_at or _dt.datetime.now(_dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "git_head": git_head if git_head is not None else _git_head(),
+        "captured_at": captured_at
+        or frozen_published_stamp("license-inventory")
+        or _dt.datetime.now(_dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "git_head": git_head
+        if git_head is not None
+        else (frozen_published_stamp("license-inventory-git-head") or _git_head()),
         "repo_license": repo_license,
         "allowlist": sorted(set(allowlist)),
         "python_packages": python_packages,
