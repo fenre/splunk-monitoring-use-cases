@@ -557,10 +557,14 @@ generate-published-rollups: _require-py311 ## Regenerate the gitignored rollups 
 	@$(SPLUNK_UC) audit-sandbox-validation
 	@$(PYTHON) scripts/simulate_controltest.py
 	@$(SPLUNK_UC) audit-splunk-version-matrix
+	@$(PYTHON) scripts/generate_doc_references.py --only docs/splunk-version-matrix.md
 	@$(SPLUNK_UC) audit-compliance-mappings
+	@$(SPLUNK_UC) generate-evidence-packs
 	@$(SPLUNK_UC) generate-recommender-app
-	@$(PYTHON) scripts/generate_backlinks.py
 	@$(SPLUNK_UC) audit-splunk-cloud-compat
+	@# Backlinks index every doc on disk, itself included, so they run last and twice.
+	@$(PYTHON) scripts/generate_backlinks.py
+	@$(PYTHON) scripts/generate_backlinks.py
 	@echo "==> generate-published-rollups: done"
 
 sync-catalogue-rollups: _require-py311 ## Regenerate the committed rollups that embed the use-case count
