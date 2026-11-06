@@ -45,6 +45,8 @@ from pathlib import Path
 from statistics import median
 from typing import Any
 
+from splunk_uc.published_rollup_stamp import frozen_published_stamp
+
 # P6 (scripts taxonomy, 2026-05-10) relocated this generator from
 # scripts/generate_scorecard.py to src/splunk_uc/generators/scorecard.py.
 # parents[3] resolves: scorecard.py -> generators/ -> splunk_uc/ -> src/ ->
@@ -531,6 +533,9 @@ def _reproducible_now() -> str:
     epoch = os.environ.get("SOURCE_DATE_EPOCH")
     if epoch and epoch.isdigit():
         return datetime.fromtimestamp(int(epoch), tz=UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    frozen = frozen_published_stamp("scorecard")
+    if frozen:
+        return frozen
     return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
@@ -545,6 +550,9 @@ def _reproducible_today() -> date:
     epoch = os.environ.get("SOURCE_DATE_EPOCH")
     if epoch and epoch.isdigit():
         return datetime.fromtimestamp(int(epoch), tz=UTC).date()
+    frozen = frozen_published_stamp("scorecard")
+    if frozen:
+        return date.fromisoformat(frozen[:10])
     return date.today()
 
 
