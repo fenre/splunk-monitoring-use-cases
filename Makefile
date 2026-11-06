@@ -547,8 +547,9 @@ sync-generated-check: _require-py311 ## CI drift gate — run every cascade gene
 # a timestamp-only diff is reverted and ignored. A count or coverage
 # change still fails the check.
 # Rollups that are generated in the CI build job and copied into dist/.
-# They are gitignored. SOURCE_DATE_EPOCH is left unset so each generator
-# keeps the published stamp; set the variable to pin the reproducible clock.
+# They are gitignored. CI sets SOURCE_DATE_EPOCH to the HEAD commit time.
+# Locally the generators read that same commit time from git. The fixed
+# fallback dates apply only when git is not available.
 generate-published-rollups: _require-py311 ## Regenerate the gitignored rollups the build copies into dist/
 	@$(SPLUNK_UC) generate-equipment-app-map
 	@$(SPLUNK_UC) generate-cisco-coverage

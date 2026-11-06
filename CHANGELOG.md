@@ -14,6 +14,12 @@ the release notes block in `index.html` by hand.
 
 ### Changed
 
+- **CI stamps generated dates from the HEAD commit.** `setup-python`
+  sets `SOURCE_DATE_EPOCH` to `git log -1 --format=%ct` before generators
+  and the build, so two runs of one commit match and a new commit moves
+  the dates. The fixed fallback dates apply only when git is not
+  available. No page loads `dist/provenance.json`; the dashboard loads
+  `provenance.js`.
 - **Published rollups are generated in the CI build job.** Equipment app
   map, Cisco coverage, prerequisites, compliance coverage and gaps,
   sandbox validation, ATT&CK simulation, the Splunk version matrix,

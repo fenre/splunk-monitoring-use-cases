@@ -45,7 +45,7 @@ from pathlib import Path
 from statistics import median
 from typing import Any
 
-from splunk_uc.published_rollup_stamp import frozen_published_stamp
+from splunk_uc.published_rollup_stamp import resolve_published_stamp
 
 # P6 (scripts taxonomy, 2026-05-10) relocated this generator from
 # scripts/generate_scorecard.py to src/splunk_uc/generators/scorecard.py.
@@ -521,38 +521,18 @@ def render_markdown(
 
 
 def _reproducible_now() -> str:
-    """Return a UTC timestamp pinned to SOURCE_DATE_EPOCH when set.
-
-    Honors the reproducible-builds standard env var so that
-    ``tools/build/build.py --reproducible`` produces byte-identical
-    scorecards across consecutive builds. Falls back to the real wall
-    clock when the env var is missing (interactive runs).
-    """
-    import os
-
-    epoch = os.environ.get("SOURCE_DATE_EPOCH")
-    if epoch and epoch.isdigit():
-        return datetime.fromtimestamp(int(epoch), tz=UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-    frozen = frozen_published_stamp("scorecard")
-    if frozen:
-        return frozen
+    """Commit clock: SOURCE_DATE_EPOCH, else HEAD, else the fixed fallback."""
+    resolved = resolve_published_stamp("scorecard")
+    if resolved:
+        return resolved
     return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _reproducible_today() -> date:
-    """Return today's UTC date pinned to SOURCE_DATE_EPOCH when set.
-
-    Used for freshness scoring so freshness ages are stable across two
-    consecutive builds of the same source SHA.
-    """
-    import os
-
-    epoch = os.environ.get("SOURCE_DATE_EPOCH")
-    if epoch and epoch.isdigit():
-        return datetime.fromtimestamp(int(epoch), tz=UTC).date()
-    frozen = frozen_published_stamp("scorecard")
-    if frozen:
-        return date.fromisoformat(frozen[:10])
+    """UTC date of the same clock as ``_reproducible_now``."""
+    resolved = resolve_published_stamp("scorecard")
+    if resolved:
+        return date.fromisoformat(resolved[:10])
     return date.today()
 
 
