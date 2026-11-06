@@ -126,7 +126,6 @@ CRITICAL_STEP_NAMES = [
     "Phase 5.2 SME-review signoff audit",
     "Phase 5.4 signed provenance ledger",
     # Build job
-    "Build check (catalog regeneration)",
     "Audit — byte budgets",
     "Audit — URL freeze",
     "Splunk Cloud compatibility audit",

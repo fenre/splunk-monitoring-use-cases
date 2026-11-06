@@ -562,6 +562,20 @@ generate-published-rollups: _require-py311 ## Regenerate the gitignored rollups 
 	@$(SPLUNK_UC) generate-evidence-packs
 	@$(SPLUNK_UC) generate-recommender-app
 	@$(SPLUNK_UC) audit-splunk-cloud-compat
+	@$(PYTHON) scripts/build_provenance.py
+	@$(PYTHON) scripts/samples_index.py
+	@$(SPLUNK_UC) generate-scorecard
+	@$(SPLUNK_UC) generate-uc-review-report
+	@# Resolves every dependency in pyproject.toml and mcp/pyproject.toml:
+	@# needs pip install -e ".[audits,test,dev]" and pip install -e mcp/.
+	@$(SPLUNK_UC) audit-license-inventory --write
+	@# --write only warns on a licence that is not on the allowlist; --check fails.
+	@$(SPLUNK_UC) audit-license-inventory --check
+	@# Needs npm ci in apps/web; the cat-22 block is then rewritten from Python.
+	@( cd apps/web && npm run --silent emit:legacy )
+	@$(SPLUNK_UC) migrate-cat22-ntv
+	@# Needs npm ci at the repo root (axe-core + jsdom) and provenance.js.
+	@$(SPLUNK_UC) audit-perf-a11y
 	@# Backlinks index every doc on disk, itself included, so they run last and twice.
 	@$(PYTHON) scripts/generate_backlinks.py
 	@$(PYTHON) scripts/generate_backlinks.py
@@ -667,20 +681,8 @@ preflight: _require-py311 ## Regenerate every committed derived artefact, then s
 	@echo "==> preflight: done. Review and commit the diff below:"
 	@git status --short
 
-preflight-fast: _require-py311 ## Fast pre-push drift subset: cascade --check + legacy emit guard (~30s)
+preflight-fast: _require-py311 ## Fast pre-push drift subset: cascade --check (~30s)
 	@$(MAKE) --no-print-directory sync-generated-check
-	@echo "==> preflight-fast: legacy non-technical-view.js drift guard"
-	@if command -v npm >/dev/null 2>&1; then \
-	  ( cd apps/web && npm run --silent emit:legacy ); \
-	  if ! git diff --exit-code non-technical-view.js >/dev/null 2>&1; then \
-	    echo "FAIL: non-technical-view.js is stale — run \`cd apps/web && npm run emit:legacy\` and commit."; \
-	    git --no-pager diff --stat -- non-technical-view.js; \
-	    exit 1; \
-	  fi; \
-	  echo "==> non-technical-view.js: clean"; \
-	else \
-	  echo "    SKIP: npm not found — legacy emit guard skipped (the CI frontend job still guards it)."; \
-	fi
 	@echo "==> preflight-fast: clean"
 
 preflight-check: _require-py311 ## CI-faithful drift mirror: fail if any committed derived artefact is stale
@@ -698,14 +700,6 @@ preflight-check: _require-py311 ## CI-faithful drift mirror: fail if any committ
 	$(SPLUNK_UC) audit-splunk-version-matrix --check || { failed=1; echo "    DRIFT: splunk-version-matrix"; }; \
 	python3 scripts/simulate_controltest.py --check || { failed=1; echo "    DRIFT: reports/attack-simulation.json"; }; \
 	$(SPLUNK_UC) audit-oscal-roundtrip --check || { failed=1; echo "    DRIFT: reports/oscal-roundtrip.json"; }; \
-	$(SPLUNK_UC) audit-perf-a11y --check || { failed=1; echo "    DRIFT: reports/perf-a11y.json"; }; \
-	echo "==> preflight-check [5/5] legacy non-technical-view.js"; \
-	if command -v npm >/dev/null 2>&1; then \
-	  ( cd apps/web && npm run --silent emit:legacy ); \
-	  if ! git diff --exit-code non-technical-view.js >/dev/null 2>&1; then failed=1; echo "    DRIFT: non-technical-view.js"; fi; \
-	else \
-	  echo "    SKIP: npm not found — legacy emit guard skipped."; \
-	fi; \
 	if [ $$failed -ne 0 ]; then \
 	  echo ""; \
 	  echo "FAIL: preflight-check found stale committed artefacts above."; \

@@ -63,6 +63,21 @@ jobs:
         uses: ./.github/actions/setup-python
         with:
           install-audits: "true"
+          # The license inventory resolves every declared dependency.
+          install-extras: "audits,test,dev"
+
+      - name: Install MCP subpackage (license inventory)
+        run: pip install --disable-pip-version-check -e 'mcp/[test]'
+
+      - name: Set up Node.js
+        # Root npm ci: axe-core and jsdom for perf + a11y.
+        uses: ./.github/actions/setup-node
+        with:
+          install-deps: "true"
+
+      - name: apps/web — install deps (non-technical-view.js emit)
+        working-directory: apps/web
+        run: npm ci --no-audit --no-fund
 
       - name: Restore sidecar quality-score cache
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
@@ -110,15 +125,6 @@ jobs:
       - name: Guard — api/v1 recommender + equipment indexes are non-empty
         run: python3 tools/audits/api_surface_nonempty.py dist
 
-      - name: Build check (catalog regeneration)
-        run: |
-          CHANGED=$(git diff --name-only -- provenance.json provenance.js docs/provenance-coverage.md scorecard.json docs/scorecard.md)
-          if [ -n "$CHANGED" ]; then
-            echo "::error::Generated files are out of date — run 'make build' and commit: $CHANGED"
-            git --no-pager diff --stat -- provenance.json provenance.js docs/provenance-coverage.md scorecard.json docs/scorecard.md
-            exit 1
-          fi
-
       - name: Summary
         id: summary
         run: |
@@ -156,7 +162,21 @@ jobs:
             reports/oscal-roundtrip.json \
             reports/prerequisites-audit.json \
             reports/sandbox-validation.json \
-            splunk-apps/splunk-uc-recommender
+            splunk-apps/splunk-uc-recommender \
+            provenance.json \
+            provenance.js \
+            docs/provenance-coverage.md \
+            scorecard.json \
+            docs/scorecard.md \
+            docs/samples-coverage.md \
+            docs/uc-review-findings.md \
+            reports/uc-review/summary.json \
+            reports/uc-review/fix-queue.json \
+            reports/uc-review/human-lane.md \
+            data/license-inventory.json \
+            docs/license-inventory.md \
+            reports/perf-a11y.json \
+            non-technical-view.js
 
       - name: Upload catalog build
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -221,9 +241,9 @@ jobs:
           install-audits: "true"
 
       - name: Set up Node.js
-        # Lint only needs Node for the two ``node -e`` JS syntax checks
-        # (non-technical-view.js, docs-uc-map.js). No npm packages are
-        # required, so install-deps is intentionally false.
+        # Lint only needs Node for the ``node -e`` docs-uc-map.js syntax
+        # check. No npm packages are required, so install-deps is
+        # intentionally false.
         uses: ./.github/actions/setup-node
         with:
           install-deps: "false"
@@ -278,20 +298,6 @@ jobs:
         run: |
           pip install --disable-pip-version-check "mypy>=1.10" "types-PyYAML>=6.0.12"
           PYTHONPATH=src mypy --no-incremental src/splunk_uc/
-
-      - name: Non-technical view JS syntax
-        run: |
-          node -e "
-            const vm = require('vm');
-            const fs = require('fs');
-            const code = fs.readFileSync('non-technical-view.js', 'utf8');
-            const script = new vm.Script(code, { filename: 'non-technical-view.js' });
-            const ctx = vm.createContext({ window: {} });
-            script.runInContext(ctx);
-            const n = Object.keys(ctx.window.NON_TECHNICAL || {}).length;
-            if (n < 1) { console.error('No categories found'); process.exit(1); }
-            console.log(n + ' categories OK');
-          "
 
       - name: Docs-UC map JS syntax
         run: |
@@ -414,7 +420,9 @@ jobs:
           # declaration in pyproject.toml (single source of truth) instead of
           # drifting through inline ``pip install pytest …`` lists. See
           # docs/scripts-taxonomy.md §extras-management.
-          install-extras: "test"
+          # audits + dev: generate-published-rollups writes the license
+          # inventory, which resolves every declared dependency.
+          install-extras: "audits,test,dev"
 
       - name: Install MCP subpackage (required by audit-license-inventory)
         # PR-5 hotfix #2 (2026-05-12): ``tests/scripts/test_audit_license_
@@ -431,6 +439,17 @@ jobs:
         # walks every dependency successfully. The mcp job also installs
         # this for its own test suite (different concern, same line).
         run: pip install --disable-pip-version-check -e 'mcp/[test]'
+
+      - name: Set up Node.js
+        # generate-published-rollups runs axe-core (root npm ci) and
+        # emits non-technical-view.js (apps/web npm ci).
+        uses: ./.github/actions/setup-node
+        with:
+          install-deps: "true"
+
+      - name: apps/web — install deps (non-technical-view.js emit)
+        working-directory: apps/web
+        run: npm ci --no-audit --no-fund
 
       - name: Generate published rollups for tests
         # The rollups are gitignored. Unit tests and the roadmap link
@@ -1358,6 +1377,21 @@ jobs:
       - name: Unpack catalog build
         run: tar -xzf catalog-dist.tar.gz && rm -f catalog-dist.tar.gz
 
+      - name: Non-technical view JS syntax
+        # non-technical-view.js is generated in the build job.
+        run: |
+          node -e "
+            const vm = require('vm');
+            const fs = require('fs');
+            const code = fs.readFileSync('non-technical-view.js', 'utf8');
+            const script = new vm.Script(code, { filename: 'non-technical-view.js' });
+            const ctx = vm.createContext({ window: {} });
+            script.runInContext(ctx);
+            const n = Object.keys(ctx.window.NON_TECHNICAL || {}).length;
+            if (n < 1) { console.error('No categories found'); process.exit(1); }
+            console.log(n + ' categories OK');
+          "
+
       - name: Recommender frontend unit tests
         # Drift/QA gate: ``!cancelled()`` lets every frontend gate report
         # in one CI round-trip. The prerequisite build + api/v1 gen +
@@ -1435,14 +1469,16 @@ jobs:
         # Python freshness gates (``--check`` guards) but for the
         # frontend half of the catalogue. Contributors should run
         # ``cd apps/web && npm run emit:legacy`` after any edit to
-        # ``src/data/non-technical-view.data.ts`` and commit the
-        # regenerated ``non-technical-view.js`` alongside.
+        # ``src/data/non-technical-view.data.ts``. The file is no longer
+        # committed: this re-emits it and compares with the copy the
+        # build job published, after the cat-22 block is rewritten.
         working-directory: apps/web
         run: |
+          cp ../../non-technical-view.js "$RUNNER_TEMP/ntv-built.js"
           npm run emit:legacy
-          cd ..
-          cd ..
-          git diff --exit-code non-technical-view.js
+          cd ../..
+          PYTHONPATH=src python3 -m splunk_uc migrate-cat22-ntv
+          cmp non-technical-view.js "$RUNNER_TEMP/ntv-built.js"
 
       - name: Phase 4.4 scorecard.html render test
         if: ${{ !cancelled() }}

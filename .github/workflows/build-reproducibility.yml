@@ -71,7 +71,9 @@ jobs:
         uses: ./.github/actions/setup-python
         with:
           install-audits: "true"
-          install-extras: "test"
+          # audits + dev: the license inventory in generate-published-rollups
+          # resolves every declared dependency.
+          install-extras: "audits,test,dev"
 
       - name: Reproducibility audit (two consecutive --reproducible builds)
         # The dispatcher path is the canonical entry point as of P6
@@ -90,6 +92,18 @@ jobs:
         # including ``mcp`` from mcp/pyproject.toml, which ``.[test]``
         # does not pull in.
         run: pip install --disable-pip-version-check -e 'mcp/[test]'
+
+      - name: Set up Node.js
+        uses: ./.github/actions/setup-node
+        with:
+          install-deps: "true"
+
+      - name: Generate published rollups for tests
+        # The rollups are gitignored; the unit tests read them from the checkout.
+        run: |
+          ( cd apps/web && npm ci --no-audit --no-fund )
+          python3 tools/build/build.py --out dist --only parse meta --reproducible
+          make generate-published-rollups
 
       - name: Coverage budget audit (per-file ratchet vs baseline)
         # Same suite as pull-request CI, plus coverage. The --cov filter

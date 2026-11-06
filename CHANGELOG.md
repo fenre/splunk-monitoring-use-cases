@@ -17,16 +17,28 @@ the release notes block in `index.html` by hand.
 - **Published rollups are generated in the CI build job.** Equipment app
   map, Cisco coverage, prerequisites, compliance coverage and gaps,
   sandbox validation, ATT&CK simulation, the Splunk version matrix,
-  evidence packs, the recommender app, backlinks, Splunk Cloud
-  compatibility, and the OSCAL round-trip report are no longer
+  the generated evidence packs, the recommender app, backlinks, Splunk
+  Cloud compatibility, and the OSCAL round-trip report are no longer
   committed. The build generates them and copies the same bytes into
   `dist/`. A rollup whose body has not changed keeps its published
-  stamp; `SOURCE_DATE_EPOCH` replaces that stamp. Provenance,
-  scorecard, sample coverage, the UC review rollup, the license
-  inventory, perf and accessibility, `non-technical-view.js`, and the
-  regulatory fetch report stay committed: a fresh generation does not
-  match the bytes already published. The `api/v1` "is committed" step
-  is gone: `api/` is already gitignored.
+  stamp; `SOURCE_DATE_EPOCH` replaces that stamp. The eight
+  hand-written evidence packs stay committed. The `api/v1` "is
+  committed" step is gone: `api/` is already gitignored.
+- **Provenance, scorecard, sample coverage, the UC review rollup, the
+  license inventory, perf and accessibility, and `non-technical-view.js`
+  are generated in the CI build job too.** They were regenerated from
+  the current catalogue first, which changes ten published files: the
+  committed copies counted 6,565 (provenance), 7,929 (scorecard),
+  6,447 (sample coverage) and 16,689 (review rollup) use cases, against
+  16,726 now. `non-technical-view.js` regenerates byte-identical.
+  `provenance.js` now stores UC ids grouped by origin code as index
+  ranges and expands them into the same `window.PROVENANCE` map (12 KB;
+  a flat map of 16,726 ids is 257 KB, over its 128 KiB budget). The
+  build check that diffed the committed provenance and scorecard is
+  gone, and the non-technical-view syntax check moved from lint to the
+  frontend job, which has the built file. The license inventory is no
+  longer a reviewed snapshot in pull requests; its allowlist check still
+  fails the build. The regulatory fetch report stays committed.
 - **CI critical path.** The fixture dry-run reads `catalog.json` once.
   Unit tests share one session-scoped catalogue load, and the real-build
   smoke is marked `nightly`. The catalog artifact uploads as one tar. Sidecar quality scores
