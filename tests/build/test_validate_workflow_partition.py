@@ -131,7 +131,7 @@ CRITICAL_STEP_NAMES = [
     "Audit — URL freeze",
     "Splunk Cloud compatibility audit",
     "Splunk UC Recommender generator regeneration check",
-    "API surface (api/v1) is committed",
+    "Generate published rollups",
     "Story-layer UI smoke tests",
     "Package recommender .spl",
     # MCP job

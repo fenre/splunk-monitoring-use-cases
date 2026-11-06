@@ -14,10 +14,22 @@ the release notes block in `index.html` by hand.
 
 ### Changed
 
+- **Published rollups are generated in the CI build job.** Equipment app
+  map, Cisco coverage, prerequisites, compliance coverage and gaps,
+  sandbox validation, ATT&CK simulation, the Splunk version matrix,
+  evidence packs, the recommender app, backlinks, Splunk Cloud
+  compatibility, and the OSCAL round-trip report are no longer
+  committed. The build generates them and copies the same bytes into
+  `dist/`. A rollup whose body has not changed keeps its published
+  stamp; `SOURCE_DATE_EPOCH` replaces that stamp. Provenance,
+  scorecard, sample coverage, the UC review rollup, the license
+  inventory, perf and accessibility, `non-technical-view.js`, and the
+  regulatory fetch report stay committed: a fresh generation does not
+  match the bytes already published. The `api/v1` "is committed" step
+  is gone: `api/` is already gitignored.
 - **CI critical path.** The fixture dry-run reads `catalog.json` once.
   Unit tests share one session-scoped catalogue load, and the real-build
-  smoke is marked `nightly`. `api/v1` drift is a `git diff` in the build
-  job. The catalog artifact uploads as one tar. Sidecar quality scores
+  smoke is marked `nightly`. The catalog artifact uploads as one tar. Sidecar quality scores
   are cached by content hash and scored in parallel on a miss. The Gold
   `--summary`, the RAG determinism rerun and the build smoke run nightly.
   Splunkbase app status checks changed use cases on a pull request; the

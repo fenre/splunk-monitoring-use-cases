@@ -60,7 +60,16 @@ _OPTIONAL_APP_IDS = frozenset({"2686", "5709"})
 
 
 def _deterministic_timestamp() -> str:
-    """Stable UTC timestamp for committed map files."""
+    """Stable UTC timestamp for the equipment app map.
+
+    ``SOURCE_DATE_EPOCH`` wins. Otherwise the published stamp is reused
+    so a body-identical regeneration does not change ``dist/``.
+    """
+    from splunk_uc.published_rollup_stamp import frozen_published_stamp
+
+    frozen = frozen_published_stamp("equipment-app-map")
+    if frozen:
+        return frozen
     fmt = "%Y-%m-%dT%H:%M:%SZ"
     sde = os.environ.get("SOURCE_DATE_EPOCH", "").strip()
     if sde.isdigit():
