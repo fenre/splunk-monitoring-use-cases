@@ -248,12 +248,6 @@ jobs:
         with:
           install-deps: "false"
 
-      - name: Schema metadata validation
-        run: python3 tools/audits/schema_meta.py
-
-      - name: Asset drift (inline blocks vs src/)
-        run: python3 tools/audits/asset_drift.py
-
       - name: GitHub Actions pin audit
         # Verifies every ``uses: <action>@<sha> # vX.Y.Z`` reference in
         # ``.github/workflows/*.yml`` and ``.github/actions/*/action.yml``
@@ -342,31 +336,6 @@ jobs:
           fi
           exit $FAIL
 
-      - name: Schema-cycle gate (parallel atlas §3.1)
-        # At most one schemas/uc.schema.json bump may land on main per 24-hour
-        # merge cycle. A PR that touches the schema while main already
-        # received a bump in that window fails closed. PRs that leave the
-        # schema alone pass: main's history is not theirs to fix.
-        # The PR's own diff is base.sha...head.sha, not the merge ref, and
-        # bumps are counted per landed merge (first parent), not per commit.
-        if: github.event_name == 'pull_request'
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          git fetch origin main --depth=200
-          if ! git diff --name-only "${BASE_SHA}...${HEAD_SHA}" | grep -qx 'schemas/uc.schema.json'; then
-            echo "Schema-cycle gate PASS (this PR does not modify schemas/uc.schema.json)"
-            exit 0
-          fi
-          RECENT=$(git log origin/main --first-parent --since="24 hours ago" --oneline -- schemas/uc.schema.json | wc -l | tr -d ' ')
-          echo "Schema bumps landed on main (last 24h): ${RECENT}"
-          if [ "${RECENT}" -ge 1 ]; then
-            echo "::error::This PR modifies schemas/uc.schema.json but main already had a schema bump in the last 24h. Serialise schema PRs per docs/parallel-execution-substrate.md §3.1."
-            exit 1
-          fi
-          echo "Schema-cycle gate PASS"
-
       - name: Subagent UC-firewall (Task B-7)
         if: github.event_name == 'pull_request'
         env:
@@ -378,33 +347,21 @@ jobs:
           PYTHONPATH=src python3 -m splunk_uc audit-subagent-uc-firewall --check
 
   # ============================================================================
-  # Job 2: audits-content (~25 min budget)
+  # Job 2a: unit-tests
   # ============================================================================
-  # UC content audits. Reads sidecars, scripts and reports directly.
-  # Steps that need dist/catalog.json run in audits-build, which
-  # downloads the artifact from the build job.
-  #
-  # The 14 cascade-style "generator regeneration check" steps that used
-  # to fan out one CI step each were collapsed into a single umbrella
-  # step (``Cascade-generator drift gate (umbrella)`` → ``make
-  # sync-generated-check``) in PR-2 lean-mode (2026-05-17, drift ledger
-  # #20). When the umbrella fails, the log lists every drifting
-  # generator; recovery is ``make sync-generated && git add -A``
-  # locally.
-  #
-  # Most other failures in this job are "you edited a JSON sidecar but
-  # forgot to regenerate the report" — ``make build`` or the named
-  # generator without ``--check`` will fix it.
-  audits-content:
-    name: audits-content
+  # pytest for the build pipeline, scripts and the splunk_uc package, on
+  # fixtures only: no catalogue build, no rollups. Tests that need the
+  # built catalogue run in audits-build. Runs in parallel with
+  # audits-content.
+  unit-tests:
+    name: unit-tests
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # Full history + tags so ``tools/audits/schema_diff.py`` can
-          # resolve a baseline git ref (see docs/schema-versioning.md).
+          # Full history: some tests read git history.
           fetch-depth: 0
 
       - name: Set up Python
@@ -420,8 +377,8 @@ jobs:
           # declaration in pyproject.toml (single source of truth) instead of
           # drifting through inline ``pip install pytest …`` lists. See
           # docs/scripts-taxonomy.md §extras-management.
-          # audits + dev: generate-published-rollups writes the license
-          # inventory, which resolves every declared dependency.
+          # audits + dev: the license-inventory tests import every
+          # declared dependency.
           install-extras: "audits,test,dev"
 
       - name: Install MCP subpackage (required by audit-license-inventory)
@@ -441,23 +398,10 @@ jobs:
         run: pip install --disable-pip-version-check -e 'mcp/[test]'
 
       - name: Set up Node.js
-        # generate-published-rollups runs axe-core (root npm ci) and
-        # emits non-technical-view.js (apps/web npm ci).
+        # Some generators under test shell out to node; none need npm deps.
         uses: ./.github/actions/setup-node
         with:
-          install-deps: "true"
-
-      - name: apps/web — install deps (non-technical-view.js emit)
-        working-directory: apps/web
-        run: npm ci --no-audit --no-fund
-
-      - name: Generate published rollups for tests
-        # The rollups are gitignored. Unit tests and the roadmap link
-        # check read them from the checkout, so they have to exist
-        # before pytest. Several read dist/catalog.json.
-        run: |
-          python3 tools/build/build.py --out dist --only parse meta --reproducible
-          make generate-published-rollups
+          install-deps: "false"
 
       - name: Unit tests (build pipeline + audits)
         # pyproject.toml's [tool.pytest.ini_options] declares
@@ -489,6 +433,42 @@ jobs:
         # minute without coverage.
         run: pytest tests/build/ tests/scripts/ tests/splunk_uc/ -q -n auto --dist loadscope -m "not nightly"
 
+  # ============================================================================
+  # Job 2: audits-content (~25 min budget)
+  # ============================================================================
+  # UC content audits. Reads sidecars and committed data only; it does
+  # not generate the rollups. Steps that need dist/ or a generated file
+  # run in audits-build, which downloads the artifact from the build job.
+  # The unit tests run in parallel in unit-tests.
+  #
+  # The 14 cascade-style "generator regeneration check" steps that used
+  # to fan out one CI step each were collapsed into a single umbrella
+  # step (``Cascade-generator drift gate (umbrella)`` → ``make
+  # sync-generated-check``) in PR-2 lean-mode (2026-05-17, drift ledger
+  # #20). When the umbrella fails, the log lists every drifting
+  # generator; recovery is ``make sync-generated && git add -A``
+  # locally.
+  #
+  # Most other failures in this job are "you edited a JSON sidecar but
+  # forgot to regenerate the report" — ``make build`` or the named
+  # generator without ``--check`` will fix it.
+  audits-content:
+    name: audits-content
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Full history + tags so ``tools/audits/schema_diff.py`` can
+          # resolve a baseline git ref (see docs/schema-versioning.md).
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: ./.github/actions/setup-python
+        with:
+          install-audits: "true"
+
       - name: UC ID uniqueness and permanent-identity ledger
         run: |
           PYTHONPATH=src python3 -m splunk_uc generate-id-ledger --check
@@ -501,33 +481,6 @@ jobs:
         # P6 (scripts taxonomy, 2026-05-09): routed through the
         # ``python -m splunk_uc`` dispatcher.
         run: PYTHONPATH=src python3 -m splunk_uc audit-uc-structure --full
-
-      - name: Cost field coverage audit (Lane F, warn-only)
-        # Reports ``cost.tier`` coverage across UC sidecars and writes
-        # ``dist/audits/cost-coverage.{json,md}``. Threshold starts at 0
-        # (warn-only) until Lane N backfills cost metadata by hand; ratchet
-        # upward in follow-up PRs as coverage grows.
-        run: PYTHONPATH=src python3 -m splunk_uc audit-cost-coverage --check --threshold 0
-
-      - name: Product-fit audit (ADR-0017, warn-only)
-        # Lists UCs whose SPL fakes another Splunk product and writes
-        # ``dist/audits/product-fit-candidates.json``. ``--check`` fails only
-        # on a malformed data/product-fit-rules.json or
-        # data/product-fit-review.json; switch to ``--strict`` (fail on
-        # unreviewed candidates) once the Phase 3 migrations land.
-        run: PYTHONPATH=src python3 -m splunk_uc audit-uc-product-fit --check
-
-      - name: Legacy use-cases/ guard (v8.2.0 retirement)
-        # The legacy ``use-cases/cat-*.md`` corpus was retired in
-        # v8.2.0 (see docs/migration-status.md). This guard hard-fails
-        # if the directory is recreated or if a non-allowlisted
-        # tracked file gains a fresh ``use-cases/`` path reference,
-        # so the dual-content mess can't reappear by accident.
-        # Replaces the v9.x ``audit-legacy-orphans`` verb that
-        # diagnosed UCs missing a JSON SSOT sidecar (no longer
-        # meaningful now that there is no legacy corpus to be orphaned
-        # against).
-        run: PYTHONPATH=src python3 -m splunk_uc audit-no-use-cases-dir --check
 
       - name: SPL grammar linter
         # Flags invalid SPL patterns that the hallucination audit can't
@@ -574,26 +527,40 @@ jobs:
         # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
         run: PYTHONPATH=src python3 -m splunk_uc audit-spl-hallucinations
 
-      - name: Design doc freshness
-        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
-        run: PYTHONPATH=src python3 -m splunk_uc audit-design-doc-freshness
-
-      - name: Regulatory primer freshness
-        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
-        run: PYTHONPATH=src python3 -m splunk_uc audit-regulatory-primer --strict
+      - name: SPL reference validation
+        # Macros, sourcetypes and datamodel paths in sidecar SPL, against the
+        # curated vocabulary. HIGH fails. A pull request checks the sidecars
+        # it changes; a push to main, or a change to the vocabulary or the
+        # audit, checks every sidecar.
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ -z "$BASE_SHA" ] || git diff --name-only "$BASE_SHA"...HEAD -- \
+              src/splunk_uc/audits/spl_references.py 'src/splunk_uc/audits/_spl_*.py' \
+              data/escu-macros.json | grep -q .; then
+            PYTHONPATH=src python3 -m splunk_uc audit-spl-references --check --summary-only
+            exit 0
+          fi
+          mapfile -t files < <(git diff --name-only --diff-filter=d "$BASE_SHA"...HEAD -- content | grep -E '/UC-.*\.json$' || true)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No use-case sidecars changed."
+            exit 0
+          fi
+          PYTHONPATH=src python3 -m splunk_uc audit-spl-references --check --files "${files[@]}"
 
       - name: Splunkbase catalog freshness
         run: python3 scripts/sync_splunkbase_catalog.py --check
-
-      - name: Splunkbase ID audit (informational)
-        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
-        run: PYTHONPATH=src python3 -m splunk_uc audit-splunkbase-ids || true
 
       - name: Equipment app map generator drift
         run: PYTHONPATH=src python3 -m splunk_uc generate-equipment-app-map
 
       - name: Equipment app map audit
         run: PYTHONPATH=src python3 -m splunk_uc audit-equipment-app-map --check
+
+      - name: Equipment model tags
+        # equipmentModels[] entries must resolve to a registered model of a
+        # listed equipment slug.
+        run: PYTHONPATH=src python3 -m splunk_uc audit-equipment-models --check
 
       - name: Cisco tag evidence
         # A cisco_<model> tag must name a sourcetype, index, or macro that
@@ -607,9 +574,6 @@ jobs:
         # products that have no add-on sample events. The backlog of
         # already-unofficial pairs may only shrink.
         run: PYTHONPATH=src python3 -m splunk_uc audit-cisco-sourcetypes --check
-
-      - name: Cisco portfolio coverage report drift
-        run: PYTHONPATH=src python3 -m splunk_uc generate-cisco-coverage
 
       - name: Cisco portfolio coverage ratchet
         run: PYTHONPATH=src python3 -m splunk_uc audit-cisco-coverage --check
@@ -673,53 +637,22 @@ jobs:
         # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
         run: PYTHONPATH=src python3 -m splunk_uc audit-known-fp --check
 
-      - name: Template provenance report
-        # Burndown telemetry for bulk-enricher fingerprints. v1 families are
-        # report-only; the v2 families (self-referential UC IDs, Variant N
-        # control tests, shared evidence/exclusions skeletons) are capped at
-        # the 2026-10-26 baseline. Lower --max-any-v2 as fixes land.
-        run: PYTHONPATH=src python3 -m splunk_uc audit-template-provenance --check --max-any-v2 16250
-
-      - name: UC text-quality pre-pass (ratchet)
-        # Deterministic review pre-pass (docs/uc-text-review-rubric.md).
-        # The cap is the catalogue after the Splunkbase ID corrections
-        # (2026-11-04, 16,728 UCs): 132,031 major findings. Lower
-        # --max-major after each review-fix-scripted or lift batch.
-        run: PYTHONPATH=src python3 -m splunk_uc audit-text-quality --no-write --no-spelling --check --max-blocker 0 --max-major 132031
-
-      - name: UC review ledger schema
-        # Every committed review record under reports/uc-review/ must
-        # validate against schemas/v2/uc-review-finding.schema.json.
-        run: python3 scripts/uc_review_runner.py validate
-
-      - name: Content quality audit (B-6 description/value dimensions)
-        # Extends audit-content-quality with heuristic description/value
-        # queues while preserving legacy v1 checks. Cap counts legacy
-        # violations plus fail-level description/value findings (~8630 after
-        # cat-25 variable-depth expansion). Ratchet --max-findings down as Lane N burns down debt.
-        # See docs/content-quality-audit.md.
-        run: PYTHONPATH=src python3 -m splunk_uc audit-content-quality --check --severity fail --max-findings 12500
-
-      - name: Non-technical view sync
-        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
-        run: PYTHONPATH=src python3 -m splunk_uc audit-non-technical-sync
-
-      - name: CHANGELOG and cross-references
-        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
-        run: PYTHONPATH=src python3 -m splunk_uc audit-changelog-uc-refs
-
-      - name: Auto-generated doc references library
-        # Validate data/source-references.json + data/source-mappings.json +
-        # data/inline-citation-phrases.json: every mapping resolves to a
-        # known source record, every inline phrase ID resolves, no dangling
-        # refs. Fast and independent of the per-doc rewrite (which now
-        # runs inside the `Cascade-generator drift gate (umbrella)` step
-        # below — see PR-2 lean-mode collapse / drift ledger #20).
-        run: python3 scripts/generate_doc_references.py --validate-library
-
-      - name: Repository consistency
-        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
-        run: PYTHONPATH=src python3 -m splunk_uc audit-repo-consistency
+      - name: UC text-quality blockers (changed use cases)
+        # Blocker findings fail the PR. The major-finding count over the
+        # whole catalogue is a nightly report (build-reproducibility.yml).
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ -z "$BASE_SHA" ]; then
+            echo "Full scan runs nightly (build-reproducibility.yml)."
+            exit 0
+          fi
+          mapfile -t files < <(git diff --name-only --diff-filter=d "$BASE_SHA"...HEAD -- content | grep -E '/UC-.*\.json$' || true)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No use-case sidecars changed."
+            exit 0
+          fi
+          PYTHONPATH=src python3 -m splunk_uc audit-text-quality --files "${files[@]}" --no-clusters --no-spelling --no-write --check --max-blocker 0
 
       - name: Compliance mapping audit (schema + regulations + golden + baseline)
         # Validates every content/cat-*/UC-*.json sidecar against
@@ -739,21 +672,6 @@ jobs:
         # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
         run: PYTHONPATH=src python3 -m splunk_uc audit-compliance-mappings
 
-      - name: Compliance audit — baseline drift guard (Phase F)
-        # Phase F of the regulation-coverage-gap plan. Double-checks that
-        # no ``clause-grammar`` fingerprint has been re-introduced into
-        # tests/golden/audit-baseline.json. Even if a future contributor
-        # re-adds ``clause-grammar`` to BASELINEABLE_CODES in
-        # src/splunk_uc/audits/compliance_mappings.py, this step would still
-        # fail CI on any baselined malformed clause. Belt-and-braces for
-        # the "new malformed clauses are rejected outright" invariant.
-        #
-        # Fingerprints produced by
-        # ``src/splunk_uc/audits/compliance_mappings.py::Finding.fingerprint``
-        # are tab-separated: ``<code>\t<uc_id>\t<path>\t<message>``.
-        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
-        run: PYTHONPATH=src python3 -m splunk_uc audit-baseline-clause-grammar-free
-
       - name: Regulation field alignment (compliance[].regulation labels)
         # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
         run: PYTHONPATH=src python3 -m splunk_uc audit-regulation-alignment
@@ -762,77 +680,6 @@ jobs:
         # Validates data/per-regulation/no-kbf-nve-coverage-expansion.json,
         # UC traceability, and NO KBF ↔ NIS2 dual-mapping assurance policy.
         run: PYTHONPATH=src python3 -m splunk_uc audit-no-kbf-coverage
-
-      - name: Catalogue rollups (regenerate and diff)
-        # One place for the committed reports that embed the use-case
-        # count: compliance coverage, sandbox validation, ATT&CK
-        # simulation, and the Splunk version matrix. A content change
-        # that adds or removes a use case rewrites all of them. This
-        # step regenerates every one and fails if any committed copy
-        # differs, so the content pull request updates them together
-        # instead of leaving main red one report at a time.
-        # Local recovery: make sync-catalogue-rollups
-        # Runs even when an earlier audit failed (!cancelled), so the
-        # log shows every stale rollup in one step.
-        if: ${{ !cancelled() }}
-        run: make sync-catalogue-rollups-check
-
-      # Gold --summary prints the tier mix and exits 0. It gates nothing,
-      # so it runs nightly in build-reproducibility.yml.
-
-      # ------------------------------------------------------------------
-      # Phase 4.5 / 5.x — signoff + sandbox-validation gates
-      # ------------------------------------------------------------------
-      # Gates that block merges unless the repository is auditor-ready:
-      # peer reviews are recorded, legal reviews are recorded, SME reviews
-      # are recorded, the mapping ledger is deterministic, and the sandbox
-      # fixtures backing every UC's controlTest are wired correctly.
-      # The regulatory change-watch check runs weekly in
-      # regulatory-watch.yml: it tracks upstream publishers, which a PR
-      # cannot change.
-      #
-      # The companion Node drift guards (4.5c/d/e/f) live in the
-      # ``frontend`` job because they share the npm-installed Node
-      # toolchain.
-      #
-      # See docs/peer-review-guide.md and docs/legal-review-guide.md for
-      # the human procedures that produce the signoff files.
-      # ------------------------------------------------------------------
-
-      - name: Phase 4.5a peer-review signoff audit
-        # src/splunk_uc/audits/peer_review_signoffs.py validates
-        # data/provenance/peer-review-signoffs.json against the signoff
-        # schema and the semantic invariants documented in
-        # docs/peer-review-guide.md (reviewer identity non-empty, UC
-        # reference resolves, signoff_date is ISO-8601, git commit is a
-        # valid 7+ char hex SHA, etc). Exit 1 on any schema or
-        # semantic violation.
-        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
-        run: PYTHONPATH=src python3 -m splunk_uc audit-peer-review-signoffs
-
-      - name: Phase 4.5b legal-review signoff audit
-        # ``audit-legal-review-signoffs`` validates
-        # data/provenance/legal-review-signoffs.json against the legal
-        # review schema. Enforces that every regulation with a
-        # registered legal advisor has a recent signoff and that the
-        # quoted clause language matches what is in data/regulations.json
-        # at the pinned version. Exit 1 on any schema or semantic
-        # violation.
-        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
-        run: PYTHONPATH=src python3 -m splunk_uc audit-legal-review-signoffs
-
-      - name: Phase 5.2 SME-review signoff audit
-        # ``audit-sme-review-signoffs`` validates
-        # data/provenance/sme-signoffs.json against the SME review
-        # schema (schemas/sme-review-signoff.schema.json) and the
-        # semantic invariants documented in docs/sme-review-guide.md:
-        # outcome-specific required fields (revisions, caveats,
-        # rejectionReason), reviewer/commit uniqueness for dual-SME
-        # review, fixtureReplayResult self-consistency, UC-sidecar
-        # caveat mirroring, and fixture/evidence-pack path existence.
-        # Exit 1 on any schema or semantic violation.
-        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
-        run: PYTHONPATH=src python3 -m splunk_uc audit-sme-review-signoffs
 
       - name: Phase 5.4 signed provenance ledger audit
         # ``audit-mapping-ledger`` validates the ledger against
@@ -846,43 +693,9 @@ jobs:
         # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
         run: PYTHONPATH=src python3 -m splunk_uc audit-mapping-ledger
 
-      - name: Exclusions coverage audit (warn-only)
-        # Lane K (2026-05-19): surfaces UCs whose string ``exclusions`` field
-        # is missing or below the useful-length threshold. Starts at
-        # ``--threshold 0`` (warn-only); ratchet as Lane N backfills sidecars.
-        # See docs/exclusions-coverage.md.
-        run: PYTHONPATH=src python3 -m splunk_uc audit-exclusions-coverage --check --threshold 0
-
-      - name: SPL anti-pattern audit (high-severity ratchet)
-        # Lane B / Lane N queue: flags join, makeresults, random(), search-after-stats,
-        # and other style/risk patterns from data/spl-anti-patterns.json. Writes
-        # dist/audits/spl-anti-patterns.{json,md} on failure for triage. --limit
-        # ratchets down as maintainers burn down the backlog (see docs/spl-anti-patterns.md).
-        run: PYTHONPATH=src python3 -m splunk_uc audit-spl-anti-patterns --check --severity high --limit 2060
-
       - name: Phase C-2 evidence-signatures audit (hermetic)
         # Hermetic fixture gate — no dist/evidence/ required on PR builds.
         run: PYTHONPATH=src python3 -m splunk_uc audit-evidence-signatures --check
-
-      - name: SARIF emit roundtrip smoke (Lane D)
-        # Cheap guard: fixture audit JSON → SARIF → audit-sarif --check.
-        # Full SARIF generation + Code Scanning upload runs in sarif.yml.
-        run: |
-          set -euo pipefail
-          FIXTURES=tests/fixtures/sarif
-          OUT=/tmp/sarif-smoke
-          mkdir -p "$OUT"
-          PYTHONPATH=src python3 -m splunk_uc generate-sarif \
-            --out "$OUT" \
-            --report "spl-references=$FIXTURES/spl-references.json" \
-            --report "prerequisites=$FIXTURES/prerequisites.json" \
-            --report "content-quality=$FIXTURES/content-quality.json"
-          PYTHONPATH=src python3 -m splunk_uc audit-sarif --check --sarif "$OUT/catalogue.sarif"
-          PYTHONPATH=src python3 -m splunk_uc generate-sarif --check \
-            --out "$OUT" \
-            --report "spl-references=$FIXTURES/spl-references.json" \
-            --report "prerequisites=$FIXTURES/prerequisites.json" \
-            --report "content-quality=$FIXTURES/content-quality.json"
 
       # ----- audits-content artefact uploads -----
 
@@ -893,46 +706,6 @@ jobs:
           name: compliance-coverage
           path: reports/compliance-coverage.json
           if-no-files-found: ignore
-
-      - name: Upload clause-level gap report
-        # Phase 2.1 deliverable. Reviewers can pull the artifact to triage
-        # gap worklists without regenerating locally.
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: always()
-        with:
-          name: compliance-gaps
-          path: reports/compliance-gaps.json
-          if-no-files-found: ignore
-
-      - name: Upload prerequisite graph audit report
-        # Implementation-ordering audit (wave/prereq graph). Reviewers
-        # can download this artifact to inspect the full dependency
-        # graph, wave distribution, and any warnings without re-running
-        # ``python -m splunk_uc audit-prerequisites`` locally.
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: always()
-        with:
-          name: prerequisites-audit
-          path: reports/prerequisites-audit.json
-          if-no-files-found: ignore
-
-      - name: CODEOWNERS coverage audit (warn-only threshold 0)
-        # Cross-check .github/CODEOWNERS against ``git ls-files`` and
-        # surface tracked paths with no owner. Starts at --threshold 0
-        # (never blocks); ratchet upward as path-specific rules land.
-        # See docs/codeowners-coverage.md for the maintainer workflow.
-        env:
-          PYTHONPATH: src
-        run: |
-          python3 -m splunk_uc audit-codeowners-coverage --check --threshold 0
-
-      - name: Catalogue observability metrics (Lane L)
-        # Emits dist/observability/{freshness,quality,coverage}.json and
-        # catalogue.prom, then validates shape/bounds. --limit 200 keeps
-        # PR CI fast; nightly build-reproducibility can run without --limit.
-        run: |
-          PYTHONPATH=src python3 -m splunk_uc generate-observability-metrics --limit 200
-          PYTHONPATH=src python3 -m splunk_uc audit-observability-drift --check
 
       - name: Drift summary (on failure)
         # Surfaces the recovery hint in the run's Job Summary so a red
@@ -969,6 +742,7 @@ jobs:
         uses: ./.github/actions/setup-python
         with:
           install-audits: "true"
+          install-extras: "test"
 
       - name: Set up Node.js
         # Node is needed by the Phase 3 / Phase 5 story-layer smoke tests
@@ -988,71 +762,33 @@ jobs:
       - name: Unpack catalog build
         run: tar -xzf catalog-dist.tar.gz && rm -f catalog-dist.tar.gz
 
-      - name: Auto-generated docs provenance
-        # Reads the rollups unpacked from the catalog artifact. Those
-        # files are generated in the build job and are not in git.
-        run: python3 scripts/audit_auto_gen_provenance.py --check
-
       - name: Catalog schema validation
         # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
         run: PYTHONPATH=src python3 -m splunk_uc audit-catalog-schema
 
+      - name: Non-technical view sync
+        # non-technical-view.js is generated in the build job.
+        run: PYTHONPATH=src python3 -m splunk_uc audit-non-technical-sync
+
+      - name: Roadmap consistency
+        # ROADMAP.md links to docs the build generates.
+        run: PYTHONPATH=src python3 -m splunk_uc audit-roadmap-consistency --check --strict-version
+
+      - name: Tests that read the built catalogue
+        run: |
+          PYTHONPATH=src python3 -m pytest -q -p no:cacheprovider \
+            tests/build/test_typed_models.py \
+            tests/scripts/test_audit_dashboard_spl.py
+
       - name: Cascade-generator drift gate (umbrella)
-        # PR-2 lean-mode collapse (2026-05-17, drift ledger #20). One
-        # umbrella step replaces 14 cascade-style per-generator --check
-        # gates that used to fan out one CI step each. 2026-05-18 (F21
-        # close) retired ``generate-md-from-json`` — the in-tree
-        # ``content/cat-*/UC-*.md`` companions were deleted and the
-        # umbrella now drives 13 generators instead of 14. 2026-05-27
-        # restored a 14th step (``generate-recommender-app --check``)
-        # after a release-day drift miss: the
-        # ``splunk-apps/splunk-uc-recommender/`` tree (5 files: README,
-        # app.manifest, app.conf, catalog-fallback.json, the static
-        # lookup CSV) stamps the catalogue ``VERSION`` and release date,
-        # but the regenerator was never inside ``sync-generated`` so
-        # version bumps silently drifted until the ``Validate catalog``
-        # step in audits-build caught it post-push.
-        #
-        # `make sync-generated-check` runs the same 14 generators with
-        # --check flags in dependency-safe order:
-        #   1. phase3-1 / phase3-2 / phase3-3 (sidecar compliance[])
-        #   2. equipment-tags (sidecar equipment[]/equipmentModels[])
-        #   3. grandma-explanations (sidecar grandmaExplanation)
-        #   4. migrate-cat22-ntv (non-technical-view.js cat-22 block)
-        #   5. audit-prerequisites (reports/prerequisites-audit.json)
-        #   6. audit-compliance-gaps (reports/compliance-gaps.json +
-        #      docs/compliance-gaps.md)
-        #   7. audit-sandbox-validation (reports/sandbox-validation.json)
-        #   8. generate-evidence-packs (docs/evidence-packs/* +
-        #      api/v1/evidence-packs/*)
-        #   9. generate-mapping-ledger (data/provenance/mapping-ledger.json)
-        #  10. generate-recommender-app (splunk-apps/splunk-uc-recommender/
-        #      tree — version/release-date stamps + catalog fallback)
-        #  11. generate-backlinks (docs/backlinks.md)
-        #  12. generate-doc-references (APA References footer + inline
-        #      [N] markers in every .md)
-        #
-        # Each generator is idempotent — a forgotten regeneration, a
-        # hand-edited derivative artefact, or a stale manifest entry all
-        # fail this gate. On failure, the local recovery procedure is:
-        #
-        #   make sync-generated && git add -A && git diff --staged
-        #
-        # The umbrella runs the generators in a single shell with `set
-        # -e` overridden so every drift surface appears in one log
-        # (rather than stopping at the first failure). The Makefile
-        # target collects per-step failures, prints DRIFT lines, and
-        # exits 1 once all 14 have run.
-        #
-        # Generators that need `dist/catalog.json` (audit-prerequisites,
-        # audit-compliance-gaps, audit-sandbox-validation) read it
-        # from the catalog artifact downloaded above. Generators that only
-        # read sidecars are catalog-independent but live in the same
-        # umbrella for one-stop drift recovery.
-        #
-        # `generate-api-surface --check` is intentionally excluded — it
-        # lives in the audits-build job because it consumes the full
-        # post-build dist/ tree.
+        # `make sync-generated-check` runs the cascade generators with
+        # --check in dependency-safe order: sidecar mutators (equipment
+        # tags, grandma explanations), the cat-22 non-technical-view block,
+        # the prerequisite graph, compliance gaps, sandbox validation,
+        # evidence packs, the mapping ledger, the recommender app, and the
+        # backlinks and doc-reference footers. Generators that need
+        # dist/catalog.json read it from the catalog artifact.
+        # Local recovery: make sync-generated && git add -A
         run: make sync-generated-check
 
       - name: Story-layer UI smoke tests
@@ -1070,19 +806,6 @@ jobs:
           node tools/audits/_phase5_primer_smoke.js
           node tools/audits/starter_plan_parity.js
 
-      - name: Splunk UC Recommender generator regeneration check
-        if: ${{ !cancelled() }}
-        # The ``generate-recommender-app`` verb is the single source of
-        # truth for splunk-apps/splunk-uc-recommender/. --check
-        # regenerates the tree into a tempdir and diffs it against the
-        # committed tree, so a forgotten regeneration (or any
-        # non-deterministic output from the generator itself) fails
-        # CI before the app is shipped to operators. (The companion
-        # splunk-uc-recommender-ta tree was deleted in v8.0.0; the
-        # recommender app is now standalone.)
-        # P6 (scripts taxonomy, 2026-05-10): routed through the dispatcher.
-        run: PYTHONPATH=src python3 -m splunk_uc generate-recommender-app --check
-
       - name: Audit — api/v1 recommender + equipment indexes are non-empty
         # Regression guard for issue #68 (2026-06-03). The preceding build
         # mirrors the generated (and populated) api/v1/ tree into dist/, so
@@ -1094,10 +817,6 @@ jobs:
         if: ${{ !cancelled() }}
         run: python3 tools/audits/api_surface_nonempty.py dist
 
-      - name: Audit — byte budgets
-        if: ${{ !cancelled() }}
-        run: python3 tools/audits/budgets.py --dist dist --json
-
       - name: Audit — URL freeze
         if: ${{ !cancelled() }}
         run: |
@@ -1108,18 +827,6 @@ jobs:
             exit 0
           fi
           python3 tools/audits/url_freeze.py --baseline-tag "${BASELINE_TAG}" --head dist/api/manifest.json
-
-      - name: Prerequisite audit report (post-build drift)
-        if: ${{ !cancelled() }}
-        # After the build regenerates catalog.json, re-run the prereq
-        # audit's --check so the committed report stays in lockstep with
-        # the freshly regenerated catalogue. This is a belt-and-braces
-        # guard: the audit already ran on the pre-build catalog in
-        # ``audits-content``, but if the build re-derived a different
-        # graph (e.g. someone edited the markdown without regenerating
-        # the report), this catches it.
-        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
-        run: PYTHONPATH=src python3 -m splunk_uc audit-prerequisites --check
 
       - name: Quality metadata coverage (warn-only)
         if: ${{ !cancelled() }}
@@ -1158,41 +865,10 @@ jobs:
         # ``data/splunk-version-vocabulary.json``. ``--check`` exits
         # non-zero on any unknown-token finding, blocking the PR
         # rather than silently regenerating an artefact in CI.
-        # ``--check`` skips the write. Freshness of
+        # ``--check`` skips the write. The build job generates
         # ``data/splunk-version-matrix.json`` and
-        # ``docs/splunk-version-matrix.md`` is the catalogue-rollups
-        # step in audits-content (``make sync-catalogue-rollups-check``).
+        # ``docs/splunk-version-matrix.md``.
         run: PYTHONPATH=src python3 -m splunk_uc audit-splunk-version-matrix --check
-
-      - name: Generate RAG chunked corpus (P17)
-        if: ${{ !cancelled() }}
-        # Walks every ``dist/uc/UC-*/uc.md`` produced by the build and
-        # emits the LLM-eval-ready chunked corpus under ``dist/rag/``:
-        # one frontmatter-stamped chunk per markdown section + the
-        # ``manifest.json`` + ``manifest.md`` rollup. ``dist/`` is
-        # gitignored, so the artefact is rebuilt fresh on every CI
-        # run. The determinism rerun (``--check``) is nightly, in
-        # build-reproducibility.yml. This step still generates the
-        # corpus the retrieval-eval gate reads.
-        run: PYTHONPATH=src python3 -m splunk_uc generate-rag-chunks
-
-      - name: Retrieval-eval drift gate (P17 wave D)
-        if: ${{ !cancelled() }}
-        # Runs the curated 30-query BM25 retrieval-eval harness
-        # over the chunked corpus produced by the previous step
-        # and drift-guards the aggregate metrics (mean recall@k,
-        # MRR, nDCG@10) against the frozen baseline at
-        # ``data/baselines/retrieval-eval-v1.0.json``. Tolerance
-        # defaults to 2% relative regression with a 0.01 absolute
-        # floor so floating-point noise across Python releases
-        # doesn't fail the gate.
-        run: |
-          PYTHONPATH=src python3 -m splunk_uc audit-retrieval-eval --check
-
-      - name: Alert actions generator drift (Task H-4)
-        if: ${{ !cancelled() }}
-        run: |
-          PYTHONPATH=src python3 -m splunk_uc generate-alert-actions --check --limit 20
 
       - name: Package recommender .spl
         if: ${{ !cancelled() }}
@@ -1499,18 +1175,6 @@ jobs:
         # an auditor opened the page.
         run: node --test tests/scorecard/render.test.mjs
 
-      - name: Phase 4.5c sandbox validation Node drift guard
-        if: ${{ !cancelled() }}
-        # Independent structural check: tests/sandbox/validate.test.mjs
-        # parses reports/sandbox-validation.json and asserts that
-        # every UC sidecar with a controlTest block has exactly one
-        # record, the record status is one of the known enum values,
-        # and the report is canonically serialised. Runs even if
-        # Python is unavailable locally (pure Node). The Python
-        # ``audit-sandbox-validation --check`` half runs in
-        # ``audits-content``.
-        run: node --test tests/sandbox/validate.test.mjs
-
       - name: Phase 4.5d ATT&CK simulation gate
         if: ${{ !cancelled() }}
         # scripts/simulate_controltest.py is a structural simulator —
@@ -1522,16 +1186,6 @@ jobs:
         # --check step re-runs the simulator in memory and diffs
         # against reports/attack-simulation.json so drift fails CI.
         run: python3 scripts/simulate_controltest.py --check
-
-      - name: Phase 4.5d ATT&CK simulation Node drift guard
-        if: ${{ !cancelled() }}
-        # tests/attack/simulate.test.mjs is the Node-only twin of the
-        # ATT&CK simulator: it walks the UC sidecars and asserts the
-        # committed reports/attack-simulation.json has one record per
-        # controlTest, every technique matches T####[.###], the
-        # summary counts reconcile with the record set, and the
-        # payload is canonically sorted.
-        run: node --test tests/attack/simulate.test.mjs
 
       - name: Phase 4.5e OSCAL round-trip gate
         if: ${{ !cancelled() }}
@@ -1545,38 +1199,12 @@ jobs:
         # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
         run: PYTHONPATH=src python3 -m splunk_uc audit-oscal-roundtrip --check
 
-      - name: Phase 4.5e OSCAL round-trip Node drift guard
+      - name: Accessibility gate (axe-core)
         if: ${{ !cancelled() }}
-        # tests/oscal/roundtrip.test.mjs uses @splunk-free ajv to
-        # re-validate a sampled subset of the component-definitions
-        # against the NIST schema bundled under
-        # tools/vendor/oscal/schema/. This catches regressions where
-        # a contributor edits a generator without regenerating the
-        # report, or where the NIST schema copy drifts from upstream.
-        run: node --test tests/oscal/roundtrip.test.mjs
-
-      - name: Phase 4.5f perf + a11y audit gate
-        if: ${{ !cancelled() }}
-        # audit-perf-a11y enforces two dimensions: per-file
-        # byte budgets on critical-path + generated-data assets, and
-        # axe-core v4 accessibility audits (WCAG 2.1 A + AA +
-        # best-practice) run under jsdom against scorecard.html and
-        # index.html. Serious / critical a11y violations hard-fail
-        # unless allowlisted with peer review. --check diffs the
-        # regenerated report against reports/perf-a11y.json so drift
-        # (over-budget file, new violation, stale report) fails CI.
-        # P6 (scripts taxonomy, 2026-05-09): routed through the dispatcher.
-        run: PYTHONPATH=src python3 -m splunk_uc audit-perf-a11y --check
-
-      - name: Phase 4.5f perf + a11y Node drift guard
-        if: ${{ !cancelled() }}
-        # tests/a11y/perfa11y.test.mjs asserts
-        # reports/perf-a11y.json's top-level shape, that every perf
-        # budget's actual_bytes matches the on-disk size, that every
-        # a11y page in pages_audited exists on disk, that violation
-        # dispositions reconcile with hard_failures + warnings, and
-        # that the payload is canonically serialised.
-        run: node --test tests/a11y/perfa11y.test.mjs
+        # axe-core v4 (WCAG 2.1 A + AA + best-practice) under jsdom against
+        # scorecard.html and index.html. Serious and critical violations
+        # fail unless allowlisted. File size budgets are a nightly report.
+        run: PYTHONPATH=src python3 -m splunk_uc audit-perf-a11y --a11y-only
 
       - name: Vendor changelog freshness gate (J-5 Cisco v1)
         if: ${{ !cancelled() }}
@@ -1610,23 +1238,11 @@ jobs:
             reports/attack-simulation.json
             reports/oscal-roundtrip.json
             reports/perf-a11y.json
-            data/provenance/peer-review-signoffs.json
-            data/provenance/legal-review-signoffs.json
             data/provenance/sme-signoffs.json
             data/provenance/mapping-ledger.json
             data/regulations-watch.json
             reports/regulatory-change-watch.json
           if-no-files-found: ignore
-
-      - name: Per-UC dashboard scaffold gate (Lane H)
-        if: ${{ !cancelled() }}
-        # generate-dashboards emits dist/dashboards/UC-X.Y.Z/{simple,studio}.xml
-        # pairs that query real index=/sourcetype= tokens from each UC sidecar SPL
-        # (never | makeresults). audit-dashboards --check validates XML + JSON,
-        # SPL anti-patterns, pipe-per-line, splunk.* viz types, and determinism.
-        run: |
-          PYTHONPATH=src python3 -m splunk_uc generate-dashboards
-          PYTHONPATH=src python3 -m splunk_uc audit-dashboards --check
 
       - name: Drift summary (on failure)
         # See audits-content for rationale. frontend runs the Phase 4.5

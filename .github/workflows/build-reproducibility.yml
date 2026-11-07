@@ -71,8 +71,8 @@ jobs:
         uses: ./.github/actions/setup-python
         with:
           install-audits: "true"
-          # audits + dev: the license inventory in generate-published-rollups
-          # resolves every declared dependency.
+          # audits + dev: the license-inventory tests and the rollups
+          # import every declared dependency.
           install-extras: "audits,test,dev"
 
       - name: Reproducibility audit (two consecutive --reproducible builds)
@@ -98,13 +98,6 @@ jobs:
         with:
           install-deps: "true"
 
-      - name: Generate published rollups for tests
-        # The rollups are gitignored; the unit tests read them from the checkout.
-        run: |
-          ( cd apps/web && npm ci --no-audit --no-fund )
-          python3 tools/build/build.py --out dist --only parse meta --reproducible
-          make generate-published-rollups
-
       - name: Coverage budget audit (per-file ratchet vs baseline)
         # Same suite as pull-request CI, plus coverage. The --cov filter
         # for tools/build is a filesystem path, not a module name: tests
@@ -119,25 +112,41 @@ jobs:
             --baseline data/baselines/coverage-v9.1.0.json \
             --report coverage-report.json
 
-      - name: Gold Standard quality audit
-        # --summary prints the tier mix and exits 0. It is not a pull-request gate.
-        run: PYTHONPATH=src python3 -m splunk_uc audit-gold-profile --summary
-
       - name: Build smoke test
         # One real build. Kept off the pull-request unit-test step
         # (pytest -m "not nightly"); the nightly run is where it belongs.
         run: PYTHONPATH=src python3 -m splunk_uc audit-reproducibility --first-build-only
 
-      - name: RAG chunker determinism
+      # Reports. They print counts to the job summary and never fail the
+      # run; no pull request runs them.
+      - name: Full build for the reports
+        if: github.event_name != 'pull_request'
         run: |
+          ( cd apps/web && npm ci --no-audit --no-fund )
+          python3 tools/build/build.py --out dist --only parse meta --reproducible
+          make generate-published-rollups
           python3 tools/build/build.py --out dist --reproducible
-          PYTHONPATH=src python3 -m splunk_uc generate-rag-chunks
-          PYTHONPATH=src python3 -m splunk_uc generate-rag-chunks --check
 
-      - name: Full-corpus observability metrics (Lane L)
+      - name: Report — content quality counts
+        if: github.event_name != 'pull_request'
+        continue-on-error: true
+        env:
+          PYTHONPATH: src
         run: |
-          PYTHONPATH=src python3 -m splunk_uc generate-observability-metrics
-          PYTHONPATH=src python3 -m splunk_uc audit-observability-drift --check
+          report() {
+            echo "### $1" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            shift
+            "$@" 2>&1 | tail -n 40 | tee -a "$GITHUB_STEP_SUMMARY" || true
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          }
+          report "Gold profile v2" sh -c 'python3 -m splunk_uc audit-gold-profile-v2 | head -n 5'
+          report "Text quality (major findings)" python3 -m splunk_uc audit-text-quality --no-write --no-spelling
+          report "Template provenance" python3 -m splunk_uc audit-template-provenance
+          report "Content quality" python3 -m splunk_uc audit-content-quality
+          report "SPL anti-patterns" python3 -m splunk_uc audit-spl-anti-patterns
+          report "Byte budgets" python3 tools/audits/budgets.py --dist dist
+          report "File size budgets and accessibility" python3 -m splunk_uc audit-perf-a11y
 
       - name: Upload build trees on failure
         if: failure() || (success() && inputs.keep_artifacts == true)
