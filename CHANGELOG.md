@@ -54,6 +54,13 @@ the release notes block in `index.html` by hand.
   frontend job, which has the built file. The license inventory is no
   longer a reviewed snapshot in pull requests; its allowlist check still
   fails the build. The regulatory fetch report stays committed.
+- **Equipment tags are computed at build time.** `parse_content` fills
+  `equipment[]` and `equipmentModels[]` with the same matcher, evidence
+  rule, and `data/equipment-tag-overrides.json` the generator used.
+  Sidecars no longer store the arrays. Tags the current text no longer
+  implies stay in `src/splunk_uc/generators/equipment_tag_retained.json`,
+  which is not copied into `dist/`, so the published catalogue stays
+  byte-identical.
 - **CI critical path.** The fixture dry-run reads `catalog.json` once.
   Unit tests share one session-scoped catalogue load, and the real-build
   smoke is marked `nightly`. The catalog artifact uploads as one tar. Sidecar quality scores

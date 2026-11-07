@@ -58,8 +58,17 @@ def uc_id_of(uc: dict[str, Any]) -> str:
 
 
 def content_sha256(uc: dict[str, Any]) -> str:
-    """Stable hash of the sidecar content (key order and whitespace independent)."""
-    canonical = json.dumps(uc, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    """Stable hash of the sidecar content (key order and whitespace independent).
+
+    Equipment tags are hashed as the build resolves them, so a sidecar that
+    stores no ``equipment`` / ``equipmentModels`` keeps the hash its reviews
+    were recorded against.
+    """
+    from splunk_uc.generators.equipment_tags import with_resolved_tags
+
+    canonical = json.dumps(
+        with_resolved_tags(uc), sort_keys=True, ensure_ascii=False, separators=(",", ":")
+    )
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 

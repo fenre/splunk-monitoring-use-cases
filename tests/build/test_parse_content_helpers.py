@@ -1186,8 +1186,51 @@ class TestPostProcessCategoryEquipmentFromSidecar:
         # ``em`` is re-derived from the TA string.
         assert uc["em"] == ["correct-model"]
 
-    def test_sidecar_provides_equipment(self, monkeypatch):
-        """Line 704-706: when sidecar returns non-None equipment, use it."""
+    def test_precomputed_equipment_is_kept(self, monkeypatch):
+        """Tags already on the UC (computed upstream) are not overwritten."""
+        from build import enrichment as legacy
+
+        called = []
+
+        def _tags(*_args, **_kwargs):
+            called.append(True)
+            return (["sidecar-eq"], ["sidecar-model"])
+
+        monkeypatch.setattr(legacy, "_sidecar_equipment_tags", _tags)
+        record = {
+            "i": 99,
+            "n": "C",
+            "s": [
+                {
+                    "i": "99.1",
+                    "n": "S",
+                    "u": [
+                        {
+                            "i": "99.1.1",
+                            "n": "T",
+                            "c": "high",
+                            "f": "easy",
+                            "v": "v",
+                            "d": "d",
+                            "t": "T",
+                            "q": "s",
+                            "e": ["computed"],
+                            "em": ["computed-model"],
+                            "_eq_computed": True,
+                        },
+                    ],
+                }
+            ],
+        }
+        parse_content._post_process_category(record, legacy)
+        uc = record["s"][0]["u"][0]
+        assert uc["e"] == ["computed"]
+        assert uc["em"] == ["computed-model"]
+        assert "_eq_computed" not in uc
+        assert called == []
+
+    def test_sidecar_fills_equipment_when_absent(self, monkeypatch):
+        """Legacy records without computed tags still take the sidecar cache."""
         from build import enrichment as legacy
 
         monkeypatch.setattr(
@@ -1212,8 +1255,6 @@ class TestPostProcessCategoryEquipmentFromSidecar:
                             "d": "d",
                             "t": "T",
                             "q": "s",
-                            "e": ["initial-stale"],  # gets overwritten.
-                            "em": ["initial-stale-model"],
                         },
                     ],
                 }
@@ -1252,15 +1293,18 @@ class TestCanonicalUcToLegacyEmptyLists:
         # mitre default is [] from _legacy_default_uc.
         assert uc.get("mitre") == []
 
-    def test_empty_equipment_leaves_no_e_key(self):
-        canonical = {"id": "1.1.1", "title": "T", "equipment": []}
+    def test_empty_equipment_is_computed_not_copied(self):
+        canonical = {"id": "0.0.0", "title": "T", "equipment": ["stored-only"]}
         uc = parse_content._canonical_uc_to_legacy(canonical)
-        assert uc.get("e") is None or uc.get("e") == [] or "e" not in uc
+        assert "e" not in uc
+        assert "em" not in uc
+        assert uc["_eq_computed"] is True
 
-    def test_empty_equipment_models_leaves_no_em_key(self):
-        canonical = {"id": "1.1.1", "title": "T", "equipmentModels": []}
+    def test_empty_equipment_models_is_computed_not_copied(self):
+        canonical = {"id": "0.0.0", "title": "T", "equipmentModels": ["stored_model"]}
         uc = parse_content._canonical_uc_to_legacy(canonical)
-        assert uc.get("em") is None or uc.get("em") == [] or "em" not in uc
+        assert "e" not in uc
+        assert "em" not in uc
 
 
 # ---------------------------------------------------------------------------

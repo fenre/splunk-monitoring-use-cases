@@ -642,14 +642,18 @@ def _canonical_uc_to_legacy(canonical: dict[str, Any]) -> dict[str, Any]:
         ids = [str(m).strip() for m in canonical["mitreAttack"] if str(m).strip()]
         if ids:
             uc["mitre"] = ids
-    if isinstance(canonical.get("equipment"), list):
-        eq = [str(e).strip() for e in canonical["equipment"] if str(e).strip()]
-        if eq:
-            uc["e"] = eq
-    if isinstance(canonical.get("equipmentModels"), list):
-        em = [str(e).strip() for e in canonical["equipmentModels"] if str(e).strip()]
-        if em:
-            uc["em"] = em
+    # Equipment tags are computed here. Stored sidecar arrays are ignored.
+    # Only non-empty lists are inserted at this point. ``_post_process_category``
+    # writes the empty partner (and both keys, when both are empty) at the
+    # same later position the file cache used to, so catalog key order holds.
+    from splunk_uc.generators.equipment_tags import tags_for_sidecar
+
+    eq, em = tags_for_sidecar(canonical)
+    uc["_eq_computed"] = True
+    if eq:
+        uc["e"] = eq
+    if em:
+        uc["em"] = em
 
     # prerequisiteUseCases → sorted, deduped list stored as "pre".
     # Normalised to the canonical "UC-X.Y.Z" form. Validation (unknown
@@ -813,25 +817,32 @@ def _post_process_category(record: dict[str, Any], legacy) -> None:
                 # only products that implement the UC in SPL get it.
                 uc["md"] = legacy.generate_detailed_impl(uc)
 
-            sidecar_eq, sidecar_models = legacy._sidecar_equipment_tags(cat_id, uc.get("i"))
-            if sidecar_eq is not None:
-                uc["e"] = sidecar_eq
-                uc["em"] = sidecar_models
-            elif not uc.get("e"):
-                eq_ids, model_ids = legacy.equipment_ids_for_ta_string(uc.get("t"))
-                uc["e"] = eq_ids
-                uc["em"] = model_ids
-            elif uc.get("em") is None:
-                # Content-loader path: ``e`` arrived from canonical (the
-                # legacy build had already derived it from the TA string
-                # at migration time and we round-tripped it), but
-                # ``em`` was dropped because it was an empty list (the
-                # migration script only emits non-empty fields). The
-                # legacy build always sets ``em`` to *some* list value
-                # — never leaves it ``None`` — so re-derive from the
-                # TA string here to restore byte-identical output.
-                _, model_ids = legacy.equipment_ids_for_ta_string(uc.get("t"))
-                uc["em"] = model_ids
+            # Computed tags: re-assign both lists. An existing key keeps its
+            # position; a missing one (the empty list) is appended here,
+            # which is where the sidecar cache used to write it.
+            if uc.pop("_eq_computed", False):
+                uc["e"] = uc["e"] if "e" in uc else []
+                uc["em"] = uc["em"] if "em" in uc else []
+            else:
+                sidecar_eq, sidecar_models = legacy._sidecar_equipment_tags(cat_id, uc.get("i"))
+                if sidecar_eq is not None:
+                    uc["e"] = sidecar_eq
+                    uc["em"] = sidecar_models
+                elif not uc.get("e"):
+                    eq_ids, model_ids = legacy.equipment_ids_for_ta_string(uc.get("t"))
+                    uc["e"] = eq_ids
+                    uc["em"] = model_ids
+                elif uc.get("em") is None:
+                    # Content-loader path: ``e`` arrived from canonical (the
+                    # legacy build had already derived it from the TA string
+                    # at migration time and we round-tripped it), but
+                    # ``em`` was dropped because it was an empty list (the
+                    # migration script only emits non-empty fields). The
+                    # legacy build always sets ``em`` to *some* list value
+                    # — never leaves it ``None`` — so re-derive from the
+                    # TA string here to restore byte-identical output.
+                    _, model_ids = legacy.equipment_ids_for_ta_string(uc.get("t"))
+                    uc["em"] = model_ids
 
             matched_apps = legacy.apps_for_ta_string(uc.get("t"))
             if matched_apps:
@@ -1054,6 +1065,37 @@ def _rubric_stamp() -> str:
     return digest.hexdigest()[:16]
 
 
+def _scoring_view(canonical: dict[str, Any]) -> dict[str, Any]:
+    """Sidecar the gold audit scores, with computed equipment tags.
+
+    Empty lists are omitted. A stored empty list does not occur: the
+    tag generator elides them. Non-empty computed lists match the lists
+    the file used to store, so the depth score does not move when the
+    keys leave the sidecar.
+    """
+    from splunk_uc.generators.equipment_tags import tags_for_sidecar
+
+    equipment, equipment_models = tags_for_sidecar(canonical)
+    stored_eq = canonical.get("equipment") if isinstance(canonical.get("equipment"), list) else None
+    stored_em = (
+        canonical.get("equipmentModels")
+        if isinstance(canonical.get("equipmentModels"), list)
+        else None
+    )
+    same_eq = (stored_eq or None) == (equipment or None)
+    same_em = (stored_em or None) == (equipment_models or None)
+    if same_eq and same_em:
+        return canonical
+    view = dict(canonical)
+    view.pop("equipment", None)
+    view.pop("equipmentModels", None)
+    if equipment:
+        view["equipment"] = equipment
+    if equipment_models:
+        view["equipmentModels"] = equipment_models
+    return view
+
+
 def _score_canonical(canonical: dict[str, Any], uc_path: Path) -> dict[str, Any] | None:
     """Gold v1 + v2 depth fields for one sidecar. None when scoring is unavailable."""
     if _audit_uc_gold_v1 is None or _audit_uc_gold_v2 is None:
@@ -1063,6 +1105,7 @@ def _score_canonical(canonical: dict[str, Any], uc_path: Path) -> dict[str, Any]
         audit_path.relative_to(_REPO_ROOT)
     except ValueError:
         audit_path = _REPO_ROOT / uc_path.name
+    canonical = _scoring_view(canonical)
     try:
         v1 = _audit_uc_gold_v1(canonical, audit_path)
         v2 = _audit_uc_gold_v2(canonical, audit_path)

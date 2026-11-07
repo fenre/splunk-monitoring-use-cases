@@ -46,6 +46,16 @@ def test_content_sha_is_key_order_independent() -> None:
     assert ledger.content_sha256(a) != ledger.content_sha256({**a, "title": "y"})
 
 
+def test_content_sha_hashes_resolved_equipment_tags() -> None:
+    from splunk_uc.generators.equipment_tags import with_resolved_tags
+
+    uc = json.loads(UC_PATH.read_text(encoding="utf-8"))
+    assert "equipment" not in uc
+    stored = with_resolved_tags(uc)
+    assert stored.get("equipment")
+    assert ledger.content_sha256(uc) == ledger.content_sha256(stored)
+
+
 def test_new_record_shape() -> None:
     uc = json.loads(UC_PATH.read_text(encoding="utf-8"))
     record = ledger.new_record(uc=uc, path=UC_PATH, tier="deterministic", model="deterministic:x")

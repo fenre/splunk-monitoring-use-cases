@@ -118,6 +118,9 @@ def fake_patterns(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(et, "compile_patterns", fake_compile_patterns)
     monkeypatch.setattr(et, "load_equipment", fake_load_equipment)
     monkeypatch.setattr(et, "match_equipment", fake_match_equipment)
+    monkeypatch.setattr(et, "_load_overrides", lambda path=None: {})
+    monkeypatch.setattr(et, "_load_retained", lambda path=None: {})
+    et.clear_tag_cache()
 
 
 class TestIterSidecarPaths:
@@ -179,6 +182,36 @@ class TestReadSidecar:
         path = fake_repo / "content" / "cat-01-fake" / "no-id.json"
         path.write_text(json.dumps({"title": "no id"}), encoding="utf-8")
         assert et._read_sidecar(path) is None
+
+
+class TestTagsForSidecar:
+    def test_ignores_stored_keys_and_unions_retained(
+        self,
+        fake_patterns: None,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(
+            et,
+            "_load_retained",
+            lambda path=None: {"9.9.9": (["splunk"], ["hardware_bmc_idrac"])},
+        )
+        et.clear_tag_cache()
+        equipment, models = et.tags_for_sidecar(
+            {
+                "id": "9.9.9",
+                "app": "AWS Add-on",
+                "spl": "",
+                "dataSources": "",
+                "implementation": "",
+                "description": "",
+                "equipment": ["nope"],
+                "equipmentModels": ["nope_model"],
+            }
+        )
+        assert "aws" in equipment
+        assert "splunk" in equipment
+        assert "nope" not in equipment
+        assert models == ["hardware_bmc_idrac"]
 
 
 class TestComputeTags:
@@ -391,25 +424,31 @@ class TestProcessSidecars:
         fake_repo: pathlib.Path,
         fake_patterns: None,
     ) -> None:
+        for path in et._iter_sidecar_paths():
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            payload["equipment"] = ["stale"]
+            path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
         processed, changed, paths, _eq, _mod = et._process_sidecars(check=False)
         assert processed == 2
-        # Both sidecars should pick up tags they didn't have.
         assert changed == 2
-        # And in --check=False mode, the files on disk are now updated.
         for p in paths:
             content = p.read_text(encoding="utf-8")
-            assert '"equipment"' in content or '"equipmentModels"' in content
+            assert '"equipment"' not in content
+            assert '"equipmentModels"' not in content
 
     def test_check_mode_does_not_write(
         self,
         fake_repo: pathlib.Path,
         fake_patterns: None,
     ) -> None:
+        for path in et._iter_sidecar_paths():
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            payload["equipment"] = ["stale"]
+            path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
         before = {p.name: p.read_text(encoding="utf-8") for p in et._iter_sidecar_paths()}
         processed, changed, _paths, _eq, _mod = et._process_sidecars(check=True)
         assert processed == 2
         assert changed == 2
-        # Files unchanged on disk because of ``--check``.
         for p in et._iter_sidecar_paths():
             assert p.read_text(encoding="utf-8") == before[p.name]
 
@@ -418,9 +457,11 @@ class TestProcessSidecars:
         fake_repo: pathlib.Path,
         fake_patterns: None,
     ) -> None:
-        # First pass writes the tags.
+        for path in et._iter_sidecar_paths():
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            payload["equipment"] = ["stale"]
+            path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
         et._process_sidecars(check=False)
-        # Second pass should be a no-op.
         processed, changed, paths, _eq, _mod = et._process_sidecars(check=False)
         assert processed == 2
         assert changed == 0
@@ -498,11 +539,15 @@ class TestMainCli:
         fake_patterns: None,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
+        for path in et._iter_sidecar_paths():
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            payload["equipment"] = ["stale"]
+            path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
         rc = et.main([])
         assert rc == 0
         out = capsys.readouterr().out
         assert "Processed 2 sidecars" in out
-        assert "updated 2" in out
+        assert "stripped 2" in out
 
     def test_check_mode_drift_returns_1(
         self,
@@ -510,12 +555,15 @@ class TestMainCli:
         fake_patterns: None,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
+        for path in et._iter_sidecar_paths():
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            payload["equipment"] = ["stale"]
+            path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
         rc = et.main(["--check"])
         assert rc == 1
         captured = capsys.readouterr()
-        assert "FATAL: 2/2 UC sidecars have stale" in captured.err
+        assert "FATAL: 2/2 UC sidecars still store" in captured.err
         assert "Re-run" in captured.err
-        # Affected file list rendered (≤25 entries).
         assert "UC-1.1.1.json" in captured.err
 
     def test_check_mode_clean_returns_0(
@@ -524,12 +572,9 @@ class TestMainCli:
         fake_patterns: None,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        # First sync the tags so a subsequent --check is clean.
-        et.main([])
-        capsys.readouterr()
         rc = et.main(["--check"])
         assert rc == 0
-        assert "OK: 2 UC sidecars have up-to-date equipment tags." in capsys.readouterr().out
+        assert "OK: 2 UC sidecars store no equipment tags." in capsys.readouterr().out
 
     def test_check_mode_truncates_affected_list_at_25(
         self,
@@ -553,6 +598,7 @@ class TestMainCli:
                         "dataSources": "",
                         "implementation": "",
                         "description": "",
+                        "equipment": ["stale"],
                     },
                     indent=2,
                 )
