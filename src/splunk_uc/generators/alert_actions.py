@@ -214,7 +214,9 @@ def _is_ot_related(payload: dict[str, Any], cat_slug: str) -> bool:
 
 
 def load_uc_record(path: Path) -> UcRecord:
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    from splunk_uc.generators.equipment_tags import with_resolved_tags
+
+    payload = with_resolved_tags(json.loads(path.read_text(encoding="utf-8")))
     uc_id = str(payload.get("id") or path.stem.removeprefix("UC-"))
     cat_slug = path.parent.name
     mitre = payload.get("mitreAttack") or []

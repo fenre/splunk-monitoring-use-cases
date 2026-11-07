@@ -402,7 +402,7 @@ generate-mapping-ledger: ## Regenerate data/provenance/mapping-ledger.json
 generate-manifest-samples: ## Replay samples/manifest.json fixtures through HEC
 	$(SPLUNK_UC) generate-manifest-samples
 
-generate-equipment-tags: ## Backfill UC sidecar equipment[]/equipmentModels[] tags
+generate-equipment-tags: ## Strip stored equipment[]/equipmentModels[] (the build computes them)
 	$(SPLUNK_UC) generate-equipment-tags
 
 generate-evidence-packs: ## Build per-regulation evidence packs

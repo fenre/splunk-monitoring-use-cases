@@ -22,12 +22,6 @@
     }
   ],
   "knownFalsePositives": "A request path that intentionally does no agent work (for example a health probe) has no spans by design. Exclude it from the test rather than adding an empty span.",
-  "equipment": [
-    "splunk_ao"
-  ],
-  "equipmentModels": [
-    "splunk_ao_sdk"
-  ],
   "status": "draft",
   "detailedImplementation": "Prerequisites\n\nA Splunk Agent Observability project for the application and one Agent Stream per environment or agent inside it. Do not create a second project for the same application: a second project splits the traces. The agent reads `SPLUNK_AO_PROJECT` and `SPLUNK_AO_AGENT_STREAM` from the environment. SaaS tenants authenticate with `SPLUNK_AO_REALM` and `SPLUNK_AO_O11Y_TOKEN`; on-prem tenants with `SPLUNK_AO_API_KEY` plus `SPLUNK_AO_CONSOLE_URL`. Install the SDK with `pip install splunk-ao` (`pip install \"splunk-ao[langchain]\"` for the LangChain callback).\n\nStep 1 — Instrument the agent\n\nExport is OpenTelemetry and carries spans only; the trace is their container. A trace with no child spans is never exported, there is no error, and `export_health` stays healthy. Pass `ingestion_hook=captured.append` to `SplunkAOLogger` in tests so nothing is uploaded and no project is needed.\n\nStep 2 — Configure in Splunk Agent Observability\n\nNothing to configure in the console. The check runs in the agent's own test suite, before the code reaches the Agent Stream.\n\nStep 3 — Validate\n\nRun the test against the normal path and against each error path. `captured[0].traces[0]` holds the trace with `status_code`, `output` and `spans`. Using the hook for error paths also keeps junk traces out of the real stream. This use case was written from the Splunk Agent Observability documentation without access to a tenant, so it ships as a draft. Confirm each step in the Splunk Agent Observability console before promoting it.\n\nStep 4 — Operationalize\n\nRun the test in CI on every change to the request handler, and add a case for each new route or tool loop.\n\nStep 5 — Troubleshooting\n\nTest passes but traces are still missing in the console: check that spans are concluded (open spans are not exported) and allow 30 to 60 seconds of indexing lag. Empty spans list: add an agent span at the call site before any early return.",
   "grandmaExplanation": "We test that every question the assistant answers leaves a written record behind, because a record with no steps in it gets thrown away without warning.",

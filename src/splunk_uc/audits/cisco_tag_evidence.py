@@ -196,7 +196,10 @@ def backing_failures(entry: dict[str, Any] | None = None) -> list[str]:
     overrides = _load_override_ids()
     blocks = {f"{VENDOR}_{m['id']}": ev_mod.evidence_block(m) for m in entry.get("models") or []}
     lines: list[str] = []
+    from splunk_uc.generators.equipment_tags import with_resolved_tags
+
     for _path, uc in iter_uc_sidecars():
+        uc = with_resolved_tags(uc)
         if str(uc.get("id") or "") in overrides:
             continue
         for model in uc.get("equipmentModels") or []:
@@ -236,7 +239,10 @@ def build_rows() -> list[Row]:
     entry = _registry()
     overrides = _load_override_ids()
     rows: list[Row] = []
+    from splunk_uc.generators.equipment_tags import with_resolved_tags
+
     for _path, uc in iter_uc_sidecars():
+        uc = with_resolved_tags(uc)
         eq = list(uc.get("equipment") or [])
         models = [m for m in uc.get("equipmentModels") or [] if m.startswith(VENDOR + "_")]
         if VENDOR not in eq and not models:
