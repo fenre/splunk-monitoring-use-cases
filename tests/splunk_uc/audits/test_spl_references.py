@@ -1220,6 +1220,27 @@ class TestRunAudit:
         sr.run_audit(vocab=v)
         assert called["n"] == 0
 
+    def test_files_limits_the_audit_to_named_sidecars(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        monkeypatch.setattr(sr, "REPO", tmp_path)
+
+        def fail_iter() -> list[tuple[Path, dict[str, Any]]]:
+            raise AssertionError("full corpus walked")
+
+        monkeypatch.setattr(sr, "iter_uc_sidecars", fail_iter)
+        cat = tmp_path / "content" / "cat-01-x"
+        cat.mkdir(parents=True)
+        bad = cat / "UC-1.1.1.json"
+        bad.write_text(json.dumps({"id": "1.1.1", "spl": "search * | bogusOne"}), encoding="utf-8")
+        clean = cat / "UC-1.1.2.json"
+        clean.write_text(json.dumps({"id": "1.1.2", "spl": "search index=main | stats count"}), encoding="utf-8")
+        (cat / "UC-1.1.3.json").write_text("{not json", encoding="utf-8")
+
+        out = sr.run_audit(files=["content/cat-01-x/UC-1.1.1.json", str(clean), "content/cat-01-x/UC-1.1.3.json"])
+        assert {f.uc_id for f in out} == {"1.1.1"}
+        assert sr.run_audit(files=[]) == []
+
 
 # ============================================================================
 # `_summarise`
