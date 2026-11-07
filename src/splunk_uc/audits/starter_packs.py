@@ -90,6 +90,8 @@ def load_packs(packs_dir: Path = PACKS_DIR) -> dict[str, tuple[Path, dict[str, A
 
 def load_uc_index(content_dir: Path = CONTENT_DIR) -> dict[str, tuple[Path, dict[str, Any]]]:
     """Return ``UC-X.Y.Z -> (path, sidecar)`` for every UC sidecar."""
+    from splunk_uc.generators.equipment_tags import with_resolved_tags
+
     out: dict[str, tuple[Path, dict[str, Any]]] = {}
     for path in sorted(content_dir.glob("cat-*/UC-*.json")):
         try:
@@ -97,7 +99,7 @@ def load_uc_index(content_dir: Path = CONTENT_DIR) -> dict[str, tuple[Path, dict
         except (OSError, json.JSONDecodeError):
             continue
         if isinstance(payload, dict) and payload.get("id"):
-            out[f"UC-{payload['id']}"] = (path, payload)
+            out[f"UC-{payload['id']}"] = (path, with_resolved_tags(payload))
     return out
 
 
