@@ -65,17 +65,10 @@ Filenames in `src/` are NOT a public contract. The numeric prefix
 # Edit a stylesheet or script under src/styles/ or src/scripts/
 $ vim src/styles/03-components.css
 
-# Mirror into the legacy inline blocks in index.html for
-# direct python -m http.server preview (transitional)
-$ python3 tools/audits/asset_drift.py --fix
-
-# Or build the v7 dist/ artefact and preview that
+# Build the v7 dist/ artefact and preview that
 $ python3 tools/build/build.py --out dist
 $ cd dist && python3 -m http.server 8000
 ```
 
-CI runs `python3 tools/audits/asset_drift.py` and blocks PRs that
-desynchronise `src/` from the legacy inline blocks. Once the
-`cleanup-and-docs` todo lands and the source `index.html` is
-deleted, the audit retires and `src/` becomes the only writable
-surface.
+`src/` is the only writable surface; the build bundles it into
+`dist/`.

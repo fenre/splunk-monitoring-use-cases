@@ -72,7 +72,7 @@ UC_FILE_GLOB = "cat-*/UC-*.json"
 # Canonical premium-app enum → Splunkbase numeric id.
 # These are the apps named in schemas/uc.schema.json#/properties/premiumApps.
 # Pulled from publicly visible Splunkbase URLs; the audit
-# tools/audits/splunkbase_ids.py keeps these in sync with the live catalog.
+# `audit-splunkbase-ids` keeps these in sync with the live catalog.
 PREMIUM_APP_IDS: dict[str, int] = {
     "splunk enterprise security": 263,
     "splunk itsi": 1841,

@@ -45,8 +45,7 @@ listeners. **Do not reorder.**
 ## Editing rules
 
 1. **`src/scripts/` is the source-of-truth** — never edit the inline
-   `<script>` block in `index.html` directly. The CI audit
-   `tools/audits/asset_drift.py` blocks PRs that desynchronise them.
+   `<script>` block in `index.html` directly.
 2. **No `import`/`export`** — until the build pipeline ships an ES
    module bundler, every symbol is a top-level `var` or `function`.
 3. **No external runtime dependencies** — zero npm packages, zero
@@ -64,9 +63,7 @@ listeners. **Do not reorder.**
    `04-panel.js`).
 2. If the feature spans many functions, create `06-<feature>.js`
    with the next free numeric prefix.
-3. Run `python3 tools/audits/asset_drift.py --fix` to mirror the
-   change into the legacy inline `<script>` block.
-4. Run `python3 tools/build/build.py --out dist` and verify
+3. Run `python3 tools/build/build.py --out dist` and verify
    `dist/index.html` references the new bundle hash and the page
    loads without console errors.
 

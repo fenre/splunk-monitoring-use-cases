@@ -20,7 +20,6 @@ Usage::
     python3 -m splunk_uc generate-dashboards
     python3 -m splunk_uc generate-dashboards --check
     python3 -m splunk_uc generate-dashboards --only UC-1.1.1
-    python3 -m splunk_uc audit-dashboards --check
 """
 
 from __future__ import annotations

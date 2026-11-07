@@ -3,16 +3,19 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import date
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
-import splunk_uc.audits.observability_drift as od
 import splunk_uc.generators.observability_metrics as om
 
-PROM_LINE_RE = od.PROM_LINE_RE
+PROM_LINE_RE = re.compile(
+    r"^(?P<name>[a-zA-Z_:][a-zA-Z0-9_:]*)(?P<labels>\{[^}]*\})?\s+"
+    r"(?P<value>-?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)(?:\s+(?P<ts>\d+))?$"
+)
 
 
 @pytest.fixture()
@@ -197,36 +200,7 @@ class TestCLI:
         assert om.main(["--check", "--out", str(out), "--family", "quality"]) == 1
 
 
-class TestAuditDrift:
-    def test_catches_bad_freshness_quantiles(self) -> None:
-        issues = od.validate_freshness(
-            {
-                "totalUseCases": 2,
-                "quantiles": {"p25": 10, "p50": 5, "p75": 20, "p95": 30},
-                "ageBuckets": {
-                    "under90Days": 1,
-                    "days90to179": 1,
-                    "days180to364": 0,
-                    "days365to719": 0,
-                    "days720Plus": 0,
-                },
-                "oldest": [{"ucId": "1.1.1"}],
-                "newest": [{"ucId": "1.1.2"}],
-            }
-        )
-        assert any(i.code == "freshness-monotone" for i in issues)
-
-    def test_catches_bad_prometheus_line(self) -> None:
-        issues = od.validate_prometheus("not_a_metric\n")
-        assert any(i.code == "prom-line" for i in issues)
-
-    def test_audit_directory_ok(self, tmp_repo: Path) -> None:
-        _write_uc(tmp_repo)
-        out = tmp_repo / "dist" / "observability"
-        with patch.object(om, "_git_last_modified", return_value=("2026-01-01T00:00:00Z", "git")):
-            om.main(["--out", str(out), "--reference-date", "2026-06-01"])
-        assert od.audit_directory(out) == []
-
+class TestLimit:
     def test_limit_caps_per_category(self, tmp_repo: Path) -> None:
         for i in range(1, 5):
             _write_uc(tmp_repo, uc_id=f"1.1.{i}")

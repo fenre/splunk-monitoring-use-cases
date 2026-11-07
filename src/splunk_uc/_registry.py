@@ -199,22 +199,6 @@ register(
 )
 register(
     Verb(
-        name="audit-legal-review-signoffs",
-        module="audits.legal_review_signoffs",
-        help="Validate data/provenance/legal-review-signoffs.json schema + cross-references.",
-        category="audits",
-    )
-)
-register(
-    Verb(
-        name="audit-regulatory-primer",
-        module="audits.regulatory_primer",
-        help="Lint docs/regulatory-primer.md for shape, anchors, and UC-count consistency.",
-        category="audits",
-    )
-)
-register(
-    Verb(
         name="audit-mitre-taxonomy",
         module="audits.mitre_taxonomy",
         help="Validate MITRE ATT&CK technique/tactic IDs in UC sidecars.",
@@ -226,14 +210,6 @@ register(
         name="audit-placeholders",
         module="audits.placeholders",
         help="Detect placeholder markers and editorial headers leaking into UC content.",
-        category="audits",
-    )
-)
-register(
-    Verb(
-        name="audit-design-doc-freshness",
-        module="audits.design_doc_freshness",
-        help="Lint docs/DESIGN.md sections + relative links for drift.",
         category="audits",
     )
 )
@@ -272,14 +248,6 @@ register(
 )
 register(
     Verb(
-        name="audit-no-use-cases-dir",
-        module="audits.no_use_cases_dir",
-        help="Block reintroduction of the legacy use-cases/ markdown corpus or any new path references.",
-        category="audits",
-    )
-)
-register(
-    Verb(
         name="audit-splunkbase-ids",
         module="audits.splunkbase_ids",
         help="Inventory Splunkbase app ID references and surface naming inconsistencies.",
@@ -307,22 +275,6 @@ register(
         name="audit-monitoring-type",
         module="audits.monitoring_type",
         help="Validate `monitoringType` tokens and Security label coverage for ATT&CK-mapped UCs.",
-        category="audits",
-    )
-)
-register(
-    Verb(
-        name="audit-changelog-uc-refs",
-        module="audits.changelog_uc_refs",
-        help="Validate CHANGELOG.md headers/dates and UC cross-references against the JSON SSOT.",
-        category="audits",
-    )
-)
-register(
-    Verb(
-        name="audit-repo-consistency",
-        module="audits.repo_consistency",
-        help="Cross-check INDEX.md, CAT_GROUPS, SPLUNK_APPS, and content/cat-*/ for drift.",
         category="audits",
     )
 )
@@ -416,22 +368,6 @@ register(
 )
 register(
     Verb(
-        name="audit-guide-xrefs",
-        module="audits.guide_xrefs",
-        help="Detect broken cross-product markdown links in docs/guides/*.md.",
-        category="audits",
-    )
-)
-register(
-    Verb(
-        name="audit-doc-counts",
-        module="audits.doc_counts",
-        help="Cross-check numeric claims (UC counts) in AGENTS.md / docs/ against actual content.",
-        category="audits",
-    )
-)
-register(
-    Verb(
         name="audit-openapi-drift",
         module="audits.openapi_drift",
         help="Flag dist/api/ paths missing from openapi.yaml / api/v1/openapi.yaml.",
@@ -459,22 +395,6 @@ register(
         name="audit-text-quality",
         module="audits.text_quality",
         help="Deterministic UC text-quality pre-pass: template families, skeleton clusters, CIM/Splunkbase/premium-app mismatches, spelling.",
-        category="audits",
-    )
-)
-register(
-    Verb(
-        name="audit-baseline-clause-grammar-free",
-        module="audits.baseline_clause_grammar_free",
-        help="Phase F drift guard: refuse `clause-grammar` fingerprints in audit-baseline.json.",
-        category="audits",
-    )
-)
-register(
-    Verb(
-        name="audit-peer-review-signoffs",
-        module="audits.peer_review_signoffs",
-        help="Phase 4.5a peer-review gate: schema + semantic invariants for signoff records.",
         category="audits",
     )
 )
@@ -512,14 +432,6 @@ register(
 )
 register(
     Verb(
-        name="audit-sme-review-signoffs",
-        module="audits.sme_review_signoffs",
-        help="Validate data/provenance/sme-signoffs.json schema + cross-references to UC sidecars.",
-        category="audits",
-    )
-)
-register(
-    Verb(
         name="audit-evidence-signatures",
         module="audits.evidence_signatures",
         help="Audit dist/evidence manifests and evidence-pack signatures (Phase C-2).",
@@ -531,14 +443,6 @@ register(
         name="audit-mapping-ledger",
         module="audits.mapping_ledger",
         help="Validate data/provenance/mapping-ledger.json (schema + hash chain + integrity).",
-        category="audits",
-    )
-)
-register(
-    Verb(
-        name="audit-gold-profile",
-        module="audits.gold_profile",
-        help="Gold-standard v1 audit: tier classification (bronze/silver/gold) + depth heuristics.",
         category="audits",
     )
 )
@@ -619,25 +523,6 @@ register(
 )
 register(
     Verb(
-        name="audit-meraki-spl",
-        module="audits.meraki_spl",
-        help="Audit Cisco Meraki UCs for SPL hallucinations (unknown sourcetypes/indexes/fields).",
-        category="audits",
-    )
-)
-register(
-    Verb(
-        name="audit-retrieval-eval",
-        module="audits.retrieval_eval",
-        help=(
-            "Run curated query set against BM25 baseline over dist/rag/ "
-            "(P17 retrieval-eval harness; recall@k / MRR / nDCG@10)."
-        ),
-        category="audits",
-    )
-)
-register(
-    Verb(
         name="audit-codeowners-coverage",
         module="audits.codeowners_coverage",
         help="Cross-check .github/CODEOWNERS against git ls-files; surface uncovered paths.",
@@ -646,25 +531,9 @@ register(
 )
 register(
     Verb(
-        name="audit-dashboards",
-        module="audits.dashboards",
-        help="Validate per-UC dashboard scaffolds under dist/dashboards/ (--check).",
-        category="audits",
-    )
-)
-register(
-    Verb(
         name="audit-sarif",
         module="audits.sarif",
         help="Validate SARIF 2.1.0 logs emitted by generate-sarif (--check).",
-        category="audits",
-    )
-)
-register(
-    Verb(
-        name="audit-observability-drift",
-        module="audits.observability_drift",
-        help="Validate dist/observability/* freshness/quality/coverage/Prom artefacts.",
         category="audits",
     )
 )
@@ -856,30 +725,6 @@ register(
 )
 register(
     Verb(
-        name="generate-phase3-1-backfill",
-        module="generators.phase3_1_backfill",
-        help="Phase 3.1 generator: clause-level compliance backfill on existing cat-22 UC sidecars.",
-        category="generators",
-    )
-)
-register(
-    Verb(
-        name="generate-phase3-2-cross-cutting",
-        module="generators.phase3_2_cross_cutting",
-        help="Phase 3.2 generator: cross-cutting compliance[] tags on non-cat-22 UC sidecars.",
-        category="generators",
-    )
-)
-register(
-    Verb(
-        name="generate-phase3-3-derivatives",
-        module="generators.phase3_3_derivatives",
-        help="Phase 3.3 generator: propagate derivative-regulation compliance[] entries (UK GDPR, CCPA, nFADP, LGPD, APPI).",
-        category="generators",
-    )
-)
-register(
-    Verb(
         name="generate-clause-index",
         module="generators.clause_index",
         help="Regenerate api/v1/compliance/clauses/* (clause -> UC reverse index).",
@@ -1021,25 +866,9 @@ register(
 # ----------------------------------------------------------------------
 register(
     Verb(
-        name="gap-analysis",
-        module="migrations.gap_analysis",
-        help="Correlate ucs.json with regulations.draft.json; emit data/inventory/gap-analysis.json.",
-        category="migrations",
-    )
-)
-register(
-    Verb(
         name="migrate-cat22-ntv",
         module="migrations.regenerate_cat22_ntv",
         help="Regenerate the cat-22 block in non-technical-view.js (--check / --write).",
-        category="migrations",
-    )
-)
-register(
-    Verb(
-        name="migrate-compliance-phase4",
-        module="migrations.migrate_compliance_phase4",
-        help="Phase 4 backfill: controlObjective + evidenceArtifact + requires_sme_review.",
         category="migrations",
     )
 )
@@ -1050,38 +879,6 @@ register(
 # end-to-end, then production CI gates take over the same job from
 # under audits/ or generators/.
 # ----------------------------------------------------------------------
-register(
-    Verb(
-        name="feasibility-validate-exemplar",
-        module="feasibility.validate_exemplar_uc",
-        help="Phase 0.5c spike: validate the exemplar UC against the draft schema (jsonschema).",
-        category="feasibility",
-    )
-)
-register(
-    Verb(
-        name="feasibility-olir-ingest-proof",
-        module="feasibility.olir_ingest_proof",
-        help="Phase 0.5a spike: prove OSCAL catalogue ingest end-to-end with SHA-256 provenance.",
-        category="feasibility",
-    )
-)
-register(
-    Verb(
-        name="feasibility-oscal-generate-proof",
-        module="feasibility.oscal_generate_proof",
-        help="Phase 0.5b spike: emit + Ajv-validate an OSCAL Component Definition for the exemplar UC.",
-        category="feasibility",
-    )
-)
-register(
-    Verb(
-        name="feasibility-splunk-app-poc",
-        module="feasibility.splunk_app_poc",
-        help="Phase 0.5d spike: emit an AppInspect-shaped Splunk app under build/poc/ deterministically.",
-        category="feasibility",
-    )
-)
 
 # ----------------------------------------------------------------------
 # Tools (Tier 2 batch 11) -- recurring utility verbs that don't fit any
@@ -1192,14 +989,6 @@ register(
         name="generate-uc-review-report",
         module="review.report",
         help="Roll the UC review ledger up into summary.json, fix-queue.json and docs/uc-review-findings.md.",
-        category="review",
-    )
-)
-register(
-    Verb(
-        name="review-fix-scripted",
-        module="review.fix_scripted",
-        help="Mechanical fixes for UC review families (controltest-variant, purpose-built, premium-app-mismatch); dry run by default.",
         category="review",
     )
 )

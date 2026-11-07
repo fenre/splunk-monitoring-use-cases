@@ -11,7 +11,6 @@ make audit            # Run all audit checks
 make audit-structure  # UC JSON structure
 make audit-cim        # CIM ↔ SPL alignment
 make audit-links      # HTTP link checks (network)
-make audit-consistency # Repo consistency
 make inventory        # Regenerate data/inventory/
 make manifest         # Regenerate eventgen manifest
 ```
@@ -23,7 +22,6 @@ make manifest         # Regenerate eventgen manifest
 | `audit_uc_structure.py` | `content/**/*.json` | Audit per-UC sidecar shape (required fields, enums, SPL presence). Canonical JSON validation also runs in the build pipeline via [`tools/build/parse_content.py`](../tools/build/parse_content.py). |
 | `audit_cim_spl_alignment.py` | `content/**/*.json` | CIM Models vs CIM SPL datamodel alignment |
 | `audit_links.py` | `content/**/*.json` | HTTP check all URLs in `references` arrays |
-| `audit_repo_consistency.py` | `enrichment.py` | Cross-check CAT_GROUPS, SPLUNK_APPS, INDEX.md |
 | `audit_non_technical_sync.py` | `content/**/*.json` | non-technical-view.js vs UC/category coverage |
 | `audit_perf_a11y.py` | committed assets | Performance budgets + axe-core accessibility |
 | `audit_catalog_schema.py` | `catalog.json` | Validate catalog JSON shape |

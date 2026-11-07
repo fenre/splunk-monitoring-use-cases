@@ -573,10 +573,8 @@ def _reconcile_compliance(
                     code="missing-control-objective",
                     message=(
                         "controlObjective is required for every compliance "
-                        "entry. Run `python3 scripts/migrate_compliance_phase4.py "
-                        "--only UC-" + uc_id + "` to auto-draft one, or hand-"
-                        "author a one-sentence plain-language statement of "
-                        "what this UC accomplishes for this clause."
+                        "entry. Write a one-sentence plain-language statement "
+                        "of what this UC accomplishes for this clause."
                     ),
                     path=path,
                 )
@@ -593,9 +591,7 @@ def _reconcile_compliance(
                         "evidenceArtifact is required for every compliance "
                         "entry. Describe the concrete artefact an auditor "
                         "would ask for (saved-search id, dashboard, alert, "
-                        "lookup table, report package). Run "
-                        "`python3 scripts/migrate_compliance_phase4.py "
-                        "--only UC-" + uc_id + "` to auto-draft one."
+                        "lookup table, report package)."
                     ),
                     path=path,
                 )
