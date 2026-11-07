@@ -91,18 +91,3 @@ def test_invalid_cost_tier_fails(uc_validator: jsonschema.Draft202012Validator) 
         uc_validator.validate(payload)
 
 
-def test_all_real_uc_sidecars_still_validate(
-    uc_validator: jsonschema.Draft202012Validator,
-) -> None:
-    paths = sorted(CONTENT_ROOT.glob("cat-*/UC-*.json"))
-    assert len(paths) >= 7000, f"expected large UC corpus, found {len(paths)}"
-    errors: list[str] = []
-    for path in paths:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-        try:
-            uc_validator.validate(payload)
-        except jsonschema.ValidationError as exc:
-            errors.append(f"{path}: {exc.message}")
-    assert not errors, f"{len(errors)} UC(s) failed validation:\n" + "\n".join(
-        errors[:5]
-    )

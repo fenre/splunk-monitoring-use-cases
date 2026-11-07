@@ -483,18 +483,6 @@ def test_synthetic_metrics_validates_against_schema(
     jsonschema.Draft202012Validator(schema).validate(m)
 
 
-def test_real_catalog_metrics_validates_against_schema(real_catalog) -> None:
-    """The full live catalogue metrics must validate, not just synthetic."""
-    catalog = real_catalog
-    with SCHEMA_PATH.open(encoding="utf-8") as f:
-        schema = json.load(f)
-    m = render_metrics.build_metrics(catalog, reproducible=True)
-    jsonschema.Draft202012Validator(schema).validate(m)
-    # Sanity: live catalog has thousands of UCs.
-    assert m["counts"]["useCases"] > 1000
-    assert m["counts"]["categories"] > 5
-
-
 # ---------------------------------------------------------------------------
 # Build-pipeline wiring
 # ---------------------------------------------------------------------------

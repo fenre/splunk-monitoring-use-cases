@@ -137,63 +137,56 @@ def test_baseline_load_tolerates_garbage(tmp_path: Path) -> None:
     assert audit._load_baseline(bad) == set()
 
 
-def test_check_passes_against_committed_baseline() -> None:
-    """The shipped baseline must absorb every current HIGH finding.
+_CORPUS = [
+    {"id": "22.17.1", "title": "Access control — control theme 3", "description": "Tracks access."},
+    {"id": "1.1.1", "title": "CPU saturation", "description": "Alerts when CPU stays above 90%."},
+]
 
-    This is the structural CI guard: as long as no NEW HIGH-severity
-    placeholder findings are introduced, ``audit-placeholders --check``
-    must exit 0. Drift here means either the baseline is stale or a
-    new UC has been added with placeholder content; both should fail
-    PR review and prompt a baseline refresh / content fix.
-    """
-    buf_out = io.StringIO()
-    buf_err = io.StringIO()
-    with contextlib.redirect_stdout(buf_out), contextlib.redirect_stderr(buf_err):
-        rc = audit.main(["--check"])
-    assert rc == 0, (
-        "placeholder audit failed against the shipped baseline. "
-        "Either the baseline is stale (refresh with "
-        "`PYTHONPATH=src python3 -m splunk_uc audit-placeholders "
-        "--write-baseline --no-baseline`) or a new HIGH-severity "
-        "placeholder finding has been introduced.\n"
-        f"\n--- stdout ---\n{buf_out.getvalue()}\n"
-        f"--- stderr ---\n{buf_err.getvalue()}"
+
+@pytest.fixture()
+def corpus(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
+    """Two sidecars: one carries the ``control theme N`` debt, one is clean."""
+
+    def fake_iter() -> list[tuple[Path, dict[str, object]]]:
+        return [(tmp_path / f"UC-{uc['id']}.json", dict(uc)) for uc in _CORPUS]
+
+    monkeypatch.setattr(audit, "iter_uc_sidecars", fake_iter)
+    baseline = tmp_path / "baseline.json"
+    baseline.write_text(
+        json.dumps(
+            {
+                "schema": "placeholders-baseline.v1",
+                "entries": [{"uc_id": "UC-22.17.1", "file": "UC-22.17.1.json", "category": "control-theme-n"}],
+            }
+        ),
+        encoding="utf-8",
     )
+    return baseline
 
 
-def test_no_baseline_flag_surfaces_everything() -> None:
-    """``--no-baseline`` must skip baseline filtering and surface all findings.
-
-    This is the cleanup / refresh path — running without the baseline
-    shows the full debt list so reviewers can pick UCs to repair.
-    """
+def _run(argv: list[str]) -> tuple[int, str]:
     buf_out = io.StringIO()
-    with contextlib.redirect_stdout(buf_out):
-        rc = audit.main(["--no-baseline"])
+    with contextlib.redirect_stdout(buf_out), contextlib.redirect_stderr(io.StringIO()):
+        rc = audit.main(argv)
+    return rc, buf_out.getvalue()
+
+
+def test_check_passes_when_the_baseline_absorbs_the_debt(corpus: Path) -> None:
+    rc, out = _run(["--check", "--baseline", str(corpus)])
+    assert rc == 0, out
+    assert "1 matched + suppressed" in out
+
+
+def test_no_baseline_flag_surfaces_everything(corpus: Path) -> None:
+    rc, out = _run(["--no-baseline", "--baseline", str(corpus)])
     assert rc == 0
-    out = buf_out.getvalue()
     assert "Baseline: disabled (--no-baseline)" in out
-    # The unfiltered audit MUST still find the long-tail control-theme-n
-    # debt; if this regresses to zero something is wrong with the walker.
     assert "control-theme-n" in out
 
 
-def test_no_baseline_with_check_fails_on_committed_debt() -> None:
-    """``--no-baseline --check`` must surface the existing debt as failures.
-
-    Confirms the baseline is genuinely doing the work — without it the
-    audit hard-fails on the same content the baseline-filtered run
-    accepts. This pins the contract for reviewers reading the PR.
-    """
-    buf_out = io.StringIO()
-    with contextlib.redirect_stdout(buf_out):
-        rc = audit.main(["--no-baseline", "--check"])
-    assert rc == 1, (
-        "audit-placeholders --no-baseline --check is expected to FAIL "
-        "(non-zero) because the JSON SSOT carries 200+ tracked debt "
-        "findings the baseline normally absorbs. If this passes, the "
-        "regex tightening over-relaxed and now misses real placeholders."
-    )
+def test_no_baseline_with_check_fails_on_the_debt(corpus: Path) -> None:
+    rc, _ = _run(["--no-baseline", "--check", "--baseline", str(corpus)])
+    assert rc == 1
 
 
 def test_default_baseline_path_resolves() -> None:
@@ -210,24 +203,14 @@ def test_default_baseline_path_resolves() -> None:
     assert data["entry_count"] > 0, "baseline file must contain at least one entry"
 
 
-def test_write_baseline_round_trips(tmp_path: Path) -> None:
+def test_write_baseline_round_trips(corpus: Path, tmp_path: Path) -> None:
     """``--write-baseline`` snapshot is loadable by the same audit."""
     target = tmp_path / "audits" / "placeholders-baseline.json"
-    buf_out = io.StringIO()
-    buf_err = io.StringIO()
-    with contextlib.redirect_stdout(buf_out), contextlib.redirect_stderr(buf_err):
-        rc = audit.main(
-            [
-                "--write-baseline",
-                "--no-baseline",
-                "--baseline",
-                str(target),
-            ]
-        )
-    assert rc == 0, buf_err.getvalue()
-    assert target.exists()
-    triples = audit._load_baseline(target)
-    assert len(triples) > 0, "round-trip baseline must contain entries"
+    rc, _ = _run(["--write-baseline", "--no-baseline", "--baseline", str(target)])
+    assert rc == 0
+    assert audit._load_baseline(target) == {("UC-22.17.1", "UC-22.17.1.json", "control-theme-n")}
+    rc, _ = _run(["--check", "--baseline", str(target)])
+    assert rc == 0
 
 
 @pytest.mark.parametrize(

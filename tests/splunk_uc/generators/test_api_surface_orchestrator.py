@@ -30,6 +30,14 @@ import pytest
 
 import splunk_uc.generators.api_surface as M
 
+
+@pytest.fixture(autouse=True)
+def _no_corpus_scan(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The Cisco capability matrix would otherwise tag every sidecar in the repo."""
+    from splunk_uc.generators import cisco_coverage
+
+    monkeypatch.setattr(cisco_coverage, "collect_ucs", list)
+
 # ---------------------------------------------------------------------------
 # _is_external
 # ---------------------------------------------------------------------------

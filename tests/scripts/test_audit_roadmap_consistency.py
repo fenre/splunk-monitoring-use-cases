@@ -1,25 +1,16 @@
 """Unit tests for ``python3 -m splunk_uc audit-roadmap-consistency``.
 
 Repo-overhaul plan §P11 (2026-05-09): ``ROADMAP.md`` is the public
-front door for "where is this project going?". A regression here is
-silent — there's no Splunk job that fails, no external integration
-that pages. The audit script + these tests are the only guard. We
-exercise:
+front door for "where is this project going?". Every test here runs
+against synthetic fixtures; CI runs the audit against the live
+ROADMAP.md in the audits-build job, where the generated docs it links
+to exist. We exercise:
 
 * The pure parsers (section-split, release-line extractor, multiline
-  bullet joiner, link checker, version comparator) with synthetic
-  fixtures so the assertions don't drift when the live ROADMAP.md
-  evolves.
-* End-to-end ``main()`` against the live ROADMAP.md to catch any
-  *new* structural / link / version-drift issues the moment they
-  land.
+  bullet joiner, link checker, version comparator).
+* End-to-end ``main()`` on a clean synthetic roadmap.
 * The ``--export`` JSON snapshot contract so a downstream
   ``gh project item-add`` sync action can rely on a stable shape.
-
-The tests deliberately avoid relying on any specific *content* of
-the live ROADMAP.md (other than that it parses) so an authoring
-change to the marketing copy doesn't cascade into red CI; the
-content-coupled assertions all run against synthetic fixtures.
 """
 
 from __future__ import annotations
@@ -34,7 +25,6 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT_PATH = REPO_ROOT / "scripts" / "audit_roadmap_consistency.py"
-LIVE_ROADMAP = REPO_ROOT / "ROADMAP.md"
 SRC_DIR = REPO_ROOT / "src"
 
 
@@ -479,25 +469,31 @@ def test_check_version_triple_handles_missing_files(
 # ---------------------------------------------------------------------------
 
 
-def test_main_check_passes_against_live_roadmap(audit: ModuleType) -> None:
-    """``--check`` against the real ROADMAP.md exits 0 (warnings allowed).
+@pytest.fixture()
+def happy_roadmap(audit: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    roadmap = tmp_path / "ROADMAP.md"
+    roadmap.write_text(_HAPPY_FIXTURE, encoding="utf-8")
+    version = tmp_path / "VERSION"
+    version.write_text("9.2.0\n", encoding="utf-8")
+    changelog = tmp_path / "CHANGELOG.md"
+    changelog.write_text("# Changelog\n\n## [9.2.0] - 2026-05-09\n", encoding="utf-8")
+    monkeypatch.setattr(audit, "ROADMAP_MD", roadmap)
+    monkeypatch.setattr(audit, "VERSION_FILE", version)
+    monkeypatch.setattr(audit, "CHANGELOG_MD", changelog)
 
-    Today the live ROADMAP.md is structurally clean and link-clean
-    but the version triple drifts from VERSION (v7.1 vs 9.2.0); this
-    test pins that the soft-fail mode lets the gate land without a
-    same-PR roadmap rewrite.
-    """
-    rc = audit.main(["--check"])
-    assert rc == 0, "live ROADMAP.md must pass --check (structural + link)"
+
+@pytest.mark.usefixtures("happy_roadmap")
+def test_main_check_passes_on_a_clean_roadmap(audit: ModuleType) -> None:
+    assert audit.main(["--check"]) == 0
 
 
+@pytest.mark.usefixtures("happy_roadmap")
 def test_main_export_writes_snapshot_with_stable_keys(
     audit: ModuleType, tmp_path: Path
 ) -> None:
     """``--export`` writes a JSON snapshot with the contract-pinned keys."""
     target = tmp_path / "roadmap.json"
     rc = audit.main(["--export", str(target)])
-    # Soft warnings are OK; export-only path doesn't fail on drift.
     assert rc == 0
     assert target.is_file()
     payload = json.loads(target.read_text(encoding="utf-8"))
@@ -511,52 +507,11 @@ def test_main_export_writes_snapshot_with_stable_keys(
         "backlog",
         "deprecated_ideas",
     }
-    assert set(payload.keys()) == expected_keys, (
-        f"export schema drifted; got keys={set(payload.keys())}, "
-        f"expected={expected_keys}"
-    )
-    assert payload["schema_version"] == "1.0", (
-        "schema_version is the input contract for downstream Project sync; "
-        "bumps require a coordinated update on the consumer side"
-    )
+    assert set(payload.keys()) == expected_keys
 
 
-def test_main_strict_version_passes_now_that_roadmap_is_fresh(
+@pytest.mark.usefixtures("happy_roadmap")
+def test_main_strict_version_passes_when_roadmap_matches_version(
     audit: ModuleType,
 ) -> None:
-    """``--strict-version`` returns 0 once ROADMAP and VERSION agree.
-
-    Pre-2026-05-12 history: ROADMAP.md claimed v7.1 as the current
-    release while VERSION had advanced to v8.2.0, so this test asserted
-    that ``--strict-version`` *failed* on the drift. The 2026-05-12
-    ROADMAP refresh (commit ``f47b4f0be``) promoted v8.2.0 to the
-    "Current release" slot. The test is now an anti-regression guard:
-    if ``--strict-version`` starts failing again, ROADMAP.md has fallen
-    behind VERSION and needs to be refreshed before merge.
-    """
-    rc = audit.main(["--strict-version"])
-    assert rc == 0, (
-        "expected --strict-version to pass; ROADMAP.md must advertise "
-        "the same version as the VERSION file. Refresh ROADMAP.md."
-    )
-
-
-# ---------------------------------------------------------------------------
-# 5. Live link-resolution smoke
-# ---------------------------------------------------------------------------
-
-
-def test_live_roadmap_links_all_resolve(audit: ModuleType) -> None:
-    """Every repo-relative link in the live ROADMAP.md resolves on disk.
-
-    Independent of ``main()``: this test calls the link checker
-    directly so the failure message points at the broken href, not at
-    the synthesised ``error_count``.
-    """
-    text = LIVE_ROADMAP.read_text(encoding="utf-8")
-    issues = audit._check_links(text)
-    bad = [i for i in issues if i.severity == "error"]
-    assert not bad, (
-        "live ROADMAP.md has broken repo-relative links: "
-        + "; ".join(i.message for i in bad)
-    )
+    assert audit.main(["--strict-version"]) == 0

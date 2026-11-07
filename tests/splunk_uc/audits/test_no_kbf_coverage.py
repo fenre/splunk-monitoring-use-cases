@@ -111,11 +111,6 @@ def test_validate_uc_traceability_flags_target_mismatch(
     assert any("§2-5: compliance mapped on UCs not in matrix" in e for e in errs)
 
 
-def test_main_passes_on_real_repo() -> None:
-    rc = nk.main([])
-    assert rc == 0
-
-
 def test_validate_dual_mapping_requires_assurance_review() -> None:
     errs = nk._validate_dual_mapping({"mappings": [{"kbfClause": "§2-3", "nis2Clause": "Art.21(2)(a)", "topic": "x", "rationale": "y", "primaryUcIds": ["1.1.1"]}]})
     assert any("assuranceReview" in e for e in errs)

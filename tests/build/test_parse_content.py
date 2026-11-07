@@ -95,20 +95,29 @@ class TestValidateUcJson:
         assert any("monitoringType" in e for e in errors)
 
 
+@pytest.fixture()
+def small_catalog(tmp_path):
+    """Two real categories with three sidecars each."""
+    for cat in ("cat-01-server-compute", "cat-05-network-infrastructure"):
+        src = REPO_ROOT / "content" / cat
+        dest = tmp_path / "content" / cat
+        dest.mkdir(parents=True)
+        for path in [src / "_category.json", *sorted(src.glob("UC-*.json"))[:3]]:
+            (dest / path.name).write_bytes(path.read_bytes())
+    return parse_content.load(tmp_path, reproducible=True)
+
+
 class TestCatalogLoad:
-    def test_load_returns_catalog(self, real_catalog):
-        assert isinstance(real_catalog, parse_content.Catalog)
-        assert len(real_catalog.categories) > 0
+    def test_load_returns_catalog(self, small_catalog):
+        assert isinstance(small_catalog, parse_content.Catalog)
+        assert [c["i"] for c in small_catalog.categories] == [1, 5]
 
-    def test_catalog_has_categories(self, real_catalog):
-        assert len(real_catalog.categories) >= 20
-
-    def test_catalog_uc_count(self, real_catalog):
+    def test_catalog_uc_count(self, small_catalog):
         total_ucs = 0
-        for c in real_catalog.categories:
+        for c in small_catalog.categories:
             for sub in c.get("s", []):
                 total_ucs += len(sub.get("u", []))
-        assert total_ucs >= 7000
+        assert total_ucs == 6
 
     def test_loader_kind(self):
         kind = parse_content.loader_kind()

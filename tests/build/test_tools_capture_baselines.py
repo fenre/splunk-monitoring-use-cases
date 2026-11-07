@@ -636,42 +636,25 @@ class TestModuleEntryPoint:
         self,
         tmp_path: Path,
     ) -> None:
-        """Smoke test: invoke the script as ``python -m
-        tools.capture_baselines`` against the real repo with
-        ``--output`` pointed at tmp_path. This exercises the
-        ``if __name__`` guard. The default build is NOT run (no
-        ``--build``) so the test stays fast."""
+        """Run a copy of the script as ``__main__`` in a two-file repo so
+        the ``if __name__`` guard executes without walking the real tree."""
 
-        repo_root = Path(capture_baselines.__file__).resolve().parent.parent
-        if not (repo_root / "VERSION").exists():
-            pytest.skip("repo has no VERSION file")
-        # ``main`` writes the snapshot relative to REPO_ROOT, so
-        # we need the output path to be INSIDE the repo root to
-        # avoid the ``relative_to`` ValueError. Use a tmp file
-        # under the repo's tests/ tree (cleaned up after).
-        out_path = repo_root / "tests" / "_baseline_smoke.json"
-        try:
-            result = subprocess.run(
-                [
-                    sys.executable,
-                    "-m",
-                    "tools.capture_baselines",
-                    "--output",
-                    str(out_path),
-                ],
-                cwd=str(repo_root),
-                capture_output=True,
-                text=True,
-                timeout=120,
-            )
-            assert result.returncode == 0, (
-                f"rc={result.returncode} "
-                f"stdout={result.stdout!r} stderr={result.stderr!r}"
-            )
-            assert out_path.exists()
-            snap = json.loads(out_path.read_text(encoding="utf-8"))
-            assert "version" in snap
-            assert "captured_at" in snap
-        finally:
-            if out_path.exists():
-                out_path.unlink()
+        script = Path(capture_baselines.__file__).resolve()
+        repo = tmp_path / "repo"
+        (repo / "tools").mkdir(parents=True)
+        (repo / "tools" / script.name).write_bytes(script.read_bytes())
+        (repo / "VERSION").write_text("9.9.9\n", encoding="utf-8")
+        out_path = repo / "baseline.json"
+        result = subprocess.run(
+            [sys.executable, str(repo / "tools" / script.name), "--output", str(out_path)],
+            cwd=str(repo),
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        assert result.returncode == 0, (
+            f"rc={result.returncode} stdout={result.stdout!r} stderr={result.stderr!r}"
+        )
+        snap = json.loads(out_path.read_text(encoding="utf-8"))
+        assert snap["version"] == "9.9.9"
+        assert "captured_at" in snap
