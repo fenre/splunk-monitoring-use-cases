@@ -12,6 +12,17 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+### Security
+
+- **Dependency upgrades that clear the open advisories.** undici 7.30.1
+  (the jsdom override; undici 8 needs Node 22.19), fast-uri 3.1.9 and
+  source-map-js 1.2.2 in the root and apps/web lockfiles; apps/web vite
+  8.3.5, vitest and @vitest/mocker 4.1.12, happy-dom 21.0.4 and nanoid
+  3.3.20; the MCP lock moves to mcp and mcp-types 2.3.0, anyio 4.15.1
+  and httpx2 2.16.0. `puppeteer` is removed from the root package:
+  nothing imported it, and it pulled in a vulnerable zod. jsdom stays
+  on 30.0.1 and axe-core on 4.13.0.
+
 ### Changed
 
 - **Identifier fingerprints are recorded at release.** Git keeps `id`,

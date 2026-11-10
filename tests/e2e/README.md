@@ -103,9 +103,8 @@ Per the v9.0 plan §13c:
 
 ## Why Playwright (not Puppeteer)?
 
-The repo's existing `puppeteer` dependency drives static-site headless
-screenshots. For Splunk Web — which is a heavy SPA with auth-bearing
-fetches, IFRAMEs for dashboard panels, and CSP-strict rendering —
-Playwright's `addInitScript`, console event API, and trace viewer are a
-materially better fit. They coexist; Puppeteer handles the static site,
-Playwright handles the live app.
+Splunk Web is a heavy SPA with auth-bearing fetches, IFRAMEs for
+dashboard panels, and CSP-strict rendering. Playwright's
+`addInitScript`, console event API, and trace viewer fit that well.
+The static site needs no browser: its accessibility checks run axe-core
+under jsdom (`tests/a11y/run-axe.mjs`).
