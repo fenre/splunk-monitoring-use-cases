@@ -897,12 +897,19 @@ class TestMainScriptEntry:
         assert hasattr(gp, "audit_uc_v2")
         assert hasattr(gp, "V2_THRESHOLDS")
 
-    def test_main_no_args_runs_against_corpus(
+    def test_main_no_args_walks_the_content_dir(
         self,
         capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
     ) -> None:
-        # Smoke: invoke without --files / --regulation against the real corpus.
-        # We expect a successful exit but don't pin the exact pass/fail count.
+        content = tmp_path / "content"
+        for src in sorted(gp.CONTENT_DIR.glob("cat-01-*/UC-1.1.*.json"))[:3]:
+            dest = content / src.parent.name / src.name
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(src.read_bytes())
+        monkeypatch.setattr(gp, "REPO_ROOT", tmp_path)
+        monkeypatch.setattr(gp, "CONTENT_DIR", content)
         rc = gp.main([])
         assert rc == 0
         out = capsys.readouterr().out

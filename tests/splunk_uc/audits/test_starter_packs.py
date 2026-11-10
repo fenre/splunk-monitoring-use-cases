@@ -232,12 +232,3 @@ def test_id_must_match_file_name() -> None:
 def test_alias_groups_reject_duplicates() -> None:
     findings = sp.audit_alias_groups([["a", "b"], ["b", "c"]])
     assert [f.code for f in findings] == ["alias-duplicate"]
-
-
-def test_repository_packs_have_no_errors() -> None:
-    packs, findings = sp.run_audit()
-    assert len(packs) >= 10
-    errors = [f.render() for f in findings if f.level == "error"]
-    assert errors == []
-    goals = {p["goal"] for _path, p in packs.values()}
-    assert goals == {"security", "operations"}

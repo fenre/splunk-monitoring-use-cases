@@ -59,7 +59,6 @@ import pytest
 
 import tools.audits.budgets as budgets_mod
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -556,7 +555,8 @@ class TestGzipLen:
         path.write_bytes(b"abc" * 1000)
         first = budgets_mod._gzip_len(path)
         # Mutate the filesystem mtime then re-compute.
-        import os, time
+        import os
+        import time
         new_time = time.time() + 1000
         os.utime(path, (new_time, new_time))
         second = budgets_mod._gzip_len(path)
@@ -611,28 +611,23 @@ class TestCliSurface:
 
 
 class TestModuleEntryPoint:
-    def test_invoking_as_script_against_real_dist(self) -> None:
-        """Invoke ``python -m tools.audits.budgets`` against the
-        repo's real ``dist/`` tree when it exists. Returns 0 or 1
-        depending on whether any hard budget is breached — both are
-        acceptable; the assertion is that the script ran to
-        completion without raising.
-
-        If ``dist/`` is absent (clean checkout), the script returns 2
-        per its documented contract; we accept that too. The point of
-        the smoke check is to exercise the ``if __name__ == "__main__":``
-        guard end-to-end, not to assert the byte-budget state of the
-        repo at test time."""
+    def test_invoking_as_script(self, tmp_path: Path) -> None:
+        """``python -m tools.audits.budgets`` runs the ``__main__`` guard
+        end-to-end against a two-file dist."""
 
         import subprocess
 
+        dist = tmp_path / "dist"
+        dist.mkdir()
+        (dist / "index.html").write_text("<!doctype html><title>x</title>\n", encoding="utf-8")
+        (dist / "catalog.json").write_text("{}\n", encoding="utf-8")
         repo_root = Path(budgets_mod.__file__).resolve().parents[2]
         result = subprocess.run(
-            [sys.executable, "-m", "tools.audits.budgets", "--json"],
+            [sys.executable, "-m", "tools.audits.budgets", "--dist", str(dist), "--json"],
             cwd=str(repo_root),
             capture_output=True,
             text=True,
             timeout=60,
         )
-        # 0 = clean, 1 = budget breached, 2 = no dist/ yet.
-        assert result.returncode in (0, 1, 2)
+        assert result.returncode in (0, 1), result.stderr
+        assert json.loads(result.stdout)

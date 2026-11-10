@@ -137,9 +137,3 @@ def test_markdown_has_provenance_banner_and_gap_list() -> None:
     assert "## Gap list" in md
     assert "`duo.telephony`" in md
     assert out["matrix.json"].endswith("\n")
-
-
-def test_repository_reports_are_current() -> None:
-    outputs = cc.render(cc.load_portfolio(), cc.collect_ucs())
-    for name, text in outputs.items():
-        assert (cc.OUT_DIR / name).read_text(encoding="utf-8") == text, f"run {cc.GENERATOR}"

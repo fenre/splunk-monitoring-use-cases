@@ -8,7 +8,7 @@ status. The catalog is checked into the repository so that:
 
 - The recommender app does not have to call splunkbase.splunk.com at runtime
   (Splunk Cloud apps cannot reach arbitrary outbound origins).
-- The audits (``tools/audits/splunkbase_ids.py``) run hermetically against the
+- The audits (``python3 -m splunk_uc audit-splunkbase-ids``) run hermetically against the
   cached metadata.
 - Diffs to the catalog are reviewable in regular pull requests.
 

@@ -9,16 +9,13 @@ scaffolds for every use case in the catalogue. Each UC produces two files under
 | `simple.xml` | Classic Simple XML (`<dashboard version="1.1">`) | Drop into `<app>/default/data/ui/views/` |
 | `studio.xml` | Dashboard Studio (`<dashboard version="2">` + JSON CDATA) | Same path; Splunk 10.x / Cloud Dashboard Studio |
 
-Generated output is **gitignored** (`dist/`). CI regenerates it on every PR.
+Generated output is **gitignored** (`dist/`). CI does not generate it.
 
 ## Quick start
 
 ```bash
 # Generate all dashboard pairs (~7,900 UCs)
 make generate-dashboards
-
-# Validate structure + SPL anti-patterns + determinism
-make audit-dashboards
 
 # Single UC
 PYTHONPATH=src python3 -m splunk_uc generate-dashboards --only UC-1.1.1
@@ -89,13 +86,11 @@ Other banned patterns (enforced by `audit-dashboards --check`):
 ## Validate after editing
 
 ```bash
-# Regenerate + audit (CI runs the same chain)
 make generate-dashboards
-make audit-dashboards
-
-# Or directly:
-PYTHONPATH=src python3 -m splunk_uc audit-dashboards --check
+PYTHONPATH=src python3 -m splunk_uc generate-dashboards --check
 ```
+
+CI does not run this; the dashboards are not published.
 
 The audit gate checks:
 

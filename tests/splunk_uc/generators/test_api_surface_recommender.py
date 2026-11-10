@@ -36,6 +36,14 @@ if str(_SCRIPTS_DIR) not in sys.path:
 
 from splunk_uc.generators import api_surface as M  # noqa: E402
 
+
+@pytest.fixture(autouse=True)
+def _no_corpus_scan(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The Cisco capability matrix would otherwise tag every sidecar in the repo."""
+    from splunk_uc.generators import cisco_coverage
+
+    monkeypatch.setattr(cisco_coverage, "collect_ucs", list)
+
 # ---------------------------------------------------------------------------
 # _load_catalog
 # ---------------------------------------------------------------------------

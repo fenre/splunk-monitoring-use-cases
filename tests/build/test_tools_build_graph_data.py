@@ -875,26 +875,15 @@ class TestMainGuard:
         monkeypatch.setattr(
             sys, "argv", ["build-graph-data", "--out", str(out_dir)]
         )
-        # runpy.run_path will execute the script's top-level code
-        # again — including module-level CONTENT_DIR / CATEGORY_DIRS
-        # assignment. Patch out CONTENT_DIR by patching the path
-        # __file__ would resolve to. The clean way: invoke through
-        # the script's parent dir context via cwd manipulation.
-        # CATEGORY_DIRS is recomputed by the script from CONTENT_DIR,
-        # so we need to redirect the CONTENT_DIR the SCRIPT sees too.
-        #
-        # Simplest approach: invoke main() directly here AND verify
-        # the guard line by importing the script's __main__ check
-        # via runpy with a one-shot module load that hits the guard.
-        # Use runpy.run_path with our redirected content via env.
-        #
-        # Set CATEGORY_DIRS on the freshly-loaded module from
-        # globals() captured by run_path.
+        # run_path re-executes the module-level CONTENT_DIR assignment,
+        # which resolves from __file__. A copy beside the tmp content/
+        # makes it resolve to the fixture tree.
+        script = tmp_path / "tools" / _SCRIPT_PATH.name
+        script.parent.mkdir()
+        script.write_bytes(_SCRIPT_PATH.read_bytes())
         original_argv = sys.argv
         try:
-            ns = runpy.run_path(
-                str(_SCRIPT_PATH), run_name="__main__"
-            )
+            ns = runpy.run_path(str(script), run_name="__main__")
         finally:
             sys.argv = original_argv
         # The guard ran (no NameError), and `main` is defined in ns.

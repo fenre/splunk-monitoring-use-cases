@@ -45,7 +45,7 @@ updating the `# vX.Y.Z` comment) silently grew.
 at `tests/build/test_composite_actions.py::test_no_workflow_pins_setup_python_directly`
 keeps it that way — a future PR that re-introduces a raw
 `actions/setup-python@<sha>` pin in any workflow file fails the test
-in the `audits-content` job.
+in the `unit-tests` job.
 
 The composite actions reduce that to **two** pin sites. Centralisation:
 
@@ -94,7 +94,7 @@ Every other workflow is a scheduled maintenance probe or a release.
 
 | Workflow | Purpose | Trigger | Cadence | Writes to repo? |
 | --- | --- | --- | --- | --- |
-| [`ci.yml`](../.github/workflows/ci.yml) | Merge gate and Pages deploy. One `build` job; `lint`, `audits-content`, `audits-build`, `mcp`, `frontend` reuse its artifact | `pull_request` and `push` to `main` | per PR and push | No (Pages only) |
+| [`ci.yml`](../.github/workflows/ci.yml) | Merge gate and Pages deploy. One `build` job; `lint`, `unit-tests`, `audits-content`, `audits-build`, `mcp`, `frontend`; the last three reuse its artifact | `pull_request` and `push` to `main` | per PR and push | No (Pages only) |
 | [`release.yml`](../.github/workflows/release.yml) | Package + publish TA / DA / recommender `.spl` artefacts as a GitHub Release | `push` of `v*.*.*` tag, `workflow_dispatch` | per release | No (Release) |
 | [`codeql.yml`](../.github/workflows/codeql.yml) | CodeQL static analysis (Python + JavaScript) | weekly cron, `workflow_dispatch` | Mon 06:17 UTC | No |
 | [`dependency-review.yml`](../.github/workflows/dependency-review.yml) | Blocks PRs introducing dependencies with critical CVEs or non-permissive licences | `pull_request` | per PR | No |
@@ -139,11 +139,11 @@ to a 40-character SHA. The pin map is enforced by
 `python3 -m splunk_uc audit-action-pins` (no separate inventory doc —
 the audit is the source of truth).
 
-## Validate.yml (five parallel jobs)
+## ci.yml (parallel jobs)
 
 The merge gate. PRs cannot merge until every required job in this
-workflow returns success. `lint` and `audits-content` start
-immediately. `audits-build`, `mcp` and `frontend` wait for the `build`
+workflow returns success. `lint`, `unit-tests` and `audits-content`
+start immediately. `audits-build`, `mcp` and `frontend` wait for the `build`
 job and download its `dist/` and `api/v1/` artifact instead of
 building the catalog again. Deploy waits only for `build`.
 
@@ -154,8 +154,6 @@ audit dependencies install. No `npm ci`.
 
 | Step                                         | Script / command                                    |
 |----------------------------------------------|-----------------------------------------------------|
-| Schema metadata validation                   | `tools/audits/schema_meta.py`                       |
-| Asset drift (inline blocks vs `src/`)        | `tools/audits/asset_drift.py`                       |
 | GitHub Actions pin audit                     | `python3 -m splunk_uc audit-action-pins`                      |
 | Non-technical view JS syntax                 | `node -e` over `non-technical-view.js`              |
 | Docs-UC map JS syntax                        | `node -e` over `docs-uc-map.js`                     |
@@ -165,70 +163,41 @@ audit dependencies install. No `npm ci`.
 PR's metadata, version triple, or supply-chain pins. Look at the
 job's first failing step — every step is independent.
 
+### Job 2a: `unit-tests` (~30 min budget)
+
+`pytest tests/build/ tests/scripts/ tests/splunk_uc/ -n auto`. Every
+test runs on fixtures: the job builds no catalogue and generates no
+rollups. The few tests that read the built catalogue run in
+`audits-build`. Coverage and its per-file budget
+(`audit-coverage-budget` against
+[`data/baselines/coverage-v9.1.0.json`](../data/baselines/coverage-v9.1.0.json))
+run nightly in `build-reproducibility.yml`.
+
 ### Job 2: `audits-content` (~25 min budget)
 
-UC content audits + a single umbrella cascade-generator drift gate.
-Reads sidecars + scripts + reports directly; runs `tools/build/build.py`
-once to materialise `dist/catalog.json` for the prereq / compliance-gap
-/ sandbox audits.
+UC content audits. Reads sidecars and committed data only: no
+catalogue build, no rollups, no tests.
 
-> Drift-gate consolidation (2026-05-17, PR-2 / drift ledger #20): the
-> 14 cascade-style "generator regeneration check" steps that used to
-> fan out one CI step each were collapsed into a single
-> `Cascade-generator drift gate (umbrella)` step that calls
-> `make sync-generated-check`. The umbrella runs every cascade
-> generator with `--check` in dependency-safe order, collects per-step
-> failures, and prints `DRIFT in: <step>` lines for each drifting
-> generator so a content edit's full regen footprint is visible from a
-> single CI failure. Local recovery: `make sync-generated && git add -A`.
-
-Major sub-areas:
-
-- **Unit tests + coverage budget** (`pytest tests/build/ tests/scripts/`,
-  then `audit_coverage_budget.py`). The coverage report is captured as
-  JSON and ratcheted against [`data/baselines/coverage-v9.1.0.json`]
-  (../data/baselines/coverage-v9.1.0.json): tier-1 (`tools/build/`) and
-  tier-2 (`scripts/audit_*.py` + named extras) per-file coverage may
-  not regress more than 1.0pp from the baseline. New tier-1 files
-  must clear a 60% floor; new tier-2 files must clear 40%. Tier-3
-  (one-shot uplift / migration / generator helpers) is exempt by
-  design; see `python3 -m splunk_uc audit-coverage-budget` for the full
-  classification policy and §P16 of the overhaul plan.
-- **Legacy use-cases/ guard** (`audit-no-use-cases-dir --check`).
-  Hard-fails CI if the retired ``use-cases/cat-*.md`` directory is
-  recreated or if a non-allowlisted tracked file gains a fresh
-  ``use-cases/`` path reference. Replaces the v9.x
-  ``audit-legacy-orphans`` verb that diagnosed UCs missing a JSON
-  SSOT sidecar — no longer meaningful after the v8.2.0 retirement
-  (2026-05-11) of the entire legacy markdown corpus. See
-  ``docs/use-cases-burndown.md`` for the migration history.
 - Per-UC structure (audit_uc_ids, audit_uc_structure, audit_spl_*,
   audit_mitre_taxonomy, audit_monitoring_type, audit_cim_spl_alignment,
-  audit_known_fp).
+  audit_known_fp, equipment app map, equipment model tags).
+- SPL reference validation. Pull requests check the changed use cases
+  (`--files`); pushes to `main` and changes to the vocabulary check the
+  whole catalogue.
+- UC text-quality blockers on the changed use cases
+  (`--max-blocker 0`). The full-catalogue major count is a nightly
+  report.
 - Compliance graph (audit_compliance_mappings, baseline drift guard,
-  regulation alignment, generated-reports-committed).
-- **Cascade-generator drift gate (umbrella)** — one step
-  (`make sync-generated-check`) covers every cascade-style regen
-  (`generate-phase3-{1,2,3}-*`, `generate-equipment-tags`,
-  `generate-grandma-explanations`, `migrate-cat22-ntv`,
-  `audit-prerequisites`, `audit-compliance-gaps`,
-  `audit-sandbox-validation`, `generate-evidence-packs`,
-  `generate-mapping-ledger`,
-  `generate-backlinks`, `generate-doc-references`).
-  *(2026-05-18: `generate-md-from-json` retired in F21 close — the
-  per-UC `.md` companions were deleted from `content/` and the LLM
-  markdown twin is now emitted at build time only into
-  `dist/uc/UC-X.Y.Z/uc.md`.)*
-- Quality gates (Gold Standard summary).
-- Phase 4.5 / 5.x signoffs (peer review, legal review, SME review,
-  regulatory change-watch, mapping-ledger audit).
+  regulation alignment).
+- Mapping ledger and regulatory change-watch.
 
-**When this job fails:** for the umbrella drift gate, run
-`make sync-generated && git add -A && git diff --staged` locally and
-commit. For any other audit, consult its `--help` for the regeneration
-command. Most failures are "you edited a JSON sidecar but forgot to
-regenerate the report" — `make build` or the specific generator with
-`--check` removed will fix it.
+Content-quality counts that are not gates (text-quality majors,
+template provenance, content quality, SPL anti-patterns, byte budgets,
+file-size budgets) are written to the job summary of the nightly
+`build-reproducibility.yml` run. They never fail a run.
+
+**When this job fails:** consult the failing audit's `--help`. Most
+failures are a sidecar edit that broke a content rule.
 
 ### Job 3: `audits-build` (~30 min budget)
 
@@ -236,17 +205,24 @@ Downloads the catalog artifact. The `build` job is the one that runs `tools/buil
 
 Sequence:
 
-1. Generate `api/v1/` tree.
-2. Story-layer Node smoke tests (`tools/audits/_phase3*_smoke.js` +
+1. Catalog schema validation and non-technical view sync.
+2. Roadmap consistency (`audit-roadmap-consistency --check
+   --strict-version`); ROADMAP.md links to generated docs.
+3. Tests that read the built catalogue (typed models, dashboard SPL).
+4. **Cascade-generator drift gate (umbrella)** — `make
+   sync-generated-check` runs every cascade generator with `--check`
+   in dependency-safe order (`generate-equipment-tags`,
+   `generate-grandma-explanations`, `migrate-cat22-ntv`,
+   `audit-prerequisites`, `audit-compliance-gaps`,
+   `audit-sandbox-validation`, `generate-evidence-packs`,
+   `generate-mapping-ledger`, the recommender app, `generate-backlinks`,
+   `generate-doc-references`). Local recovery: `make sync-generated &&
+   git add -A`.
+5. Story-layer Node smoke tests (`tools/audits/_phase3*_smoke.js` +
    `_phase5_primer_smoke.js`).
-3. Splunk UC Recommender generator regeneration check.
-4. **Build check (catalog regeneration)** — runs the build, then
-   `git diff` against the committed catalog/llms/api files. If
-   anything changed, the PR's missing a `make build` commit.
-5. Post-build audits: byte budgets, URL freeze, prerequisite drift,
-   quality metadata, Splunk Cloud compatibility, Splunk Cloud audit
-   committed.
-6. Package the recommender `.spl` on every push.
+6. Post-build audits: URL freeze, quality metadata, Splunk Cloud
+   compatibility, Splunk version matrix.
+7. Package the recommender `.spl`.
 
 Artefact uploads:
 
@@ -259,8 +235,7 @@ Artefact uploads:
 
 **When this job fails:** the most common failure is a missing
 `make build` commit. The job's diff output names the offending
-files. URL freeze and byte budget failures usually mean a
-deliberate URL change or asset bloat — see
+files. URL freeze failures usually mean a deliberate URL change — see
 [external-consumer-matrix.md](external-consumer-matrix.md) for the
 URL stability contract.
 
@@ -485,7 +460,7 @@ comes from *better drift tooling* (below), not from deleting artefacts.
 
 | Target | Scope | Cost | Use |
 |--------|-------|-----:|-----|
-| `make preflight` | **Regenerate** every committed derived artefact (cascade via `sync-generated`, catalogue-count rollups via `sync-catalogue-rollups`, full build, `api/v1`, splunk-cloud-compat, OSCAL round-trip, perf/a11y, legacy `emit:legacy`). | ~3–5 min | Before committing a content change — fixes drift in one shot. |
+| `make preflight` | **Regenerate** every committed derived artefact (cascade via `sync-generated`, full build, `api/v1`, splunk-cloud-compat, OSCAL round-trip, perf/a11y, legacy `emit:legacy`). | ~3–5 min | Before committing a content change — fixes drift in one shot. |
 | `make preflight-check` | **CI-faithful drift mirror** — runs the same set in `--check` mode (or `git diff` for writers without a `--check` flag). Read-only. | ~3–5 min | Reproduce a CI drift failure locally. |
 | `make preflight-fast` | The ~30s subset: `sync-generated-check` + the `non-technical-view.js` legacy-emit guard. | ~30 s | Pre-push hook (below). |
 | `make ci` | **Full local mirror of the merge gate** — `preflight-check` (drift) + `test-unit` (pytest) + `audit-full` (content audits). Aggregates failures instead of stopping at the first, mirroring the un-masked CI gates. | ~5–8 min | Reproduce the *whole* `validate.yml` verdict before pushing a large or risky change. |
@@ -568,7 +543,6 @@ hard — the tests are the contract.
 | `Build check` fails — generated files out-of-date | Run `make build` and commit the diff.                                            |
 | `Cascade-generator drift gate (umbrella)` fails | Run `make sync-generated && git add -A && git diff --staged` and commit the regenerated tree. |
 | Other named generator `--check` fails           | Re-run the named script without `--check` and commit the regenerated output.    |
-| `Catalogue rollups (regenerate and diff)` fails | Run `make sync-catalogue-rollups` and commit the diff. That refreshes compliance coverage, sandbox validation, the ATT&CK simulation report, and the Splunk version matrix together. |
 | `URL freeze` fails                              | URL change is breaking — see [external-consumer-matrix.md](external-consumer-matrix.md). |
 | MCP `cov-fail-under=70` fails                   | Add tests; coverage floor is intentionally low to allow uplift.                  |
 | Node test "module not found"                    | `npm ci` in the workspace root; the composite handles this in CI.                |

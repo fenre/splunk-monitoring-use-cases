@@ -22,7 +22,6 @@ Layout
     ├── generators/        # text + structured artefact emitters
     ├── ingest/            # external-data ingestion (regulations, dependencies)
     ├── migrations/        # one-shot data migrations
-    └── feasibility/       # ROI / coverage / gap analyses
 
 Migration strategy
 ------------------

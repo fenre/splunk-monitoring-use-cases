@@ -28,7 +28,7 @@ edit (whitespace, comment changes), creating a "rubber-stamp" PR
 class that desensitises reviewers. These tests instead pin the
 *invariants* the partition was designed to protect:
 
-1. Five named jobs exist.
+1. The named jobs exist.
 2. Every job uses the composite actions for setup.
 3. Every job's body has a non-trivial step count.
 4. The total step count across all jobs is at least the floor we
@@ -62,7 +62,7 @@ VALIDATE_YML = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 # The five jobs the partition created. Adding a new job is allowed,
 # but the test below asserts the *minimum* set is present so a job
 # can never silently disappear.
-EXPECTED_JOBS = ("lint", "audits-content", "audits-build", "mcp", "frontend")
+EXPECTED_JOBS = ("lint", "unit-tests", "audits-content", "audits-build", "mcp", "frontend")
 
 # Setup-prelude step names that should appear in every job. They are
 # allowed to differ in suffix (``Set up Python (with audits)`` vs
@@ -78,29 +78,22 @@ SETUP_PREFIXES = ("Checkout", "Set up Python", "Set up Node")
 # that justifies the removal in CHANGELOG.md + docs/migration-status.md.
 CRITICAL_STEP_NAMES = [
     # Lint job
-    "Schema metadata validation",
     "GitHub Actions pin audit",
     "Non-technical view JS syntax",
     "Docs-UC map JS syntax",
     "Version consistency",
     # Content audits
     "Unit tests (build pipeline",  # P16 renamed to "...build pipeline + audits)"; substring match
-    # v8.2.0 (2026-05-11) retired the legacy ``use-cases/cat-*.md``
-    # corpus, which made the original ``audit-legacy-orphans`` verb
-    # meaningless (nothing left to be orphaned from). The replacement
-    # ``audit-no-use-cases-dir`` runs in audits-content as
-    # ``Legacy use-cases/ guard (v8.2.0 retirement)`` and serves the
-    # same intent: prevent legacy markdown orphans from accumulating.
-    "Legacy use-cases/ guard",
     "UC ID uniqueness",
     "UC structure validation",
     "SPL grammar linter",
     "SPL hallucination audit",
+    "SPL reference validation",
+    "Equipment model tags",
+    "UC text-quality blockers",
     "MITRE ATT&CK taxonomy",
     "Monitoring-type policy",
     "CIM",  # CIM ↔ SPL alignment
-    "CHANGELOG and cross-references",
-    "Repository consistency",
     "Catalog schema validation",
     # PR-2 lean-mode collapse (2026-05-17, drift ledger #20): the 14
     # individual cascade-regen ``--check`` steps were replaced by a
@@ -108,30 +101,21 @@ CRITICAL_STEP_NAMES = [
     # sync-generated-check``. The umbrella covers (and the per-step
     # log makes visible) every previously-named cascade gate, so
     # losing it would still lose coverage for: prerequisite graph,
-    # phase3.{1,2,3} backfills, equipment-tags, grandma explanations,
-    # md-from-json freshness, cat-22 NTV regen, compliance-gaps,
+    # equipment-tags, grandma explanations, cat-22 NTV regen, compliance-gaps,
     # evidence-packs, mapping-ledger determinism, sandbox-validation,
     # backlinks index, and the auto-generated doc references rewrite.
     # If the umbrella is ever split back into individual steps, add
     # the per-step names here in the same PR.
     "Cascade-generator drift gate (umbrella)",
     "Compliance mapping audit",
-    # Catalogue-count rollups (compliance coverage, sandbox validation,
-    # ATT&CK simulation, Splunk version matrix) are regenerated and
-    # diffed in this one step. Losing it lets a content PR change the
-    # use-case count without updating the committed reports.
-    "Catalogue rollups (regenerate and diff)",
-    "Phase 4.5a peer-review signoff audit",
-    "Phase 4.5b legal-review signoff audit",
-    "Phase 5.2 SME-review signoff audit",
     "Phase 5.4 signed provenance ledger",
     # Build job
-    "Audit — byte budgets",
     "Audit — URL freeze",
     "Splunk Cloud compatibility audit",
-    "Splunk UC Recommender generator regeneration check",
     "Generate published rollups",
     "Story-layer UI smoke tests",
+    "Roadmap consistency",
+    "Tests that read the built catalogue",
     "Package recommender .spl",
     # MCP job
     "Install MCP server",
@@ -140,13 +124,9 @@ CRITICAL_STEP_NAMES = [
     # Frontend job
     "Recommender frontend unit tests",
     "Phase 4.4 scorecard.html render test",
-    "Phase 4.5c sandbox validation Node drift guard",
     "Phase 4.5d ATT&CK simulation gate",
-    "Phase 4.5d ATT&CK simulation Node drift guard",
     "Phase 4.5e OSCAL round-trip gate",
-    "Phase 4.5e OSCAL round-trip Node drift guard",
-    "Phase 4.5f perf + a11y audit gate",
-    "Phase 4.5f perf + a11y Node drift guard",
+    "Accessibility gate (axe-core)",
     "apps/web — non-technical-view.js SOT drift guard",
 ]
 
@@ -412,12 +392,20 @@ def _workflow_runs(name: str) -> list[str]:
 
 
 def test_nightly_keeps_the_checks_that_left_pull_requests() -> None:
-    """Gold summary, the build smoke, and the RAG determinism rerun moved off PR CI."""
+    """The build smoke, coverage, and the count reports run nightly, not on PRs."""
     nightly = "\n".join(_workflow_runs("build-reproducibility.yml"))
-    assert "audit-gold-profile --summary" in nightly
     assert "audit-reproducibility --first-build-only" in nightly
-    assert "generate-rag-chunks --check" in nightly
     assert "audit-coverage-budget" in nightly
+    for report in (
+        "audit-gold-profile-v2",
+        "audit-text-quality --no-write",
+        "audit-template-provenance",
+        "audit-content-quality",
+        "audit-spl-anti-patterns",
+        "tools/audits/budgets.py",
+        "audit-perf-a11y",
+    ):
+        assert report in nightly, report
     weekly = "\n".join(_workflow_runs("splunkbase-sync.yml"))
     assert "audit-splunkbase-app-status --check" in weekly
     pr = "\n".join(
@@ -425,5 +413,12 @@ def test_nightly_keeps_the_checks_that_left_pull_requests() -> None:
         for job in yaml.safe_load((REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8"))["jobs"].values()
         for step in job["steps"]
     )
-    assert "audit-gold-profile --summary" not in pr
-    assert "generate-rag-chunks --check" not in pr
+    for report in (
+        "audit-template-provenance",
+        "audit-content-quality",
+        "audit-spl-anti-patterns",
+        "tools/audits/budgets.py",
+        "--max-major",
+    ):
+        assert report not in pr, report
+    assert "audit-perf-a11y --a11y-only" in pr

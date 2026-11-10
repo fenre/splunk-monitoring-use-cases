@@ -267,7 +267,7 @@ def test_resolving_audit_does_not_import_ingest_subpackage() -> None:
         "modnames = [m for m in sys.modules if m.startswith('splunk_uc.')]\n"
         "assert 'splunk_uc.audits.build_reproducibility' in modnames\n"
         "for forbidden in ('splunk_uc.ingest', 'splunk_uc.generators',\n"
-        "                  'splunk_uc.migrations', 'splunk_uc.feasibility'):\n"
+        "                  'splunk_uc.migrations'):\n"
         "    submods = [m for m in modnames if m.startswith(forbidden + '.')]\n"
         "    assert not submods, f'unexpected eager import: {submods!r}'\n"
         "print('OK')\n"
@@ -306,7 +306,7 @@ def test_audits_subpackage_imports_cleanly() -> None:
 
 @pytest.mark.parametrize(
     "subpackage",
-    ["audits", "generators", "migrations", "ingest", "feasibility"],
+    ["audits", "generators", "migrations", "ingest"],
 )
 def test_subpackages_import_cleanly(subpackage: str) -> None:
     """Every P6 subpackage imports without errors and is empty by default.

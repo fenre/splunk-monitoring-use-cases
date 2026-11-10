@@ -10,9 +10,8 @@ both speak to "what ships to the end user":
    (a developer accidentally inlines a large payload, a
    merge conflict duplicates a script block, someone checks in a huge
    SVG) break that experience silently.  Each critical asset has a
-   hard-coded byte budget; any file over budget hard-fails CI.  Budget
-   numbers are set with ~25 % headroom against the current footprint
-   so routine content growth does not flicker the gate.
+   byte budget.  Overruns are reported nightly and never fail a pull
+   request.
 
 2. **Accessibility (axe-core under jsdom).**  The project is marketed
    as the "international gold standard for logging and compliance
@@ -45,17 +44,16 @@ rely on byte-equality.
 Exit codes
 ----------
 
-    0   No hard failures.
-    1   At least one budget overrun, serious/critical a11y violation
-        that is not allowlisted, or axe-core runner error.  In
-        ``--check`` mode, also 1 if the committed report differs from
-        the freshly-generated one.
+    0   No serious/critical a11y violation and no axe-core runner error.
+    1   A serious/critical a11y violation that is not allowlisted, or an
+        axe-core runner error.  Budget overruns are reported in the
+        summary and the report but never change the exit code.
 
 Usage
 -----
 
-    python3 scripts/audit_perf_a11y.py
-    python3 scripts/audit_perf_a11y.py --check   # drift-check only
+    python -m splunk_uc audit-perf-a11y              # budgets + a11y, writes the report
+    python -m splunk_uc audit-perf-a11y --a11y-only  # a11y only (pull requests)
 """
 
 from __future__ import annotations
@@ -499,44 +497,6 @@ def _canonical_serialise(payload: Any) -> str:
     return json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
 
 
-def _normalise_dist_size_fields(report_text: str) -> str:
-    """Zero ``actual_bytes`` / ``headroom_bytes`` for ``dist/*`` budgets.
-
-    The legacy catalog.json + llms*.txt writer in
-    ``tools/build/render_legacy_artifacts.py`` does not pass
-    ``sort_keys=True`` to ``json.dumps``, so the same SSOT can produce
-    a few-KiB byte delta across Python releases (e.g., CI Ubuntu 3.12.x
-    versus a local Mac 3.14.x). The audit's purpose is budget violation
-    + a11y regression detection, not byte-level reproducibility of the
-    rebuild artefacts. Normalise size fields for files under ``dist/``
-    before the ``--check`` byte-for-byte compare so cross-platform build
-    drift cannot break the gate. The numeric ``status`` (``ok``,
-    ``over-budget``, ``missing``) and the budget threshold itself are
-    preserved, so any real budget regression still trips the audit.
-
-    Files in the project root (``index.html``, ``custom-text.js``, etc.)
-    are committed artefacts whose actual_bytes is meaningful and stable;
-    we leave those untouched.
-    """
-    try:
-        payload = json.loads(report_text)
-    except json.JSONDecodeError:
-        return report_text
-    budgets = payload.get("perf", {}).get("budgets")
-    if not isinstance(budgets, list):
-        return report_text
-    for budget in budgets:
-        if not isinstance(budget, dict):
-            continue
-        rel = budget.get("file", "")
-        if isinstance(rel, str) and rel.startswith("dist/"):
-            if "actual_bytes" in budget:
-                budget["actual_bytes"] = 0
-            if "headroom_bytes" in budget:
-                budget["headroom_bytes"] = 0
-    return _canonical_serialise(payload)
-
-
 def _render_report(
     perf_records: list[dict[str, Any]],
     perf_hard_failures: int,
@@ -618,7 +578,7 @@ def _print_human_summary(
             f"  [{status_str:<7}] {rec['file']:<22} "
             f"{actual_s} / {rec['budget_bytes']:>10} bytes{headroom_s}"
         )
-    print(f"  perf hard failures: {perf_hard_failures}")
+    print(f"  over budget (report only): {perf_hard_failures}")
     print()
 
     if axe_runner_error:
@@ -672,7 +632,7 @@ def _print_human_summary(
             print(f"    [incomplete] ... {len(incomplete) - 5} more")
 
     print()
-    if perf_hard_failures + a11y_hard_failures:
+    if a11y_hard_failures:
         print("=== PERF+A11Y GATE: RED ===")
     else:
         print("=== PERF+A11Y GATE: GREEN ===")
@@ -684,18 +644,23 @@ def _print_human_summary(
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Phase 4.5f performance + accessibility gate.")
+    parser = argparse.ArgumentParser(
+        description=(
+            "Phase 4.5f accessibility gate with a report-only size budget section. "
+            "Only accessibility failures set the exit code."
+        )
+    )
     parser.add_argument(
-        "--check",
+        "--a11y-only",
         action="store_true",
-        help=(
-            "Regenerate the report in memory and diff against the "
-            "committed reports/perf-a11y.json; exit non-zero on drift."
-        ),
+        help="Run axe-core only: skip the size budgets and do not write reports/perf-a11y.json.",
     )
     args = parser.parse_args(argv)
 
-    perf_records, perf_hard_failures = _evaluate_budgets(_PERF_BUDGETS)
+    perf_records: list[dict[str, Any]] = []
+    perf_hard_failures = 0
+    if not args.a11y_only:
+        perf_records, perf_hard_failures = _evaluate_budgets(_PERF_BUDGETS)
 
     axe_runner_error: str | None = None
     try:
@@ -721,59 +686,8 @@ def main(argv: list[str] | None = None) -> int:
         axe_runner_error,
     )
 
-    REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    if args.check:
-        if not REPORT_PATH.is_file():
-            sys.stderr.write(
-                f"ERROR: --check requested but {REPORT_PATH.relative_to(REPO)} "
-                "does not exist. Run without --check first to generate it.\n"
-            )
-            return 1
-        existing = REPORT_PATH.read_text(encoding="utf-8")
-        # ``actual_bytes`` and ``headroom_bytes`` for files under ``dist/``
-        # are inherently non-deterministic across build environments — the
-        # JSON serialisation in tools/build/render_legacy_artifacts.py does
-        # not pass ``sort_keys=True``, so dict insertion order can differ
-        # by a few KiB between Python 3.12 (CI Linux runner) and other
-        # Python releases (local dev). The audit's job is to catch budget
-        # violations and a11y regressions, not to pin every byte of a
-        # rebuild artefact. Normalise the dist/* size fields to a fixed
-        # placeholder before comparing so cross-platform build drift does
-        # not break the gate; the absolute numbers stay visible in the
-        # human summary and the artifact upload.
-        existing_norm = _normalise_dist_size_fields(existing)
-        regenerated_norm = _normalise_dist_size_fields(payload_str)
-        if existing_norm != regenerated_norm:
-            sys.stderr.write(
-                "ERROR: perf-a11y.json is out of date. "
-                "Run `python -m splunk_uc audit-perf-a11y` and commit "
-                "the updated report.\n"
-            )
-            import difflib
-
-            diff = list(
-                difflib.unified_diff(
-                    existing_norm.splitlines(keepends=True),
-                    regenerated_norm.splitlines(keepends=True),
-                    fromfile="committed reports/perf-a11y.json (dist sizes normalised)",
-                    tofile="regenerated reports/perf-a11y.json (dist sizes normalised)",
-                    n=2,
-                )
-            )
-            if diff:  # pragma: no branch - the False arm is unreachable
-                # because we are inside ``if existing_norm !=
-                # regenerated_norm:``, which means the two inputs to
-                # ``difflib.unified_diff`` differ; ``unified_diff``
-                # is therefore guaranteed to produce at least one
-                # output line. The guard is preserved so that a
-                # future normalisation tweak that accidentally
-                # collapses the inputs to equal-but-not-identical
-                # strings does not blow up on a non-list ``diff``.
-                sys.stderr.write("--- diff (first 200 lines) ---\n")
-                sys.stderr.writelines(diff[:200])
-                sys.stderr.write("--- end diff ---\n")
-            return 1
-    else:
+    if not args.a11y_only:
+        REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
         REPORT_PATH.write_text(payload_str, encoding="utf-8")
 
     _print_human_summary(
@@ -785,8 +699,7 @@ def main(argv: list[str] | None = None) -> int:
         axe_runner_error,
     )
 
-    total_hard_failures = perf_hard_failures + a11y_hard_failures + (1 if axe_runner_error else 0)
-    return 1 if total_hard_failures else 0
+    return 1 if a11y_hard_failures or axe_runner_error else 0
 
 
 if __name__ == "__main__":

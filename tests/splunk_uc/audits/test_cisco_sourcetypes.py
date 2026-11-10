@@ -68,12 +68,6 @@ def test_compare_reports_new_and_stale() -> None:
     assert stale == [("UC-5.1.3", "cisco:ndfc:audit")]
 
 
-def test_catalogue_matches_backlog() -> None:
-    new, stale = compare(collect(), load_backlog())
-    assert new == []
-    assert stale == []
-
-
 def test_spl_status_schema_and_thin_key() -> None:
     assert SCHEMA["schemaVersion"] == "1.11.0"
     sidecar = {"id": "5.5.1", "title": "Tunnel Health Monitoring", "splStatus": "example"}

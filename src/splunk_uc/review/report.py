@@ -235,7 +235,7 @@ def build(
         "schema_version": "1.0",
         "weights": {"severity": SEVERITY_WEIGHT, "criticality": CRITICALITY_WEIGHT},
         "lanes": {
-            "scripted": "families fixed by review-fix-scripted, one PR per family (plan Phase 6a)",
+            "scripted": "families fixed mechanically, one PR per family (plan Phase 6a)",
             "lift": "prose fixed through lift-prompt --findings + lift-validate --require-handcraft (6b)",
             "human": "firewalled fields (spl, cimSpl, compliance, classification, title) for human PRs (6c)",
         },

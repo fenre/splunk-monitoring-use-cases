@@ -50,6 +50,7 @@ import fnmatch
 import json
 import re
 import sys
+from collections.abc import Iterator
 from dataclasses import asdict, dataclass
 from difflib import get_close_matches
 from pathlib import Path
@@ -530,15 +531,33 @@ def check_one_spl_field(
 # ---------------------------------------------------------------------------
 
 
+def _iter_selected(files: list[str] | None) -> Iterator[tuple[Path, dict[str, Any]]]:
+    if files is None:
+        yield from iter_uc_sidecars()
+        return
+    for name in sorted(set(files)):
+        path = Path(name)
+        if not path.is_absolute():
+            path = REPO / path
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if isinstance(payload, dict):
+            yield path, payload
+
+
 def run_audit(
     min_severity: str = "LOW",
     vocab: Vocabulary | None = None,
+    files: list[str] | None = None,
 ) -> list[Finding]:
-    """Run the audit across every UC sidecar and return all findings >= severity.
+    """Run the audit across UC sidecars and return all findings >= severity.
 
-    The ``vocab`` parameter lets callers (CLI, tests) build the
-    vocabulary once and reuse it for both the audit run and any
-    follow-up reporting (provenance, sizes), avoiding the cost of a
+    ``files`` limits the run to those sidecar paths; ``None`` walks the
+    whole catalogue. The ``vocab`` parameter lets callers (CLI, tests)
+    build the vocabulary once and reuse it for both the audit run and
+    any follow-up reporting (provenance, sizes), avoiding the cost of a
     second build on warm caches.
     """
     if vocab is None:
@@ -546,9 +565,9 @@ def run_audit(
     escu_macros = load_escu_macros()
     threshold = _SEV_RANK[min_severity]
     out: list[Finding] = []
-    for path, payload in iter_uc_sidecars():
+    for path, payload in _iter_selected(files):
         uc_id = str(payload.get("id", "<unknown>"))
-        rel = path.relative_to(REPO)
+        rel = path.resolve().relative_to(REPO)
         declared_st = declared_sourcetypes_for(payload)
         declared_ix = declared_indexes_for(payload)
         extra = escu_macros if requires_escu(payload) else None
@@ -612,12 +631,18 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Print only the summary (suppress per-finding detail).",
     )
+    p.add_argument(
+        "--files",
+        nargs="*",
+        default=None,
+        help="Audit only these UC sidecar paths (default: every sidecar).",
+    )
     args = p.parse_args(argv)
 
     # Build the vocabulary once and pass it through so we don't pay the
     # CIM-paths build twice (once in run_audit, once for provenance).
     vocab = build_vocabulary()
-    findings = run_audit(min_severity=args.severity, vocab=vocab)
+    findings = run_audit(min_severity=args.severity, vocab=vocab, files=args.files)
     summary = _summarise(findings)
 
     if args.json:

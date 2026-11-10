@@ -561,94 +561,6 @@ class TestCanonicalSerialise:
 
 
 # ---------------------------------------------------------------------------
-# _normalise_dist_size_fields
-# ---------------------------------------------------------------------------
-
-
-class TestNormaliseDistSizeFields:
-    def test_zeros_dist_actual_and_headroom(self) -> None:
-        payload = {
-            "perf": {
-                "budgets": [
-                    {
-                        "file": "dist/catalog.json",
-                        "actual_bytes": 12345,
-                        "headroom_bytes": -100,
-                        "budget_bytes": 1000,
-                        "status": "over-budget",
-                    },
-                ]
-            }
-        }
-        out = pa._normalise_dist_size_fields(json.dumps(payload))
-        parsed = json.loads(out)
-        assert parsed["perf"]["budgets"][0]["actual_bytes"] == 0
-        assert parsed["perf"]["budgets"][0]["headroom_bytes"] == 0
-        # Budget threshold and status stay intact
-        assert parsed["perf"]["budgets"][0]["budget_bytes"] == 1000
-        assert parsed["perf"]["budgets"][0]["status"] == "over-budget"
-
-    def test_preserves_project_root_files(self) -> None:
-        payload = {
-            "perf": {
-                "budgets": [
-                    {
-                        "file": "index.html",
-                        "actual_bytes": 99999,
-                        "headroom_bytes": 100,
-                        "budget_bytes": 100000,
-                        "status": "ok",
-                    },
-                ]
-            }
-        }
-        out = pa._normalise_dist_size_fields(json.dumps(payload))
-        parsed = json.loads(out)
-        assert parsed["perf"]["budgets"][0]["actual_bytes"] == 99999
-
-    def test_malformed_json_returned_as_is(self) -> None:
-        assert pa._normalise_dist_size_fields("not json") == "not json"
-
-    def test_missing_perf_block_returned_as_is(self) -> None:
-        s = json.dumps({"foo": "bar"})
-        assert pa._normalise_dist_size_fields(s) == s
-
-    def test_missing_budgets_list_returned_as_is(self) -> None:
-        s = json.dumps({"perf": {}})
-        assert pa._normalise_dist_size_fields(s) == s
-
-    def test_non_list_budgets_returned_as_is(self) -> None:
-        s = json.dumps({"perf": {"budgets": "oops"}})
-        assert pa._normalise_dist_size_fields(s) == s
-
-    def test_non_dict_budget_entry_skipped(self) -> None:
-        payload = {
-            "perf": {
-                "budgets": [
-                    "not a dict",
-                    {"file": "dist/foo.txt", "actual_bytes": 100, "headroom_bytes": 5},
-                ]
-            }
-        }
-        out = pa._normalise_dist_size_fields(json.dumps(payload))
-        parsed = json.loads(out)
-        assert parsed["perf"]["budgets"][0] == "not a dict"
-        assert parsed["perf"]["budgets"][1]["actual_bytes"] == 0
-
-    def test_dist_entry_without_actual_or_headroom_handled(self) -> None:
-        payload = {
-            "perf": {
-                "budgets": [{"file": "dist/foo.txt", "budget_bytes": 100, "status": "missing"}]
-            }
-        }
-        out = pa._normalise_dist_size_fields(json.dumps(payload))
-        parsed = json.loads(out)
-        # No actual_bytes or headroom_bytes present; should remain absent.
-        assert "actual_bytes" not in parsed["perf"]["budgets"][0]
-        assert "headroom_bytes" not in parsed["perf"]["budgets"][0]
-
-
-# ---------------------------------------------------------------------------
 # _render_report
 # ---------------------------------------------------------------------------
 
@@ -769,7 +681,7 @@ class TestPrintHumanSummary:
         assert "ok.html" in out
         assert "headroom" in out.lower()
 
-    def test_red_when_perf_fails(self, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_over_budget_stays_green(self, capsys: pytest.CaptureFixture[str]) -> None:
         records = [
             {
                 "actual_bytes": 500,
@@ -783,7 +695,7 @@ class TestPrintHumanSummary:
         ]
         pa._print_human_summary(records, 1, _gen_a11y_block(), 0, 0, None)
         out = capsys.readouterr().out
-        assert "RED" in out
+        assert "GREEN" in out
         assert "OVER" in out
 
     def test_red_when_a11y_fails(self, capsys: pytest.CaptureFixture[str]) -> None:
@@ -950,7 +862,7 @@ class TestMainCli:
         err = capsys.readouterr().err
         assert "ERROR" in err
 
-    def test_perf_hard_failure_returns_one(
+    def test_over_budget_is_report_only(
         self,
         isolated: Path,
         monkeypatch: pytest.MonkeyPatch,
@@ -966,80 +878,53 @@ class TestMainCli:
         monkeypatch.setattr(pa, "_A11Y_PAGES", [])
         monkeypatch.setattr(pa, "_run_axe", _fake_axe_ok)
         rc = pa.main([])
-        assert rc == 1
-        out = capsys.readouterr().out
-        assert "RED" in out
-
-    def test_check_missing_report_returns_one(
-        self,
-        isolated: Path,
-        monkeypatch: pytest.MonkeyPatch,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        monkeypatch.setattr(pa, "_PERF_BUDGETS", [])
-        monkeypatch.setattr(pa, "_A11Y_PAGES", [])
-        monkeypatch.setattr(pa, "_run_axe", _fake_axe_ok)
-        rc = pa.main(["--check"])
-        assert rc == 1
-        err = capsys.readouterr().err
-        assert "does not exist" in err
-
-    def test_check_matching_report_returns_zero(
-        self,
-        isolated: Path,
-        monkeypatch: pytest.MonkeyPatch,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        monkeypatch.setattr(pa, "_PERF_BUDGETS", [])
-        monkeypatch.setattr(pa, "_A11Y_PAGES", [])
-        monkeypatch.setattr(pa, "_run_axe", _fake_axe_ok)
-        # First run: write the report.
-        pa.main([])
-        capsys.readouterr()
-        # Second run: --check should match.
-        rc = pa.main(["--check"])
         assert rc == 0
+        out = capsys.readouterr().out
+        assert "OVER" in out
+        assert "GREEN" in out
+        assert '"over-budget"' in pa.REPORT_PATH.read_text(encoding="utf-8")
 
-    def test_check_drift_returns_one(
+    def test_a11y_only_skips_budgets_and_report(
         self,
         isolated: Path,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        monkeypatch.setattr(pa, "_PERF_BUDGETS", [])
-        monkeypatch.setattr(pa, "_A11Y_PAGES", [])
-        monkeypatch.setattr(pa, "_run_axe", _fake_axe_ok)
-        # Plant a stale report.
-        pa.REPORT_PATH.write_text("{}", encoding="utf-8")
-        rc = pa.main(["--check"])
-        assert rc == 1
-        err = capsys.readouterr().err
-        assert "out of date" in err
-        assert "diff" in err
-
-    def test_check_normalises_dist_size_drift(
-        self,
-        isolated: Path,
-        monkeypatch: pytest.MonkeyPatch,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        # Create a dist/ file with size 100; budget keeps it ok.
-        (isolated / "dist").mkdir()
-        (isolated / "dist" / "x.txt").write_bytes(b"x" * 100)
         monkeypatch.setattr(
             pa,
             "_PERF_BUDGETS",
-            [{"file": "dist/x.txt", "budget_bytes": 1000, "tier": "generated-data", "note": ""}],
+            [{"file": "absent.html", "budget_bytes": 100, "tier": "critical-path", "note": ""}],
         )
         monkeypatch.setattr(pa, "_A11Y_PAGES", [])
         monkeypatch.setattr(pa, "_run_axe", _fake_axe_ok)
-        # First run: write the report.
-        pa.main([])
-        capsys.readouterr()
-        # Now grow the file — actual_bytes changes but normalisation should mask it.
-        (isolated / "dist" / "x.txt").write_bytes(b"x" * 200)
-        rc = pa.main(["--check"])
+        rc = pa.main(["--a11y-only"])
         assert rc == 0
+        assert not pa.REPORT_PATH.exists()
+        assert "absent.html" not in capsys.readouterr().out
+
+    def test_a11y_only_fails_on_serious_violation(
+        self,
+        isolated: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        def axe_serious(_pages: list[str]) -> dict[str, Any]:
+            payload = _fake_axe_ok(_pages)
+            payload["results"] = [
+                {
+                    "file": "index.html",
+                    "status": "ok",
+                    "summary": {"passes": 1, "violations": 1, "incomplete": 0, "inapplicable": 0},
+                    "violations": [
+                        {"id": "color-contrast", "impact": "serious", "nodeCount": 1, "help": "x"}
+                    ],
+                    "incomplete": [],
+                }
+            ]
+            return payload
+
+        monkeypatch.setattr(pa, "_A11Y_PAGES", ["index.html"])
+        monkeypatch.setattr(pa, "_run_axe", axe_serious)
+        assert pa.main(["--a11y-only"]) == 1
 
     def test_help_does_not_crash(self, capsys: pytest.CaptureFixture[str]) -> None:
         with pytest.raises(SystemExit) as exc:
@@ -1047,7 +932,7 @@ class TestMainCli:
         assert exc.value.code == 0
         out = capsys.readouterr().out
         assert "Phase 4.5f" in out
-        assert "--check" in out
+        assert "--a11y-only" in out
 
 
 class TestScriptEntryPoint:

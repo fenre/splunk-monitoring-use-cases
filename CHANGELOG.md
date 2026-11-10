@@ -14,6 +14,23 @@ the release notes block in `index.html` by hand.
 
 ### Changed
 
+- **Pull-request CI runs fewer, faster checks.** The unit tests moved
+  out of `audits-content` into a `unit-tests` job that runs in
+  parallel. Every unit test runs on fixtures, so the job builds no
+  catalogue and generates no rollups. The few tests that read the built
+  catalogue run in `audits-build`. `audit-spl-references --files` and
+  `audit-text-quality --max-blocker 0` check only the use cases a pull
+  request changes; pushes to `main` and changes to the vocabulary run
+  the full SPL reference check. `audit-equipment-models --check` now
+  runs on every pull request. Roadmap consistency runs in
+  `audits-build`. The accessibility half of `audit-perf-a11y` stays on
+  pull requests as `--a11y-only`.
+- **Content-quality counts are nightly reports.** Text-quality majors,
+  template provenance, content quality, SPL anti-patterns, byte budgets
+  and file-size budgets go to the job summary of
+  `build-reproducibility.yml`. They never fail a run. `audit-perf-a11y`
+  no longer fails on a size budget.
+
 - **Identifier fingerprints are recorded at release.** Git keeps `id`,
   `status`, `firstSeenVersion`, and the fingerprint revisions already
   recorded. A pull request that edits a title or SPL no longer updates
@@ -99,6 +116,28 @@ the release notes block in `index.html` by hand.
   fails when a `spl` stops being the verbatim ESCU search or a rule stops
   matching, so entries must be removed; a test caps the file at 59 use
   cases and 65 matches. The cap is unchanged; the count is back to 2,042.
+
+### Removed
+
+- Warn-only CI steps: product fit, Splunkbase ids, cost, exclusions,
+  CODEOWNERS.
+- One-off verbs and their tests: `audit-no-use-cases-dir`,
+  `audit-baseline-clause-grammar-free`, the `feasibility` package, the
+  three `generate-phase3-*` backfills, `migrate-compliance-phase4`,
+  the gap-analysis migration, and the scripted review fixer.
+- Checks on outputs nobody publishes: observability drift, retrieval
+  eval and RAG generation in CI, `audit-dashboards`, alert actions
+  `--check`, the SARIF smoke. The generators stay.
+- Duplicates: `audit-meraki-spl`, `audit-gold-profile` (v1),
+  `tools/audits/splunkbase_ids.py`, the second recommender regeneration
+  step, the repeated Cisco coverage and prerequisite runs, the Node
+  drift guards, and `sync-catalogue-rollups` (the rollups are not
+  committed).
+- Doc and process lints: design-doc freshness, regulatory primer,
+  CHANGELOG UC refs, repo consistency, doc counts, guide xrefs, the
+  peer, legal and SME signoff audits, auto-generated docs provenance,
+  the doc-reference library check, the review ledger schema check,
+  asset drift, schema metadata and the schema-cycle gate.
 
 ## [8.28.0] - 2026-11-04
 

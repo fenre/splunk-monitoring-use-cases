@@ -17,6 +17,14 @@ REPO = Path(__file__).resolve().parents[3]
 CISCO_PATH = REPO / "data" / "vendor-changelog" / "cisco.json"
 
 
+@pytest.fixture()
+def small_corpus(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Twenty network sidecars instead of the whole catalogue."""
+    paths = sorted((REPO / "content").glob("cat-05-*/UC-5.1.*.json"))[:20]
+    corpus = [(path, json.loads(path.read_text(encoding="utf-8"))) for path in paths]
+    monkeypatch.setattr(vc, "iter_uc_sidecars", lambda: iter(corpus))
+
+
 def test_cisco_json_loads_and_validates() -> None:
     changelog = vc.load_vendor_changelog(CISCO_PATH)
     assert changelog.vendor == "cisco"
@@ -136,6 +144,7 @@ def test_evaluate_uc_impact_flags_renamed_field() -> None:
     assert any("dst_port" in reason for reason in matched[0].reasons)
 
 
+@pytest.mark.usefixtures("small_corpus")
 def test_check_exit_code_fresh(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     vendor_dir = tmp_path / "vendor-changelog"
     vendor_dir.mkdir()
@@ -146,6 +155,7 @@ def test_check_exit_code_fresh(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     assert vc.main(["--check", "--max-age-days", "180", "--out", str(tmp_path / "out")]) == 0
 
 
+@pytest.mark.usefixtures("small_corpus")
 def test_check_exit_code_stale(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     vendor_dir = tmp_path / "vendor-changelog"
     vendor_dir.mkdir()
@@ -156,6 +166,7 @@ def test_check_exit_code_stale(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     assert vc.main(["--check", "--max-age-days", "180", "--out", str(tmp_path / "out")]) == 1
 
 
+@pytest.mark.usefixtures("small_corpus")
 def test_vendor_filter(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     vendor_dir = tmp_path / "vendor-changelog"
     vendor_dir.mkdir()
@@ -164,6 +175,7 @@ def test_vendor_filter(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert vc.main(["--vendor", "cisco", "--out", str(tmp_path / "out")]) == 0
 
 
+@pytest.mark.usefixtures("small_corpus")
 def test_max_age_days_override(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     vendor_dir = tmp_path / "vendor-changelog"
     vendor_dir.mkdir()
@@ -175,6 +187,7 @@ def test_max_age_days_override(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     assert vc.main(["--check", "--max-age-days", "30", "--out", str(tmp_path / "out")]) == 1
 
 
+@pytest.mark.usefixtures("small_corpus")
 def test_output_json_is_deterministic(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     vendor_dir = tmp_path / "vendor-changelog"
     vendor_dir.mkdir()

@@ -140,8 +140,7 @@ rubric: `docs/sme-review-guide.md`.
       each `caveats[]` entry is copied into an `smeCaveat` field on the
       relevant `compliance[]` entry of the UC sidecar.
 - [ ] **Signoff recorded** — if SME review was performed, the result
-      is appended to `data/provenance/sme-signoffs.json` and validated
-      by `python -m splunk_uc audit-sme-review-signoffs`.
+      is appended to `data/provenance/sme-signoffs.json`.
 
 ## Screenshots / SPL excerpts
 

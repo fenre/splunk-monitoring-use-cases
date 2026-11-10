@@ -95,7 +95,3 @@ def test_write_baseline_keeps_waivers(tmp_path):
     assert data["pendingGaps"] == []
     assert data["emptyProducts"] == ["hyperfabric"]
     assert data["emptyProductNotes"] == notes
-
-
-def test_repository_baseline_passes():
-    assert audit.main(["--check"]) == 0

@@ -25,10 +25,28 @@ from __future__ import annotations
 import io
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 import splunk_uc.generators.recommender_app as M
+
+
+def _small_corpus() -> list[dict[str, Any]]:
+    """Nine real sidecars, six of them with tier-1 compliance mappings."""
+    paths = sorted(M.CONTENT_DIR.glob("cat-22-*/UC-22.1.*.json"))[:6]
+    paths += sorted(M.CONTENT_DIR.glob("cat-10-*/UC-10.1.*.json"))[:3]
+    items = []
+    for path in paths:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        data["_sourcePath"] = str(path.relative_to(M.REPO_ROOT))
+        items.append(data)
+    return items
+
+
+@pytest.fixture()
+def small_corpus(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(M, "_gsa_load_ucs", _small_corpus)
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -142,16 +160,11 @@ class TestGsaSafeStanza:
 
 
 @pytest.mark.slow
+@pytest.mark.usefixtures("small_corpus")
 class TestMainRender:
-    """Drive ``main`` end-to-end against the real repo content but
-    write into a temp directory.
-
-    The recommender_app generator is intentionally read-only with
-    respect to the source tree (the only output is the app payload),
-    so running it for real is the safest way to lift coverage on the
-    builder pipeline. If this test starts failing due to a content
-    change, the assertion targets are the canonical AppInspect file
-    set — anything else flexes downstream.
+    """Drive ``main`` end-to-end on a nine-sidecar corpus, writing into a
+    temp directory. The assertion targets are the canonical AppInspect
+    file set.
     """
 
     def test_main_writes_appinspect_shaped_app(
@@ -744,6 +757,7 @@ class TestMainCheckDriftTruncation:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.usefixtures("small_corpus")
 class TestBuildPrimaryAppLegacyAndLicense:
     def test_removes_pre_existing_legacy_studio_artefacts(
         self,

@@ -5,6 +5,7 @@ from __future__ import annotations
 import builtins
 import json
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -12,6 +13,26 @@ import pytest
 from splunk_uc.audits import starter_packs as audit
 from splunk_uc.generators import api_surface
 from splunk_uc.generators import starter_packs as gen
+
+
+@pytest.fixture(scope="module", autouse=True)
+def pack_corpus() -> Iterator[None]:
+    """Index only the sidecars the starter packs reference."""
+    from splunk_uc.generators.equipment_tags import with_resolved_tags
+
+    wanted = {
+        step["ucId"]
+        for _path, pack in audit.load_packs().values()
+        for step in pack.get("steps") or []
+        if step.get("ucId")
+    }
+    index = {}
+    for uc_id in sorted(wanted):
+        for path in audit.CONTENT_DIR.glob(f"cat-*/{uc_id}.json"):
+            index[uc_id] = (path, with_resolved_tags(json.loads(path.read_text(encoding="utf-8"))))
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(audit, "load_uc_index", lambda *_a, **_k: index)
+        yield
 
 
 def test_render_is_deterministic(tmp_path: Path) -> None:
